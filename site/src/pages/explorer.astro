@@ -1,0 +1,30 @@
+---
+import Base from "../layouts/Base.astro";
+import Explorer from "../components/explorer/Explorer";
+---
+
+<Base title="Explorer · Orçamento BR" description="Navegue pelo orçamento federal por órgão, função ou natureza da despesa.">
+  <div class="wrap pagina">
+    <header>
+      <h1>Explorer do orçamento</h1>
+      <p class="muted">
+        Cada bloco é proporcional ao valor. Clique para descer um nível: órgão → unidade orçamentária →
+        programa → ação. A cor mostra quanto da dotação atualizada já foi realizado.
+      </p>
+    </header>
+    <Explorer client:only="solid-js" />
+    <p class="small muted nota">
+      Valores em reais correntes, sem correção pela inflação. Por padrão, os totais incluem o refinanciamento
+      da dívida pública (subfunções 841 e 842, dentro do Ministério da Fazenda): é a troca de títulos que vencem
+      por títulos novos, e sozinha soma cerca de um quarto do orçamento. Marque “Excluir refinanciamento da
+      dívida” para ver o resto com mais clareza.
+    </p>
+  </div>
+</Base>
+
+<style>
+  .pagina { padding-top: 28px; }
+  h1 { font-size: 1.75rem; letter-spacing: -0.02em; margin: 0 0 6px; }
+  header p { margin: 0 0 24px; max-width: 70ch; }
+  .nota { margin-top: 24px; max-width: 80ch; }
+</style>

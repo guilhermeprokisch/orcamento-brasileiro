@@ -1,0 +1,76 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+const { title, description = "O orçamento federal brasileiro, explicado e explorável." } = Astro.props;
+const path = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <header class="topo">
+      <div class="wrap topo-inner">
+        <a class="marca" href="/">
+          <span class="marca-ico" aria-hidden="true"></span>
+          Orçamento BR
+        </a>
+        <nav aria-label="Principal">
+          <a href="/" aria-current={path === "/" ? "page" : undefined}>Início</a>
+          <a href="/explorer" aria-current={path.startsWith("/explorer") ? "page" : undefined}>Explorer</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="rodape">
+      <div class="wrap small muted">
+        Dados: <a href="https://portaldatransparencia.gov.br/download-de-dados/orcamento-despesa">Portal da
+        Transparência (CGU) — Orçamento da Despesa</a>. Projeto independente, sem vínculo com o Governo Federal.
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  .topo {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .topo-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; height: 56px;
+  }
+  .marca {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: -0.01em;
+  }
+  .marca-ico {
+    width: 22px; height: 22px; border-radius: 5px;
+    background:
+      linear-gradient(var(--exec-5), var(--exec-5)) 0 0 / 60% 100% no-repeat,
+      linear-gradient(var(--exec-3), var(--exec-3)) 100% 0 / 36% 58% no-repeat,
+      linear-gradient(var(--exec-1), var(--exec-1)) 100% 100% / 36% 36% no-repeat;
+  }
+  nav { display: flex; gap: 4px; }
+  nav a {
+    color: var(--text-2); text-decoration: none; padding: 6px 10px; border-radius: var(--radius);
+  }
+  nav a:hover { background: var(--surface-2); color: var(--text); }
+  nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
+  main { min-height: calc(100vh - 56px - 72px); }
+  .rodape { border-top: 1px solid var(--border); padding: 24px 0; margin-top: 48px; }
+</style>

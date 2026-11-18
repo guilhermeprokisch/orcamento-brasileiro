@@ -1,0 +1,103 @@
+:root {
+  color-scheme: light;
+  --bg: #fcfcfb;
+  --surface: #ffffff;
+  --surface-2: #f3f2ef;
+  --border: #e3e1dc;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --text-3: #75736e;
+  --accent: #1c5cab;
+  --accent-ink: #ffffff;
+  --focus: #2a78d6;
+  --neutral-cell: #d9d7d1;
+
+  /* % realizado da dotação: rampa ordinal azul, do menor para o maior */
+  --exec-1: #86b6ef;
+  --exec-2: #5598e7;
+  --exec-3: #2a78d6;
+  --exec-4: #1c5cab;
+  --exec-5: #104281;
+  --exec-ink-1: #0b0b0b;
+  --exec-ink-2: #0b0b0b;
+  --exec-ink-3: #ffffff;
+  --exec-ink-4: #ffffff;
+  --exec-ink-5: #ffffff;
+
+  --radius: 6px;
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #141413;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --border: #34332f;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --text-3: #9a988f;
+    --accent: #6da7ec;
+    --accent-ink: #0b0b0b;
+    --neutral-cell: #3d3c38;
+    --exec-1: #184f95;
+    --exec-2: #256abf;
+    --exec-3: #3987e5;
+    --exec-4: #6da7ec;
+    --exec-5: #9ec5f4;
+    --exec-ink-1: #ffffff;
+    --exec-ink-2: #ffffff;
+    --exec-ink-3: #0b0b0b;
+    --exec-ink-4: #0b0b0b;
+    --exec-ink-5: #0b0b0b;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #141413;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --border: #34332f;
+  --text: #f0efec;
+  --text-2: #c3c2b7;
+  --text-3: #9a988f;
+  --accent: #6da7ec;
+  --accent-ink: #0b0b0b;
+  --neutral-cell: #3d3c38;
+  --exec-1: #184f95;
+  --exec-2: #256abf;
+  --exec-3: #3987e5;
+  --exec-4: #6da7ec;
+  --exec-5: #9ec5f4;
+  --exec-ink-1: #ffffff;
+  --exec-ink-2: #ffffff;
+  --exec-ink-3: #0b0b0b;
+  --exec-ink-4: #0b0b0b;
+  --exec-ink-5: #0b0b0b;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+}
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--text-2); }
+.small { font-size: 0.875rem; }
+
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
