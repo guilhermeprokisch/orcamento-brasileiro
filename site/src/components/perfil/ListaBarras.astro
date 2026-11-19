@@ -1,5 +1,6 @@
 ---
-import { moedaExtenso } from "../../lib/formato";
+import { moedaCurta } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
 import type { Item } from "../../lib/dados";
 
 interface Props {
@@ -9,49 +10,35 @@ interface Props {
   link: (item: Item) => string;
   limite?: number;
 }
-const { titulo, itens, total, link, limite = 8 } = Astro.props;
+const { titulo, itens, total, link, limite = 5 } = Astro.props;
 const mostrados = itens.slice(0, limite);
 const resto = itens.slice(limite);
 const valorResto = resto.reduce((s, i) => s + i.valores.atualizado, 0);
-const max = Math.max(1, ...mostrados.map((i) => i.valores.atualizado), valorResto);
-const pct = (v: number) => `${((v / Math.max(1, total)) * 100).toFixed(1).replace(".", ",")}%`;
+const max = Math.max(1, ...mostrados.map((i) => i.valores.atualizado));
+const pct = (v: number) => `${Math.round((v / Math.max(1, total)) * 100)}%`;
 ---
 
 <section class="lb">
   <h3>{titulo}</h3>
-  <ol>
-    {mostrados.map((i) => (
-      <li>
-        <div class="lb-linha">
-          <a href={link(i)}>{i.nome}</a>
-          <span class="lb-valor num">{moedaExtenso(i.valores.atualizado)} <span class="lb-pct">{pct(i.valores.atualizado)}</span></span>
-        </div>
-        <div class="lb-trilho" aria-hidden="true"><div class="lb-barra" style={`width:${(i.valores.atualizado / max) * 100}%`}></div></div>
-      </li>
-    ))}
-    {resto.length > 0 && (
-      <li class="lb-resto">
-        <div class="lb-linha">
-          <span>Outros {resto.length} itens</span>
-          <span class="lb-valor num">{moedaExtenso(valorResto)} <span class="lb-pct">{pct(valorResto)}</span></span>
-        </div>
-        <div class="lb-trilho" aria-hidden="true"><div class="lb-barra" style={`width:${(valorResto / max) * 100}%`}></div></div>
-      </li>
-    )}
-  </ol>
+  {mostrados.map((i, k) => (
+    <a href={link(i)}>
+      <span class="lb-linha"><span>{i.nome}</span><strong class="num">{moedaCurta(i.valores.atualizado)}</strong></span>
+      <span class="lb-barra" style={`width:${(i.valores.atualizado / max) * 100}%;background:${corDaRampa(Math.min(1, k / 4))}`}></span>
+    </a>
+  ))}
+  {resto.length > 0 && <span class="lb-resto">+ {resto.length} itens ({moedaCurta(valorResto)}, {pct(valorResto)})</span>}
 </section>
 
 <style>
-  .lb { border: 1px solid var(--border); background: var(--surface); padding: 20px 24px; }
-  .lb h3 { margin: 0 0 14px; font-size: 1.125rem; font-weight: 600; }
-  .lb ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-  .lb-linha { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 0.9375rem; }
-  .lb-linha a { text-decoration: none; min-width: 0; }
-  .lb-linha a:hover { text-decoration: underline; }
-  .lb-valor { white-space: nowrap; color: var(--text); font-weight: 600; }
-  .lb-pct { color: var(--text-2); font-weight: 400; margin-left: 4px; }
-  .lb-trilho { height: 8px; background: var(--surface-2); border-radius: 0 4px 4px 0; margin-top: 4px; }
-  .lb-barra { height: 100%; background: var(--ev-barra); border-radius: 0 4px 4px 0; min-width: 2px; }
-  .lb-resto .lb-barra { background: var(--border-forte); }
-  .lb-resto .lb-linha span:first-child { color: var(--text-2); }
+  .lb { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .lb h3 {
+    font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--texto-3); border-bottom: 1px solid var(--tinta); padding-bottom: 6px;
+  }
+  .lb a { display: flex; flex-direction: column; gap: 4px; color: var(--tinta); text-decoration: none; }
+  .lb a:hover .lb-linha span { text-decoration: underline; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+  .lb-linha strong { white-space: nowrap; }
+  .lb-barra { display: block; height: 8px; min-width: 2px; }
+  .lb-resto { font-size: 13px; color: var(--texto-3); }
 </style>

@@ -1,0 +1,23 @@
+.ba { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.ba-carregando { display: grid; place-items: center; color: var(--texto-3); font-size: 13px; border-bottom: 1px solid var(--tinta); }
+.ba-barras { display: grid; align-items: end; gap: 6px; border-bottom: 1px solid var(--tinta); }
+.ba-barra {
+  display: block; width: 100%; min-height: 1px; padding: 0; margin: 0; border: 0;
+  background: var(--areia); cursor: pointer; transition: background-color 120ms ease;
+}
+.ba-barra:disabled { cursor: default; }
+.ba-barra.sel { background: var(--verde); }
+.ba-barra.parcial { background: repeating-linear-gradient(135deg, var(--areia) 0 3px, transparent 3px 6px); }
+.ba-barra.foco { background: var(--tinta); }
+.ba-barra:focus-visible { outline-offset: 1px; }
+.ba-rotulos { display: grid; gap: 6px; font-size: 12px; color: var(--texto-3); text-align: center; white-space: nowrap; }
+.ba-rotulos span:first-child { text-align: left; }
+.ba-rotulos span:last-child { text-align: right; }
+.ba-rotulos .sel { color: var(--verde); font-weight: 700; }
+.ba-tip {
+  position: absolute; top: 0; transform: translate(-50%, -100%); margin-top: -8px; z-index: 5; pointer-events: none;
+  background: var(--papel); border: 2px solid var(--tinta); box-shadow: 4px 4px 0 var(--tinta);
+  padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; white-space: nowrap;
+}
+.ba-tip strong { font-family: var(--serifa); font-size: 16px; }
+.ba-dica { color: var(--texto-3); font-size: 12px; }

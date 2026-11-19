@@ -3,7 +3,7 @@
  * e o valor mais recentes. Formato compacto: [tipo, código, nome, ano, dotação].
  */
 import type { APIRoute } from "astro";
-import { anoCorrente, docs } from "../lib/perfis";
+import { anoBase, anoCorrente, docs } from "../lib/perfis";
 import type { Dim } from "../lib/dados";
 
 const DIMS: Dim[] = ["orgao", "funcao", "subfuncao", "uo", "programa", "acao"];
@@ -26,7 +26,7 @@ export const GET: APIRoute = () => {
       }
     }
   }
-  return new Response(JSON.stringify({ v: 1, itens: [...itens.values()] }), {
+  return new Response(JSON.stringify({ v: 1, anoBase, itens: [...itens.values()] }), {
     headers: { "Content-Type": "application/json; charset=utf-8" },
   });
 };

@@ -3,7 +3,7 @@ import Base from "../../layouts/Base.astro";
 import ListaBarras from "../../components/perfil/ListaBarras.astro";
 import EvolucaoPerfil from "../../components/perfil/EvolucaoPerfil";
 import { agrupar, taxaRealizacao, type Filtro } from "../../lib/dados";
-import { moedaCompleta, moedaExtenso, pct } from "../../lib/formato";
+import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import {
   anoBase, anoCorrente, docBase, linkExplorer, maiores, orgaosComPerfil, resumo, serieHistorica,
 } from "../../lib/perfis";
@@ -20,133 +20,135 @@ const totalFederal = docBase ? agrupar(docBase, [], null).total : null;
 const v = docBase ? agrupar(docBase, filtro, null).total : null;
 const existeNoBase = !!v && (v.atualizado !== 0 || v.realizado !== 0);
 const parcela = v && totalFederal ? v.atualizado / totalFederal.atualizado : null;
-const taxa = v ? taxaRealizacao(v) : null;
+const taxaPago = v ? taxaRealizacao(v) : null;
 const taxaEmpenho = v && v.atualizado > 0 ? v.empenhado / v.atualizado : null;
 
 const serie = serieHistorica(filtro);
 const nominal = serie.map((p) => ({ ano: p.ano, valores: p.nominal }));
 const real = serie.map((p) => ({ ano: p.ano, valores: p.real }));
-const anosComValor = serie.filter((p) => p.nominal.atualizado > 0).map((p) => p.ano);
 
 const uos = maiores(filtro, "uo");
 const programas = maiores(filtro, "programa");
 const gnds = maiores(filtro, "gnd");
-const funcoes = maiores(filtro, "funcao");
 const total = v?.atualizado ?? 0;
 
 const explorerOrgao = linkExplorer(filtro);
 const explorerSemAno = explorerOrgao.replace(/ano=\d+&?/, "");
 const descricao = existeNoBase
-  ? `Orçamento do ${nome} em ${anoBase}: ${moedaExtenso(v!.atualizado)} autorizados, ${moedaExtenso(v!.realizado)} realizados.`
+  ? `Orçamento do ${nome} em ${anoBase}: ${moedaExtenso(v!.atualizado)} autorizados, ${moedaExtenso(v!.realizado)} pagos.`
   : `Orçamento do ${nome}.`;
 ---
 
 <Base title={`${nome} · Orçamento Brasileiro`} description={descricao}>
-  <div class="faixa-titulo"><h1>Perfil do órgão</h1></div>
+  <div class="wrap">
+    <nav aria-label="Caminho" class="caminho"><a href="/orgaos">Órgãos</a><span aria-hidden="true">/</span><span>{nome}</span></nav>
 
-  <div class="wrap perfil">
-    <nav class="migalha small" aria-label="Caminho">
-      <a href="/orgaos">Órgãos</a> <span aria-hidden="true">›</span> <span>{nome}</span>
-    </nav>
-
-    <header class="perfil-cabeca">
+    <section class="cabeca">
       <div>
-        <h2>{nome}</h2>
-        <p class="muted">Órgão superior <code>{cod}</code> · dados de {anoBase}</p>
+        <span class="sobretitulo">Perfil do órgão · {cod}</span>
+        <h1>{nome}</h1>
+        {existeNoBase ? (
+          <p>
+            Em {anoBase}, teve <strong class="marca">{moedaExtenso(v!.atualizado)}</strong> autorizados para gastar
+            {parcela !== null && <>, {pct(parcela)} do orçamento federal</>}. Empenhou {pct(taxaEmpenho)} desse valor e pagou {pct(taxaPago)}.
+          </p>
+        ) : (
+          <p>Este órgão não tem valores em {anoBase}; ele aparece no orçamento de {anoCorrente}, ainda em execução.</p>
+        )}
       </div>
-      <a class="btn-explorar" href={explorerOrgao}>Abrir no Explorer →</a>
-    </header>
-
-    {existeNoBase ? (
-      <>
-        <p class="resumo">
-          Em {anoBase}, o {nome} teve <strong>{moedaExtenso(v!.atualizado)}</strong> autorizados para gastar
-          {parcela !== null && <>, ou <strong>{pct(parcela)}</strong> do orçamento federal</>}.
-          Empenhou {pct(taxaEmpenho)} desse valor e realizou <strong>{pct(taxa)}</strong>.
-        </p>
-
-        <section class="numeros" aria-label={`Totais de ${anoBase}`}>
-          <div><span>Dotação inicial</span><strong class="num" title={moedaCompleta(v!.inicial)}>{moedaExtenso(v!.inicial)}</strong></div>
-          <div><span>Dotação atualizada</span><strong class="num" title={moedaCompleta(v!.atualizado)}>{moedaExtenso(v!.atualizado)}</strong></div>
-          <div><span>Empenhado</span><strong class="num" title={moedaCompleta(v!.empenhado)}>{moedaExtenso(v!.empenhado)}</strong></div>
-          <div><span>Realizado</span><strong class="num" title={moedaCompleta(v!.realizado)}>{moedaExtenso(v!.realizado)}</strong></div>
-        </section>
-      </>
-    ) : (
-      <p class="resumo">
-        Este órgão não tem valores em {anoBase}; ele aparece no orçamento de {anoCorrente}, ainda em execução.
-      </p>
-    )}
-
-    <section class="bloco">
-      <h3 class="titulo-secao">Evolução de {serie[0]?.ano} a {serie.at(-1)?.ano}</h3>
-      {anosComValor.length < serie.length && (
-        <p class="muted small aviso">
-          Com este código, o órgão aparece em {anosComValor.length} de {serie.length} anos.
-        </p>
-      )}
-      <div class="cartao">
-        <EvolucaoPerfil
-          client:visible
-          nominal={nominal}
-          real={real}
-          baseIpca={resumo?.ipca?.base ?? null}
-          anoSelecionado={anoBase}
-          anoCorrente={anoCorrente}
-          explorer={explorerSemAno}
-        />
-      </div>
+      <a class="botao" href={explorerOrgao}>Abrir no Explorer →</a>
     </section>
 
     {existeNoBase && (
-      <section class="bloco">
-        <h3 class="titulo-secao">Para onde vai o dinheiro em {anoBase}</h3>
-        <p class="muted small">Dotação atualizada. Clique num item para abri-lo no Explorer.</p>
-        <div class="grade">
-          <ListaBarras titulo="Unidades orçamentárias" itens={uos} total={total}
+      <section class="numeros" aria-label={`Totais de ${anoBase}`}>
+        <div><span>Dotação inicial</span><strong class="num" title={moedaCompleta(v!.inicial)}>{moedaCurta(v!.inicial)}</strong></div>
+        <div><span>Dotação atualizada</span><strong class="num" title={moedaCompleta(v!.atualizado)}>{moedaCurta(v!.atualizado)}</strong></div>
+        <div><span>Empenhado</span><strong class="num" title={moedaCompleta(v!.empenhado)}>{moedaCurta(v!.empenhado)}</strong></div>
+        <div><span>Pago</span><strong class="num pago" title={moedaCompleta(v!.realizado)}>{moedaCurta(v!.realizado)}</strong></div>
+      </section>
+    )}
+
+    <section class="evolucao">
+      <EvolucaoPerfil
+        client:visible
+        nominal={nominal}
+        real={real}
+        baseIpca={resumo?.ipca?.base ?? null}
+        anoSelecionado={anoBase}
+        anoCorrente={anoCorrente}
+        explorer={explorerSemAno}
+      />
+    </section>
+
+    {existeNoBase && (
+      <section class="destino">
+        <h2>Para onde vai o dinheiro</h2>
+        <div class="colunas">
+          <ListaBarras titulo="Unidades" itens={uos} total={total}
             link={(i) => linkExplorer([...filtro, { dim: "uo", cod: i.codigo }])} />
           <ListaBarras titulo="Programas" itens={programas} total={total}
             link={(i) => linkExplorer([...filtro, { dim: "programa", cod: i.codigo }])} />
-          <ListaBarras titulo="Tipo de gasto (grupo de despesa)" itens={gnds} total={total}
+          <ListaBarras titulo="Tipo de gasto" itens={gnds} total={total}
             link={(i) => linkExplorer([...filtro, { dim: "gnd", cod: i.codigo }])} />
-          <ListaBarras titulo="Áreas de governo (funções)" itens={funcoes} total={total} limite={6}
-            link={(i) => linkExplorer([...filtro, { dim: "funcao", cod: i.codigo }])} />
         </div>
       </section>
     )}
+    <p class="nota">* {anoCorrente} ainda em execução. O código do órgão pode ter mudado em reorganizações do governo.</p>
   </div>
 </Base>
 
 <style>
-  .perfil { padding-top: 20px; padding-bottom: 56px; }
-  .migalha { color: var(--text-2); margin-bottom: 20px; }
-  .migalha a { text-decoration: none; }
-  .perfil-cabeca { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-  .perfil-cabeca h2 { margin: 0; font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 600; line-height: 1.15; color: var(--link); }
-  .perfil-cabeca p { margin: 6px 0 0; }
-  .perfil-cabeca code { font-size: 0.875em; }
-  .btn-explorar {
-    flex: none; background: #005ea2; color: #ffffff; text-decoration: none; font-weight: 600;
-    padding: 10px 18px; border-radius: 4px;
+  .caminho { padding: 14px 0; border-bottom: 1px solid var(--regra); font-size: 14px; display: flex; gap: 10px; }
+  .caminho span[aria-hidden] { color: var(--texto-4); }
+  .cabeca {
+    padding: 40px 0 32px; display: flex; justify-content: space-between; align-items: flex-end; gap: 32px;
   }
-  .btn-explorar:hover { background: #1a4480; }
-  .resumo { font-size: 1.25rem; line-height: 1.55; max-width: 68ch; margin: 24px 0; }
-  .numeros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-  .numeros div { border: 1px solid var(--border); background: var(--surface); padding: 16px 18px; display: grid; gap: 4px; }
-  .numeros span { font-size: 0.875rem; font-weight: 600; text-transform: uppercase; color: var(--text-2); letter-spacing: 0.02em; }
-  .numeros strong { font-size: 1.5rem; font-weight: 600; color: var(--total); }
-  .bloco { margin-top: 48px; }
-  .titulo-secao { margin: 0 0 6px; font-size: 1.5rem; font-weight: 600; }
-  .aviso { margin: 0 0 12px; }
-  .cartao { border: 1px solid var(--border); background: var(--surface); padding: 16px 24px 18px; margin-top: 12px; }
-  .grade { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 16px; }
-  :global(.perfil-ev-controles) { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; margin-bottom: 12px; }
-  :global(.perfil-ev-controles .ex-seg) { margin-left: 0; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 840px; }
+  .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .cabeca p strong { color: var(--tinta); }
+  .cabeca .botao { flex: none; height: 48px; padding: 0 22px; }
+
+  .numeros {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra);
+  }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 36px; font-weight: 700; }
+  .numeros .pago { color: var(--verde); }
+
+  .evolucao { padding: 40px 0; }
+  .evolucao :global(.perfil-ev) { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; align-items: end; }
+  .evolucao :global(.perfil-ev-texto) { grid-column: span 4; display: flex; flex-direction: column; gap: 12px; }
+  .evolucao :global(.perfil-ev-texto h2) { font-size: 34px; }
+  .evolucao :global(.perfil-ev-texto p) { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .evolucao :global(.perfil-ev-opcoes) { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--regra); margin-top: 4px; }
+  .evolucao :global(.perfil-ev-opcoes button) {
+    font: inherit; background: none; border: 0; padding: 0 0 2px; color: var(--texto-3); cursor: pointer; border-bottom: 2px solid transparent;
+  }
+  .evolucao :global(.perfil-ev-opcoes button[aria-pressed="true"]) { color: var(--tinta); font-weight: 600; border-bottom-color: var(--verde); }
+  .evolucao :global(.perfil-ev-grafico) { grid-column: span 8; padding-top: 60px; }
+
+  .destino { border-top: 2px solid var(--tinta); padding: 32px 0; display: flex; flex-direction: column; gap: 22px; }
+  .destino h2 { font-size: 34px; }
+  .colunas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; }
+  .nota { margin: 0; font-size: 12px; color: var(--texto-3); }
+
   @media (max-width: 900px) {
-    .numeros { grid-template-columns: repeat(2, 1fr); }
-    .grade { grid-template-columns: 1fr; }
-    .cartao { padding: 12px 8px; }
-    .resumo { font-size: 1.125rem; }
-    .numeros strong { font-size: 1.25rem; }
+    .cabeca { flex-direction: column; align-items: stretch; gap: 20px; padding: 28px 0 24px; }
+    .cabeca h1 { font-size: 40px; }
+    .cabeca p { font-size: 17px; }
+    .cabeca .botao { justify-content: center; }
+    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(2n) { border-right: 0; }
+    .numeros div:nth-child(2n + 1) { padding-left: 0; }
+    .numeros strong { font-size: 26px; }
+    .evolucao :global(.perfil-ev) { display: flex; flex-direction: column; align-items: stretch; gap: 20px; }
+    .evolucao :global(.perfil-ev-grafico) { padding-top: 50px; }
+    .colunas { grid-template-columns: 1fr; gap: 28px; }
   }
 </style>

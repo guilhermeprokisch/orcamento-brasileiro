@@ -1,7 +1,6 @@
 import { createSignal } from "solid-js";
-import Evolucao, { type Ponto } from "../explorer/Evolucao";
+import BarrasAno, { type Ponto } from "../explorer/BarrasAno";
 import type { Metrica } from "../../lib/dados";
-import "../explorer/explorer.css";
 
 interface Props {
   nominal: Ponto[];
@@ -13,6 +12,9 @@ interface Props {
   explorer: string;
 }
 
+const METRICAS: [Metrica, string][] = [["atualizado", "Dotação"], ["empenhado", "Empenhado"], ["realizado", "Pago"]];
+
+/** Evolução do perfil: escolha de valor e de correção como links de texto, barras grandes. */
 export default function EvolucaoPerfil(props: Props) {
   const [real, setReal] = createSignal(props.baseIpca !== null);
   const [metrica, setMetrica] = createSignal<Metrica>("atualizado");
@@ -25,34 +27,28 @@ export default function EvolucaoPerfil(props: Props) {
   };
 
   return (
-    <div>
-      <div class="perfil-ev-controles">
-        <div class="ex-seg" role="group" aria-label="Valor">
-          <button type="button" aria-pressed={metrica() === "atualizado"} onClick={() => setMetrica("atualizado")}>Dotação</button>
-          <button type="button" aria-pressed={metrica() === "empenhado"} onClick={() => setMetrica("empenhado")}>Empenhado</button>
-          <button type="button" aria-pressed={metrica() === "realizado"} onClick={() => setMetrica("realizado")}>Realizado</button>
-        </div>
-        <div class="ex-seg" role="group" aria-label="Correção pela inflação">
-          <button type="button" aria-pressed={!real()} onClick={() => setReal(false)}>Nominal</button>
-          <button type="button" aria-pressed={real()} disabled={props.baseIpca === null} onClick={() => setReal(true)}>
-            Corrigido pelo IPCA
+    <div class="perfil-ev">
+      <div class="perfil-ev-texto">
+        <h2>{props.nominal.length} anos de orçamento</h2>
+        <p>
+          {real() && props.baseIpca
+            ? `Em reais de ${props.baseIpca}, corrigidos pela média anual do IPCA. Clique num ano para abri-lo no Explorer.`
+            : "Em valores nominais, sem correção pela inflação. Clique num ano para abri-lo no Explorer."}
+        </p>
+        <div class="perfil-ev-opcoes">
+          {METRICAS.map(([m, rotulo]) => (
+            <button type="button" aria-pressed={metrica() === m} onClick={() => setMetrica(m)}>{rotulo}</button>
+          ))}
+          <span aria-hidden="true">|</span>
+          <button type="button" aria-pressed={!real()} onClick={() => setReal(!real())} disabled={props.baseIpca === null}>
+            {real() ? "Ver nominal" : "Corrigir pelo IPCA"}
           </button>
         </div>
       </div>
-      <Evolucao
-        serie={real() ? props.real : props.nominal}
-        metrica={metrica()}
-        anoSelecionado={props.anoSelecionado}
-        anoCorrente={props.anoCorrente}
-        onAno={abrir}
-      />
-      <p class="ex-ev-nota">
-        {real() && props.baseIpca
-          ? `Valores em reais de ${props.baseIpca}, corrigidos pela média anual do IPCA (IBGE).`
-          : "Valores nominais, sem correção pela inflação."}{" "}
-        * {props.anoCorrente} ainda em execução. O código do órgão pode ter mudado em reorganizações do governo.
-        Clique num ano para abri-lo no Explorer.
-      </p>
+      <div class="perfil-ev-grafico">
+        <BarrasAno serie={real() ? props.real : props.nominal} metrica={metrica()} anoSelecionado={props.anoSelecionado}
+          anoCorrente={props.anoCorrente} altura={240} rotulos="todos" onAno={abrir} />
+      </div>
     </div>
   );
 }

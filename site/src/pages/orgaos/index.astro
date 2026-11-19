@@ -1,101 +1,133 @@
 ---
 import Base from "../../layouts/Base.astro";
 import { agrupar, taxaRealizacao } from "../../lib/dados";
-import { moedaCompleta, moedaExtenso, pct } from "../../lib/formato";
+import { moedaCompleta, moedaCurta, pct } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
 import { anoBase, docBase, orgaosComPerfil } from "../../lib/perfis";
 
+const LIMITE = 12;
 const total = docBase ? agrupar(docBase, [], null).total : null;
 const linhas = orgaosComPerfil()
-  .map((o) => {
-    const v = docBase ? agrupar(docBase, [{ dim: "orgao", cod: o.cod }], null).total : null;
-    return { ...o, v };
-  })
+  .map((o) => ({ ...o, v: docBase ? agrupar(docBase, [{ dim: "orgao", cod: o.cod }], null).total : null }))
+  .filter((l) => l.v && l.v.atualizado > 0)
   .sort((a, b) => (b.v?.atualizado ?? 0) - (a.v?.atualizado ?? 0));
+const max = Math.max(1, ...linhas.map((l) => l.v!.atualizado));
+const parcelaTop2 = total ? (linhas.slice(0, 2).reduce((s, l) => s + l.v!.atualizado, 0) / total.atualizado) : 0;
 const semAcento = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 ---
 
 <Base title="Órgãos · Orçamento Brasileiro" description={`Orçamento de cada órgão do governo federal em ${anoBase}.`}>
-  <div class="faixa-titulo"><h1>Órgãos</h1></div>
-  <div class="wrap pagina">
-    <header class="topo-lista">
+  <div class="wrap">
+    <section class="topo-lista">
       <div>
-        <h2>Orçamento de cada órgão em {anoBase}</h2>
-        <p class="muted">
-          Ministérios, Poderes e demais órgãos superiores do governo federal. Clique num nome para ver o perfil completo,
-          com a evolução desde 2014.
+        <h1>O orçamento de cada órgão em {anoBase}</h1>
+        <p>
+          Os {linhas.length} órgãos superiores do governo federal: ministérios, Poderes e órgãos autônomos.{" "}
+          <strong class="marca">Dois ministérios ficam com {Math.round(parcelaTop2 * 100)}%</strong>{" "}do total.
         </p>
       </div>
-      <label class="filtro">
-        <span class="visually-hidden">Filtrar órgãos</span>
-        <input type="search" placeholder="Filtrar por nome…" data-filtro autocomplete="off" />
+      <label class="filtro">Filtrar por nome
+        <input type="search" placeholder="Ex.: saúde, defesa, 26000" data-filtro autocomplete="off" />
       </label>
-    </header>
+    </section>
 
-    <div class="tabela-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">Órgão</th>
-            <th scope="col" class="n">Dotação atualizada</th>
-            <th scope="col" class="n">Realizado</th>
-            <th scope="col" class="n">% realizado</th>
-            <th scope="col" class="n">% do orçamento</th>
-          </tr>
-        </thead>
-        <tbody>
-          {linhas.map((l) => (
-            <tr data-nome={semAcento(`${l.nome} ${l.cod}`)}>
-              <th scope="row"><a href={`/orgaos/${l.cod}`}>{l.nome}</a> <span class="cod">{l.cod}</span></th>
-              <td class="n num" title={l.v ? moedaCompleta(l.v.atualizado) : ""}>{l.v ? moedaExtenso(l.v.atualizado) : "—"}</td>
-              <td class="n num">{l.v ? moedaExtenso(l.v.realizado) : "—"}</td>
-              <td class="n num">{l.v ? pct(taxaRealizacao(l.v)) : "—"}</td>
-              <td class="n num">{l.v && total ? pct(l.v.atualizado / total.atualizado) : "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p class="vazio muted" data-vazio hidden>Nenhum órgão com esse nome.</p>
+    <div class="tabela" role="table" aria-label={`Órgãos em ${anoBase}`}>
+      <div class="linha cab" role="row">
+        <span role="columnheader">Órgão</span>
+        <span role="columnheader" class="so-largo">Parcela do orçamento</span>
+        <span role="columnheader" class="d">Dotação</span>
+        <span role="columnheader" class="d so-largo">Parcela</span>
+        <span role="columnheader" class="d">Pago</span>
+      </div>
+      {linhas.map((l, i) => {
+        const taxa = taxaRealizacao(l.v!);
+        return (
+          <a href={`/orgaos/${l.cod}`} class:list={["linha", { extra: i >= LIMITE }]} role="row" data-nome={semAcento(`${l.nome} ${l.cod}`)}>
+            <span role="cell" class="nome">{l.nome}</span>
+            <span role="cell" class="trilho so-largo"><span style={`width:${(l.v!.atualizado / max) * 100}%;background:${corDaRampa(Math.min(1, i / 8))}`}></span></span>
+            <span role="cell" class="d num" title={moedaCompleta(l.v!.atualizado)}>{moedaCurta(l.v!.atualizado)}</span>
+            <span role="cell" class="d num so-largo">{total ? pct(l.v!.atualizado / total.atualizado) : "—"}</span>
+            <span role="cell" class="d num">{taxa === null ? "—" : `${Math.round(taxa * 100)}%`}</span>
+          </a>
+        );
+      })}
+      {linhas.length > LIMITE && (
+        <button type="button" class="mais" data-mais>
+          <span>+ {linhas.length - LIMITE} órgãos menores</span><span>mostrar todos</span>
+        </button>
+      )}
+      <p class="vazio" data-vazio hidden>Nenhum órgão com esse nome.</p>
     </div>
+    <p class="nota">Pago = realizado ÷ dotação atualizada. A Fazenda inclui o refinanciamento e os juros da dívida pública.</p>
   </div>
 </Base>
 
 <script>
   const campo = document.querySelector<HTMLInputElement>("[data-filtro]");
-  const linhas = [...document.querySelectorAll<HTMLTableRowElement>("tbody tr[data-nome]")];
+  const linhas = [...document.querySelectorAll<HTMLElement>(".tabela a.linha")];
+  const mais = document.querySelector<HTMLButtonElement>("[data-mais]");
   const vazio = document.querySelector<HTMLElement>("[data-vazio]");
+  const tabela = document.querySelector<HTMLElement>(".tabela");
   const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+  mais?.addEventListener("click", () => {
+    tabela?.classList.add("todos");
+    mais.hidden = true;
+  });
   campo?.addEventListener("input", () => {
     const termos = norm(campo.value).split(/\s+/).filter(Boolean);
+    tabela?.classList.toggle("filtrando", termos.length > 0);
     let n = 0;
-    for (const tr of linhas) {
-      const ok = termos.every((t) => tr.dataset.nome!.includes(t));
-      tr.hidden = !ok;
+    for (const l of linhas) {
+      const ok = termos.every((t) => l.dataset.nome!.includes(t));
+      l.hidden = !ok;
       if (ok) n++;
     }
+    if (mais) mais.hidden = termos.length > 0 || !!tabela?.classList.contains("todos");
     if (vazio) vazio.hidden = n > 0;
   });
 </script>
 
 <style>
-  .pagina { padding-top: 32px; padding-bottom: 56px; }
-  .topo-lista { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px 32px; flex-wrap: wrap; margin-bottom: 24px; }
-  .topo-lista h2 { margin: 0 0 6px; font-size: 1.75rem; font-weight: 600; }
-  .topo-lista p { margin: 0; max-width: 64ch; }
-  .filtro input {
-    font: inherit; width: min(320px, 100%); padding: 8px 12px; color: var(--text); background: var(--surface);
-    border: 1px solid var(--border-forte); border-radius: 4px;
+  .topo-lista {
+    padding: 44px 0 28px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; align-items: end;
   }
-  .tabela-wrap { border: 1px solid var(--border); background: var(--surface); overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  thead th { font-size: 0.875rem; font-weight: 600; color: var(--text-2); text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); }
-  tbody tr:nth-child(even) { background: var(--zebra); }
-  tbody th, td { padding: 12px 16px; }
-  tbody th { font-weight: 400; text-align: left; min-width: 16rem; }
-  tbody th a { text-decoration: none; }
-  tbody th a:hover { text-decoration: underline; }
-  .cod { font-family: var(--mono); font-size: 0.75rem; color: var(--text-3); margin-left: 6px; }
-  td { color: var(--text-2); }
-  .n { text-align: right; white-space: nowrap; }
-  .vazio { padding: 24px 16px; margin: 0; }
-  @media (max-width: 640px) { tbody th { min-width: 12rem; } }
+  .topo-lista > div { grid-column: span 8; display: flex; flex-direction: column; gap: 12px; }
+  .topo-lista h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
+  .topo-lista p { margin: 0; font-size: 18px; line-height: 1.55; color: var(--texto-2); }
+  .topo-lista p strong { color: var(--tinta); }
+  .filtro { grid-column: span 4; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--texto-3); }
+  .filtro input {
+    height: 44px; border: 0; border-bottom: 2px solid var(--tinta); background: transparent; border-radius: 0;
+    font: inherit; font-size: 17px; color: var(--tinta); padding: 0 2px; outline: none;
+  }
+  .tabela { display: flex; flex-direction: column; }
+  .linha {
+    display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr) 130px 90px 90px; gap: 20px; align-items: center;
+    padding: 11px 0; border-bottom: 1px solid var(--regra-leve); color: var(--tinta); text-decoration: none;
+  }
+  a.linha:hover { background: var(--marca-texto-fundo); color: var(--tinta); }
+  a.linha:hover .nome { text-decoration: underline; }
+  .cab {
+    font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 8px 0; border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--tinta);
+  }
+  .d { text-align: right; }
+  .nome { font-weight: 600; min-width: 0; }
+  .trilho { display: block; height: 12px; }
+  .trilho > span { display: block; height: 100%; min-width: 2px; }
+  .tabela:not(.todos):not(.filtrando) .extra { display: none; }
+  .mais {
+    display: flex; justify-content: space-between; padding: 14px 0; font: inherit; font-size: 14px;
+    color: var(--texto-3); background: none; border: 0; cursor: pointer;
+  }
+  .mais:hover { color: var(--verde); }
+  .vazio { margin: 0; padding: 20px 0; color: var(--texto-3); }
+  .nota { margin: 16px 0 0; font-size: 12px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .topo-lista { display: flex; flex-direction: column; align-items: stretch; gap: 20px; padding: 28px 0 20px; }
+    .topo-lista h1 { font-size: 38px; }
+    .topo-lista p { font-size: 16px; }
+    .linha { grid-template-columns: minmax(0, 1fr) auto 48px; gap: 12px; }
+  }
 </style>
