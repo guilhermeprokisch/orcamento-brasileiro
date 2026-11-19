@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import AnoEmAndamento from "../../components/gasto/AnoEmAndamento.astro";
+import DividaEstado from "../../components/gasto/DividaEstado.astro";
 import EducacaoEstado from "../../components/gasto/EducacaoEstado.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import { fatorIpca, resumo } from "../../lib/perfis";
@@ -84,6 +85,7 @@ const descricao = temDados
     {temDados && <div data-so-padrao="o gasto por aluno"><EducacaoEstado estado={e} quem={quem} /></div>}
     {ctx && <div class="ficha" data-parte="contas" set:html={contasHtml(ctx)} />}
     {temDados && <AnoEmAndamento ente={e} esfera="uf" quem={quem} />}
+    <DividaEstado ibge={e.ibge} quem={quem} ano={e.ano} />
 
     {serie.length > 2 && (
       <section class="evolucao">
@@ -162,7 +164,7 @@ const descricao = temDados
   const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
   const porPessoa = (v: number) => `R$ ${nf0.format(Math.round(v))}`;
   iniciarTrocaDeAno(async (ano, base) => {
-    document.querySelectorAll<HTMLElement>(".anos [data-ano]").forEach((li) => li.classList.toggle("atual", Number(li.dataset.ano) === ano));
+    document.querySelectorAll<HTMLElement>(".anos [data-ano], .anos-divida [data-ano]").forEach((li) => li.classList.toggle("atual", Number(li.dataset.ano) === ano));
     // Cada cidade da lista abre no mesmo ano.
     for (const l of linhas) l.setAttribute("href", `${l.dataset.href}${ano === base.padrao ? "" : `?ano=${ano}`}`);
     if (!linhas.length) return;
