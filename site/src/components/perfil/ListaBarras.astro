@@ -1,0 +1,57 @@
+---
+import { moedaExtenso } from "../../lib/formato";
+import type { Item } from "../../lib/dados";
+
+interface Props {
+  titulo: string;
+  itens: Item[];
+  total: number;
+  link: (item: Item) => string;
+  limite?: number;
+}
+const { titulo, itens, total, link, limite = 8 } = Astro.props;
+const mostrados = itens.slice(0, limite);
+const resto = itens.slice(limite);
+const valorResto = resto.reduce((s, i) => s + i.valores.atualizado, 0);
+const max = Math.max(1, ...mostrados.map((i) => i.valores.atualizado), valorResto);
+const pct = (v: number) => `${((v / Math.max(1, total)) * 100).toFixed(1).replace(".", ",")}%`;
+---
+
+<section class="lb">
+  <h3>{titulo}</h3>
+  <ol>
+    {mostrados.map((i) => (
+      <li>
+        <div class="lb-linha">
+          <a href={link(i)}>{i.nome}</a>
+          <span class="lb-valor num">{moedaExtenso(i.valores.atualizado)} <span class="lb-pct">{pct(i.valores.atualizado)}</span></span>
+        </div>
+        <div class="lb-trilho" aria-hidden="true"><div class="lb-barra" style={`width:${(i.valores.atualizado / max) * 100}%`}></div></div>
+      </li>
+    ))}
+    {resto.length > 0 && (
+      <li class="lb-resto">
+        <div class="lb-linha">
+          <span>Outros {resto.length} itens</span>
+          <span class="lb-valor num">{moedaExtenso(valorResto)} <span class="lb-pct">{pct(valorResto)}</span></span>
+        </div>
+        <div class="lb-trilho" aria-hidden="true"><div class="lb-barra" style={`width:${(valorResto / max) * 100}%`}></div></div>
+      </li>
+    )}
+  </ol>
+</section>
+
+<style>
+  .lb { border: 1px solid var(--border); background: var(--surface); padding: 20px 24px; }
+  .lb h3 { margin: 0 0 14px; font-size: 1.125rem; font-weight: 600; }
+  .lb ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; font-size: 0.9375rem; }
+  .lb-linha a { text-decoration: none; min-width: 0; }
+  .lb-linha a:hover { text-decoration: underline; }
+  .lb-valor { white-space: nowrap; color: var(--text); font-weight: 600; }
+  .lb-pct { color: var(--text-2); font-weight: 400; margin-left: 4px; }
+  .lb-trilho { height: 8px; background: var(--surface-2); border-radius: 0 4px 4px 0; margin-top: 4px; }
+  .lb-barra { height: 100%; background: var(--ev-barra); border-radius: 0 4px 4px 0; min-width: 2px; }
+  .lb-resto .lb-barra { background: var(--border-forte); }
+  .lb-resto .lb-linha span:first-child { color: var(--text-2); }
+</style>

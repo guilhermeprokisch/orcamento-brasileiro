@@ -127,7 +127,15 @@ export default function Evolucao(props: Props) {
                     style={parcial() ? { fill: `url(#${idHachura})` } : undefined}
                   />
                   <Show when={sel() && !props.compacto}>
-                    <text class="ev-valor" x={x() + bw() / 2} y={y() - 8} text-anchor="middle">{moedaCurta(v())}</text>
+                    {(() => {
+                      // Perto das bordas, ancora o rótulo para dentro do gráfico.
+                      const cx = () => x() + bw() / 2;
+                      const ancora = () => (cx() > largura() - 44 ? "end" : cx() < M().left + 44 ? "start" : "middle");
+                      const tx = () => (ancora() === "end" ? x() + bw() : ancora() === "start" ? x() : cx());
+                      return (
+                        <text class="ev-valor" x={tx()} y={y() - 8} text-anchor={ancora()}>{moedaCurta(v())}</text>
+                      );
+                    })()}
                   </Show>
                   <Show when={!props.compacto}>
                     <text class="ev-ano" classList={{ sel: sel() }} x={x() + bw() / 2} y={altura() - 8} text-anchor="middle">

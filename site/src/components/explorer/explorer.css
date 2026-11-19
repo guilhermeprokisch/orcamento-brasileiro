@@ -160,3 +160,14 @@
 .ex-cartao-ev .ex-barra { flex-wrap: nowrap; }
 .ex-cartao-ev .ex-ev-titulo { min-width: 0; }
 .ex-fechar { flex: none; }
+
+/* botões segmentados (perfil do órgão) */
+.ex-seg { display: inline-flex; border: 1px solid var(--border-forte); border-radius: 4px; overflow: hidden; }
+.ex-seg button {
+  font: inherit; font-size: 0.9375rem; color: var(--text-2); background: var(--surface);
+  border: 0; padding: 6px 12px; cursor: pointer;
+}
+.ex-seg button + button { border-left: 1px solid var(--border-forte); }
+.ex-seg button[aria-pressed="true"] { background: var(--botao); color: #ffffff; }
+.ex-seg button:disabled { opacity: 0.5; cursor: not-allowed; }
+@media (max-width: 640px) { .ex-seg button { font-size: 0.875rem; padding: 6px 9px; } }
