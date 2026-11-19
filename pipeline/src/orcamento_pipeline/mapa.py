@@ -11,6 +11,8 @@ no mesmo cache.
 Saídas em site/public/data/mapa/:
 - anos/{ano}.json   {"mun": {ibge: registro}, "uf": {id: registro}}
 - areas/{ano}.json  gasto por função (28 áreas) de cada ente
+- contas/{ano}.json despesa por natureza e balanço patrimonial de cada município
+                    ({ibge: {"n": contas.NATUREZA, "b": contas.BALANCO}}), dos anexos I-D e I-AB
 - nomes.json        nomes de municípios, estados e áreas
 - serie.json        despesa e receita de cada ente em todos os anos
 - ipca.json         fatores para corrigir pela inflação
@@ -34,6 +36,7 @@ from pathlib import Path
 
 from . import cidades as c
 from .fontes import CONTEXTO_TLS, USER_AGENT, baixar_ipca
+from .contas import balanco, natureza
 from .receitas import receita
 from .transformar import fatores_ipca
 
@@ -145,6 +148,7 @@ def main() -> None:
 
     (SAIDA / "anos").mkdir(parents=True, exist_ok=True)
     (SAIDA / "areas").mkdir(parents=True, exist_ok=True)
+    (SAIDA / "contas").mkdir(parents=True, exist_ok=True)
     serie: dict = {"anos": anos, "mun": {}, "uf": {}}
     for n, ano in enumerate(anos):
         despesa = c.CacheAno(ano)
@@ -169,8 +173,19 @@ def main() -> None:
                 s[1][n] = r[6] if len(r) > 6 else None
         (SAIDA / "anos" / f"{ano}.json").write_text(json.dumps(doc, separators=(",", ":")))
         (SAIDA / "areas" / f"{ano}.json").write_text(json.dumps(areas, separators=(",", ":")))
+        # Despesa por natureza e balanço patrimonial (só municípios; vêm dos arquivos do FINBRA).
+        por_natureza = c.CacheAno(ano, anexo="dca-id", filtro=filtro_receita)
+        patrimonio = c.CacheAno(ano, anexo="dca-iab", filtro=filtro_receita)
+        contas: dict = {}
+        for ibge in doc["mun"]:
+            n = natureza(por_natureza.obter(int(ibge)) or [])
+            b = balanco(patrimonio.obter(int(ibge)) or [])
+            if n or b:
+                contas[ibge] = {k: v for k, v in (("n", n), ("b", b)) if v}
+        (SAIDA / "contas" / f"{ano}.json").write_text(json.dumps(contas, separators=(",", ":")))
         print(f"{ano}: {len(doc['mun'])} municípios ({sum(1 for r in doc['mun'].values() if len(r) > 6)} com receita), "
-              f"{len(doc['uf'])} estados ({sum(1 for r in doc['uf'].values() if len(r) > 6)} com receita)", flush=True)
+              f"{len(doc['uf'])} estados ({sum(1 for r in doc['uf'].values() if len(r) > 6)} com receita); "
+              f"natureza {sum(1 for x in contas.values() if 'n' in x)}, balanço {sum(1 for x in contas.values() if 'b' in x)}", flush=True)
 
     nomes["areas"] = dict(sorted(nomes["areas"].items()))
     (SAIDA / "nomes.json").write_text(json.dumps(nomes, ensure_ascii=False, separators=(",", ":")))

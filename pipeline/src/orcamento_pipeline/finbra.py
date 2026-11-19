@@ -34,6 +34,15 @@ from pathlib import Path
 from .cidades import CacheAno
 
 CAMPOS_RECEITA = ("coluna", "conta", "cod_conta", "valor", "populacao")
+# Nos anexos grandes só os níveis de cima do plano de contas são usados: guardar tudo
+# multiplicaria o cache por dez. Anexo -> quantos níveis do código manter.
+NIVEIS = {"dca-id": 2, "dca-iab": 3}
+
+
+def _niveis(conta: str) -> int:
+    """Quantos níveis do código estão preenchidos: "3.1.00.00.00 - Pessoal" -> 2. Sem código -> 0."""
+    cod = (conta or "").split(" ")[0]
+    return len([p for p in cod.split(".") if p.strip("0")]) if cod[:1].isdigit() else 0
 
 
 def _norm(s: str) -> str:
@@ -126,7 +135,9 @@ def importar(nome: str, texto: str, ano_forcado: int | None, substituir: bool) -
     if anexo_dca not in ANEXOS:
         raise ValueError(f"{nome}: tabela {anexo_dca or 'não identificada'} não suportada (aceito {', '.join(ANEXOS)})")
     anexo = ANEXOS[anexo_dca]
-    filtro = None if anexo == "dca-ie" else (lambda itens: [{k: i.get(k) for k in CAMPOS_RECEITA} for i in itens])
+    limite = NIVEIS.get(anexo)
+    filtro = None if anexo == "dca-ie" else (
+        lambda itens: [{k: i.get(k) for k in CAMPOS_RECEITA} for i in itens if limite is None or _niveis(i.get("conta")) <= limite])
 
     por_ente: dict[str, list[dict]] = defaultdict(list)
     for r in registros:
