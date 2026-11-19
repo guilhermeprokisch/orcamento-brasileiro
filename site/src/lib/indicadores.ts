@@ -263,3 +263,40 @@ export function homicidiosDe(e: Cidade): Homicidios | null {
     mediana: mediana(taxas), brasil: p ? por100mil(n, p) : null,
   };
 }
+
+// ----- Imposto de renda pela cidade onde a pessoa mora (Receita, pipeline/…/irpf.py) -----
+
+interface DocIrpf {
+  fonte: string;
+  /** ano-calendário → ibge → [declarantes, imposto devido] */
+  anos: Record<string, Record<string, [number, number]>>;
+}
+const arquivosIrpf = import.meta.glob<DocIrpf>("../../public/data/mapa/irpf-res.json", { eager: true, import: "default" });
+const docIrpf: DocIrpf | null = Object.values(arquivosIrpf)[0] ?? null;
+
+export interface IrMoradores {
+  fonte: string;
+  ano: number;
+  declarantes: number;
+  valor: number;
+  porHab: number;
+  /** Mediana por habitante das cidades do mesmo porte. */
+  mediana: number | null;
+}
+const medianasIr = new Map<string, number | null>();
+
+export function irMoradoresDe(c: Cidade): IrMoradores | null {
+  if (!docIrpf || !c.pop) return null;
+  const ano = Object.keys(docIrpf.anos).sort().at(-1);
+  const v = ano ? docIrpf.anos[ano][String(c.ibge)] : undefined;
+  if (!ano || !v) return null;
+  const chave = `${ano}-${c.faixa}`;
+  if (!medianasIr.has(chave)) {
+    const doAno = docIrpf.anos[ano];
+    const valores = (docCidades?.cidades ?? [])
+      .filter((x) => x.faixa === c.faixa && x.pop && doAno[String(x.ibge)])
+      .map((x) => doAno[String(x.ibge)][1] / x.pop);
+    medianasIr.set(chave, mediana(valores));
+  }
+  return { fonte: docIrpf.fonte, ano: Number(ano), declarantes: v[0], valor: v[1], porHab: v[1] / c.pop, mediana: medianasIr.get(chave)! };
+}

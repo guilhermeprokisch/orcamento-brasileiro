@@ -76,6 +76,10 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline rfb
 
+      - name: Pipeline do imposto de renda por cidade de residência
+        continue-on-error: true
+        run: uv run --project pipeline irpf
+
       # Dinheiro federal por município. O Portal da Transparência às vezes responde com
       # CAPTCHA a downloads automáticos: se falhar, o site é publicado sem essa camada.
       - name: Pipeline do dinheiro federal

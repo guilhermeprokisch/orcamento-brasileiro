@@ -156,11 +156,8 @@ def ler_ir(arquivo: Path) -> dict[int, list[tuple[str, str, float | None]]]:
     return saida
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(prog="rfb", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--forcar", action="store_true", help="baixa de novo todas as planilhas")
-    args = p.parse_args()
-
+def casador():
+    """Uma função (nome, UF) -> código IBGE, para os nomes de município como a Receita escreve."""
     nomes = json.loads(NOMES.read_text(encoding="utf-8"))["mun"]
     chave = {(_so_letras(nm), uf): ibge for ibge, (nm, uf) in nomes.items()}
     por_uf: dict[str, list[str]] = {}
@@ -183,6 +180,15 @@ def main() -> None:
                 print(f"  {nome} ({uf}) -> {nomes[parecidos[k]][0]}", flush=True)
         return parecidos[k]
 
+    return ibge_de
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(prog="rfb", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--forcar", action="store_true", help="baixa de novo todas as planilhas")
+    args = p.parse_args()
+
+    ibge_de = casador()
     total: dict[int, dict[str, float]] = {}
     pf: dict[int, dict[str, float]] = {}
     sem_par: dict[tuple[str, str], float] = {}
