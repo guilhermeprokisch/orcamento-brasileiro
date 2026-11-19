@@ -318,6 +318,11 @@
     .palco .legenda { left: 8px; bottom: 8px; width: 200px; padding: 6px 8px; }
     .fluxo-legenda { left: 54px; top: 8px; }
   }
+  .barras li i.duas { display: flex; background: none; }
+  .barras li i.duas b { display: block; height: 100%; }
+  .nota i.q { display: inline-block; width: 9px; height: 9px; margin: 0 4px 0 8px; }
+  .nota i.q:first-child { margin-left: 0; }
+  #rk-caixa { display: flex; flex-direction: column; gap: 10px; }
   .no-estado { margin: 0; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: var(--texto-2); }
   .no-estado .fechar { flex: none; margin: 0; }
   .no-estado b { color: var(--tinta); }
@@ -443,7 +448,7 @@
   const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
   const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const reais = (v) => `R$ ${nf0.format(Math.round(v))}`;
-  const curto = (v) => v >= 1e9 ? `R$ ${nf1.format(v / 1e9)} bi` : v >= 1e6 ? `R$ ${nf1.format(v / 1e6)} mi` : `R$ ${nf0.format(v / 1e3)} mil`;
+  const curto = (v) => v >= 1e12 ? `R$ ${new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v / 1e12)} tri` : v >= 1e9 ? `R$ ${nf1.format(v / 1e9)} bi` : v >= 1e6 ? `R$ ${nf1.format(v / 1e6)} mi` : `R$ ${nf0.format(v / 1e3)} mil`;
   const pct = (v) => `${nf0.format(v * 100)}%`;
   const pct1 = (v) => `${nf1.format(Math.abs(v) * 100)}%`;
   const semAcento = (t) => t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
@@ -751,10 +756,110 @@
     };
   }
 
+  // ----- Cartão de um estado ou do país: os mesmos quatro passos, sobre o lugar inteiro -----
+  const areasSoma = {};
+  /** Gasto por área das prefeituras e do(s) governo(s) estadual(is) de um estado, ou do país (uf = null). */
+  function areasDoLugar(ano, uf) {
+    const chave = `${ano}-${uf ?? "br"}`;
+    if (!areasSoma[chave]) {
+      const pref = {}, gov = {};
+      for (const [c, a] of Object.entries(areasAno[ano].mun || {})) if (!uf || c.startsWith(uf)) for (const [cod, v] of Object.entries(a)) pref[cod] = (pref[cod] || 0) + v;
+      for (const [c, a] of Object.entries(areasAno[ano].uf || {})) if (!uf || c === uf) for (const [cod, v] of Object.entries(a)) gov[cod] = (gov[cod] || 0) + v;
+      areasSoma[chave] = { pref, gov };
+    }
+    return areasSoma[chave];
+  }
+  function cartaoLugar(el, id) {
+    const k = fator(), ano = estado.ano, q = estado.medida;
+    const ufs = id ? [id] : Object.keys(nomes.uf);
+    const prefs = ufs.map((u) => agregado(ano)[u]).filter(Boolean);   // as prefeituras de cada estado, somadas
+    const govs = ufs.map((u) => doc.uf?.[u]).filter(Boolean);          // os governos estaduais
+    const S = (lista, i) => d3.sum(lista, (r) => r[i] || 0) * k;
+    const nome = id ? nomes.uf[id][0] : "Brasil", sigla = id ? nomes.uf[id][1] : null;
+    const pop = d3.sum(prefs, (r) => r[I.pop]) || d3.sum(govs, (r) => r[I.pop]);
+    const nCidades = Object.keys(doc.mun).filter((c) => !id || c.startsWith(id)).length;
+    const porHab = (v) => (pop ? `${reais(v / pop)} por morador` : "");
+    const linhas = (itens) => `<ul class="linhas">${itens.filter((x) => x && x[1] > 0).map(([rot, v, cor, marca]) => `<li><span>${cor ? `<i style="background:var(${cor})"></i>` : ""}${rot}${marca ? ` <small>${marca}</small>` : ""}</span><em>${curto(v)}</em></li>`).join("")}</ul>`;
+    const bloco = (titulo, resumo, corpo, aberto) => `<details class="bloco"${aberto ? " open" : ""}><summary><span>${titulo}</span><b>${resumo}</b></summary><div class="bloco-corpo">${corpo}</div></details>`;
+    const governo = id ? "o governo do estado" : "os governos estaduais", doGoverno = id ? "do governo do estado" : "dos governos estaduais";
+    const blocos = [];
+
+    // 1 · O que se paga aqui. No estado e no país os três valores são medidos (não há estimativa).
+    if (!ehParcial()) {
+      const aPref = d3.sum(prefs, (r) => (r.length > I.cotaIpva ? tributosLocais(r) : 0)) * k;
+      const aoEstado = d3.sum(govs, (r) => (r.length > I.outrosTrib ? r[I.taxas] + r[I.outrosTrib] : 0)) * k;
+      const aUniao = (id ? rfb.anos[ano]?.[sigla] ?? 0 : d3.sum(Object.values(rfb.anos[ano] || {}))) * k;
+      const total = aPref + aoEstado + aUniao;
+      if (total > 0) blocos.push(bloco("1 · O que se paga aqui", curto(total), `
+        <p class="bloco-nota">${porHab(total)}. É o imposto recolhido ${id ? "no estado" : "no país"} por moradores e empresas.</p>
+        ${linhas([["Às prefeituras: IPTU, ISS, taxas", aPref, "--c-propria", "medido"], [`A${id ? "o governo do estado" : "os governos estaduais"}: ICMS, IPVA e outros`, aoEstado, "--c-estado", "medido"], ["À União: imposto de renda, INSS, PIS/Cofins e outros", aUniao, "--c-uniao", "medido"]])}
+        <p class="nota">O imposto é contado onde é recolhido (a sede da empresa), não onde mora quem paga no fim. ${id ? "Por isso estados com muitas sedes de empresas aparecem com mais." : ""}</p>`, q === "imp"));
+    }
+
+    // 2 · O que volta: o que a União manda para os governos daqui e paga direto às pessoas.
+    const repPref = S(prefs, I.uniao), repGov = S(govs, I.uniao), fundeb = S(prefs, I.fundeb) + S(govs, I.fundeb);
+    let inss = 0, bf = 0, bpc = 0;
+    for (const [c, v] of Object.entries(inssAno[ano] || {})) if (!id || c.startsWith(id)) inss += v[0] * k;
+    if (ano === federal.ano) for (const c of Object.keys(federal.mun)) if (!id || c.startsWith(id)) { const f = fedDe(c); if (f) { bf += f[8]; bpc += f[9]; } }
+    const volta = repPref + repGov + inss + bf + bpc;
+    if (volta > 0) blocos.push(bloco(id ? "2 · O que volta para cá" : "2 · O que a União devolve", curto(volta), `
+      <p class="bloco-nota">${porHab(volta)}.</p>
+      <h4>Para os governos <small>medido</small></h4>
+      ${linhas([["Repasses da União às prefeituras", repPref, "--c-uniao"], [`Repasses da União a${id ? "o governo do estado" : "os governos estaduais"}`, repGov, "--c-uniao"]])}
+      ${inss + bf + bpc > 0 ? `<h4>Direto às pessoas <small>${ano === federal.ano && beneficiosParciais ? "estimativa" : "medido"}</small></h4>
+      ${linhas([["Aposentadorias e pensões do INSS", inss, "--c-inss"], ["Bolsa Família", bf, "--c-bf"], ["BPC (idosos e pessoas com deficiência)", bpc, "--c-bpc"]])}` : ""}
+      <p class="nota">Fora desta conta: o FUNDEB (${curto(fundeb)}), que mistura dinheiro federal com imposto do próprio estado, e o que a União gasta direto aqui (universidades, hospitais, quartéis).${ano === federal.ano ? "" : " Bolsa Família e BPC só estão disponíveis para 2025."}</p>`, q === "dep" || q === "rec" || q === "fed"));
+
+    // 3 · Onde é gasto: prefeituras e governo(s) do estado, cada um com a sua parte à vista.
+    const gPref = S(prefs, I.desp), gGov = S(govs, I.desp);
+    const chaveSel = id ?? null;
+    if (!areasAno[ano]) carregarAreas(ano).then(() => { if (estado.esfera === "uf" && (estado.sel ?? null) === chaveSel) detalhe(estado.sel); });
+    let porArea = areasAno[ano] && !ehParcial() ? "" : `<p class="nota">${ehParcial() ? "O gasto por área só sai na prestação de contas anual." : "Carregando as áreas…"}</p>`;
+    if (areasAno[ano] && !ehParcial()) {
+      const { pref, gov } = areasDoLugar(ano, id ?? null);
+      const ord = [...new Set([...Object.keys(pref), ...Object.keys(gov)])].map((c) => [c, pref[c] || 0, gov[c] || 0]).sort((a, b) => b[1] + b[2] - (a[1] + a[2])).slice(0, 8);
+      const maior = ord[0] ? ord[0][1] + ord[0][2] : 1;
+      porArea = `<h4>As maiores áreas</h4>
+        <ul class="barras">${ord.map(([c, p, g]) => `<li><span>${nomes.areas[c] || c}</span><em>${curto((p + g) * k)}</em><i class="duas" style="width:${((p + g) / maior) * 100}%"><b style="flex:${p};background:var(--r3)"></b><b style="flex:${g};background:var(--a3)"></b></i></li>`).join("")}</ul>
+        <p class="nota"><i class="q" style="background:var(--r3)"></i> prefeituras <i class="q" style="background:var(--a3)"></i> ${id ? "governo do estado" : "governos estaduais"}</p>`;
+    }
+    blocos.push(bloco("3 · Onde é gasto", curto(gPref + gGov), `
+      <p class="bloco-nota">${porHab(gPref + gGov)}${gPref > 0 ? `, somando prefeituras e ${governo}` : ""}.</p>
+      ${linhas([[`As ${nf0.format(nCidades)} prefeituras`, gPref, "--r3"], [id ? "O governo do estado" : "Os governos estaduais", gGov, "--a3"]])}
+      ${porArea}
+      <p class="nota">Em geral, a prefeitura cuida de creche, ensino fundamental, posto de saúde, limpeza e ruas; o governo do estado, de ensino médio, polícia, hospitais maiores e estradas. Parte do gasto ${doGoverno} são repasses às prefeituras, que aparecem também no gasto delas: a soma está um pouco acima do real.</p>`, q === "desp"));
+
+    // 4 · Sobrou ou faltou, para cada um.
+    const conta = (rot, lista) => {
+      const rec = S(lista, I.rec), desp = S(lista, I.desp);
+      if (!(rec > 0)) return "";
+      const d = rec - desp;
+      return `<li><span>${rot}</span><em>${d >= 0 ? "sobrou" : "faltou"} ${curto(Math.abs(d))} · ${pct1(d / rec)} da receita</em></li>`;
+    };
+    const contas = conta("As prefeituras, somadas", prefs) + conta(id ? "O governo do estado" : "Os governos estaduais, somados", govs);
+    const sPref = S(prefs, I.rec) - S(prefs, I.desp), sGov = S(govs, I.rec) - S(govs, I.desp), sTot = sPref + sGov;
+    if (contas) blocos.push(bloco(ehParcial() ? `4 · Como está a conta até ${parcial.ate}` : "4 · Sobrou ou faltou", `${sTot >= 0 ? "sobrou" : "faltou"} ${curto(Math.abs(sTot))}`, `
+      <ul class="linhas">${contas}</ul>
+      <p class="nota">Receita menos gasto comprometido no ano. ${!id ? "Clique num estado para ver a conta dele." : nCidades ? "Dentro do estado há prefeituras no azul e no vermelho: veja as cidades." : ""}</p>`, q === "saldo"));
+
+    el.innerHTML = `
+      ${id ? `<button type="button" class="fechar" id="ao-brasil">← Brasil</button>` : ""}
+      <span class="sub">${id ? "Estado" : "País"} · ${nf0.format(pop)} moradores${nCidades ? ` · ${nf0.format(nCidades)} cidades` : ""} · ${rotuloAno()}</span>
+      <h2>${nome}</h2>
+      ${blocos.join("")}
+      ${id ? `${nCidades ? `<button type="button" class="ver-fluxo" id="ver-cidades">Ver as cidades de ${nome} →</button>` : `<p class="nota">O Distrito Federal não tem prefeituras: o governo de lá faz o papel de estado e de município.</p>`}
+        <p class="nota"><a href="/estados/${sigla.toLowerCase()}">Página completa do governo de ${nome}</a>. Toque num título para abrir ou fechar.</p>`
+        : `<p class="nota">Clique num estado no mapa para ver a conta dele, ou procure sua cidade. Abaixo, os estados em ordem.</p><div id="rk-caixa"></div>`}`;
+    el.querySelector("#ao-brasil")?.addEventListener("click", voltarAoBrasil);
+    el.querySelector("#ver-cidades")?.addEventListener("click", () => entrarNoEstado(id));
+    if (!id) ranking(el.querySelector("#rk-caixa"));
+  }
+
   /** Cartão de um ente: a "conta" dele em blocos (o que sai, o que volta, onde gasta, como fechou). */
   function detalhe(id) {
     const el = document.getElementById("detalhe");
     const mun = estado.esfera === "mun";
+    if (!mun) { cartaoLugar(el, id); return; }
     if (!id) { ranking(el); return; }
     const r = base()[id];
     const [nm, uf] = nome(id);
@@ -931,9 +1036,9 @@
   /** Sem nada selecionado, o cartão mostra o ranking da pergunta escolhida, com filtros. */
   /** Dentro de um estado: como voltar ao país e o que o governo estadual gastou (com link para a página dele). */
   function linhaDoEstado(sigla) {
-    const id = Object.keys(nomes.uf).find((k) => nomes.uf[k][1] === sigla), g = doc.uf?.[id];
+    const id = Object.keys(nomes.uf).find((k) => nomes.uf[k][1] === sigla);
     return `<p class="no-estado"><button type="button" class="fechar" id="ao-brasil">← Brasil</button>
-      <span><b>${nomes.uf[id]?.[0] ?? sigla}</b>${g ? `: além das prefeituras, o governo do estado gastou ${curto(g[I.desp] * fator())}` : ""}. <a href="/estados/${sigla.toLowerCase()}">Ver a página do estado</a></span></p>`;
+      <button type="button" class="fechar" id="ao-estado" data-uf="${id}">← ${nomes.uf[id]?.[0] ?? sigla}</button></p>`;
   }
   function ranking(el) {
     const mun = estado.esfera === "mun", rk = estado.rk;
@@ -952,7 +1057,7 @@
     el.innerHTML = `
       <span class="sub">${mun ? (rk.uf ? `Cidades · ${rk.uf}` : "Cidades") : "Estados · prefeituras somadas"} · ${rotuloAno()}</span>
       ${mun && rk.uf ? linhaDoEstado(rk.uf) : ""}
-      <details class="rk-corpo"${rk.aberto ?? matchMedia("(min-width: 761px)").matches ? " open" : ""}>
+      <details class="rk-corpo"${rk.aberto ?? (mun && matchMedia("(min-width: 761px)").matches) ? " open" : ""}>
       <summary><h2>${titulos[rk.ordem === "desc" ? 0 : 1]}</h2><span class="abrir">ver a lista</span></summary>
       <div class="rk-filtros">
         <div class="seg mini" role="group" aria-label="Ordem">
@@ -967,6 +1072,7 @@
       </details>`;
     el.querySelector(".rk-corpo").addEventListener("toggle", (ev) => { rk.aberto = ev.target.open; });
     el.querySelector("#ao-brasil")?.addEventListener("click", voltarAoBrasil);
+    el.querySelector("#ao-estado")?.addEventListener("click", (ev) => resumoDoEstado(ev.currentTarget.dataset.uf));
     el.querySelectorAll("[data-ordem]").forEach((b) => b.addEventListener("click", () => { rk.ordem = b.dataset.ordem; ranking(el); }));
     el.querySelector("#rk-uf")?.addEventListener("change", (ev) => { rk.uf = ev.target.value; ranking(el); });
     el.querySelector("#rk-porte")?.addEventListener("change", (ev) => { rk.porte = Number(ev.target.value); ranking(el); });
@@ -997,13 +1103,17 @@
     await definir({ esfera: "mun", sel: null });
     zoomPara(feicao.uf.get(id));
   }
+  /** De dentro de um estado (lista de cidades) para o cartão do próprio estado. */
+  async function resumoDoEstado(id) {
+    await definir({ esfera: "uf", sel: id });
+    zoomPara(feicao.uf.get(id));
+  }
   async function voltarAoBrasil() {
     estado.rk.uf = "";
     await definir({ esfera: "uf", sel: null });
     svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity);
   }
   function selecionar(id, aproximar) {
-    if (id && estado.esfera === "uf") { entrarNoEstado(id); return; }
     estado.sel = id;
     montarFluxo(); textos(); pintar(); detalhe(id); escreverHash();
     if (id && aproximar) zoomPara(feicao[estado.esfera].get(id));
@@ -1014,7 +1124,7 @@
     // Aproximar com a mão mostra as cidades; afastar até o país inteiro volta aos estados.
     .on("end", (ev) => {
       if (!ev.sourceEvent) return;
-      if (estado.esfera === "uf" && ev.transform.k >= 2.4) definir({ esfera: "mun" }, true);
+      if (estado.esfera === "uf" && ev.transform.k >= 2.4) { if (estado.sel) estado.rk.uf = nomes.uf[estado.sel]?.[1] ?? ""; definir({ esfera: "mun" }, true); }
       else if (estado.esfera === "mun" && ev.transform.k <= 1.05 && !estado.sel) { estado.rk.uf = ""; definir({ esfera: "uf" }); }
     });
   svg.call(zoom);
@@ -1182,8 +1292,6 @@
   async function definir(mudancas, manter = false) {
     const esferaAntes = estado.esfera;
     Object.assign(estado, mudancas);
-    // Um estado escolhido (por um link, por exemplo) abre as cidades dele, em vez de um cartão do governo estadual.
-    if (estado.esfera === "uf" && estado.sel) { estado.rk.uf = nomes.uf[estado.sel]?.[1] ?? ""; estado.esfera = "mun"; estado.sel = null; mudancas = { ...mudancas, sel: null }; }
     // O ano em andamento não tem impostos, áreas nem correção pela inflação: quem pede os
     // impostos volta ao último ano fechado; quem chega ao ano em andamento vê o gasto total.
     if (ehParcial() && estado.medida === "imp") { if ("medida" in mudancas) estado.ano = ANO_FECHADO; else estado.medida = "desp"; }
