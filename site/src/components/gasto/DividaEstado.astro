@@ -5,17 +5,23 @@
  * vezes a receita corrente líquida.
  */
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
-import { ALERTA, dividaDe, LIMITE } from "../../lib/divida";
+import { alerta, dividaDe, LIMITES } from "../../lib/divida";
 
 interface Props {
   ibge: number;
+  /** "uf" (padrão) ou "mun", para uma prefeitura */
+  esfera?: "uf" | "mun";
+  /** "das cidades de 100 a 500 mil habitantes"; o padrão é "dos estados" */
+  grupo?: string;
   /** "o governo do Ceará" */
   quem: string;
   /** Ano com que a página foi montada, para destacar no gráfico. */
   ano: number | null;
 }
-const { ibge, quem, ano } = Astro.props;
-const d = dividaDe(ibge);
+const { ibge, quem, ano, esfera = "uf", grupo = "dos estados" } = Astro.props;
+const LIMITE = LIMITES[esfera], ALERTA = alerta(esfera);
+const ente = esfera === "mun" ? "a prefeitura" : "o estado";
+const d = dividaDe(ibge, esfera);
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const pct = (v: number) => `${nf0.format(v * 100)}%`;
 const u = d?.ultimo;
@@ -26,7 +32,7 @@ const situacao = (r: number) => (r >= LIMITE ? "acima" : r >= ALERTA ? "alerta" 
 {d && u && (
   <section class="divida">
     <div class="texto">
-      <h2>A dívida do governo</h2>
+      <h2>{esfera === "mun" ? "A dívida da prefeitura" : "A dívida do governo"}</h2>
       {u.liquida > 0 ? (
         <p>
           No fim de {u.ano}, {quem} devia <strong>{moedaExtenso(u.liquida)}</strong>, já descontado o que tinha em caixa.
@@ -36,19 +42,20 @@ const situacao = (r: number) => (r >= LIMITE ? "acima" : r >= ALERTA ? "alerta" 
             : u.razao >= ALERTA
             ? <>acima do limite de alerta ({pct(ALERTA)}) e perto do limite de {pct(LIMITE)}.</>
             : <>abaixo do limite de {pct(LIMITE)} fixado pelo Senado.</>}
-          {d.mediana !== null && <> A mediana dos estados é {pct(d.mediana)}.</>}
+          {d.mediana !== null && <> A mediana {grupo} é {pct(d.mediana)}.</>}
         </p>
       ) : (
         <p>
           No fim de {u.ano}, o que {quem} tinha em caixa e aplicações era maior que a dívida de longo prazo
           ({moedaCurta(u.bruta)}): não havia dívida líquida.
-          {d.mediana !== null && <> A mediana dos estados é {pct(d.mediana)} da receita corrente líquida.</>}
+          {d.mediana !== null && <> A mediana {grupo} é {pct(d.mediana)} da receita corrente líquida.</>}
         </p>
       )}
       <p class="menor">
-        Dívida consolidada líquida é tudo o que o estado deve a prazo maior que um ano, menos o dinheiro em caixa e aplicações.
-        A Lei de Responsabilidade Fiscal limita essa dívida a duas vezes a receita corrente líquida. Acima do limite, o estado
-        não pode contratar novos empréstimos até voltar a ele.
+        Dívida consolidada líquida é tudo o que {ente} deve a prazo maior que um ano, menos o dinheiro em caixa e aplicações.
+        A Lei de Responsabilidade Fiscal limita essa dívida a {esfera === "mun" ? "1,2 vez" : "duas vezes"} a receita corrente líquida
+        (a receita do dia a dia, sem o que é só de passagem). Acima do limite, {ente} não pode contratar novos empréstimos até voltar a ele.
+        {esfera === "mun" && <> A maioria das prefeituras deve pouco: metade deve menos de 5% da receita, e muitas têm mais dinheiro em caixa do que dívidas. As cidades grandes costumam dever mais, mas as poucas que passam do limite são cidades pequenas e médias.</>}
       </p>
     </div>
     <ol class="anos-divida" aria-label="Dívida líquida como parte da receita, ano a ano">
@@ -94,6 +101,7 @@ const situacao = (r: number) => (r >= LIMITE ? "acima" : r >= ALERTA ? "alerta" 
 
   @media (max-width: 900px) {
     .divida { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .anos-divida { align-self: stretch; }
     .texto h2 { font-size: 28px; }
   }
 </style>
