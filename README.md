@@ -1,4 +1,4 @@
-# Orçamento BR
+# Orçamento Brasileiro
 
 O orçamento federal brasileiro, explicado e explorável. Inspirado no
 [USAspending.gov](https://www.usaspending.gov) (código aberto em

@@ -1,0 +1,10 @@
+# Cabeçalhos do Cloudflare Pages.
+# Arquivos com hash no nome nunca mudam; os dados mudam uma vez por dia.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/data/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+
+/busca.json
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400

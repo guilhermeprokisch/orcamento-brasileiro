@@ -30,7 +30,7 @@ const path = Astro.url.pathname;
       <div class="topo-inner">
         <a class="marca" href="/">
           <span class="marca-ico" aria-hidden="true"></span>
-          Orçamento BR
+          <span class="marca-nome"><span>Orçamento</span> <span>Brasileiro</span></span>
         </a>
         <div class="topo-direita">
           <nav aria-label="Principal">
@@ -81,7 +81,8 @@ const path = Astro.url.pathname;
   nav { display: flex; gap: 4px; }
   @media (max-width: 640px) {
     .so-largo { display: none; }
-    .marca { font-size: 1.125rem; }
+    .marca { font-size: 1rem; }
+    .marca-nome { display: flex; flex-direction: column; line-height: 1.05; }
     nav a { padding: 6px 8px; }
   }
   nav a {

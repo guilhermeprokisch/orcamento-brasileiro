@@ -21,7 +21,7 @@ URL_ORCAMENTO_DESPESA = (
     "orcamento-despesa/{ano}_OrcamentoDespesa.zip"
 )
 
-USER_AGENT = "orcamento-br-pipeline/0.1"
+USER_AGENT = "orcamento-brasileiro-pipeline/0.1"
 
 # SIOP (Sistema Integrado de Planejamento e Orçamento): nomes oficiais, com
 # acentos e grafia correta, de ações, programas e unidades orçamentárias.
