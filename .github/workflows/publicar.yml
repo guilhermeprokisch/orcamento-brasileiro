@@ -47,6 +47,16 @@ jobs:
       - name: Pipeline de dados
         run: uv run --project pipeline orcamento
 
+      # Histórico dos municípios (FINBRA, baixado à mão por causa do captcha): vem do
+      # release "dados-siconfi" e preenche o que falta no cache. Só baixa de novo quando
+      # o release muda. Sem ele, o site sai sem a receita e o histórico das cidades.
+      - name: Cache do SICONFI (release)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: uv run --project pipeline semente aplicar
+
       # Estados e municípios. A API do SICONFI responde um ente por vez e tem limite
       # documentado de 1 requisição por segundo: são ~11 mil consultas na primeira vez.
       # O limite (~17 min) deixa o resto para as execuções seguintes (o cache de
@@ -56,7 +66,7 @@ jobs:
         run: uv run --project pipeline cidades --max-chamadas 1000
 
       # Dados da página /mapa: receita, tributos e áreas de gasto por ano, a partir dos
-      # caches do SICONFI (os anos importados do FINBRA só existem onde o cache foi levado).
+      # caches do SICONFI (os anos importados do FINBRA vêm do release, no passo acima).
       - name: Pipeline do mapa
         run: uv run --project pipeline mapa --max-chamadas 300
 

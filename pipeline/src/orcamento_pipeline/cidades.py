@@ -199,6 +199,15 @@ class CacheAno:
             if self.novos % self.SALVAR_A_CADA == 0:
                 self._gravar()
 
+    def juntar(self, outros: dict[str, list[dict]]) -> int:
+        """Incorpora respostas já no formato do cache (de outra cópia do mesmo anexo),
+        sem sobrescrever as que existem. Devolve quantos entes entraram."""
+        with self.trava:
+            faltam = {k: v for k, v in outros.items() if v and not self.dados.get(k)}
+            self.dados.update(faltam)
+            self.novos += len(faltam)
+        return len(faltam)
+
     def salvar(self) -> None:
         with self.trava:
             if self.novos:

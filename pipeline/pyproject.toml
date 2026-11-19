@@ -16,6 +16,7 @@ finbra = "orcamento_pipeline.finbra:main"
 mapa = "orcamento_pipeline.mapa:main"
 federal = "orcamento_pipeline.federal:main"
 inss = "orcamento_pipeline.inss:main"
+semente = "orcamento_pipeline.semente:main"
 
 [build-system]
 requires = ["hatchling"]
