@@ -119,6 +119,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline matriculas
 
+      # Dívida dos governos estaduais (RGF, Anexo 2): 27 consultas por ano à API do SICONFI.
+      # O cache em data/raw guarda os anos já baixados; sem ele, são ~300 consultas (5 minutos).
+      - name: Pipeline da dívida dos estados
+        continue-on-error: true
+        run: uv run --project pipeline divida
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

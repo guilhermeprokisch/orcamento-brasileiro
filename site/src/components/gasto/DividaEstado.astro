@@ -1,0 +1,99 @@
+---
+/**
+ * A dívida do governo estadual frente ao limite da Lei de Responsabilidade Fiscal, ano a ano
+ * (Relatório de Gestão Fiscal, Anexo 2). O limite é a dívida consolidada líquida valer até duas
+ * vezes a receita corrente líquida.
+ */
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { ALERTA, dividaDe, LIMITE } from "../../lib/divida";
+
+interface Props {
+  ibge: number;
+  /** "o governo do Ceará" */
+  quem: string;
+  /** Ano com que a página foi montada, para destacar no gráfico. */
+  ano: number | null;
+}
+const { ibge, quem, ano } = Astro.props;
+const d = dividaDe(ibge);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct = (v: number) => `${nf0.format(v * 100)}%`;
+const u = d?.ultimo;
+const escala = d ? Math.max(LIMITE * 1.15, ...d.anos.map((a) => a.razao)) : 1;
+const situacao = (r: number) => (r >= LIMITE ? "acima" : r >= ALERTA ? "alerta" : "dentro");
+---
+
+{d && u && (
+  <section class="divida">
+    <div class="texto">
+      <h2>A dívida do governo</h2>
+      {u.liquida > 0 ? (
+        <p>
+          No fim de {u.ano}, {quem} devia <strong>{moedaExtenso(u.liquida)}</strong>, já descontado o que tinha em caixa.
+          É <strong class={situacao(u.razao) === "dentro" ? "" : "marca"}>{pct(u.razao)} da receita corrente líquida</strong>,{" "}
+          {u.razao >= LIMITE
+            ? <>acima do limite de {pct(LIMITE)} fixado pelo Senado.</>
+            : u.razao >= ALERTA
+            ? <>acima do limite de alerta ({pct(ALERTA)}) e perto do limite de {pct(LIMITE)}.</>
+            : <>abaixo do limite de {pct(LIMITE)} fixado pelo Senado.</>}
+          {d.mediana !== null && <> A mediana dos estados é {pct(d.mediana)}.</>}
+        </p>
+      ) : (
+        <p>
+          No fim de {u.ano}, o que {quem} tinha em caixa e aplicações era maior que a dívida de longo prazo
+          ({moedaCurta(u.bruta)}): não havia dívida líquida.
+          {d.mediana !== null && <> A mediana dos estados é {pct(d.mediana)} da receita corrente líquida.</>}
+        </p>
+      )}
+      <p class="menor">
+        Dívida consolidada líquida é tudo o que o estado deve a prazo maior que um ano, menos o dinheiro em caixa e aplicações.
+        A Lei de Responsabilidade Fiscal limita essa dívida a duas vezes a receita corrente líquida. Acima do limite, o estado
+        não pode contratar novos empréstimos até voltar a ele.
+      </p>
+    </div>
+    <ol class="anos-divida" aria-label="Dívida líquida como parte da receita, ano a ano">
+      {d.anos.map((a) => (
+        <li data-ano={a.ano} class:list={[situacao(a.razao), { atual: a.ano === ano }]}
+          title={`${a.ano}: dívida líquida de ${moedaCurta(a.liquida)}, receita corrente líquida de ${moedaCurta(a.rcl)}`}>
+          <span class="num ano">{a.ano}</span>
+          <span class="trilho">
+            <span class="barra" style={`width:${Math.max(0, a.razao / escala) * 100}%`}></span>
+            <span class="limite" style={`left:${(LIMITE / escala) * 100}%`}></span>
+          </span>
+          <strong class="num">{pct(a.razao)}</strong>
+        </li>
+      ))}
+      <li class="legenda" aria-hidden="true"><span></span><span class="trilho"><span class="rotulo-limite" style={`left:${(LIMITE / escala) * 100}%`}>limite {pct(LIMITE)}</span></span><span></span></li>
+    </ol>
+    <p class="fonte">Fonte: {d.fonte}.</p>
+  </section>
+)}
+
+<style>
+  .divida { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .anos-divida { grid-column: span 7; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; align-self: center; }
+  .anos-divida li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 60px; gap: 14px; align-items: center; font-size: 14px; }
+  .anos-divida .ano { color: var(--texto-3); }
+  .anos-divida strong { text-align: right; }
+  .trilho { position: relative; display: block; height: 14px; }
+  .barra { display: block; height: 100%; background: var(--verde); }
+  .alerta .barra { background: #c2913a; }
+  .acima .barra { background: #a3401a; }
+  .acima strong { color: #a3401a; }
+  .limite { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tinta); }
+  .atual .ano { color: var(--tinta); font-weight: 700; }
+  .atual .trilho { outline: 1px solid var(--tinta); outline-offset: 2px; }
+  .legenda { height: 16px; }
+  .rotulo-limite { position: absolute; top: 0; transform: translateX(-50%); font-size: 12px; color: var(--texto-3); white-space: nowrap; }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .divida { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; }
+  }
+</style>
