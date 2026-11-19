@@ -26,7 +26,7 @@ env:
 jobs:
   publicar:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -47,17 +47,18 @@ jobs:
       - name: Pipeline de dados
         run: uv run --project pipeline orcamento
 
-      # Estados e municípios. A API do SICONFI responde um ente por vez e bloqueia
-      # rajadas: são ~11 mil consultas na primeira vez, a ~2/s. O limite (~17 min)
-      # deixa o resto para as execuções seguintes (o cache de data/raw acumula);
-      # depois disso só são consultadas as prefeituras que ainda não tinham entregado.
+      # Estados e municípios. A API do SICONFI responde um ente por vez e tem limite
+      # documentado de 1 requisição por segundo: são ~11 mil consultas na primeira vez.
+      # O limite (~17 min) deixa o resto para as execuções seguintes (o cache de
+      # data/raw acumula); depois disso só são consultadas as prefeituras que ainda
+      # não tinham entregado.
       - name: Pipeline de estados e cidades (SICONFI)
-        run: uv run --project pipeline cidades --max-chamadas 2000
+        run: uv run --project pipeline cidades --max-chamadas 1000
 
       # Dados da página /mapa: receita, tributos e áreas de gasto por ano, a partir dos
       # caches do SICONFI (os anos importados do FINBRA só existem onde o cache foi levado).
       - name: Pipeline do mapa
-        run: uv run --project pipeline mapa --max-chamadas 400
+        run: uv run --project pipeline mapa --max-chamadas 300
 
       # Dinheiro federal por município. O Portal da Transparência às vezes responde com
       # CAPTCHA a downloads automáticos: se falhar, o site é publicado sem essa camada.

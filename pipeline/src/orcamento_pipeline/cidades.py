@@ -12,7 +12,7 @@ por vez, então são ~5.570 chamadas por ano. As respostas de cada ano ficam
 num único arquivo, data/raw/siconfi/dca-ie/{ano}.json.gz (ver CacheAno);
 respostas vazias (prefeitura que ainda não entregou) são consultadas de novo
 a cada execução. A API bloqueia
-rajadas (HTTP 429, a partir de ~100 por minuto), então as chamadas seguem um ritmo fixo (2/s por padrão).
+acima do limite documentado de 1 requisição por segundo (HTTP 429), então as chamadas seguem esse ritmo.
 """
 
 from __future__ import annotations
@@ -64,8 +64,9 @@ FAIXAS = [
 class Ritmo:
     """Espaça as chamadas entre todas as threads e pausa todas juntas num 429.
 
-    A API fica atrás de um firewall da Azure que bloqueia rajadas (resposta 429,
-    sem Retry-After) por alguns minutos.
+    A documentação da API (https://apidatalake.tesouro.gov.br/docs/siconfi/) fixa o limite em
+    1 requisição por segundo. Acima disso, um firewall responde 429 (sem Retry-After) por
+    alguns minutos.
     """
 
     def __init__(self, por_segundo: float) -> None:
@@ -85,7 +86,7 @@ class Ritmo:
             self.proxima = max(self.proxima, time.monotonic() + segundos)
 
 
-RITMO = Ritmo(2)
+RITMO = Ritmo(1)
 
 
 def _get(caminho: str, params: dict) -> dict:
@@ -411,7 +412,7 @@ def main() -> None:
     p.add_argument("--limite", type=int, default=None, help="só os N primeiros municípios (teste)")
     p.add_argument("--so-estados", action="store_true", help="só os 26 estados e o DF")
     p.add_argument("--paralelo", type=int, default=4)
-    p.add_argument("--por-segundo", type=float, default=2, help="ritmo máximo de chamadas à API")
+    p.add_argument("--por-segundo", type=float, default=1, help="ritmo máximo de chamadas à API (o limite documentado é 1/s)")
     p.add_argument("--max-chamadas", type=int, default=None,
                    help="para depois de N chamadas novas (o resto fica para a próxima execução)")
     args = p.parse_args()
