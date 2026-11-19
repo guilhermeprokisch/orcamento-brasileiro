@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>PROTÓTIPO · Mapa simplificado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600&display=swap">
+<!--
+  PROTÓTIPO DESCARTÁVEL. Não é código de produção e não deve ir para a main.
+
+  Pergunta: como deve ser o mapa se ele só comparar lugares e deixar a história de cada
+  cidade para a página dela? Três variantes da mesma rota, trocadas por ?variant=A|B|C
+  (ou pelas setas da barra flutuante / do teclado):
+
+    A — Perguntas em cima: abas de pergunta, mapa grande, legenda sobre o mapa, uma frase e
+        um ranking curto ao lado; clicar numa cidade mostra um resumo de cinco linhas.
+    B — Primeiro a sua cidade: começa pela busca; depois mostra onde a cidade está entre as
+        parecidas em cada pergunta, com o mapa do estado ao lado.
+    C — Sem mapa de manchas: a distribuição de todas as prefeituras num gráfico, filtros por
+        estado e porte, ranking, e só um mapa pequeno dos estados para filtrar.
+
+  Em todas: quatro perguntas sobre a prefeitura, sem linhas de fluxo, sem estimativas,
+  ano mais recente, e o detalhe fica na página da cidade.
+-->
+<style>
+  :root {
+    --papel: #f7f4ec; --papel-2: #eee9dc; --tinta: #191919; --texto-2: #4a4740; --texto-3: #7a7466;
+    --regra: #c9c2b2; --verde: #0e6b3b; --sem-dados: #e2dccd; --contorno: rgba(25, 25, 25, .16); --contorno-uf: rgba(25, 25, 25, .55);
+    --serifa: "Source Serif 4", Georgia, serif; --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--papel); color: var(--tinta); font-family: var(--sans); font-size: 15px; line-height: 1.45; }
+  h1, h2, h3 { font-family: var(--serifa); margin: 0; letter-spacing: -0.01em; }
+  button, input, select { font: inherit; color: inherit; }
+  a { color: var(--verde); }
+  .selo { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--verde); }
+  .mudo { color: var(--texto-3); }
+  .carregando { height: 100%; display: grid; place-items: center; color: var(--texto-3); }
+  #raiz { height: 100%; }
+
+  /* peças usadas por mais de uma variante */
+  .busca { position: relative; }
+  .busca input { width: 100%; height: 44px; padding: 0 12px; border: 2px solid var(--tinta); background: #fff; border-radius: 0; font-size: 16px; }
+  .busca ul { position: absolute; z-index: 20; left: 0; right: 0; top: 100%; margin: 0; padding: 0; list-style: none; background: #fff; border: 2px solid var(--tinta); border-top: 0; max-height: 300px; overflow: auto; }
+  .busca li button { width: 100%; text-align: left; padding: 10px 12px; background: none; border: 0; border-bottom: 1px solid var(--papel-2); cursor: pointer; }
+  .busca li button:hover { background: var(--papel-2); }
+  .busca li span { color: var(--texto-3); font-size: 13px; }
+  svg.mapa { width: 100%; height: 100%; display: block; touch-action: none; background: var(--papel-2); }
+  svg.mapa path.mun { stroke: var(--contorno); stroke-width: .3; vector-effect: non-scaling-stroke; cursor: pointer; }
+  svg.mapa path.uf { fill: none; stroke: var(--contorno-uf); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+  svg.mapa path.ativo { stroke: var(--tinta); stroke-width: 2.4; }
+  .legenda { background: var(--papel); border: 1px solid var(--tinta); padding: 10px 12px; font-size: 12.5px; max-width: 300px; }
+  .legenda b { display: block; font-size: 13px; margin-bottom: 6px; }
+  .legenda .faixas { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; height: 12px; }
+  .legenda .rot { display: flex; justify-content: space-between; margin-top: 3px; color: var(--texto-2); font-variant-numeric: tabular-nums; }
+  .legenda .sem { margin-top: 6px; color: var(--texto-3); display: flex; gap: 6px; align-items: center; }
+  .legenda .sem i { width: 14px; height: 10px; background: var(--sem-dados); display: inline-block; }
+  .resumo h2 { font-size: 28px; line-height: 1.05; }
+  .resumo .sub { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--texto-3); }
+  .resumo dl { margin: 12px 0; display: grid; grid-template-columns: 1fr auto; gap: 0; }
+  .resumo dt, .resumo dd { margin: 0; padding: 9px 0; border-bottom: 1px solid var(--regra); }
+  .resumo dt { color: var(--texto-2); }
+  .resumo dd { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .resumo dd small { display: block; font-weight: 400; font-size: 12px; color: var(--texto-3); }
+  .botao { display: inline-block; padding: 11px 16px; background: var(--verde); color: #fff; text-decoration: none; font-weight: 600; border: 0; cursor: pointer; }
+  .fechar { background: none; border: 1px solid var(--regra); padding: 4px 10px; font-size: 13px; cursor: pointer; margin-bottom: 10px; }
+  ol.rank { margin: 6px 0 14px; padding: 0; list-style: none; }
+  ol.rank li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--papel-2); cursor: pointer; }
+  ol.rank li:hover { background: var(--papel-2); }
+  ol.rank li span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+  ol.rank small { color: var(--texto-3); }
+  h3.rot { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--texto-3); margin-top: 14px; }
+
+  /* A — perguntas em cima */
+  .va { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) 380px; }
+  .va header { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0, 1fr) 320px; gap: 20px; align-items: center; padding: 12px 20px; border-bottom: 2px solid var(--tinta); }
+  .va header h1 { font-size: 22px; }
+  .va .abas { display: flex; gap: 6px; overflow-x: auto; }
+  .va .abas button { white-space: nowrap; padding: 9px 14px; background: none; border: 1px solid var(--tinta); cursor: pointer; }
+  .va .abas button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); font-weight: 600; }
+  .va .palco { position: relative; min-height: 0; }
+  .va .palco .legenda { position: absolute; left: 16px; bottom: 16px; }
+  .va aside { border-left: 1px solid var(--regra); padding: 20px; overflow-y: auto; }
+  .va .frase { font-family: var(--serifa); font-size: 21px; line-height: 1.25; margin: 6px 0 4px; }
+  @media (max-width: 860px) {
+    html, body, #raiz { height: auto; }
+    .va { display: block; }
+    .va header { grid-template-columns: 1fr; gap: 10px; padding: 12px 16px; position: sticky; top: 0; z-index: 10; background: var(--papel); }
+    .va header h1 { font-size: 18px; }
+    .va .palco { height: 48svh; min-height: 280px; }
+    .va .palco .legenda { left: 8px; bottom: 8px; max-width: 220px; padding: 6px 8px; }
+    .va aside { border-left: 0; border-top: 2px solid var(--tinta); padding: 16px; }
+  }
+
+  /* B — primeiro a sua cidade */
+  .vb { min-height: 100%; }
+  .vb .entrada { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+  .vb .entrada > div { width: min(560px, 100%); display: flex; flex-direction: column; gap: 14px; }
+  .vb .entrada h1 { font-size: clamp(34px, 6vw, 54px); line-height: 1; }
+  .vb .entrada p { margin: 0; color: var(--texto-2); font-size: 17px; }
+  .vb .atalhos { display: flex; flex-wrap: wrap; gap: 6px; }
+  .vb .atalhos button { padding: 6px 10px; background: none; border: 1px solid var(--regra); cursor: pointer; font-size: 13px; }
+  .vb .cidade { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); }
+  .vb .col { padding: 24px; display: flex; flex-direction: column; gap: 14px; }
+  .vb .col h1 { font-size: 44px; line-height: 1; }
+  .vb .ind { border: 1px solid var(--regra); padding: 12px 14px; cursor: pointer; background: none; text-align: left; display: flex; flex-direction: column; gap: 6px; }
+  .vb .ind[aria-pressed="true"] { border: 2px solid var(--tinta); padding: 11px 13px; }
+  .vb .ind .topo { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .vb .ind .topo b { font-family: var(--serifa); font-size: 22px; }
+  .vb .tira { position: relative; display: block; height: 22px; }
+  .vb .tira::before { content: ""; position: absolute; left: 0; right: 0; top: 9px; height: 4px; background: var(--papel-2); }
+  .vb .tira i { position: absolute; display: block; }
+  .vb .tira .meio { top: 9px; height: 4px; background: var(--regra); }
+  .vb .tira .med { top: 3px; width: 2px; height: 16px; margin-left: -1px; background: var(--tinta); }
+  .vb .tira .aqui { top: 4px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--verde); border: 2px solid #fff; }
+  .vb .ind small { color: var(--texto-3); }
+  .vb .lado { position: sticky; top: 0; height: 100vh; }
+  .vb .lado .legenda { position: absolute; left: 16px; bottom: 60px; }
+  @media (max-width: 860px) {
+    .vb .cidade { display: flex; flex-direction: column; }
+    .vb .col { padding: 16px; }
+    .vb .col h1 { font-size: 34px; }
+    .vb .lado { position: relative; height: 56svh; }
+    .vb .lado .legenda { bottom: 8px; left: 8px; }
+  }
+
+  /* C — sem mapa de manchas */
+  .vc { max-width: 1180px; margin: 0 auto; padding: 20px 20px 90px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; }
+  .vc header { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 12px; border-bottom: 2px solid var(--tinta); padding-bottom: 14px; }
+  .vc header h1 { font-size: 26px; }
+  .vc .abas { display: flex; flex-wrap: wrap; gap: 6px; }
+  .vc .abas button { padding: 9px 14px; background: none; border: 1px solid var(--tinta); cursor: pointer; }
+  .vc .abas button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); font-weight: 600; }
+  .vc .filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .vc .filtros select { height: 38px; padding: 0 8px; border: 1px solid var(--tinta); background: #fff; }
+  .vc .filtros .busca { flex: 1 1 240px; }
+  .vc .frase { font-family: var(--serifa); font-size: 24px; line-height: 1.2; margin: 0 0 10px; }
+  .vc svg.hist { width: 100%; height: 300px; display: block; }
+  .vc svg.hist text { font-size: 11px; fill: var(--texto-3); }
+  .vc .eixo { display: flex; justify-content: space-between; font-size: 12px; color: var(--texto-3); font-variant-numeric: tabular-nums; }
+  .vc .mini { height: 300px; border: 1px solid var(--regra); }
+  .vc .mini path { stroke: var(--papel); stroke-width: 1; cursor: pointer; vector-effect: non-scaling-stroke; }
+  .vc .mini path.ativo { stroke: var(--tinta); stroke-width: 2; }
+  @media (max-width: 860px) { .vc { display: flex; flex-direction: column; padding: 16px 16px 90px; } }
+
+  /* barra do protótipo: não faz parte do desenho avaliado */
+  .troca { position: fixed; z-index: 99; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px 8px; background: #111; color: #fff; border-radius: 999px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); font-size: 13px; white-space: nowrap; max-width: calc(100vw - 16px); }
+  .troca button { width: 32px; height: 32px; border-radius: 50%; border: 0; background: #333; color: #fff; cursor: pointer; }
+  .troca span { padding: 0 8px; overflow: hidden; text-overflow: ellipsis; }
+  .troca a { color: #9fe0b8; padding: 0 8px; }
+</style>
+</head>
+<body>
+<div id="raiz"><div class="carregando">Carregando o protótipo…</div></div>
+<div class="troca" id="troca" hidden>
+  <button type="button" id="ant" aria-label="Variante anterior">←</button>
+  <span id="rotulo-variante"></span>
+  <button type="button" id="prox" aria-label="Próxima variante">→</button>
+  <a href="/mapa/">ver o atual</a>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+(async () => {
+  // ---------- dados (os mesmos do mapa atual) ----------
+  const json = (u) => fetch(u).then((r) => { if (!r.ok) throw new Error(u); return r.json(); });
+  const ANO = 2025;
+  const [geoMun, geoUf, nomes, doc, ideb] = await Promise.all([
+    json("/data/mapa/municipios.geojson"), json("/data/mapa/estados.geojson"), json("/data/mapa/nomes.json"),
+    json(`/data/mapa/anos/${ANO}.json`), json("/data/indicadores/ideb.json").catch(() => ({ edicao: null, mun: {} })),
+  ]);
+  for (const geo of [geoMun, geoUf]) for (const f of geo.features) {   // o IBGE entrega os anéis no sentido contrário ao do d3
+    const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+    for (const p of polys) if (d3.geoArea({ type: "Polygon", coordinates: p }) > 2 * Math.PI) for (const anel of p) anel.reverse();
+  }
+  const mun = doc.mun;
+  const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const reais = (v) => `R$ ${nf0.format(Math.round(v))}`;
+  const pct = (v) => `${nf0.format(v * 100)}%`;
+  const semAcento = (t) => t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+  const slug = (s) => semAcento(s).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const pagina = (id) => `/cidades/${nomes.mun[id][1].toLowerCase()}/${slug(nomes.mun[id][0])}`;
+  const FAIXAS = [[5e3, "até 5 mil moradores"], [1e4, "de 5 a 10 mil"], [2e4, "de 10 a 20 mil"], [5e4, "de 20 a 50 mil"], [1e5, "de 50 a 100 mil"], [5e5, "de 100 a 500 mil"], [Infinity, "mais de 500 mil"]];
+  const faixaDe = (id) => FAIXAS.findIndex(([ate]) => mun[id][0] <= ate);
+  const temRec = (r) => r && r.length > 6 && r[6] > 0;
+  const VERDES = ["#e3f0e6", "#b3dfc4", "#74c193", "#3f9a63", "#0a4a29"];
+  const DIVERGE = ["#9c6c1c", "#dcb565", "#f6ecd2", "#e3f0e6", "#74c193", "#1f7a47"];
+
+  // As quatro perguntas. Todas são sobre a prefeitura e todas são medidas, não estimadas.
+  const MEDIDAS = {
+    desp: { aba: "Quanto gasta", titulo: "Gasto da prefeitura por morador", v: (id) => (mun[id] ? mun[id][1] / mun[id][0] : null), fmt: reais },
+    dep: { aba: "Depende de repasses", titulo: "Parte da receita que vem de repasses", v: (id) => (temRec(mun[id]) ? Math.min(1, (mun[id][8] + mun[id][9] + mun[id][10]) / mun[id][6]) : null), fmt: pct },
+    saldo: { aba: "Sobrou ou faltou", titulo: "Receita menos despesa, como parte da receita", divergente: true,
+      v: (id) => (temRec(mun[id]) ? (mun[id][6] - mun[id][1]) / mun[id][6] : null), fmt: (v) => `${v >= 0 ? "sobrou" : "faltou"} ${nf1.format(Math.abs(v) * 100)}%` },
+    ideb: { aba: "Nota das escolas", titulo: `Ideb ${ideb.edicao ?? ""} da rede municipal, 1º ao 5º ano`, v: (id) => (mun[id] ? ideb.mun[id]?.mi?.at(-1) ?? null : null), fmt: (v) => nf1.format(v) },
+  };
+  const ids = Object.keys(mun);
+  for (const m of Object.values(MEDIDAS)) {
+    m.val = new Map(ids.map((id) => [id, m.v(id)]).filter(([, v]) => v !== null && Number.isFinite(v)));
+    const vals = [...m.val.values()].sort(d3.ascending);
+    m.ord = vals;
+    m.escala = m.divergente ? d3.scaleThreshold().domain([-0.10, -0.03, 0, 0.03, 0.10]).range(DIVERGE) : d3.scaleQuantile().domain(vals).range(VERDES);
+    m.cor = (id) => (m.val.has(id) ? m.escala(m.val.get(id)) : "var(--sem-dados)");
+  }
+  const q = (m, p) => d3.quantileSorted(MEDIDAS[m].ord, p);
+  const FRASES = {
+    desp: () => `Metade das prefeituras gasta menos de ${reais(q("desp", 0.5))} por morador ao ano. Uma em cada dez gasta mais de ${reais(q("desp", 0.9))}.`,
+    dep: () => `Em ${nf0.format([...MEDIDAS.dep.val.values()].filter((v) => v > 0.85).length)} das ${nf0.format(MEDIDAS.dep.val.size)} prefeituras, mais de 85% do dinheiro vem de repasses do estado e da União.`,
+    saldo: () => `${nf0.format([...MEDIDAS.saldo.val.values()].filter((v) => v < 0).length)} prefeituras gastaram mais do que receberam em ${ANO}.`,
+    ideb: () => `Metade das redes municipais tirou menos de ${nf1.format(q("ideb", 0.5))} no Ideb dos anos iniciais. ${nf0.format([...MEDIDAS.ideb.val.values()].filter((v) => v >= 6).length)} tiraram 6 ou mais.`,
+  };
+  const medianaParecidas = (m, id) => d3.median(ids.filter((k) => faixaDe(k) === faixaDe(id)).map((k) => MEDIDAS[m].val.get(k)).filter((v) => v !== undefined));
+  const parecidas = (id) => { const r = FAIXAS[faixaDe(id)][1]; return `cidades ${/^(até|mais)/.test(r) ? "com " : ""}${r}${r.includes("moradores") ? "" : " moradores"}`; };
+  /** Maiores e menores entre as cidades com mais de `minPop` moradores (as muito pequenas dominam qualquer conta por morador). */
+  function extremos(m, n, filtro = (id) => mun[id][0] >= 1e5) {
+    const l = [...MEDIDAS[m].val].filter(([id]) => filtro(id)).sort((a, b) => b[1] - a[1]);
+    return [l.slice(0, n), l.slice(-n).reverse(), l.length];
+  }
+
+  const estado = { variante: "A", medida: "desp", sel: null, uf: "", porte: -1 };
+  const proj = d3.geoMercator(), caminho = d3.geoPath(proj);
+  const feicao = new Map(geoMun.features.map((f) => [f.properties.id, f]));
+  const raiz = document.getElementById("raiz");
+
+  // ---------- peças ----------
+  function legenda(m) {
+    const M = MEDIDAS[m], cores = M.divergente ? DIVERGE : VERDES;
+    const rot = M.divergente ? ["faltou 10%+", "0", "sobrou 10%+"] : [M.fmt(M.ord[0]), M.fmt(q(m, 0.5)), M.fmt(M.ord.at(-1))];
+    return `<div class="legenda"><b>${M.titulo}</b><div class="faixas">${cores.map((c) => `<span style="background:${c}"></span>`).join("")}</div>
+      <div class="rot">${rot.map((t) => `<span>${t}</span>`).join("")}</div><div class="sem"><i></i> sem prestação de contas</div></div>`;
+  }
+  function resumo(id, fechar) {
+    const [nm, uf] = nomes.mun[id];
+    const linha = (m, rotulo) => {
+      const M = MEDIDAS[m], v = M.val.get(id), med = medianaParecidas(m, id);
+      return `<dt>${rotulo}</dt><dd>${v === undefined ? "—" : M.fmt(v)}${med !== undefined ? `<small>parecidas: ${M.fmt(med)}</small>` : ""}</dd>`;
+    };
+    return `<div class="resumo">${fechar ? `<button type="button" class="fechar" data-fechar>← voltar</button>` : ""}
+      <div class="sub">Prefeitura · ${uf} · ${nf0.format(mun[id][0])} moradores · ${ANO}</div><h2>${nm}</h2>
+      <dl>${linha("desp", "Gasto por morador")}${linha("dep", "Vem de repasses")}${linha("saldo", "Sobrou ou faltou")}${linha("ideb", "Nota das escolas (Ideb)")}</dl>
+      <p class="mudo" style="margin:0 0 12px;font-size:13px">"Parecidas" é a mediana das ${parecidas(id)}.</p>
+      <a class="botao" href="${pagina(id)}">Ver a página completa de ${nm} →</a></div>`;
+  }
+  const indice = ids.map((id) => ({ id, nm: nomes.mun[id][0], uf: nomes.mun[id][1], chave: semAcento(`${nomes.mun[id][0]} ${nomes.mun[id][1]}`) }));
+  function ligarBusca(caixa, aoEscolher) {
+    const campo = caixa.querySelector("input"), lista = caixa.querySelector("ul");
+    campo.addEventListener("input", () => {
+      const t = semAcento(campo.value).split(/\s+/).filter(Boolean);
+      if (!t.length) { lista.hidden = true; return; }
+      const achados = indice.filter((c) => t.every((x) => c.chave.includes(x)))
+        .sort((a, b) => Number(!a.chave.startsWith(t[0])) - Number(!b.chave.startsWith(t[0])) || mun[b.id][0] - mun[a.id][0]).slice(0, 7);
+      lista.hidden = false;
+      lista.innerHTML = achados.map((c) => `<li><button type="button" data-id="${c.id}">${c.nm} <span>${c.uf}</span></button></li>`).join("") || `<li><button type="button" disabled>Nenhuma cidade com esse nome</button></li>`;
+    });
+    lista.addEventListener("click", (ev) => { const b = ev.target.closest("[data-id]"); if (b) { lista.hidden = true; campo.value = ""; aoEscolher(b.dataset.id); } });
+  }
+  const htmlBusca = (texto) => `<div class="busca"><input type="search" placeholder="${texto}" autocomplete="off" aria-label="Procure sua cidade"><ul hidden></ul></div>`;
+  /** Mapa de manchas dos municípios num <svg>. Devolve funções para repintar e enquadrar. */
+  function mapaMunicipios(svgEl, aoClicar) {
+    const svg = d3.select(svgEl), g = svg.append("g");
+    const { width, height } = svgEl.getBoundingClientRect();
+    svg.attr("viewBox", `0 0 ${width} ${height}`);
+    proj.fitExtent([[12, 12], [width - 12, height - 12]], geoUf);
+    const paths = g.append("g").selectAll("path").data(geoMun.features).join("path").attr("class", "mun").attr("d", caminho)
+      .on("click", (ev, f) => aoClicar(f.properties.id));
+    paths.append("title").text((f) => nomes.mun[f.properties.id]?.[0] ?? "");
+    g.append("g").selectAll("path").data(geoUf.features).join("path").attr("class", "uf").attr("d", caminho);
+    const zoom = d3.zoom().scaleExtent([1, 60]).on("zoom", (ev) => g.attr("transform", ev.transform));
+    svg.call(zoom);
+    return {
+      pintar: () => paths.attr("fill", (f) => MEDIDAS[estado.medida].cor(f.properties.id)).classed("ativo", (f) => f.properties.id === estado.sel).filter((f) => f.properties.id === estado.sel).raise(),
+      enquadrar: (alvo, ocupa = 0.5) => {
+        if (!alvo) return svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+        const [[x0, y0], [x1, y1]] = caminho.bounds(alvo);
+        const k = Math.max(1, Math.min(40, ocupa / Math.max((x1 - x0) / width, (y1 - y0) / height)));
+        svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(k).translate(-(x0 + x1) / 2, -(y0 + y1) / 2));
+      },
+    };
+  }
+  const abas = () => Object.entries(MEDIDAS).map(([k, m]) => `<button type="button" data-medida="${k}" aria-pressed="${k === estado.medida}">${m.aba}</button>`).join("");
+  const htmlRank = (lista, m) => `<ol class="rank">${lista.map(([id, v]) => `<li data-id="${id}"><span>${nomes.mun[id][0]} <small>${nomes.mun[id][1]}</small></span><span>${MEDIDAS[m].fmt(v)}</span></li>`).join("")}</ol>`;
+
+  // ---------- A — perguntas em cima ----------
+  function varianteA() {
+    raiz.innerHTML = `<div class="va">
+      <header><div><span class="selo">Orçamento Brasileiro</span><h1>Mapa das prefeituras</h1></div><div class="abas"></div>${htmlBusca("Procure sua cidade")}</header>
+      <div class="palco"><svg class="mapa" role="img" aria-label="Mapa do Brasil"></svg><div class="leg"></div></div>
+      <aside></aside></div>`;
+    const lado = raiz.querySelector("aside");
+    const mapa = mapaMunicipios(raiz.querySelector("svg.mapa"), (id) => escolher(estado.sel === id ? null : id, false));
+    function painel() {
+      raiz.querySelector(".abas").innerHTML = abas();
+      raiz.querySelector(".leg").innerHTML = legenda(estado.medida);
+      if (estado.sel) { lado.innerHTML = resumo(estado.sel, true); return; }
+      const [maiores, menores, n] = extremos(estado.medida, 5);
+      lado.innerHTML = `<span class="selo">${MEDIDAS[estado.medida].titulo} · ${ANO}</span><p class="frase">${FRASES[estado.medida]()}</p>
+        <h3 class="rot">Os maiores</h3>${htmlRank(maiores, estado.medida)}<h3 class="rot">Os menores</h3>${htmlRank(menores, estado.medida)}
+        <p class="mudo" style="font-size:13px">Entre as ${n} cidades com mais de 100 mil moradores. Clique numa cidade no mapa ou na lista para ver o resumo dela.</p>`;
+    }
+    function escolher(id, aproximar = true) { estado.sel = id; painel(); mapa.pintar(); if (aproximar) mapa.enquadrar(id ? feicao.get(id) : null, 0.2); }
+    raiz.querySelector(".va").addEventListener("click", (ev) => {
+      const a = ev.target.closest("[data-medida]"), li = ev.target.closest("ol.rank li");
+      if (a) { estado.medida = a.dataset.medida; painel(); mapa.pintar(); }
+      else if (li) escolher(li.dataset.id);
+      else if (ev.target.closest("[data-fechar]")) escolher(null);
+    });
+    ligarBusca(raiz.querySelector(".busca"), (id) => escolher(id));
+    painel(); mapa.pintar();
+    if (estado.sel) mapa.enquadrar(feicao.get(estado.sel), 0.2);
+  }
+
+  // ---------- B — primeiro a sua cidade ----------
+  function varianteB() {
+    const capitais = ["3550308", "3304557", "5300108", "2927408", "2304400", "3106200", "1302603", "4106902", "2611606", "4314902"].filter((id) => mun[id]);
+    function entrada() {
+      raiz.innerHTML = `<div class="vb"><div class="entrada"><div><span class="selo">Orçamento Brasileiro</span><h1>Qual é a sua cidade?</h1>
+        <p>Veja quanto a prefeitura gasta, de onde vem o dinheiro, se sobrou ou faltou e que nota as escolas tiram, sempre ao lado das cidades do mesmo tamanho.</p>
+        ${htmlBusca("Digite o nome da cidade")}<div class="atalhos">${capitais.map((id) => `<button type="button" data-id="${id}">${nomes.mun[id][0]}</button>`).join("")}</div></div></div></div>`;
+      ligarBusca(raiz.querySelector(".busca"), cidade);
+      raiz.querySelector(".atalhos").addEventListener("click", (ev) => { const b = ev.target.closest("[data-id]"); if (b) cidade(b.dataset.id); });
+      raiz.querySelector("input").focus();
+    }
+    /** Onde a cidade está entre as parecidas: faixa de 5% a 95%, traço na mediana, ponto na cidade. */
+    function tira(m, id) {
+      const vals = ids.filter((k) => faixaDe(k) === faixaDe(id)).map((k) => MEDIDAS[m].val.get(k)).filter((v) => v !== undefined).sort(d3.ascending);
+      const v = MEDIDAS[m].val.get(id);
+      if (v === undefined || vals.length < 5) return "";
+      const lo = d3.quantileSorted(vals, 0.05), hi = d3.quantileSorted(vals, 0.95), x = d3.scaleLinear([lo, hi], [2, 98]).clamp(true);
+      const q1 = x(d3.quantileSorted(vals, 0.25)), q3 = x(d3.quantileSorted(vals, 0.75));
+      return `<span class="tira" aria-hidden="true"><i class="meio" style="left:${q1}%;width:${q3 - q1}%"></i><i class="med" style="left:${x(d3.median(vals))}%"></i><i class="aqui" style="left:${x(v)}%"></i></span>
+        <small>Entre as ${parecidas(id)}, a mediana é ${MEDIDAS[m].fmt(d3.median(vals))}. A faixa escura é a metade do meio.</small>`;
+    }
+    function cidade(id) {
+      estado.sel = id;
+      const [nm, uf] = nomes.mun[id];
+      raiz.innerHTML = `<div class="vb"><div class="cidade"><div class="col">
+        <button type="button" class="fechar" data-fechar style="align-self:flex-start">← outra cidade</button>
+        <div><span class="selo">Prefeitura · ${uf} · ${nf0.format(mun[id][0])} moradores · ${ANO}</span><h1>${nm}</h1></div>
+        ${Object.entries(MEDIDAS).map(([k, M]) => `<button type="button" class="ind" data-medida="${k}" aria-pressed="${k === estado.medida}">
+          <span class="topo"><span>${M.titulo}</span><b>${M.val.has(id) ? M.fmt(M.val.get(id)) : "—"}</b></span>${tira(k, id)}</button>`).join("")}
+        <a class="botao" href="${pagina(id)}" style="align-self:flex-start">Ver a página completa de ${nm} →</a>
+        <p class="mudo" style="font-size:13px;margin:0">Toque num dos quadros para ver essa conta no mapa do estado.</p>
+      </div><div class="lado"><svg class="mapa" role="img" aria-label="Mapa do estado"></svg><div class="leg"></div></div></div></div>`;
+      const mapa = mapaMunicipios(raiz.querySelector("svg.mapa"), (outro) => mun[outro] && cidade(outro));
+      const noMapa = () => { raiz.querySelector(".leg").innerHTML = legenda(estado.medida); mapa.pintar(); };
+      noMapa();
+      mapa.enquadrar(geoUf.features.find((f) => f.properties.id === id.slice(0, 2)), 0.9);
+      raiz.querySelector(".col").addEventListener("click", (ev) => {
+        const b = ev.target.closest("[data-medida]");
+        if (b) { estado.medida = b.dataset.medida; raiz.querySelectorAll(".ind").forEach((e) => e.setAttribute("aria-pressed", e === b)); noMapa(); }
+        else if (ev.target.closest("[data-fechar]")) { estado.sel = null; entrada(); }
+      });
+    }
+    estado.sel ? cidade(estado.sel) : entrada();
+  }
+
+  // ---------- C — sem mapa de manchas ----------
+  function varianteC() {
+    const ufs = [...new Set(ids.map((id) => nomes.mun[id][1]))].sort();
+    raiz.innerHTML = `<div class="vc"><header><div><span class="selo">Orçamento Brasileiro</span><h1>As ${nf0.format(ids.length)} prefeituras, lado a lado</h1></div>
+      <div class="abas"></div><div class="filtros">
+        <select id="f-uf" aria-label="Estado"><option value="">Todos os estados</option>${ufs.map((u) => `<option>${u}</option>`).join("")}</select>
+        <select id="f-porte" aria-label="Tamanho da cidade"><option value="-1">Todos os tamanhos</option>${FAIXAS.map(([, r], i) => `<option value="${i}">${r}</option>`).join("")}</select>
+        ${htmlBusca("Marcar uma cidade no gráfico")}</div></header>
+      <main><p class="frase"></p><svg class="hist" role="img" aria-label="Distribuição das prefeituras"></svg><div class="eixo"></div><div id="c-lista"></div></main>
+      <aside><div id="c-resumo"></div><h3 class="rot">Filtrar por estado</h3><svg class="mini" role="img" aria-label="Estados"></svg></aside></div>`;
+    const siglaDe = Object.fromEntries(Object.entries(nomes.uf).map(([id, [, sigla]]) => [id, sigla]));
+    function desenhar() {
+      const m = estado.medida, M = MEDIDAS[m];
+      const filtro = (id) => (!estado.uf || nomes.mun[id][1] === estado.uf) && (estado.porte < 0 || faixaDe(id) === estado.porte);
+      const dentro = [...M.val].filter(([id]) => filtro(id));
+      const vals = dentro.map(([, v]) => v).sort(d3.ascending);
+      raiz.querySelector(".abas").innerHTML = abas();
+      const onde = `${estado.uf ? `em ${estado.uf}` : "no país"}${estado.porte >= 0 ? `, ${FAIXAS[estado.porte][1]}` : ""}`;
+      raiz.querySelector(".frase").textContent = vals.length
+        ? `${M.titulo}: ${nf0.format(vals.length)} prefeituras ${onde}. A do meio da fila tem ${M.fmt(d3.median(vals))}; uma em cada dez passa de ${M.fmt(d3.quantileSorted(vals, 0.9))}.`
+        : "Nenhuma prefeitura com esse filtro.";
+      // histograma: cada barra é quantas prefeituras caem naquela faixa de valor
+      const svg = d3.select(raiz.querySelector("svg.hist")); svg.selectAll("*").remove();
+      const { width, height } = svg.node().getBoundingClientRect();
+      if (vals.length > 1) {
+        const lo = d3.quantileSorted(vals, 0.01), hi = d3.quantileSorted(vals, 0.99);
+        const x = d3.scaleLinear([lo, hi], [0, width]).clamp(true);
+        const caixas = d3.bin().domain([lo, hi]).thresholds(36)(vals.map((v) => Math.max(lo, Math.min(hi, v))));
+        const y = d3.scaleLinear([0, d3.max(caixas, (c) => c.length)], [height - 18, 8]);
+        svg.selectAll("rect").data(caixas).join("rect").attr("x", (c) => x(c.x0) + 1).attr("width", (c) => Math.max(1, x(c.x1) - x(c.x0) - 2))
+          .attr("y", (c) => y(c.length)).attr("height", (c) => height - 18 - y(c.length)).attr("fill", (c) => M.escala((c.x0 + c.x1) / 2));
+        const marca = (v, cor, texto, alto) => { svg.append("line").attr("x1", x(v)).attr("x2", x(v)).attr("y1", alto).attr("y2", height - 18).attr("stroke", cor).attr("stroke-width", 2);
+          svg.append("text").attr("x", Math.min(width - 4, Math.max(4, x(v)))).attr("y", alto - 3).attr("text-anchor", x(v) > width / 2 ? "end" : "start").style("fill", cor).style("font-weight", 600).text(texto); };
+        marca(d3.median(vals), "var(--tinta)", `metade fica abaixo de ${M.fmt(d3.median(vals))}`, 26);
+        if (estado.sel && M.val.has(estado.sel)) marca(M.val.get(estado.sel), "#a3401a", `${nomes.mun[estado.sel][0]}: ${M.fmt(M.val.get(estado.sel))}`, 12);
+        raiz.querySelector(".eixo").innerHTML = `<span>${M.fmt(lo)}</span><span>cada barra é um grupo de prefeituras; mais alta, mais prefeituras</span><span>${M.fmt(hi)}</span>`;
+      }
+      const ord = dentro.sort((a, b) => b[1] - a[1]);
+      raiz.querySelector("#c-lista").innerHTML = `<h3 class="rot">Os dez maiores</h3>${htmlRank(ord.slice(0, 10), m)}<h3 class="rot">Os dez menores</h3>${htmlRank(ord.slice(-10).reverse(), m)}`;
+      raiz.querySelector("#c-resumo").innerHTML = estado.sel ? resumo(estado.sel, false) : `<p class="mudo">Escolha uma cidade na busca ou nas listas para ver o resumo dela e onde ela cai no gráfico.</p>`;
+      // mapa pequeno: um polígono por estado, pela mediana das prefeituras dele
+      const mini = d3.select(raiz.querySelector("svg.mini")); mini.selectAll("*").remove();
+      const b = mini.node().getBoundingClientRect(); mini.attr("viewBox", `0 0 ${b.width} ${b.height}`);
+      const p2 = d3.geoMercator().fitExtent([[6, 6], [b.width - 6, b.height - 6]], geoUf), c2 = d3.geoPath(p2);
+      const porUf = d3.rollup([...M.val], (l) => d3.median(l, (x) => x[1]), ([id]) => nomes.mun[id][1]);
+      mini.selectAll("path").data(geoUf.features).join("path").attr("d", c2).attr("fill", (f) => (porUf.has(siglaDe[f.properties.id]) ? M.escala(porUf.get(siglaDe[f.properties.id])) : "var(--sem-dados)"))
+        .classed("ativo", (f) => siglaDe[f.properties.id] === estado.uf)
+        .on("click", (ev, f) => { estado.uf = estado.uf === siglaDe[f.properties.id] ? "" : siglaDe[f.properties.id]; raiz.querySelector("#f-uf").value = estado.uf; desenhar(); })
+        .append("title").text((f) => `${siglaDe[f.properties.id]}: mediana ${porUf.has(siglaDe[f.properties.id]) ? M.fmt(porUf.get(siglaDe[f.properties.id])) : "—"}`);
+    }
+    raiz.querySelector("#f-uf").value = estado.uf; raiz.querySelector("#f-porte").value = estado.porte;
+    raiz.querySelector("#f-uf").addEventListener("change", (ev) => { estado.uf = ev.target.value; desenhar(); });
+    raiz.querySelector("#f-porte").addEventListener("change", (ev) => { estado.porte = Number(ev.target.value); desenhar(); });
+    raiz.querySelector(".vc").addEventListener("click", (ev) => {
+      const a = ev.target.closest("[data-medida]"), li = ev.target.closest("ol.rank li");
+      if (a) { estado.medida = a.dataset.medida; desenhar(); } else if (li) { estado.sel = li.dataset.id; desenhar(); }
+    });
+    ligarBusca(raiz.querySelector(".busca"), (id) => { estado.sel = id; desenhar(); });
+    desenhar();
+  }
+
+  // ---------- barra do protótipo ----------
+  const VARIANTES = { A: ["Perguntas em cima", varianteA], B: ["Primeiro a sua cidade", varianteB], C: ["Sem mapa de manchas", varianteC] };
+  const chaves = Object.keys(VARIANTES);
+  function mostrar(v) {
+    estado.variante = VARIANTES[v] ? v : "A";
+    const url = new URL(location.href); url.searchParams.set("variant", estado.variante); history.replaceState(null, "", url);
+    document.getElementById("rotulo-variante").textContent = `${estado.variante} — ${VARIANTES[estado.variante][0]}`;
+    scrollTo(0, 0);   // cada variante recria tudo dentro de #raiz e só põe ouvintes nos próprios filhos
+    VARIANTES[estado.variante][1]();
+  }
+  const passo = (d) => mostrar(chaves[(chaves.indexOf(estado.variante) + d + chaves.length) % chaves.length]);
+  document.getElementById("ant").onclick = () => passo(-1);
+  document.getElementById("prox").onclick = () => passo(1);
+  addEventListener("keydown", (ev) => {
+    if (ev.target.closest("input, textarea, select, [contenteditable]")) return;
+    if (ev.key === "ArrowLeft") passo(-1); else if (ev.key === "ArrowRight") passo(1);
+  });
+  // a barra não aparece no endereço de produção, caso o protótipo vaze para a main
+  document.getElementById("troca").hidden = location.hostname === "orcamento-brasileiro.pages.dev";
+  mostrar(new URLSearchParams(location.search).get("variant") || "A");
+})().catch((e) => { document.getElementById("raiz").innerHTML = `<div class="carregando">O protótipo não carregou: ${e.message}</div>`; });
+</script>
+</body>
+</html>
