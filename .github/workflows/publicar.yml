@@ -113,6 +113,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline ideb
 
+      # Matrículas por município (Censo Escolar). Como o Ideb, usa a cópia versionada em
+      # pipeline/referencia quando o INEP derruba a conexão do servidor do GitHub.
+      - name: Pipeline das matrículas
+        continue-on-error: true
+        run: uv run --project pipeline matriculas
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

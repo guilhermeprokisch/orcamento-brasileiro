@@ -5,7 +5,7 @@
  */
 import { moedaCurta, pct } from "../../lib/formato";
 import { docCidades, medianaDa, porPessoa, type Cidade } from "../../lib/cidades";
-import { idebDe, type NotaIdeb } from "../../lib/indicadores";
+import { idebDe, porAlunoDe, type NotaIdeb } from "../../lib/indicadores";
 
 interface Props {
   cidade: Cidade;
@@ -14,6 +14,8 @@ interface Props {
 }
 const { cidade, faixa } = Astro.props;
 const ideb = idebDe(cidade);
+const aluno = porAlunoDe(cidade);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const gasto = cidade.f?.["12"]?.[0] ?? 0;
 const porHab = gasto > 0 ? gasto / cidade.pop : null;
 const medianaGasto = medianaDa(cidade, "12", docCidades);
@@ -48,7 +50,14 @@ const linhas = ideb
     <div class="texto">
       <span class="sobretitulo verde">Gasto e resultado</span>
       <h2>Educação: quanto se gasta e que nota as escolas tiram</h2>
-      {porHab !== null && (
+      {aluno ? (
+        <p>
+          Em {cidade.ano}, a prefeitura gastou <strong>{porPessoa(aluno.porAluno)} por aluno</strong> das escolas dela
+          ({nf0.format(aluno.alunos)} alunos), {moedaCurta(gasto)} no total{total > 0 && <>, {pct(gasto / total)} de tudo o que gastou</>}.
+          {aluno.mediana !== null && faixa && <> A mediana das cidades {faixa} é {porPessoa(aluno.mediana)} por aluno.</>}
+          {porHab !== null && <> Por habitante, são {porPessoa(porHab)}.</>}
+        </p>
+      ) : porHab !== null && (
         <p>
           Em {cidade.ano}, a prefeitura gastou <strong>{porPessoa(porHab)} por habitante</strong> em educação
           ({moedaCurta(gasto)}{total > 0 && <>, {pct(gasto / total)} de tudo o que gastou</>}).
@@ -68,7 +77,10 @@ const linhas = ideb
       <p class="menor">
         O Ideb junta a nota dos alunos numa prova nacional com a taxa de aprovação. Os dois números aparecem lado a lado
         para você comparar; um não explica o outro sozinho: cidades com alunos mais pobres ou mais espalhados precisam
-        gastar mais para chegar à mesma nota. O gasto é por habitante, não por aluno.
+        gastar mais para chegar à mesma nota.
+        {aluno
+          ? <> O gasto por aluno divide tudo o que a prefeitura gastou em educação (inclusive merenda, transporte e salários) pelas matrículas das escolas dela no Censo Escolar de {aluno.ano}, da creche ao ensino fundamental. Creches conveniadas, pagas pela prefeitura mas registradas como escolas privadas, não entram nas matrículas; nas cidades que usam muito esse modelo, como São Paulo, e nas que pagam aposentadorias de professores com o dinheiro da educação, o valor por aluno fica mais alto.</>
+          : <> O gasto é por habitante, não por aluno.</>}
       </p>
     </div>
     <div class="dados">
@@ -106,7 +118,7 @@ const linhas = ideb
           ].filter(Boolean).join(" e ")}.
         </p>
       )}
-      <p class="fonte">Fonte: {ideb.fonte}, edição de {ideb.edicao}. "Parecidas" é a mediana da rede municipal nas cidades {faixa ?? "do mesmo porte"}.</p>
+      <p class="fonte">Fonte: {ideb.fonte}, edição de {ideb.edicao}{aluno && <>; matrículas: {aluno.fonte}, {aluno.ano}</>}. "Parecidas" é a mediana da rede municipal nas cidades {faixa ?? "do mesmo porte"}.</p>
     </div>
   </section>
 )}
