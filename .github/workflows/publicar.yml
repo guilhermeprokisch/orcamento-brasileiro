@@ -66,6 +66,11 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline federal 2025
 
+      # Aposentadorias e pensões do INSS por município (13 planilhas pequenas do gov.br).
+      - name: Pipeline do INSS
+        continue-on-error: true
+        run: uv run --project pipeline inss
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

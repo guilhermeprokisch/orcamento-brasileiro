@@ -30,6 +30,7 @@ uv run finbra ~/Downloads/finbra
 # 1d. dados da página /mapa (receita, tributos, áreas de gasto, malhas do IBGE)
 uv run mapa
 uv run federal 2025    # repasses e benefícios federais por município
+uv run inss            # aposentadorias e pensões do INSS por município
 
 # 2. site
 cd ../site && npm install && npm run dev
@@ -48,6 +49,7 @@ cd ../site && npm install && npm run dev
 | SICONFI (Tesouro Nacional) | [FINBRA](https://siconfi.tesouro.gov.br/siconfi/pages/public/consulta_finbra/finbra_list.jsf), Anexos I-E e I-C | Histórico dos municípios (2013+) e receitas, um arquivo por ano com todos os municípios. O download tem captcha: os arquivos são baixados à mão e importados com `uv run finbra` |
 
 | Portal da Transparência (CGU) | [Transferências](https://portaldatransparencia.gov.br/download-de-dados/transferencias), [Bolsa Família](https://portaldatransparencia.gov.br/download-de-dados/novo-bolsa-familia), [BPC](https://portaldatransparencia.gov.br/download-de-dados/bpc) | Mapa: dinheiro federal que chega a cada município. Os repasses são baixados pelo pipeline. Bolsa Família e BPC têm uma linha por beneficiário (~6,5 GB por ano) e o servidor bloqueia downloads em série com CAPTCHA: os zips são baixados à mão e somados com `uv run federal <ano> --beneficios <pasta>`; só a soma por município é guardada, em `pipeline/referencia/beneficios/` |
+| Ministério da Previdência Social | [Estatísticas municipais](https://www.gov.br/previdencia/pt-br/assuntos/previdencia-social/estatisticas-municipais-2000-a-2022), benefícios emitidos por município | Mapa: aposentadorias, pensões e auxílios do INSS pagos em cada município, 2013+. Só os benefícios previdenciários (o BPC vem do Portal da Transparência). Valor líquido, pelo município da agência que paga, não o de residência |
 | Receita Federal | [Arrecadação por estado](https://www.gov.br/receitafederal/dados/arrecadacao-estado.csv) | Mapa: impostos federais arrecadados em cada estado, base da estimativa do que cada cidade manda para a União |
 | Tesouro Nacional | [Municípios do SIAFI](https://www.tesourotransparente.gov.br/ckan/dataset/lista-de-municipios-do-siafi) | Código SIAFI → código IBGE (o Portal da Transparência usa o SIAFI) |
 | IBGE | [Malhas territoriais](https://servicodados.ibge.gov.br/api/docs/malhas) | Contornos de municípios e estados do mapa |

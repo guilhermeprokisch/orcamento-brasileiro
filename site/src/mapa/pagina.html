@@ -18,7 +18,7 @@
     --r0: #e3f0e6; --r1: #b3dfc4; --r2: #74c193; --r3: #3f9a63; --r4: #1f7a47; --r5: #0a4a29;
     --o0: #f6ecd2; --o1: #ecd49a; --o2: #dcb565; --o3: #c2913a; --o4: #9c6c1c; --o5: #6e4a0c;
     --c-propria: #1f7a47; --c-uniao: #1d4f91; --c-estado: #7a9fd1; --c-fundeb: #c2913a; --c-credito: #a39d8e;
-    --a0: #e4ecf7; --a1: #b9cfec; --a2: #86abd9; --a3: #5285c0; --a4: #2c62a0; --a5: #173f70; --c-bf: #b04a7a; --c-bpc: #6a4fa3; --c-sai: #a3401a;
+    --a0: #e4ecf7; --a1: #b9cfec; --a2: #86abd9; --a3: #5285c0; --a4: #2c62a0; --a5: #173f70; --c-bf: #b04a7a; --c-bpc: #6a4fa3; --c-sai: #a3401a; --c-inss: #1a7f7a;
     --serifa: "Source Serif 4", Georgia, serif;
     --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   }
@@ -30,7 +30,7 @@
       --r0: #1c2e22; --r1: #22513a; --r2: #2d7a4f; --r3: #4fae73; --r4: #8fcea8; --r5: #d6f0de;
       --o0: #2c2414; --o1: #4a3a17; --o2: #6e531c; --o3: #9c7426; --o4: #cda243; --o5: #f0d58a;
       --c-propria: #4fae73; --c-uniao: #8db8f0; --c-estado: #4a6fa5; --c-fundeb: #cda243; --c-credito: #6b675d;
-      --a0: #18222f; --a1: #1f3a5c; --a2: #2c5a8c; --a3: #4a85c4; --a4: #8db8f0; --a5: #d5e5fa; --c-bf: #e08ab3; --c-bpc: #b09be0; --c-sai: #f0a070;
+      --a0: #18222f; --a1: #1f3a5c; --a2: #2c5a8c; --a3: #4a85c4; --a4: #8db8f0; --a5: #d5e5fa; --c-bf: #e08ab3; --c-bpc: #b09be0; --c-sai: #f0a070; --c-inss: #6fd0c8;
       color-scheme: dark;
     }
   }
@@ -41,7 +41,7 @@
     --r0: #1c2e22; --r1: #22513a; --r2: #2d7a4f; --r3: #4fae73; --r4: #8fcea8; --r5: #d6f0de;
     --o0: #2c2414; --o1: #4a3a17; --o2: #6e531c; --o3: #9c7426; --o4: #cda243; --o5: #f0d58a;
     --c-propria: #4fae73; --c-uniao: #8db8f0; --c-estado: #4a6fa5; --c-fundeb: #cda243; --c-credito: #6b675d;
-      --a0: #18222f; --a1: #1f3a5c; --a2: #2c5a8c; --a3: #4a85c4; --a4: #8db8f0; --a5: #d5e5fa; --c-bf: #e08ab3; --c-bpc: #b09be0; --c-sai: #f0a070;
+      --a0: #18222f; --a1: #1f3a5c; --a2: #2c5a8c; --a3: #4a85c4; --a4: #8db8f0; --a5: #d5e5fa; --c-bf: #e08ab3; --c-bpc: #b09be0; --c-sai: #f0a070; --c-inss: #6fd0c8;
     color-scheme: dark;
   }
   [hidden] { display: none !important; }
@@ -301,7 +301,7 @@
         <button type="button" id="q-dep" data-medida="dep" aria-pressed="false"><strong>De onde vem o dinheiro</strong>
           <span>Que parte da receita chega por repasse (da União, <b data-doestado>do estado</b> e do FUNDEB) e não por impostos cobrados ali mesmo. Mais escuro: mais dependente de repasses.</span></button>
         <button type="button" id="q-fed" data-medida="fed" aria-pressed="false"><strong>O que vem do governo federal</strong>
-          <span>Tudo o que o governo federal mandou para cada cidade em 2025, por morador: repasses à prefeitura e a outras entidades, e benefícios pagos direto às pessoas (Bolsa Família e BPC). Não inclui aposentadorias do INSS nem o gasto direto de órgãos federais.</span></button>
+          <span>Tudo o que o governo federal mandou para cada cidade em 2025, por morador: repasses à prefeitura e a outras entidades, e benefícios pagos direto às pessoas (aposentadorias e pensões do INSS, Bolsa Família e BPC). Não inclui o gasto direto de órgãos federais, como universidades e salários de servidores.</span></button>
       </div>
       <div class="areas" id="areas" role="group" aria-label="Área do gasto">
         <button type="button" id="area-total" data-area="total" aria-pressed="true">Tudo</button>
@@ -388,7 +388,14 @@
   ]);
   if (!federal.ano) document.getElementById("q-fed").remove();
   const porAno = {};
-  const carregarAno = async (ano) => (porAno[ano] ??= await json(`anos/${ano}.json`));
+  const inssAno = {};   // benefícios do INSS pagos em cada município: {ibge: [total, aposentadorias, pensões]}
+  async function carregarAno(ano) {
+    if (!porAno[ano]) {
+      const [d, inss] = await Promise.all([json(`anos/${ano}.json`), json(`inss/${ano}.json`).catch(() => ({}))]);
+      inssAno[ano] = inss; porAno[ano] = d;
+    }
+    return porAno[ano];
+  }
   const areasAno = {};   // gasto por área (28 funções), carregado só quando um cartão é aberto
   const carregarAreas = async (ano) => (areasAno[ano] ??= await json(`areas/${ano}.json`));
   document.getElementById("carregando").remove();
@@ -474,13 +481,15 @@
   const FED = [["FPM (fundo de participação)", 0, "--c-uniao"], ["SUS (saúde)", 1, "--c-uniao"], ["FUNDEB (educação básica)", 2, "--c-fundeb"],
     ["Royalties e compensações", 3, "--c-uniao"], ["Educação (merenda, transporte…)", 4, "--c-uniao"], ["Assistência social", 5, "--c-uniao"],
     ["Outros repasses à prefeitura", 6, "--c-uniao"], ["A outras entidades na cidade", 7, "--c-estado"],
-    ["Bolsa Família (direto às pessoas)", 8, "--c-bf"], ["BPC (direto às pessoas)", 9, "--c-bpc"]];
+    ["Bolsa Família (direto às pessoas)", 8, "--c-bf"], ["BPC (direto às pessoas)", 9, "--c-bpc"],
+    ["Aposentadorias e pensões do INSS", 10, "--c-inss"]];
   const mesesBen = { 8: federal.meses_beneficios["novo-bolsa-familia"].length, 9: federal.meses_beneficios.bpc.length };
   const beneficiosParciais = mesesBen[8] < 12 || mesesBen[9] < 12;
   /** Valores federais do ano para um município. Benefício com menos de 12 meses de dados é projetado para o ano. */
   function fedDe(id) {
     const f = federal.mun[id];
-    return f ? f.map((v, i) => (mesesBen[i] ? (v * 12) / mesesBen[i] : v)) : null;
+    if (!f) return null;
+    return [...f.map((v, i) => (mesesBen[i] ? (v * 12) / mesesBen[i] : v)), inssAno[federal.ano]?.[id]?.[0] ?? 0];
   }
   const fedPorMorador = (id) => { const f = fedDe(id), r = porAno[federal.ano]?.mun[id]; return f && r ? d3.sum(f) / r[I.pop] : null; };
   /** Valor da medida escolhida para um ente (a medida federal não vem das contas do ente). */
@@ -584,10 +593,10 @@
     }
     if (fed) {
       document.getElementById("fluxo-explica").textContent = estado.sel
-        ? "As linhas mostram o que saiu de Brasília para esta cidade em 2025: para a prefeitura, para outras entidades e direto para as pessoas (Bolsa Família e BPC)."
+        ? "As linhas mostram o que saiu de Brasília para esta cidade em 2025: para a prefeitura, para outras entidades e direto para as pessoas (INSS, Bolsa Família e BPC)."
         : "Cada linha sai de Brasília e vai até um estado. A espessura é tudo o que o governo federal mandou para as cidades daquele estado em 2025. Clique numa cidade para ver o detalhe.";
       document.getElementById("maiores").innerHTML = estado.sel ? "" : maiores.map(([uf, v]) => `<li>${uf}: ${curto(v)}</li>`).join("");
-      document.getElementById("rodape").innerHTML = `<strong>Dinheiro federal em 2025</strong>, pelo Portal da Transparência: repasses às prefeituras e a outras entidades, mais Bolsa Família e BPC${beneficiosParciais ? ` (estimados para o ano a partir de ${mesesBen[8]} mês de dados)` : ""}. Não inclui aposentadorias do INSS nem o gasto direto de órgãos federais.`;
+      document.getElementById("rodape").innerHTML = `<strong>Dinheiro federal em 2025</strong>, pelo Portal da Transparência: repasses às prefeituras e a outras entidades, mais Bolsa Família e BPC${beneficiosParciais ? ` (estimados para o ano a partir de ${mesesBen[8]} mês de dados)` : ""}, e as aposentadorias e pensões do INSS, pelo Ministério da Previdência. Não inclui o gasto direto de órgãos federais.`;
       return;
     }
     document.getElementById("fluxo-explica").textContent = estado.sel
@@ -652,15 +661,18 @@
     if (comReceita) {
       const R = (i) => r[i] * k;
       const pessoas = fd ? fd[8] + fd[9] : 0;
-      const volta = R(I.uniao) + R(I.estado) + R(I.fundeb) + pessoas;
+      const inss = mun ? inssAno[estado.ano]?.[id] : null;   // [total, aposentadorias, pensões], todos os anos
+      const vInss = inss ? inss[0] * k : 0;
+      const volta = R(I.uniao) + R(I.estado) + R(I.fundeb) + pessoas + vInss;
       let razao = "";
-      if (foraSai) razao = `<p class="destaque">De cada R$ 100 que a cidade manda para o estado e para a União (estimativa), voltam cerca de <b>R$ ${nf0.format((volta / foraSai) * 100)}</b>${fd ? " em repasses e benefícios" : " em repasses à prefeitura"}. Isso não conta o que o estado e a União gastam direto aqui: escolas estaduais, polícia, hospitais, universidades e aposentadorias do INSS.</p>`;
+      if (foraSai) razao = `<p class="destaque">De cada R$ 100 que a cidade manda para o estado e para a União (estimativa), voltam cerca de <b>R$ ${nf0.format((volta / foraSai) * 100)}</b>${fd ? " em repasses, aposentadorias e benefícios" : inss ? " em repasses e aposentadorias" : " em repasses à prefeitura"}. Isso não conta o que o estado e a União gastam direto aqui: escolas estaduais, polícia, hospitais e universidades.</p>`;
       blocos.push(bloco(mun ? "O que volta para cá" : "O que chega de fora", curto(volta), `
         <p class="bloco-nota">${porHab(volta)}.</p>${razao}
         <h4>Para ${mun ? "a prefeitura" : "o governo estadual"} <small>medido</small></h4>
         ${linhas([["Repasses da União", R(I.uniao), "--c-uniao"], [mun ? "Repasses do estado" : "Repasses de outros estados", R(I.estado), "--c-estado"], ["FUNDEB (fundo da educação)", R(I.fundeb), "--c-fundeb"]])}
-        ${fd ? `<h4>Direto para as pessoas <small>${beneficiosParciais ? "estimativa" : "medido"}</small></h4>${linhas([["Bolsa Família", fd[8], "--c-bf"], ["BPC (idosos e pessoas com deficiência)", fd[9], "--c-bpc"]])}` : ""}
-        <p class="nota">${fd ? (beneficiosParciais ? `Bolsa Família e BPC projetados para o ano a partir de ${mesesBen[8]} mês de dados. ` : "") + "Não inclui aposentadorias do INSS." : "Benefícios pagos direto às pessoas (Bolsa Família, BPC) só estão disponíveis para 2025."}</p>
+        ${inss ? `<h4>Aposentadorias e pensões do INSS <small>pago aqui</small> · ${curto(vInss)}</h4>${linhas([["Aposentadorias", inss[1] * k, "--c-inss"], ["Pensões por morte", inss[2] * k, "--c-inss"], ["Auxílios e outros", (inss[0] - inss[1] - inss[2]) * k, "--c-inss"]])}` : ""}
+        ${fd ? `<h4>Outros benefícios direto às pessoas <small>${beneficiosParciais ? "estimativa" : "medido"}</small></h4>${linhas([["Bolsa Família", fd[8], "--c-bf"], ["BPC (idosos e pessoas com deficiência)", fd[9], "--c-bpc"]])}` : ""}
+        <p class="nota">${inss ? "O INSS é o valor líquido pago pelas agências bancárias da cidade: quem mora aqui e recebe em outra cidade conta lá, então cidades sem agência aparecem com pouco e cidades-polo, com mais. " : ""}${fd ? (beneficiosParciais ? `Bolsa Família e BPC projetados para o ano a partir de ${mesesBen[8]} mês de dados.` : "") : "Bolsa Família e BPC só estão disponíveis para 2025."}</p>
         ${q === "dep" || q === "fed" || q === "imp" ? "" : `<button type="button" class="ver-fluxo" id="ver-fluxo">Ver no mapa de onde veio →</button>`}`, q === "imp" || q === "dep" || q === "rec" || q === "fed"));
     }
 
@@ -670,7 +682,7 @@
       blocos.unshift(bloco(`O que o governo federal mandou em ${federal.ano}`, curto(tot), `
         <p class="bloco-nota">${porHab(tot)}, pelo Portal da Transparência.</p>
         <ul class="barras">${FED.filter(([, i]) => fd[i] > 0).map(([rot, i, cor]) => `<li><span>${rot}</span><em>${curto(fd[i])}</em><i style="width:${(fd[i] / maior) * 100}%;background:var(${cor})"></i></li>`).join("")}</ul>
-        <p class="nota">O FUNDEB inclui dinheiro de estados e municípios redistribuído pelo fundo.${beneficiosParciais ? ` Bolsa Família e BPC são <b>estimativas</b> para o ano, a partir de ${mesesBen[8]} mês de dados.` : ""} Não inclui aposentadorias do INSS nem o gasto direto de órgãos federais.</p>`, true));
+        <p class="nota">O FUNDEB inclui dinheiro de estados e municípios redistribuído pelo fundo.${beneficiosParciais ? ` Bolsa Família e BPC são <b>estimativas</b> para o ano, a partir de ${mesesBen[8]} mês de dados.` : ""} O INSS é o valor líquido pago pelas agências da cidade: quem recebe em outra cidade conta lá. Não inclui o gasto direto de órgãos federais.</p>`, true));
     }
 
     // Onde gasta: todas as áreas (carregadas sob demanda).
@@ -843,7 +855,7 @@
       const f = estado.sel ? fedDe(estado.sel) : null;
       if (f) {
         const tot = d3.sum(f), destino = centroDe(estado.sel);
-        const grupos = [["À prefeitura", d3.sum(f.slice(0, 7)), "--c-uniao", 1], ["Bolsa Família", f[8], "--c-bf", -1], ["BPC", f[9], "--c-bpc", 0.4], ["A outras entidades", f[7], "--c-estado", -0.4]];
+        const grupos = [["À prefeitura", d3.sum(f.slice(0, 7)), "--c-uniao", 1], ["Bolsa Família", f[8], "--c-bf", -1], ["BPC", f[9], "--c-bpc", 0.4], ["A outras entidades", f[7], "--c-estado", -0.4], ["INSS", f[10], "--c-inss", 0.7]];
         for (const [rot, v, cor, lado] of grupos) {
           if (v > 0) rotas.push({ rot: `${rot}: ${curto(v)} (${pct(v / tot)})`, peso: Math.min(1, (v / tot) * 1.4), origem: centroCapital.DF, destino, cor, lado });
         }
