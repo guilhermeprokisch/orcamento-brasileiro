@@ -165,8 +165,9 @@ class CacheAno:
 
     SALVAR_A_CADA = 200
 
-    def __init__(self, ano: int, anexo: str = "dca-ie", filtro: Callable[[list[dict]], list[dict]] | None = None) -> None:
+    def __init__(self, ano: int | str, anexo: str = "dca-ie", filtro: Callable[[list[dict]], list[dict]] | None = None) -> None:
         # `anexo`: pasta do cache (dca-ie = despesa por função; dca-ic = receitas, vindas do FINBRA).
+        # `ano`: o exercício ou, nos relatórios bimestrais, "2026-b4" (ver rreo.py).
         self.filtro = filtro or compactar
         self.arq = PASTA_BRUTO / anexo / f"{ano}.json.gz"
         self.trava = threading.Lock()

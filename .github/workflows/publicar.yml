@@ -81,6 +81,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline inss
 
+      # O ano em andamento, pelo relatório bimestral (RREO): os estados vêm da API (54
+      # consultas quando muda o bimestre); os municípios, do release (são ~5.570 consultas).
+      - name: Pipeline do ano em andamento (RREO)
+        continue-on-error: true
+        run: uv run --project pipeline rreo --max-chamadas 200
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

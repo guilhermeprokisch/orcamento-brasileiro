@@ -1,14 +1,15 @@
 """Leva e traz o cache do SICONFI por um release do GitHub.
 
-    uv run semente publicar    # sobe data/raw/siconfi/dca-*/ para o release (precisa de permissão de escrita)
+    uv run semente publicar    # sobe data/raw/siconfi/{dca,rreo}-*/ para o release (precisa de permissão de escrita)
     uv run semente publicar dca-id dca-iab    # só os anexos que mudaram
     uv run semente aplicar     # baixa o release e junta ao cache local o que falta
 
 Os arquivos do FINBRA são baixados à mão (o site tem captcha; ver finbra.py), então o
 histórico dos municípios só existe na máquina de quem baixou. Para o CI e outras
 máquinas terem os mesmos dados sem refazer ~70 mil consultas à API, o cache já
-importado fica nos anexos do release `dados-siconfi`: um .tar por anexo da DCA
-(dca-ie.tar, dca-ic.tar…), cada um com os arquivos {anexo}/{ano}.json.gz.
+importado fica nos anexos do release `dados-siconfi`: um .tar por pasta do cache
+(dca-ie.tar, dca-ic.tar…, e rreo-a01.tar com os relatórios bimestrais dos municípios),
+cada um com os arquivos {pasta}/{ano}.json.gz.
 
 `aplicar` só preenche entes que ainda não estão no cache local (o que a API trouxe
 depois tem prioridade) e anota em data/raw/siconfi/semente.json a versão de cada
@@ -32,13 +33,14 @@ from pathlib import Path
 from . import cidades as c
 
 RELEASE = "dados-siconfi"
-MEMBRO = re.compile(r"^(dca-[a-z]+)/(\d{4})\.json\.gz$")
+PASTAS = ("dca-*", "rreo-*")
+MEMBRO = re.compile(r"^((?:dca|rreo)-[a-z0-9]+)/(\d{4}(?:-b\d)?)\.json\.gz$")
 NOTAS = """Cache das Declarações de Contas Anuais (DCA) de municípios e estados, já importado do \
 FINBRA e da API do SICONFI (Tesouro Nacional). Não é uma versão do código: serve para o CI \
 e outras máquinas gerarem o site sem baixar tudo de novo.
 
 Um .tar por anexo: despesa por função (dca-ie), receitas (dca-ic), despesa por natureza \
-(dca-id) e balanço patrimonial (dca-iab). Gerado por `uv run semente publicar` e lido por \
+(dca-id), balanço patrimonial (dca-iab) e relatórios bimestrais do ano em andamento (rreo-a01). Gerado por `uv run semente publicar` e lido por \
 `uv run semente aplicar`."""
 
 
@@ -47,7 +49,8 @@ def _gh(*args: str) -> subprocess.CompletedProcess:
 
 
 def publicar(so: list[str] | None = None) -> None:
-    anexos = [p for p in sorted(c.PASTA_BRUTO.glob("dca-*")) if p.is_dir() and any(p.glob("*.json.gz")) and (not so or p.name in so)]
+    pastas = sorted(p for padrao in PASTAS for p in c.PASTA_BRUTO.glob(padrao))
+    anexos = [p for p in pastas if p.is_dir() and any(p.glob("*.json.gz")) and (not so or p.name in so)]
     if not anexos or (so and len(anexos) != len(set(so))):
         raise SystemExit(f"nada para publicar em {c.PASTA_BRUTO}" if not so else f"anexo não encontrado entre {so}")
     with tempfile.TemporaryDirectory() as tmp:
@@ -69,7 +72,7 @@ def publicar(so: list[str] | None = None) -> None:
     print(f"release {RELEASE}: {len(pacotes)} anexos enviados")
 
 
-def _juntar(anexo: str, ano: int, dados: bytes) -> int:
+def _juntar(anexo: str, ano: str, dados: bytes) -> int:
     """Junta um arquivo do release ao cache local. Devolve quantos entes entraram."""
     destino = c.PASTA_BRUTO / anexo / f"{ano}.json.gz"
     if not destino.exists():  # nada local: o arquivo entra como veio
@@ -113,7 +116,7 @@ def aplicar() -> None:
                     m = MEMBRO.match(membro.name)
                     if not m or not membro.isfile():  # só o que este comando publica
                         continue
-                    entes += _juntar(m[1], int(m[2]), tar.extractfile(membro).read())
+                    entes += _juntar(m[1], m[2], tar.extractfile(membro).read())
                     arquivos += 1
         marca[nome] = versao
         c.PASTA_BRUTO.mkdir(parents=True, exist_ok=True)

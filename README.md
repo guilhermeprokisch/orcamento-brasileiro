@@ -33,6 +33,9 @@ uv run semente publicar
 
 # 1d. dados da página /mapa (receita, tributos, áreas de gasto, malhas do IBGE)
 uv run mapa
+
+# 1e. o ano em andamento, pelo relatório bimestral (RREO): estados; com --municipios, todos (~1h40)
+uv run rreo
 uv run federal 2025    # repasses e benefícios federais por município
 uv run inss            # aposentadorias e pensões do INSS por município
 
@@ -56,6 +59,7 @@ cd ../site && npm install && npm run dev
 | Ministério da Previdência Social | [Estatísticas municipais](https://www.gov.br/previdencia/pt-br/assuntos/previdencia-social/estatisticas-municipais-2000-a-2022), benefícios emitidos por município | Mapa: aposentadorias, pensões e auxílios do INSS pagos em cada município, 2013+. Só os benefícios previdenciários (o BPC vem do Portal da Transparência). Valor líquido, pelo município da agência que paga, não o de residência |
 | Receita Federal | [Arrecadação por estado](https://www.gov.br/receitafederal/dados/arrecadacao-estado.csv) | Mapa: impostos federais arrecadados em cada estado, base da estimativa do que cada cidade manda para a União |
 | Tesouro Nacional | [Municípios do SIAFI](https://www.tesourotransparente.gov.br/ckan/dataset/lista-de-municipios-do-siafi) | Código SIAFI → código IBGE (o Portal da Transparência usa o SIAFI) |
+| SICONFI (Tesouro Nacional) | [API de dados abertos](https://apidatalake.tesouro.gov.br/docs/siconfi/), RREO Anexo 01 | O ano em andamento nas páginas de estado e cidade: receita arrecadada e despesa empenhada e paga até o último bimestre com prazo de entrega vencido, frente ao previsto para o ano e ao mesmo período do ano anterior |
 | IBGE | [Malhas territoriais](https://servicodados.ibge.gov.br/api/docs/malhas) | Contornos de municípios e estados do mapa |
 
 Saídas do pipeline:
@@ -65,7 +69,7 @@ Saídas do pipeline:
 - `site/public/data/explorer/anos.json`: totais por ano.
 - `site/public/data/cidades/municipios.json`: um registro por município (e o DF) com o gasto por função e subfunção do último ano entregue, a série histórica e a mediana per capita por faixa de população. Gera `/cidades` e `/cidades/{uf}/{cidade}`.
 - `site/public/data/cidades/estados.json`: o mesmo para os 26 estados e o DF, com a mediana dos estados. Gera `/estados` e `/estados/{uf}`.
-- `site/public/data/mapa/`: dados da página `/mapa` (ver `pipeline/src/orcamento_pipeline/mapa.py` e `federal.py`): um arquivo por ano com despesa, receita, origem da receita e tributos de cada município e estado; áreas de gasto; série histórica; fatores do IPCA; arrecadação federal por estado; dinheiro federal por município; malhas. As páginas de cidade e de estado leem daqui, no build, a receita, o saldo do ano, o tipo de gasto, o balanço e os benefícios do INSS (`site/src/lib/contas.ts`); sem esses arquivos, essas seções não aparecem.
+- `site/public/data/mapa/`: dados da página `/mapa` (ver `pipeline/src/orcamento_pipeline/mapa.py` e `federal.py`): um arquivo por ano com despesa, receita, origem da receita e tributos de cada município e estado; áreas de gasto; série histórica; fatores do IPCA; arrecadação federal por estado; dinheiro federal por município; malhas. As páginas de cidade e de estado leem daqui, no build, a receita, o saldo do ano, o tipo de gasto, o balanço, os benefícios do INSS e o ano em andamento (`parcial.json`, de `uv run rreo`) (`site/src/lib/contas.ts`); sem esses arquivos, essas seções não aparecem.
 
 ## Mapa (protótipo)
 

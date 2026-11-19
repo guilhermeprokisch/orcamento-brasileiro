@@ -8,7 +8,7 @@
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import { corDaRampa } from "../../lib/cores";
 import { porPessoa, type Cidade } from "../../lib/cidades";
-import { balancoDe, caminhoNoMapa, contasDe, inssDe, naturezaDe, type Esfera } from "../../lib/contas";
+import { balancoDe, caminhoNoMapa, contasDe, inssDe, naturezaDe, parcialDe, type Esfera } from "../../lib/contas";
 
 interface Props {
   ente: Cidade;
@@ -27,6 +27,21 @@ const contas = await contasDe(ente, esfera);
 const inss = await inssDe(ente, esfera);
 const natureza = await naturezaDe(ente, esfera);
 const balanco = await balancoDe(ente, esfera);
+const parcial = await parcialDe(ente, esfera);
+
+// O ano em andamento: quanto do previsto para o ano inteiro já aconteceu.
+const NUMEROS = ["", "", "dois", "", "quatro", "", "seis", "", "oito", "", "dez", "", "doze"];
+const andamento = parcial
+  ? [
+      { rotulo: "Receita arrecadada", de: "do previsto para o ano", v: parcial.receita, total: parcial.receitaPrevista },
+      { rotulo: "Gasto comprometido", de: "do orçamento do ano", v: parcial.empenhado, total: parcial.dotacao },
+      { rotulo: "Gasto já pago", de: "do orçamento do ano", v: parcial.pago, total: parcial.dotacao },
+    ]
+  : [];
+const variacao = (agora: number, antes: number) => {
+  const d = agora / antes - 1;
+  return `${pct(Math.abs(d))} ${d >= 0 ? "maior" : "menor"}`;
+};
 
 // Com o quê gasta. Nos estados, o custeio inclui os repasses aos municípios.
 const tipos = natureza
@@ -205,6 +220,41 @@ const frenteAoGasto = inss && ente.total ? inss.total / ente.total[0] : null;
   </section>
 )}
 
+{parcial && (
+  <section class="bloco">
+    <div class="texto">
+      <h2>E em {parcial.ano}, até {parcial.ate}</h2>
+      <p>
+        Nos {NUMEROS[parcial.meses]} primeiros meses de {parcial.ano}, {quem} arrecadou{" "}
+        <strong>{moedaExtenso(parcial.receita)}</strong>, {pct(parcial.receita / parcial.receitaPrevista)} do previsto para o
+        ano, e comprometeu <strong>{moedaExtenso(parcial.empenhado)}</strong> em gastos, {pct(parcial.empenhado / parcial.dotacao)} do orçamento.
+        {parcial.receitaAntes > 0 && parcial.empenhadoAntes > 0 && (
+          <> Frente ao mesmo período de {parcial.ano - 1}, a receita foi {variacao(parcial.receita, parcial.receitaAntes)} e
+          o gasto comprometido, {variacao(parcial.empenhado, parcial.empenhadoAntes)}, sem descontar a inflação.</>
+        )}
+      </p>
+      <p class="menor">
+        Números parciais do relatório bimestral (RREO), que ainda podem ser corrigidos. O traço marca quanto do ano já passou.
+        O gasto comprometido costuma andar à frente porque contratos do ano inteiro são comprometidos de uma vez.
+      </p>
+    </div>
+    <ul class="barras">
+      {andamento.map((a, k) => (
+        <li>
+          <span class="lb-linha">
+            <span>{a.rotulo}<small class="so-largo"> · {pct(a.v / a.total)} {a.de}</small></span>
+            <strong class="num" title={moedaCompleta(a.v)}>{moedaCurta(a.v)} de {moedaCurta(a.total)}</strong>
+          </span>
+          <span class="trilho">
+            <span class="lb-barra" style={`width:${Math.min(100, (a.v / a.total) * 100)}%;background:${corDaRampa(k / 3)}`}></span>
+            <span class="marca-ano" style={`left:${(parcial.meses / 12) * 100}%`} title={`${parcial.meses} de 12 meses`}></span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
 {inss && (
   <section class="bloco">
     <div class="texto">
@@ -234,10 +284,11 @@ const frenteAoGasto = inss && ente.total ? inss.total / ente.total[0] : null;
   </section>
 )}
 
-{(contas || inss || natureza || balanco) && (
+{(contas || inss || natureza || balanco || parcial) && (
   <p class="fonte">
     <a href={caminhoNoMapa(ente, esfera)}>Ver no mapa</a>: impostos pagos, repasses federais, comparação com {municipal ? "cidades parecidas" : "outros estados"} e outros anos.
-    Fontes: {(contas || natureza || balanco) && <>contas declaradas ao Tesouro Nacional (DCA, Anexos I-C, I-D e I-AB){inss && "; "}</>}
+    Fontes: {(contas || natureza || balanco) && <>contas declaradas ao Tesouro Nacional (DCA, Anexos I-C, I-D e I-AB){(parcial || inss) && "; "}</>}
+    {parcial && <>relatório bimestral de {parcial.ano} (RREO, Anexo 01){inss && "; "}</>}
     {inss && <>INSS pelo Ministério da Previdência Social (Estatísticas Municipais)</>}.
   </p>
 )}
@@ -257,6 +308,9 @@ const frenteAoGasto = inss && ente.total ? inss.total / ente.total[0] : null;
   .lb-linha strong { white-space: nowrap; font-weight: 600; }
   .lb-barra { display: block; height: 10px; min-width: 2px; }
   .saldo { border-top: 1px solid var(--tinta); padding-top: 10px; }
+  .trilho { position: relative; display: block; height: 10px; background: var(--regra-leve); }
+  .trilho .lb-barra { height: 100%; }
+  .marca-ano { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tinta); }
   .linhas { grid-column: span 7; list-style: none; margin: 0; padding: 0; align-self: center; border-top: 1px solid var(--tinta); }
   .linhas li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; }
   .linhas li > span { min-width: 0; font-weight: 600; }

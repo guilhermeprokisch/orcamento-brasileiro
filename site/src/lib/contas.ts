@@ -1,7 +1,8 @@
 /**
  * Receita, saldo, tipo de gasto, balanço e benefícios do INSS de cada município e estado,
- * lidos no build dos arquivos da página /mapa (pipeline/…/mapa.py, contas.py e inss.py). Cada ano só é
- * carregado se alguma página precisar dele; sem os arquivos, tudo vem null.
+ * mais o ano em andamento, lidos no build dos arquivos da página /mapa (pipeline/…/mapa.py,
+ * contas.py, inss.py e rreo.py). Cada ano só é carregado se alguma página precisar dele;
+ * sem os arquivos, tudo vem null.
  */
 import type { Cidade } from "./cidades";
 
@@ -126,6 +127,49 @@ export async function balancoDe(e: Cidade, esfera: Esfera): Promise<Balanco | nu
     ano: e.ano, caixa: b[0], sobra,
     sobraAntes: sobra === null ? null : sobraDe((await docContas(e.ano - 1))?.[id]?.b),
     emprestimos: b[3] + b[4], provisoes: b[5],
+  };
+}
+
+export interface Parcial {
+  /** Ano em andamento e até que mês vão os números ("agosto"). */
+  ano: number;
+  ate: string;
+  meses: number;
+  receitaPrevista: number;
+  receita: number;
+  dotacao: number;
+  empenhado: number;
+  pago: number;
+  /** Mesmo período do ano anterior, em valores da época; 0 se não há. */
+  receitaAntes: number;
+  empenhadoAntes: number;
+}
+
+interface DocParcial {
+  ano: number;
+  ate: string;
+  meses: number;
+  campos: string[];
+  uf: Record<string, number[]>;
+  mun: Record<string, number[]>;
+}
+const arquivosParcial = import.meta.glob<DocParcial>("../../public/data/mapa/parcial.json", { import: "default" });
+let docParcial: Promise<DocParcial | null> | undefined;
+
+/** Receita e despesa acumuladas no ano em andamento (RREO), se o ente entregou o último bimestre. */
+export async function parcialDe(e: Cidade, esfera: Esfera): Promise<Parcial | null> {
+  docParcial ??= Object.values(arquivosParcial)[0]?.() ?? Promise.resolve(null);
+  const doc = await docParcial;
+  const [onde, id] = chave(e, esfera);
+  const r = doc?.[onde]?.[id];
+  if (!doc || !r) return null;
+  const v = (campo: string) => r[doc.campos.indexOf(campo)] ?? 0;
+  if (!(v("receita") > 0 && v("receita_prevista") > 0 && v("dotacao") > 0)) return null;
+  return {
+    ano: doc.ano, ate: doc.ate, meses: doc.meses,
+    receitaPrevista: v("receita_prevista"), receita: v("receita"), dotacao: v("dotacao"),
+    empenhado: v("empenhado"), pago: v("pago"),
+    receitaAntes: v("receita_ano_anterior"), empenhadoAntes: v("empenhado_ano_anterior"),
   };
 }
 
