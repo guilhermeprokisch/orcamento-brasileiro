@@ -1,0 +1,69 @@
+---
+/**
+ * Educação no estado: o gasto do governo estadual em educação básica por aluno das escolas
+ * estaduais (Censo Escolar), frente aos outros estados. As universidades estaduais ficam de
+ * fora, porque os alunos delas não estão nas matrículas da educação básica.
+ */
+import { moedaCurta } from "../../lib/formato";
+import { docEstados, porPessoa, type Cidade } from "../../lib/cidades";
+import { porAlunoEstado } from "../../lib/indicadores";
+
+interface Props {
+  estado: Cidade;
+  /** "o governo do Ceará" */
+  quem: string;
+}
+const { estado, quem } = Astro.props;
+const conta = porAlunoEstado(estado, docEstados?.cidades ?? []);
+const ehDF = estado.ibge === 53;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const frente = conta && conta.mediana ? conta.porAluno / conta.mediana - 1 : null;
+---
+
+{conta && (
+  <section class="educacao">
+    <div class="texto">
+      <span class="sobretitulo verde">Gasto e resultado</span>
+      <h2>Educação: quanto se gasta por aluno</h2>
+      <p>
+        Em {conta.ano}, {quem} gastou <strong>{porPessoa(conta.porAluno)} por aluno</strong> das escolas{" "}
+        {ehDF ? "públicas do Distrito Federal" : "estaduais"} ({nf0.format(conta.alunos)} alunos), {moedaCurta(conta.basica)} no total.
+        {frente !== null && !ehDF && (
+          Math.abs(frente) < 0.05
+            ? <> É perto da mediana dos estados ({porPessoa(conta.mediana!)}).</>
+            : <> É {nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"} da mediana dos estados ({porPessoa(conta.mediana!)}).</>
+        )}
+      </p>
+      <p class="menor">
+        A conta divide o gasto em educação pelas matrículas das escolas {ehDF ? "do Distrito Federal" : "estaduais"} no Censo Escolar
+        de {conta.ano}, {ehDF ? "da creche ao ensino médio, porque no DF o governo cuida de todas as etapas" : "a maioria no ensino médio"}.{conta.superior > 0 && <> O gasto com universidades {ehDF ? "distritais" : "estaduais"} ({moedaCurta(conta.superior)}) fica de fora, porque os alunos delas não entram nessas matrículas.</>}
+        {" "}Entram salários, merenda, transporte e, em alguns estados, aposentadorias de professores, o que aumenta o valor por aluno.
+      </p>
+    </div>
+    <div class="numeros-educ">
+      <div><span>Por aluno</span><strong class="num">{porPessoa(conta.porAluno)}</strong></div>
+      <div><span>Mediana dos estados</span><strong class="num muted">{conta.mediana === null ? "—" : porPessoa(conta.mediana)}</strong></div>
+      <div><span>Posição</span><strong class="num">{conta.posicao}º <small>de {conta.de}</small></strong></div>
+    </div>
+  </section>
+)}
+
+<style>
+  .educacao { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .numeros-educ { grid-column: span 6; align-self: center; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--regra); }
+  .numeros-educ div { padding: 16px 16px 16px 0; display: flex; flex-direction: column; gap: 2px; }
+  .numeros-educ span { font-size: 13px; color: var(--texto-3); }
+  .numeros-educ strong { font-family: var(--serifa); font-size: 30px; font-weight: 700; white-space: nowrap; }
+  .numeros-educ small { font-family: var(--sans); font-size: 14px; font-weight: 400; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .educacao { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+    .numeros-educ strong { font-size: 24px; }
+  }
+</style>

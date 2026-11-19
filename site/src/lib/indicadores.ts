@@ -127,3 +127,46 @@ export function porAlunoDe(c: Cidade): PorAluno | null {
     mediana: c.faixa !== undefined ? medianaPorAluno(c.faixa, c.ano) : null,
   };
 }
+
+/** Gasto do governo estadual em educação básica por aluno das escolas estaduais, no ano das contas do estado. */
+export interface PorAlunoEstado {
+  ano: number;
+  fonte: string;
+  alunos: number;
+  porAluno: number;
+  /** Gasto com universidades estaduais (subfunção Ensino Superior), que fica de fora da conta. */
+  superior: number;
+  /** Gasto em educação sem as universidades. */
+  basica: number;
+  /** Mediana dos 26 estados (sem o DF) no mesmo ano. */
+  mediana: number | null;
+  /** Posição entre os 27 (1 = quem mais gasta por aluno) e quantos entraram na conta. */
+  posicao: number;
+  de: number;
+}
+
+function contaEstado(e: Cidade): { alunos: number; basica: number; superior: number } | null {
+  const alunosPorUf = e.ano !== null ? docMatriculas?.anos[String(e.ano)] : undefined;
+  if (!alunosPorUf) return null;
+  const uf = String(e.ibge);
+  let alunos = 0;
+  for (const [ibge, [, estadual]] of Object.entries(alunosPorUf)) if (ibge.startsWith(uf)) alunos += estadual;
+  const total = e.f?.["12"]?.[0] ?? 0, superior = e.s?.["12.364"] ?? 0;
+  return alunos > 0 && total > superior ? { alunos, basica: total - superior, superior } : null;
+}
+
+export function porAlunoEstado(e: Cidade, estados: Cidade[]): PorAlunoEstado | null {
+  const conta = contaEstado(e);
+  if (!conta || !docMatriculas || e.ano === null) return null;
+  const doAno = estados.filter((x) => x.ano === e.ano)
+    .map((x) => ({ x, c: contaEstado(x) }))
+    .filter((v): v is { x: Cidade; c: NonNullable<ReturnType<typeof contaEstado>> } => v.c !== null)
+    .map(({ x, c }) => ({ ibge: x.ibge, v: c.basica / c.alunos }));
+  const ordem = [...doAno].sort((a, b) => b.v - a.v);
+  return {
+    ano: e.ano, fonte: docMatriculas.fonte, alunos: conta.alunos, porAluno: conta.basica / conta.alunos,
+    superior: conta.superior, basica: conta.basica,
+    mediana: mediana(doAno.filter((v) => v.ibge !== 53).map((v) => v.v)),
+    posicao: ordem.findIndex((v) => v.ibge === e.ibge) + 1, de: ordem.length,
+  };
+}
