@@ -39,6 +39,8 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
         <nav class="nav so-largo" aria-label="Principal">
           <a href="/explorer" aria-current={ativo("/explorer")}>Explorer</a>
           <a href="/orgaos" aria-current={ativo("/orgaos")}>Órgãos</a>
+          <a href="/cidades" aria-current={ativo("/cidades")}>Cidades</a>
+          <a href="/estados" aria-current={ativo("/estados")}>Estados</a>
           <a href="/mapa/">Mapa</a>
           <a href="/aprenda" aria-current={ativo("/aprenda")}>Aprenda</a>
           <a href="/glossario" aria-current={ativo("/glossario")}>Glossário</a>
@@ -54,6 +56,8 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
               <a href="/">Início</a>
               <a href="/explorer">Explorer</a>
               <a href="/orgaos">Órgãos</a>
+              <a href="/cidades">Cidades</a>
+              <a href="/estados">Estados</a>
               <a href="/mapa/">Mapa</a>
               <a href="/aprenda">Aprenda</a>
               <a href="/glossario">Glossário</a>
@@ -93,7 +97,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
     font-family: var(--serifa); font-size: 25px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap;
   }
   .marca-site:hover { color: var(--tinta); }
-  .nav { display: flex; align-items: center; gap: 28px; font-size: 15px; }
+  .nav { display: flex; align-items: center; gap: 24px; font-size: 15px; }
   .nav a { color: var(--tinta); text-decoration: none; padding-bottom: 2px; }
   .nav a:hover { color: var(--verde); }
   .nav a[aria-current="page"] { border-bottom: 2px solid var(--tinta); }
@@ -122,6 +126,12 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
   .menu nav a { padding: 14px 18px; color: var(--tinta); text-decoration: none; border-bottom: 1px solid var(--regra-leve); }
   .menu nav a:last-child { border-bottom: 0; }
 
+  /* Entre o celular e a tela larga o menu completo não cabe ao lado da marca: fica o menu
+     recolhido, como no celular (as classes so-largo e so-celular trocam em 640px). */
+  @media (min-width: 641px) and (max-width: 1080px) {
+    .topo .nav.so-largo { display: none !important; }
+    .topo .nav-celular.so-celular { display: flex !important; }
+  }
   @media (max-width: 640px) {
     .topo { height: 60px; }
     .marca-site { font-size: 19px; gap: 10px; }
