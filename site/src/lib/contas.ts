@@ -203,9 +203,3 @@ export async function inssDe(e: Cidade, esfera: Esfera): Promise<Inss | null> {
     : (await docInss(e.ano))?.[String(e.ibge)];
   return v && v[0] > 0 ? { ano: e.ano, total: v[0], aposentadorias: v[1], pensoes: v[2] } : null;
 }
-
-/** Link para o ente na página /mapa, já na pergunta "sobrou ou faltou". */
-export const caminhoNoMapa = (e: Cidade, esfera: Esfera) => {
-  const [onde, id] = chave(e, esfera);
-  return `/mapa/#${onde === "mun" ? "c" : "e"}${id}-a${e.ano}-saldo`;
-};

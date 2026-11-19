@@ -689,7 +689,8 @@
     const [nm, uf] = nome(id);
     // A página completa do lugar: a da cidade (prefeitura) ou a do estado (governo estadual).
     const pagina = mun ? (uf === "DF" ? "/cidades/df/brasilia" : `/cidades/${uf.toLowerCase()}/${slug(nm)}`) : `/estados/${uf.toLowerCase()}`;
-    const linkPagina = `<a class="pagina" href="${pagina}">Ver a página completa ${mun ? `da prefeitura de ${nm}` : `do governo ${PREP_UF[uf] ?? "de"} ${nm}`} →</a>`;
+    // O ano em andamento ainda não tem página: só os anos fechados vão no endereço.
+    const linkPagina = `<a class="pagina" href="${pagina}${ehParcial() ? "" : `?ano=${estado.ano}`}">Ver a página completa ${mun ? `da prefeitura de ${nm}` : `do governo ${PREP_UF[uf] ?? "de"} ${nm}`} →</a>`;
     if (!r) {
       el.innerHTML = `<button type="button" class="fechar" id="fechar" aria-label="Fechar o cartão">✕ Fechar</button><span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${rotuloAno()}</span><h2>${nm}</h2>${linkPagina}<p class="nota">${ehParcial() ? `Sem o relatório de janeiro a ${parcial.ate} de ${parcial.ano} entregue ao Tesouro.` : `Sem prestação de contas ao Tesouro em ${estado.ano}.`} Tente outro ano.</p>`;
       return;

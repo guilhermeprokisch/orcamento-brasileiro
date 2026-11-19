@@ -1,13 +1,14 @@
 ---
 import Base from "../../../layouts/Base.astro";
-import GastoPorArea from "../../../components/gasto/GastoPorArea.astro";
-import ReceitaESaldo from "../../../components/gasto/ReceitaESaldo.astro";
+import AnoEmAndamento from "../../../components/gasto/AnoEmAndamento.astro";
 import GastoEstadualAqui from "../../../components/gasto/GastoEstadualAqui.astro";
 import EducacaoResultado from "../../../components/gasto/EducacaoResultado.astro";
-import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../../lib/formato";
-import {
-  caminhoCidade, caminhoEstado, docCidades, habitantes, medianaDa, NOMES_UF, porPessoa, type Cidade,
-} from "../../../lib/cidades";
+import { moedaExtenso } from "../../../lib/formato";
+import { caminhoCidade, caminhoEstado, docCidades, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../../lib/cidades";
+import { anosDe, fichaDe, pacoteDe } from "../../../lib/ficha";
+import { areasHtml, contasHtml, fraseHtml, numerosHtml, type Contexto } from "../../../lib/ficha-html";
+import type { BaseDaPagina } from "../../../lib/troca-de-ano";
+import "../../../styles/ficha.css";
 
 export function getStaticPaths() {
   return (docCidades?.cidades ?? []).map((c) => {
@@ -23,23 +24,22 @@ const nomeUf = NOMES_UF[c.uf] ?? c.uf;
 const ehDF = c.ibge === 53;
 const quem = ehDF ? "o Governo do Distrito Federal" : `a prefeitura de ${c.nome}`;
 
-const [emp, pago] = c.total ?? [0, 0];
+const [emp] = c.total ?? [0, 0];
 const perCapita = temDados ? emp / c.pop : 0;
-const medTotal = medianaDa(c, "total");
 // "cidades de 5 a 10 mil habitantes", mas "cidades com até 5 mil" e "cidades com mais de 500 mil".
 const rotuloFaixa = c.faixa !== undefined && !ehDF ? doc.faixas[c.faixa] : null;
 const faixa = rotuloFaixa && /^(até|mais)\b/.test(rotuloFaixa) ? `com ${rotuloFaixa}` : rotuloFaixa;
-const anoAnterior = c.ano ? c.hist?.[String(c.ano - 1)] : undefined;
-const variacao = anoAnterior ? emp / anoAnterior - 1 : null;
 
-function comparar(v: number, m: number | null): string | null {
-  if (m === null || m <= 0) return null;
-  const r = v / m;
-  if (r > 1.15) return `${pct(r - 1)} acima`;
-  if (r < 0.85) return `${pct(1 - r)} abaixo`;
-  return "perto";
-}
-const compTotal = comparar(perCapita, medTotal);
+// As partes que mudam com o ano: montadas aqui com o ano mais recente e, no navegador, com o ano escolhido.
+const onde = ehDF ? "no Distrito Federal" : `em ${c.nome}`;
+const destaques = [{ cod: "10", titulo: "Saúde" }, { cod: "12", titulo: "Educação" }];
+const ficha = temDados ? await fichaDe(c, "mun", c.ano!) : null;
+const pacote = temDados ? pacoteDe("mun", c.ano!) : null;
+const ctx: Contexto | null = ficha && pacote ? { ano: c.ano!, esfera: "mun", ibge: c.ibge, nome: c.nome, uf: c.uf, quem, onde, destaques, ficha, pacote } : null;
+const anos = anosDe(c);
+const base: BaseDaPagina | null = ctx
+  ? { ibge: c.ibge, nome: c.nome, uf: c.uf, esfera: "mun", quem, onde, destaques, anos, padrao: c.ano!, grupo: c.uf.toLowerCase() }
+  : null;
 const descricao = temDados
   ? `Quanto ${quem} gastou em ${c.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por habitante, por área (saúde, educação…).`
   : `Gastos de ${c.nome} (${c.uf}).`;
@@ -55,46 +55,32 @@ const descricao = temDados
       <div>
         <span class="sobretitulo">{ehDF ? "Distrito Federal" : `Município · ${nomeUf}`} · {habitantes(c.pop)}</span>
         <h1>{c.nome}</h1>
-        {temDados ? (
-          <p>
-            Em {c.ano}, {quem} empenhou <strong class="marca">{moedaExtenso(emp)}</strong>,
-            ou <strong>{porPessoa(perCapita)} por habitante</strong>.
-            {compTotal && faixa && (
-              <> Isso fica {compTotal} da mediana das cidades {faixa} ({porPessoa(medTotal!)}).</>
+        {ctx ? (
+          <>
+            {anos.length > 1 && (
+              <label class="escolha-ano">Ano das contas
+                <select id="ano-ficha">{anos.map((a) => <option value={a} selected={a === c.ano}>{a}</option>)}</select>
+                <small>{anos.at(-1)} a {anos[0]}</small>
+              </label>
             )}
-          </p>
+            <div class="ficha" data-parte="frase" set:html={fraseHtml(ctx)} />
+          </>
         ) : (
           <p>{quem[0].toUpperCase() + quem.slice(1)} não entregou ao Tesouro a prestação de contas anual de nenhum ano entre {doc.anos[0]} e {doc.anos.at(-1)}.</p>
         )}
       </div>
     </section>
 
-    {temDados && (
-      <section class="numeros" aria-label={`Totais de ${c.ano}`}>
-        <div><span>Empenhado em {c.ano}</span><strong class="num" title={moedaCompleta(emp)}>{moedaCurta(emp)}</strong></div>
-        <div><span>Pago no ano</span><strong class="num pago" title={moedaCompleta(pago)}>{moedaCurta(pago)}</strong></div>
-        <div><span>Por habitante</span><strong class="num">{porPessoa(perCapita)}</strong></div>
-        <div>
-          <span>Em relação a {c.ano! - 1}</span>
-          <strong class="num">{variacao === null ? "—" : `${variacao >= 0 ? "+" : "−"}${pct(Math.abs(variacao))}`}</strong>
-        </div>
-      </section>
-    )}
+    {ctx && <div class="ficha" data-parte="numeros" set:html={numerosHtml(ctx)} />}
+    {ctx && <p class="aviso-ano" id="aviso-ano" hidden></p>}
+    {ctx && <div class="ficha" data-parte="areas" set:html={areasHtml(ctx)} />}
 
-    {temDados && (
-      <GastoPorArea
-        ente={c}
-        doc={doc}
-        grupo={faixa ? `das cidades ${faixa}` : null}
-        destaques={[{ cod: "10", titulo: "Saúde" }, { cod: "12", titulo: "Educação" }]}
-      />
-    )}
+    {temDados && !ehDF && <div data-so-padrao="a nota das escolas (Ideb)"><EducacaoResultado cidade={c} faixa={faixa} /></div>}
 
-    {temDados && !ehDF && <EducacaoResultado cidade={c} faixa={faixa} />}
+    {ctx && <div class="ficha" data-parte="contas" set:html={contasHtml(ctx)} />}
+    {temDados && <AnoEmAndamento ente={c} esfera="mun" quem={quem} />}
 
-    {temDados && <ReceitaESaldo ente={c} esfera="mun" quem={quem} onde={ehDF ? "no Distrito Federal" : `em ${c.nome}`} />}
-
-    {!ehDF && <GastoEstadualAqui cidade={c} />}
+    {!ehDF && <div data-so-padrao="o gasto do governo do estado aqui"><GastoEstadualAqui cidade={c} /></div>}
 
     <section class="unidade">
       <h2>E a escola ou o posto de saúde do meu bairro?</h2>
@@ -115,11 +101,17 @@ const descricao = temDados
     <p class="nota">
       Fonte: Declaração de Contas Anuais (DCA, Anexo I-E) entregue por {ehDF ? "o GDF" : "a prefeitura"} ao Tesouro Nacional
       pelo SICONFI. Os números são os declarados pelo próprio ente. Empenhado é o gasto comprometido no ano, incluindo a Câmara
-      Municipal; não inclui despesas intraorçamentárias. Mediana calculada entre as cidades do mesmo porte que entregaram a DCA de {c.ano}.
+      Municipal; não inclui despesas intraorçamentárias. Mediana calculada entre as cidades do mesmo porte que entregaram a DCA de <span data-ano-texto>{c.ano}</span>.
       {ehDF && " O DF acumula funções de estado e de município e por isso não é comparado com outras cidades."}
     </p>
   </div>
+  {base && <script type="application/json" id="ficha-base" set:html={JSON.stringify(base).replace(/</g, "\\u003c")} />}
 </Base>
+
+<script>
+  import { iniciarTrocaDeAno } from "../../../lib/troca-de-ano";
+  iniciarTrocaDeAno();
+</script>
 
 <style>
   .caminho { padding: 14px 0; border-bottom: 1px solid var(--regra); font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
@@ -130,17 +122,6 @@ const descricao = temDados
   .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
   .cabeca p strong { color: var(--tinta); }
 
-  .numeros {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-    border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra);
-  }
-  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
-  .numeros div:first-child { padding-left: 0; }
-  .numeros div:last-child { border-right: 0; padding-right: 0; }
-  .numeros span { font-size: 13px; color: var(--texto-3); }
-  .numeros strong { font-family: var(--serifa); font-size: 36px; font-weight: 700; white-space: nowrap; }
-  .numeros .pago { color: var(--verde); }
-
   .unidade { border-top: 1px solid var(--regra); padding: 28px 0; max-width: 860px; display: flex; flex-direction: column; gap: 10px; }
   .unidade h2 { font-size: 26px; }
   .unidade p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
@@ -150,10 +131,5 @@ const descricao = temDados
     .cabeca { padding: 28px 0 24px; }
     .cabeca h1 { font-size: 40px; }
     .cabeca p { font-size: 17px; }
-    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
-    .numeros div:nth-child(2n) { border-right: 0; }
-    .numeros div:nth-child(2n + 1) { padding-left: 0; }
-    .numeros strong { font-size: 26px; }
   }
 </style>

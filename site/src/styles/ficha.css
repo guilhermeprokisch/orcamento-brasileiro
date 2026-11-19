@@ -1,0 +1,101 @@
+/*
+ * Estilos das partes da página de cidade e de estado que mudam com o ano (lib/ficha-html.ts).
+ * São globais porque o HTML é montado também no navegador, fora do escopo dos componentes;
+ * tudo fica sob .ficha para não vazar para o resto do site.
+ */
+
+/* frase e números do topo */
+.ficha .ficha-frase { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+.ficha .ficha-frase strong { color: var(--tinta); }
+.ficha .numeros {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra);
+}
+.ficha .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+.ficha .numeros div:first-child { padding-left: 0; }
+.ficha .numeros div:last-child { border-right: 0; padding-right: 0; }
+.ficha .numeros span { font-size: 13px; color: var(--texto-3); }
+.ficha .numeros strong { font-family: var(--serifa); font-size: 36px; font-weight: 700; white-space: nowrap; }
+.ficha .numeros .pago { color: var(--verde); }
+
+/* destaques e gasto por área */
+.ficha .destaques { display: grid; grid-template-columns: repeat(var(--colunas), minmax(0, 1fr)); gap: 48px; padding: 40px 0; }
+.ficha .destaque { display: flex; flex-direction: column; gap: 12px; }
+.ficha .destaque h2 { font-size: 34px; }
+.ficha .destaque p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+.ficha .destaque p strong { color: var(--tinta); }
+.ficha .subs { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.ficha .subs li { display: flex; flex-direction: column; gap: 4px; }
+.ficha .subs .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.ficha .subs .lb-linha strong { white-space: nowrap; }
+.ficha .subs .lb-barra { display: block; height: 8px; min-width: 2px; }
+
+.ficha .areas { border-top: 2px solid var(--tinta); padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+.ficha .areas-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; flex-wrap: wrap; }
+.ficha .areas h2 { font-size: 34px; }
+.ficha .areas-topo p { margin: 0; font-size: 14px; color: var(--texto-3); }
+.ficha .areas .tabela { display: flex; flex-direction: column; }
+.ficha .areas .linha {
+  display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr) 100px 100px 110px; gap: 20px; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--regra-leve);
+}
+.ficha .areas .cab {
+  font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 8px 0; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--tinta);
+}
+.ficha .areas .d { text-align: right; }
+.ficha .areas .nome { font-weight: 600; min-width: 0; }
+.ficha .areas .trilho { position: relative; display: block; height: 14px; }
+.ficha .areas .barra { display: block; height: 100%; min-width: 2px; }
+.ficha .areas .mediana { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tinta); }
+
+/* receita, saldo, balanço e INSS */
+.ficha .bloco { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+.ficha .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+.ficha .texto h2 { font-size: 34px; }
+.ficha .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+.ficha .texto p strong { color: var(--tinta); }
+.ficha .texto .menor { font-size: 14px; color: var(--texto-3); }
+.ficha .barras { grid-column: span 7; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; align-self: center; }
+.ficha .barras li { display: flex; flex-direction: column; gap: 4px; }
+.ficha .bloco .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+.ficha .bloco .lb-linha > span { min-width: 0; font-weight: 600; }
+.ficha .bloco .lb-linha small { font-size: 13px; font-weight: 400; color: var(--texto-3); }
+.ficha .bloco .lb-linha strong { white-space: nowrap; font-weight: 600; }
+.ficha .bloco .lb-barra { display: block; height: 10px; min-width: 2px; }
+.ficha .saldo { border-top: 1px solid var(--tinta); padding-top: 10px; }
+.ficha .linhas { grid-column: span 7; list-style: none; margin: 0; padding: 0; align-self: center; border-top: 1px solid var(--tinta); }
+.ficha .linhas li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; }
+.ficha .linhas li > span { min-width: 0; font-weight: 600; }
+.ficha .linhas small { font-size: 13px; font-weight: 400; color: var(--texto-3); }
+.ficha .linhas strong { white-space: nowrap; font-weight: 600; }
+.ficha .fonte { margin: 0 0 28px; font-size: 13px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
+
+/* enquanto um ano novo é baixado */
+.ficha[aria-busy="true"] { opacity: .45; transition: opacity .2s; }
+
+@media (max-width: 900px) {
+  .ficha .ficha-frase { font-size: 17px; }
+  .ficha .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ficha .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+  .ficha .numeros div:nth-child(2n) { border-right: 0; }
+  .ficha .numeros div:nth-child(2n + 1) { padding-left: 0; }
+  .ficha .numeros strong { font-size: 26px; }
+  .ficha .destaques { grid-template-columns: 1fr; gap: 32px; padding: 28px 0; }
+  .ficha .destaque h2, .ficha .areas h2, .ficha .texto h2 { font-size: 28px; line-height: 1.1; }
+  .ficha .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+  .ficha .barras, .ficha .linhas { align-self: stretch; }
+}
+/* mesmo corte do .so-largo (global.css), que esconde as colunas extras */
+@media (max-width: 640px) {
+  .ficha .areas .linha { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; }
+}
+
+/* seletor de ano, no topo da página */
+.escolha-ano { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; color: var(--texto-2); }
+.escolha-ano select {
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--tinta); background: var(--papel, #fff);
+  border: 1.5px solid var(--tinta); padding: 6px 10px; min-height: 40px; cursor: pointer;
+}
+.escolha-ano small { font-size: 13px; color: var(--texto-3); }
+.aviso-ano { margin: 0; padding: 10px 14px; font-size: 14px; line-height: 1.5; color: var(--texto-2); background: var(--papel-escuro); border-left: 3px solid var(--tinta); }

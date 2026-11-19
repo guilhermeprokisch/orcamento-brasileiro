@@ -1,12 +1,13 @@
 ---
 import Base from "../../layouts/Base.astro";
-import GastoPorArea from "../../components/gasto/GastoPorArea.astro";
-import ReceitaESaldo from "../../components/gasto/ReceitaESaldo.astro";
+import AnoEmAndamento from "../../components/gasto/AnoEmAndamento.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import { fatorIpca, resumo } from "../../lib/perfis";
-import {
-  caminhoCidade, deUf, docCidades, docEstados, habitantes, medianaDa, NOMES_UF, porPessoa, type Cidade,
-} from "../../lib/cidades";
+import { caminhoCidade, deUf, docCidades, docEstados, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../lib/cidades";
+import { anosDe, fichaDe, pacoteDe } from "../../lib/ficha";
+import { areasHtml, contasHtml, fraseHtml, numerosHtml, type Contexto } from "../../lib/ficha-html";
+import type { BaseDaPagina } from "../../lib/troca-de-ano";
+import "../../styles/ficha.css";
 
 export function getStaticPaths() {
   return (docEstados?.cidades ?? []).map((e) => ({ params: { uf: e.uf.toLowerCase() }, props: { e } }));
@@ -19,13 +20,19 @@ const ehDF = e.ibge === 53;
 const nome = NOMES_UF[e.uf] ?? e.nome;
 const quem = ehDF ? "o Governo do Distrito Federal" : `o governo ${deUf(e.uf)}`;
 
-const [emp, pago] = e.total ?? [0, 0];
+const [emp] = e.total ?? [0, 0];
 const perCapita = temDados ? emp / e.pop : 0;
-const medTotal = medianaDa(e, "total", doc);
-const anoAnterior = e.ano ? e.hist?.[String(e.ano - 1)] : undefined;
-const variacao = anoAnterior ? emp / anoAnterior - 1 : null;
-const r = medTotal ? perCapita / medTotal : null;
-const comp = r === null ? null : r > 1.15 ? `${pct(r - 1)} acima` : r < 0.85 ? `${pct(1 - r)} abaixo` : "perto";
+
+// As partes que mudam com o ano: montadas aqui com o ano mais recente e, no navegador, com o ano escolhido.
+const onde = ehDF ? "no Distrito Federal" : "no estado";
+const destaques = [{ cod: "10", titulo: "Saúde" }, { cod: "12", titulo: "Educação" }, { cod: "06", titulo: "Segurança" }];
+const ficha = temDados ? await fichaDe(e, "uf", e.ano!) : null;
+const pacote = temDados ? pacoteDe("uf", e.ano!) : null;
+const ctx: Contexto | null = ficha && pacote ? { ano: e.ano!, esfera: "uf", ibge: e.ibge, nome, uf: e.uf, quem, onde, destaques, ficha, pacote } : null;
+const anos = anosDe(e);
+const base: BaseDaPagina | null = ctx
+  ? { ibge: e.ibge, nome, uf: e.uf, esfera: "uf", quem, onde, destaques, anos, padrao: e.ano!, grupo: "estados" }
+  : null;
 
 // Evolução: total empenhado de cada ano, corrigido pelo IPCA (mesma base do resto do site).
 const baseIpca = resumo?.ipca?.base ?? null;
@@ -54,40 +61,27 @@ const descricao = temDados
       <div>
         <span class="sobretitulo">{ehDF ? "Distrito Federal" : "Governo estadual"} · {habitantes(e.pop)}</span>
         <h1>{nome}</h1>
-        {temDados ? (
-          <p>
-            Em {e.ano}, {quem} empenhou <strong class="marca">{moedaExtenso(emp)}</strong>,
-            ou <strong>{porPessoa(perCapita)} por habitante</strong>.
-            {comp && <> Isso fica {comp} da mediana dos estados ({porPessoa(medTotal!)}).</>}
-          </p>
+        {ctx ? (
+          <>
+            {anos.length > 1 && (
+              <label class="escolha-ano">Ano das contas
+                <select id="ano-ficha">{anos.map((a) => <option value={a} selected={a === e.ano}>{a}</option>)}</select>
+                <small>{anos.at(-1)} a {anos[0]}</small>
+              </label>
+            )}
+            <div class="ficha" data-parte="frase" set:html={fraseHtml(ctx)} />
+          </>
         ) : (
           <p>O estado não entregou ao Tesouro a prestação de contas anual de nenhum ano entre {doc.anos[0]} e {doc.anos.at(-1)}.</p>
         )}
       </div>
     </section>
 
-    {temDados && (
-      <section class="numeros" aria-label={`Totais de ${e.ano}`}>
-        <div><span>Empenhado em {e.ano}</span><strong class="num" title={moedaCompleta(emp)}>{moedaCurta(emp)}</strong></div>
-        <div><span>Pago no ano</span><strong class="num pago" title={moedaCompleta(pago)}>{moedaCurta(pago)}</strong></div>
-        <div><span>Por habitante</span><strong class="num">{porPessoa(perCapita)}</strong></div>
-        <div>
-          <span>Em relação a {e.ano! - 1}</span>
-          <strong class="num">{variacao === null ? "—" : `${variacao >= 0 ? "+" : "−"}${pct(Math.abs(variacao))}`}</strong>
-        </div>
-      </section>
-    )}
-
-    {temDados && (
-      <GastoPorArea
-        ente={e}
-        doc={doc}
-        grupo={ehDF ? null : "dos estados"}
-        destaques={[{ cod: "10", titulo: "Saúde" }, { cod: "12", titulo: "Educação" }, { cod: "06", titulo: "Segurança" }]}
-      />
-    )}
-
-    {temDados && <ReceitaESaldo ente={e} esfera="uf" quem={quem} onde={ehDF ? "no Distrito Federal" : "no estado"} />}
+    {ctx && <div class="ficha" data-parte="numeros" set:html={numerosHtml(ctx)} />}
+    {ctx && <p class="aviso-ano" id="aviso-ano" hidden></p>}
+    {ctx && <div class="ficha" data-parte="areas" set:html={areasHtml(ctx)} />}
+    {ctx && <div class="ficha" data-parte="contas" set:html={contasHtml(ctx)} />}
+    {temDados && <AnoEmAndamento ente={e} esfera="uf" quem={quem} />}
 
     {serie.length > 2 && (
       <section class="evolucao">
@@ -102,7 +96,7 @@ const descricao = temDados
         </div>
         <ol class="anos">
           {serie.map((p) => (
-            <li title={`${moedaCompleta(p.nominal)} em valores da época`}>
+            <li data-ano={p.ano} class:list={{ atual: p.ano === e.ano }} title={`${moedaCompleta(p.nominal)} em valores da época`}>
               <span class="num ano">{p.ano}</span>
               <span class="trilho"><span style={`width:${(p.real / maxSerie) * 100}%`}></span></span>
               <strong class="num">{moedaCurta(p.real)}</strong>
@@ -115,7 +109,7 @@ const descricao = temDados
     {cidades.length > 0 && (
       <section class="cidades">
         <h2>As cidades {deUf(e.uf)}</h2>
-        <p>O que cada prefeitura gastou por habitante, no último ano entregue.</p>
+        <p>O que cada prefeitura gastou por habitante, <span data-cidades-quando>no último ano entregue</span>.</p>
         <div class="tabela" role="table" aria-label={`Municípios de ${nome}`}>
           <div class="linha cab" role="row">
             <span role="columnheader">Cidade</span>
@@ -125,18 +119,12 @@ const descricao = temDados
             <span role="columnheader" class="d so-largo">Educação/hab.</span>
           </div>
           {cidades.map((c, i) => (
-            <a href={caminhoCidade(c)} class:list={["linha", { extra: i >= LIMITE }]} role="row">
+            <a href={caminhoCidade(c)} class:list={["linha", { extra: i >= LIMITE }]} role="row" data-ibge={c.ibge} data-href={caminhoCidade(c)}>
               <span role="cell" class="nome">{c.nome}</span>
-              <span role="cell" class="d num so-largo muted">{c.pop.toLocaleString("pt-BR")}</span>
-              {c.total ? (
-                <>
-                  <span role="cell" class="d num">{porPessoa(c.total[0] / c.pop)}</span>
-                  <span role="cell" class="d num so-largo">{porPessoa(ph(c, "10"))}</span>
-                  <span role="cell" class="d num so-largo">{porPessoa(ph(c, "12"))}</span>
-                </>
-              ) : (
-                <span role="cell" class="d muted sem">não entregou</span>
-              )}
+              <span role="cell" class="d num so-largo muted" data-col="pop">{c.pop.toLocaleString("pt-BR")}</span>
+              <span role="cell" class:list={["d num", { muted: !c.total }]} data-col="ph">{c.total ? porPessoa(c.total[0] / c.pop) : "não entregou"}</span>
+              <span role="cell" class="d num so-largo" data-col="saude">{c.total ? porPessoa(ph(c, "10")) : ""}</span>
+              <span role="cell" class="d num so-largo" data-col="edu">{c.total ? porPessoa(ph(c, "12")) : ""}</span>
             </a>
           ))}
           {cidades.length > LIMITE && (
@@ -154,12 +142,47 @@ const descricao = temDados
       e Tribunal de Contas. Empenhado é o gasto comprometido no ano; não inclui despesas intraorçamentárias.
       {ehDF
         ? " O DF acumula funções de estado e de município e por isso não é comparado com os estados."
-        : ` Mediana calculada entre os 26 estados (sem o DF) que entregaram a DCA de ${e.ano}.`}
+        : <> Mediana calculada entre os 26 estados (sem o DF) que entregaram a DCA de <span data-ano-texto>{e.ano}</span>.</>}
     </p>
   </div>
 </Base>
 
+{base && <script type="application/json" id="ficha-base" set:html={JSON.stringify(base).replace(/</g, "\\u003c")} />}
+
 <script>
+  import { arquivoDoAno, iniciarTrocaDeAno } from "../../lib/troca-de-ano";
+
+  // Ao trocar o ano, a lista de cidades do estado e o gráfico de anos acompanham.
+  const linhas = [...document.querySelectorAll<HTMLElement>(".cidades [data-ibge]")];
+  const originais = new Map(linhas.map((l) => [l, [...l.querySelectorAll<HTMLElement>("[data-col]")].map((c) => [c.textContent, c.className] as const)]));
+  const quando = document.querySelector<HTMLElement>("[data-cidades-quando]");
+  const textoQuando = quando?.textContent ?? "";
+  const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+  const porPessoa = (v: number) => `R$ ${nf0.format(Math.round(v))}`;
+  iniciarTrocaDeAno(async (ano, base) => {
+    document.querySelectorAll<HTMLElement>(".anos [data-ano]").forEach((li) => li.classList.toggle("atual", Number(li.dataset.ano) === ano));
+    // Cada cidade da lista abre no mesmo ano.
+    for (const l of linhas) l.setAttribute("href", `${l.dataset.href}${ano === base.padrao ? "" : `?ano=${ano}`}`);
+    if (!linhas.length) return;
+    if (ano === base.padrao) {
+      for (const [l, cols] of originais) l.querySelectorAll<HTMLElement>("[data-col]").forEach((c, k) => { c.textContent = cols[k][0]; c.className = cols[k][1]; });
+      if (quando) quando.textContent = textoQuando;
+      return;
+    }
+    const arq = await arquivoDoAno(ano, base.uf.toLowerCase());
+    if (!arq) return;
+    if (quando) quando.textContent = `em ${ano}`;
+    for (const l of linhas) {
+      const f = arq.entes[l.dataset.ibge!];
+      const col = (nome: string) => l.querySelector<HTMLElement>(`[data-col="${nome}"]`)!;
+      if (f) col("pop").textContent = f.pop.toLocaleString("pt-BR");
+      col("ph").textContent = f ? porPessoa(f.total[0] / f.pop) : "não entregou";
+      col("ph").classList.toggle("muted", !f);
+      col("saude").textContent = f ? porPessoa((f.f["10"]?.[0] ?? 0) / f.pop) : "";
+      col("edu").textContent = f ? porPessoa((f.f["12"]?.[0] ?? 0) / f.pop) : "";
+    }
+  });
+
   document.querySelector<HTMLButtonElement>("[data-mais]")?.addEventListener("click", (ev) => {
     const botao = ev.currentTarget as HTMLButtonElement;
     botao.closest(".tabela")?.classList.add("todos");
@@ -176,17 +199,6 @@ const descricao = temDados
   .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
   .cabeca p strong { color: var(--tinta); }
 
-  .numeros {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-    border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra);
-  }
-  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
-  .numeros div:first-child { padding-left: 0; }
-  .numeros div:last-child { border-right: 0; padding-right: 0; }
-  .numeros span { font-size: 13px; color: var(--texto-3); }
-  .numeros strong { font-family: var(--serifa); font-size: 36px; font-weight: 700; white-space: nowrap; }
-  .numeros .pago { color: var(--verde); }
-
   .evolucao { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
   .evolucao-texto { grid-column: span 4; display: flex; flex-direction: column; gap: 12px; }
   .evolucao h2 { font-size: 34px; }
@@ -198,7 +210,8 @@ const descricao = temDados
   .anos strong { text-align: right; }
   .anos .trilho { display: block; height: 14px; }
   .anos .trilho > span { display: block; height: 100%; background: var(--verde); }
-  .anos li:last-child .trilho > span { background: var(--verde-escuro); }
+  .anos li.atual .trilho > span { background: var(--verde-escuro); }
+  .anos li.atual .ano { color: var(--tinta); font-weight: 700; }
   .cidades { border-top: 2px solid var(--tinta); padding: 32px 0; display: flex; flex-direction: column; gap: 12px; }
   .cidades h2 { font-size: 34px; }
   .cidades > p { margin: 0 0 8px; font-size: 14px; color: var(--texto-3); }
@@ -215,7 +228,6 @@ const descricao = temDados
   }
   .d { text-align: right; }
   .nome { font-weight: 600; min-width: 0; }
-  .sem { grid-column: span 3; }
   .tabela:not(.todos) .extra { display: none; }
   .mais {
     display: flex; justify-content: space-between; padding: 14px 0; font: inherit; font-size: 14px;
@@ -228,17 +240,11 @@ const descricao = temDados
     .cabeca { padding: 28px 0 24px; }
     .cabeca h1 { font-size: 40px; }
     .cabeca p { font-size: 17px; }
-    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
-    .numeros div:nth-child(2n) { border-right: 0; }
-    .numeros div:nth-child(2n + 1) { padding-left: 0; }
-    .numeros strong { font-size: 26px; }
     .cidades h2, .evolucao h2 { font-size: 28px; }
     .evolucao { display: flex; flex-direction: column; gap: 20px; }
   }
   /* mesmo corte do .so-largo (global.css), que esconde as colunas extras */
   @media (max-width: 640px) {
     .linha { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
-    .sem { grid-column: auto; }
   }
 </style>
