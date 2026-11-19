@@ -102,8 +102,9 @@ publicam os dados de todos os municípios do estado num formato só.
 - Testar o layout de celular num aparelho de verdade; até agora, só em emulação.
 - Tirar a dependência de arquivos baixados à mão: o histórico do SICONFI já está num release do
   GitHub; os benefícios federais ainda dependem de download manual.
-- Atualização automática do relatório bimestral dos municípios (hoje são ~5.570 consultas
-  feitas fora do CI).
+- Atualização automática do relatório bimestral dos municípios: feita pelo workflow
+  `bimestral.yml` (dias 1 e 31 e toda segunda-feira). Falta estender à comparação com o mesmo
+  período do ano anterior e ao relatório de dívida (RGF).
 - Testes automáticos do pipeline: hoje a conferência é feita à mão a cada mudança.
 
 ## Como decidir a ordem
