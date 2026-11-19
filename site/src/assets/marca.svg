@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 124 86" role="img" aria-label="Orçamento Brasileiro">
+<title>Orçamento Brasileiro</title>
+<rect x="0" y="5.16" width="12" height="80.84" rx="2.5" fill="#009C3B"/>
+<rect x="16" y="30.96" width="12" height="55.04" rx="2.5" fill="#009C3B"/>
+<rect x="32" y="29.24" width="12" height="56.76" rx="2.5" fill="#009C3B"/>
+<rect x="48" y="24.08" width="12" height="61.92" rx="2.5" fill="#009C3B"/>
+<rect x="64" y="17.2" width="12" height="68.8" rx="2.5" fill="#009C3B"/>
+<rect x="80" y="11.18" width="12" height="74.82" rx="2.5" fill="#009C3B"/>
+<rect x="96" y="5.16" width="12" height="80.84" rx="2.5" fill="#009C3B"/>
+<rect x="112" y="0" width="12" height="86" rx="2.5" fill="#009C3B"/>
+<polygon points="10,43 62,9 114,43 62,77" fill="#FFDF00"/>
+<circle cx="62" cy="43" r="20" fill="#002776"/>
+<path d="M62,43 L62,23 A20,20 0 0 1 78.18,54.76 Z" fill="#FFFFFF"/>
+</svg>

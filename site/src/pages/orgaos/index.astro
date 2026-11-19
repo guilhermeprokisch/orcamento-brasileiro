@@ -1,0 +1,101 @@
+---
+import Base from "../../layouts/Base.astro";
+import { agrupar, taxaRealizacao } from "../../lib/dados";
+import { moedaCompleta, moedaExtenso, pct } from "../../lib/formato";
+import { anoBase, docBase, orgaosComPerfil } from "../../lib/perfis";
+
+const total = docBase ? agrupar(docBase, [], null).total : null;
+const linhas = orgaosComPerfil()
+  .map((o) => {
+    const v = docBase ? agrupar(docBase, [{ dim: "orgao", cod: o.cod }], null).total : null;
+    return { ...o, v };
+  })
+  .sort((a, b) => (b.v?.atualizado ?? 0) - (a.v?.atualizado ?? 0));
+const semAcento = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+---
+
+<Base title="Órgãos · Orçamento Brasileiro" description={`Orçamento de cada órgão do governo federal em ${anoBase}.`}>
+  <div class="faixa-titulo"><h1>Órgãos</h1></div>
+  <div class="wrap pagina">
+    <header class="topo-lista">
+      <div>
+        <h2>Orçamento de cada órgão em {anoBase}</h2>
+        <p class="muted">
+          Ministérios, Poderes e demais órgãos superiores do governo federal. Clique num nome para ver o perfil completo,
+          com a evolução desde 2014.
+        </p>
+      </div>
+      <label class="filtro">
+        <span class="visually-hidden">Filtrar órgãos</span>
+        <input type="search" placeholder="Filtrar por nome…" data-filtro autocomplete="off" />
+      </label>
+    </header>
+
+    <div class="tabela-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Órgão</th>
+            <th scope="col" class="n">Dotação atualizada</th>
+            <th scope="col" class="n">Realizado</th>
+            <th scope="col" class="n">% realizado</th>
+            <th scope="col" class="n">% do orçamento</th>
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.map((l) => (
+            <tr data-nome={semAcento(`${l.nome} ${l.cod}`)}>
+              <th scope="row"><a href={`/orgaos/${l.cod}`}>{l.nome}</a> <span class="cod">{l.cod}</span></th>
+              <td class="n num" title={l.v ? moedaCompleta(l.v.atualizado) : ""}>{l.v ? moedaExtenso(l.v.atualizado) : "—"}</td>
+              <td class="n num">{l.v ? moedaExtenso(l.v.realizado) : "—"}</td>
+              <td class="n num">{l.v ? pct(taxaRealizacao(l.v)) : "—"}</td>
+              <td class="n num">{l.v && total ? pct(l.v.atualizado / total.atualizado) : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p class="vazio muted" data-vazio hidden>Nenhum órgão com esse nome.</p>
+    </div>
+  </div>
+</Base>
+
+<script>
+  const campo = document.querySelector<HTMLInputElement>("[data-filtro]");
+  const linhas = [...document.querySelectorAll<HTMLTableRowElement>("tbody tr[data-nome]")];
+  const vazio = document.querySelector<HTMLElement>("[data-vazio]");
+  const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+  campo?.addEventListener("input", () => {
+    const termos = norm(campo.value).split(/\s+/).filter(Boolean);
+    let n = 0;
+    for (const tr of linhas) {
+      const ok = termos.every((t) => tr.dataset.nome!.includes(t));
+      tr.hidden = !ok;
+      if (ok) n++;
+    }
+    if (vazio) vazio.hidden = n > 0;
+  });
+</script>
+
+<style>
+  .pagina { padding-top: 32px; padding-bottom: 56px; }
+  .topo-lista { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px 32px; flex-wrap: wrap; margin-bottom: 24px; }
+  .topo-lista h2 { margin: 0 0 6px; font-size: 1.75rem; font-weight: 600; }
+  .topo-lista p { margin: 0; max-width: 64ch; }
+  .filtro input {
+    font: inherit; width: min(320px, 100%); padding: 8px 12px; color: var(--text); background: var(--surface);
+    border: 1px solid var(--border-forte); border-radius: 4px;
+  }
+  .tabela-wrap { border: 1px solid var(--border); background: var(--surface); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-size: 0.875rem; font-weight: 600; color: var(--text-2); text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  tbody tr:nth-child(even) { background: var(--zebra); }
+  tbody th, td { padding: 12px 16px; }
+  tbody th { font-weight: 400; text-align: left; min-width: 16rem; }
+  tbody th a { text-decoration: none; }
+  tbody th a:hover { text-decoration: underline; }
+  .cod { font-family: var(--mono); font-size: 0.75rem; color: var(--text-3); margin-left: 6px; }
+  td { color: var(--text-2); }
+  .n { text-align: right; white-space: nowrap; }
+  .vazio { padding: 24px 16px; margin: 0; }
+  @media (max-width: 640px) { tbody th { min-width: 12rem; } }
+</style>

@@ -1,0 +1,80 @@
+name: Publicar
+
+# Atualiza os dados, gera o site e publica no Cloudflare Pages.
+# - push na main: publica em produção (orcamento-brasileiro.pages.dev)
+# - todo dia às 9h UTC (6h em Brasília): baixa os dados de novo e publica
+# - pull request: gera e publica uma prévia (endereço próprio por branch)
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: publicar-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write
+
+env:
+  PROJETO_PAGES: orcamento-brasileiro
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      # Arquivos brutos dos anos fechados e nomes do SIOP não mudam: reaproveita.
+      # O ano corrente é sempre baixado de novo pelo pipeline.
+      - name: Cache dos dados brutos
+        uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: dados-brutos-${{ github.run_id }}
+          restore-keys: dados-brutos-
+
+      - name: Pipeline de dados
+        run: uv run --project pipeline orcamento
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Instalar dependências do site
+        working-directory: site
+        run: npm ci
+
+      - name: Verificar tipos
+        working-directory: site
+        run: npx astro check
+
+      - name: Gerar o site
+        working-directory: site
+        run: npm run build
+
+      - name: Publicar no Cloudflare Pages
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        working-directory: site
+        env:
+          RAMO: ${{ github.head_ref || github.ref_name }}
+        run: |
+          # Cria o projeto na primeira vez (falha sem problema se já existir).
+          npx wrangler pages project create "$PROJETO_PAGES" --production-branch main || true
+          npx wrangler pages deploy dist --project-name "$PROJETO_PAGES" --branch "$RAMO" --commit-dirty=true
+
+      - name: Aviso sem credenciais
+        if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == ''
+        run: echo "::notice::Site gerado, mas não publicado — faltam os secrets CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID."

@@ -1,0 +1,88 @@
+.tm {
+  position: relative;
+  width: 100%;
+  background: var(--surface);
+  touch-action: manipulation;
+}
+.tm-celulas { position: absolute; inset: 0; overflow: hidden; }
+.tm-vazio { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--text-2); }
+
+.tm-cel {
+  position: absolute;
+  border: 0;
+  border-radius: 0;
+  /* sem padding: um botão nunca fica mais estreito que o próprio padding,
+     e os blocos pequenos vazariam para fora do mapa */
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  font: inherit;
+  background: var(--fundo);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.tm-cel.tm-claro { color: #1b1b1b; }
+.tm-cel.tm-ativo,
+.tm-cel:focus-visible {
+  background: var(--destaque);
+  color: #1b1b1b;
+  outline: none;
+}
+.tm-cel.tm-fixo { cursor: default; }
+
+.tm-nome, .tm-pct { padding: 0 6px; }
+.tm-nome {
+  max-width: 100%;
+  font-size: 0.9375rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tm-pct { font-size: 0.875rem; font-weight: 700; }
+
+.tm-tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.28);
+  text-align: center;
+}
+.tm-tip::after {
+  content: "";
+  position: absolute;
+  left: var(--seta);
+  bottom: -8px;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-bottom: 0;
+  border-top-color: var(--surface);
+}
+.tm-tip.tm-tip-baixo::after {
+  bottom: auto;
+  top: -8px;
+  border: 8px solid transparent;
+  border-top: 0;
+  border-bottom-color: var(--surface);
+}
+.tm-tip-nome {
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.3;
+}
+.tm-tip-numeros { display: grid; grid-template-columns: 1fr 1fr; padding: 10px 6px 12px; }
+.tm-tip-numeros > div + div { border-left: 1px solid var(--border); }
+.tm-tip-v { font-size: 1.125rem; color: var(--text-2); }
+.tm-tip-r { font-size: 0.8125rem; color: var(--text-2); margin-top: 4px; }
