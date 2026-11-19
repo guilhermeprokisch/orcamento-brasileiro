@@ -115,6 +115,16 @@
   .links a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; padding: 6px 12px; border: 1.5px solid var(--regra-2); border-top: 4px solid var(--cor); color: var(--tinta); text-decoration: none; font-size: 14px; font-weight: 500; line-height: 1.2; }
   .links a:hover { background: var(--papel-2); }
 
+  /* Em tela larga a página não rola: o menu e o detalhe rolam por dentro e o mapa ocupa todo o espaço que sobra. */
+  @media (min-width: 1101px) {
+    .app { flex-wrap: nowrap; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+    aside { flex: 0 0 290px; overflow-y: auto; }
+    main { flex: 1 1 auto; height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) clamp(440px, 36vw, 600px); grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+    .col-mapa { position: static; min-height: 0; }
+    .mostra { min-height: 0; }
+    .mapa-caixa { flex: 1 1 0; min-height: 0; aspect-ratio: auto; max-height: none; }
+    .det { align-self: start; max-height: 100%; overflow-y: auto; }
+  }
   @media (max-width: 760px) {
     aside { padding: 16px; gap: 14px; border-right: 0; border-bottom: 1px solid var(--regra); }
     .marca h1 { font-size: 22px; }
