@@ -13,6 +13,7 @@ dependencies = [
 orcamento = "orcamento_pipeline.cli:main"
 cidades = "orcamento_pipeline.cidades:main"
 rfb = "orcamento_pipeline.rfb:main"
+irpf = "orcamento_pipeline.irpf:main"
 finbra = "orcamento_pipeline.finbra:main"
 mapa = "orcamento_pipeline.mapa:main"
 federal = "orcamento_pipeline.federal:main"
