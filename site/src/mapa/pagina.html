@@ -778,7 +778,7 @@
       if (andando) corpoAreas = `<p class="bloco-nota">${porHab(r[I.desp] * k)}, de janeiro a ${parcial.ate}.</p>`;
       if (ct?.n) {
         const n = ct.n, tot = d3.sum(n.slice(0, 6)) || 1;
-        const tipos = [["Salários e encargos dos servidores", n[0]], [mun ? "Serviços, materiais e outros custeios" : "Serviços, materiais, repasses a municípios e outros custeios", n[2]], ["Obras e equipamentos (investimentos)", n[3]],
+        const tipos = [["Salários e encargos dos servidores", n[0]], [mun ? "Serviços, materiais e contas do dia a dia" : "Serviços, materiais, repasses às prefeituras e contas do dia a dia", n[2]], ["Obras e equipamentos (investimentos)", n[3]],
           ["Pagamento de dívida", n[5]], ["Juros da dívida", n[1]], ["Compra de imóveis e participações", n[4]]].filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
         const maiorTipo = d3.max(tipos, (x) => x[1]) || 1;
         corpoAreas += `<h4>Com o quê</h4>
