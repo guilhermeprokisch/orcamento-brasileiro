@@ -104,7 +104,21 @@ def fatores_ipca(indice: dict[str, float], anos: list[int]) -> dict:
     }
 
 
-def exportar_explorer(con: duckdb.DuckDBPyConnection, pasta: Path, ipca: dict | None = None) -> list[dict]:
+def nome_oficial(nomes_siop: dict[int, dict], dim: str, ano: int, cod: str) -> str | None:
+    """Nome do SIOP para o código: do mesmo ano ou, se faltar, do ano mais próximo (até 2 anos)."""
+    for delta in (0, -1, 1, -2, 2):
+        nome = nomes_siop.get(ano + delta, {}).get(dim, {}).get(cod)
+        if nome:
+            return nome
+    return None
+
+
+def exportar_explorer(
+    con: duckdb.DuckDBPyConnection,
+    pasta: Path,
+    ipca: dict | None = None,
+    nomes_siop: dict[int, dict] | None = None,
+) -> list[dict]:
     """Um JSON compacto por ano, agregado até o nível de ação × GND (sem elemento).
 
     Formato: dicionários código→nome por dimensão, e linhas como listas na
@@ -123,6 +137,16 @@ def exportar_explorer(con: duckdb.DuckDBPyConnection, pasta: Path, ipca: dict | 
                 [ano],
             ).fetchall()
             dims[nome] = {c: n for c, n in pares}
+
+        # Troca os nomes em maiúsculas e sem acento pelos oficiais do SIOP.
+        trocados = 0
+        for dim in ("uo", "programa", "acao"):
+            for c in dims[dim]:
+                oficial = nome_oficial(nomes_siop or {}, dim, ano, c)
+                if oficial:
+                    dims[dim][c] = oficial
+                    trocados += 1
+        total_nomes = sum(len(dims[d]) for d in ("uo", "programa", "acao"))
 
         codigos = [cod for _, cod, _ in DIMENSOES]
         linhas = con.execute(
@@ -149,7 +173,8 @@ def exportar_explorer(con: duckdb.DuckDBPyConnection, pasta: Path, ipca: dict | 
         (pasta / f"{ano}.json").write_text(
             json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
         )
-        resumo.append({"ano": ano, "linhas": len(linhas), **totais})
+        resumo.append({"ano": ano, "linhas": len(linhas), **totais,
+                       "nomes_oficiais": round(trocados / max(1, total_nomes), 4)})
 
     (pasta / "anos.json").write_text(
         json.dumps({"gerado_em": gerado_em, "anos": resumo, "ipca": ipca}, ensure_ascii=False, indent=1),

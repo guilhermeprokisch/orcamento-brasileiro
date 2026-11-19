@@ -34,6 +34,8 @@ cd ../site && npm install && npm run dev
 | Fonte | Conjunto | Uso |
 |---|---|---|
 | Portal da Transparência (CGU) | [Orçamento da Despesa](https://portaldatransparencia.gov.br/download-de-dados/orcamento-despesa) | Explorer: dotação inicial e atualizada, empenhado e realizado por órgão, UO, função, subfunção, programa, ação e natureza da despesa, 2014+ |
+| SIOP (Ministério do Planejamento) | [Endpoint SPARQL](https://www1.siop.planejamento.gov.br/sparql/) | Nomes oficiais (com acentos e completos) de UOs, programas e ações, por ano. Cache em `data/raw/siop/`; se o SIOP falhar, ficam os nomes do Portal |
+| IBGE | [SIDRA, tabela 1737](https://sidra.ibge.gov.br/tabela/1737) | IPCA (número-índice) para corrigir valores pela inflação |
 
 Saídas do pipeline:
 
