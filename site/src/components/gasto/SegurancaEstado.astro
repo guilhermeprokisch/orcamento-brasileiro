@@ -1,11 +1,12 @@
 ---
 /**
  * Segurança pública no estado: o gasto por habitante ao lado dos homicídios por 100 mil
- * habitantes, com a mediana dos estados e o Brasil. Segurança é tarefa principal dos estados
- * (polícias militar e civil), por isso a seção só aparece na página do estado.
+ * habitantes, com a mediana dos estados (ou das cidades do mesmo porte) e o Brasil. Segurança é
+ * tarefa principal dos estados (polícias militar e civil); nas cidades, a seção aparece a partir
+ * de 100 mil habitantes, com o gasto da prefeitura (guarda municipal, iluminação, prevenção).
  */
 import { moedaCurta, pct } from "../../lib/formato";
-import { docEstados, medianaDa, porPessoa, type Cidade } from "../../lib/cidades";
+import { deUf, docCidades, docEstados, medianaDa, porPessoa, type Cidade } from "../../lib/cidades";
 import { homicidiosDe } from "../../lib/indicadores";
 import SerieAnos from "./SerieAnos.astro";
 
@@ -13,15 +14,21 @@ interface Props {
   estado: Cidade;
   /** "o governo do Ceará" */
   quem: string;
-  /** "no Ceará" */
+  /** "no Ceará", "em Fortaleza" */
   onde: string;
+  /** "uf" (padrão) ou "mun", para uma cidade */
+  esfera?: "uf" | "mun";
+  /** "das cidades com mais de 500 mil habitantes"; o padrão é "dos estados" */
+  grupo?: string;
 }
-const { estado: e, quem, onde } = Astro.props;
-const h = homicidiosDe(e);
+const { estado: e, quem, onde, esfera = "uf", grupo = "dos estados" } = Astro.props;
+const h = homicidiosDe(e, esfera);
 const ehDF = e.ibge === 53;
+const mun = esfera === "mun";
+const comparaveis = mun ? "Cidades parecidas" : "Mediana dos estados";
 const gasto = e.f?.["06"]?.[0] ?? 0;
 const porHab = gasto > 0 ? gasto / e.pop : null;
-const medGasto = ehDF ? null : medianaDa(e, "06", docEstados);
+const medGasto = ehDF ? null : medianaDa(e, "06", mun ? docCidades : docEstados);
 const total = e.total?.[0] ?? 0;
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -37,14 +44,14 @@ const muitasIndeterminadas = h ? h.indeterminadas > h.homicidios * 0.4 : false;
       {porHab !== null && (
         <p>
           Em {e.ano}, {quem} gastou <strong>{porPessoa(porHab)} por habitante</strong> em segurança pública
-          ({moedaCurta(gasto)}{total > 0 && <>, {pct(gasto / total)} de tudo o que gastou</>}).
-          {medGasto !== null && <> A mediana dos estados é {porPessoa(medGasto)}.</>}
+          ({moedaCurta(gasto)}{total > 0 && gasto / total >= 0.001 && <>, {pct(gasto / total)} de tudo o que gastou</>}).
+          {medGasto !== null && <> A mediana {grupo} é {porPessoa(medGasto)}.</>}
         </p>
       )}
       <p>
         Em {h.ano}, <strong>{nf0.format(h.homicidios)} pessoas</strong> que moravam {onde} foram vítimas de homicídio:{" "}
         <strong>{nf1.format(h.taxa)} a cada 100 mil habitantes</strong>.
-        {h.mediana !== null && !ehDF && <> A mediana dos estados é {nf1.format(h.mediana)}</>}
+        {h.mediana !== null && !ehDF && <> A mediana {grupo} é {nf1.format(h.mediana)}</>}
         {h.brasil !== null && (h.mediana !== null && !ehDF ? <>; no Brasil, {nf1.format(h.brasil)}.</> : <> No Brasil, {nf1.format(h.brasil)}.</>)}
         {h.policia > 0 && <> Desse total, {nf0.format(h.policia)} {h.policia === 1 ? "morreu" : "morreram"} em ações da polícia.</>}
       </p>
@@ -52,7 +59,9 @@ const muitasIndeterminadas = h ? h.indeterminadas > h.homicidios * 0.4 : false;
         Além desses, {nf0.format(h.indeterminadas)} mortes violentas ficaram sem causa definida: não se sabe se foi
         homicídio, acidente ou suicídio.
         {muitasIndeterminadas && <> Aqui elas são muitas, então parte dos homicídios pode não estar sendo contada.</>}
-        {ehDF
+        {mun
+          ? <> A segurança pública é tarefa principal do governo {deUf(e.uf)}, que paga as polícias militar e civil; a prefeitura pode manter uma guarda municipal e gastar com iluminação e prevenção. Numa cidade, o número de um ano muda bastante: veja a série.</>
+          : ehDF
           ? <> No Distrito Federal, as polícias são pagas em grande parte pela União (Fundo Constitucional do DF), por isso o gasto do governo local parece baixo.</>
           : <> A segurança pública é tarefa principal dos estados (polícias militar e civil), mas a União e as prefeituras também gastam nela.</>} O número de mortes depende de muito mais que o gasto; os dois aparecem lado a lado para você comparar.
       </p>
@@ -60,14 +69,14 @@ const muitasIndeterminadas = h ? h.indeterminadas > h.homicidios * 0.4 : false;
     <div class="lado">
     <div class="numeros-seg">
       <p class="unidade">Homicídios a cada 100 mil habitantes, {h.ano}</p>
-      <div><span>{ehDF ? "Distrito Federal" : "Este estado"}</span><strong class="num">{nf1.format(h.taxa)}</strong></div>
-      {!ehDF && <div><span>Mediana dos estados</span><strong class="num muted">{h.mediana === null ? "—" : nf1.format(h.mediana)}</strong></div>}
+      <div><span>{ehDF ? "Distrito Federal" : mun ? "Esta cidade" : "Este estado"}</span><strong class="num">{nf1.format(h.taxa)}</strong></div>
+      {!ehDF && <div><span>{comparaveis}</span><strong class="num muted">{h.mediana === null ? "—" : nf1.format(h.mediana)}</strong></div>}
       <div><span>Brasil</span><strong class="num muted">{h.brasil === null ? "—" : nf1.format(h.brasil)}</strong></div>
-      {frente !== null && Math.abs(frente) >= 0.1 && <p class="frente">{nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"} da mediana dos estados</p>}
+      {frente !== null && Math.abs(frente) >= 0.1 && <p class="frente">{nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"} {mun ? "das cidades parecidas" : "da mediana dos estados"}</p>}
     </div>
     <SerieAnos titulo="Homicídios por ano (número de mortes)" serie={h.serie} />
     </div>
-    <p class="fonte">Fonte: {h.fonte}, {h.ano}. Homicídios: agressões e intervenções legais (CID-10 X85 a Y09, Y35 e Y36), pelo estado onde a pessoa morava.</p>
+    <p class="fonte">Fonte: {h.fonte}, {h.ano}. Homicídios: agressões e intervenções legais (CID-10 X85 a Y09, Y35 e Y36), pel{mun ? "a cidade" : "o estado"} onde a pessoa morava.</p>
   </section>
 )}
 

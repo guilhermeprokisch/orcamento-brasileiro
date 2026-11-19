@@ -262,6 +262,8 @@ interface DocSeguranca {
   fonte: string;
   /** ano → código do estado → [agressões, intervenções legais, intenção indeterminada] */
   anos: Record<string, Record<string, [number, number, number]>>;
+  /** ano → ibge → [mesmo formato], só cidades com mais de 50 mil habitantes */
+  mun?: Record<string, Record<string, [number, number, number]>>;
 }
 const arquivosSeguranca = import.meta.glob<DocSeguranca>("../../public/data/indicadores/seguranca.json", { eager: true, import: "default" });
 const docSeguranca: DocSeguranca | null = Object.values(arquivosSeguranca)[0] ?? null;
@@ -281,28 +283,34 @@ export interface Homicidios {
   serie: PontoSerie[];
 }
 
-/** Os números do último ano fechado; a população é a do estado na base do site. */
-export function homicidiosDe(e: Cidade): Homicidios | null {
+/** A seção de homicídios aparece nas cidades a partir deste tamanho (os números menores oscilam demais). */
+export const POP_HOMICIDIOS = 100_000;
+
+/** Os números do último ano fechado; a população é a do ente na base do site. */
+export function homicidiosDe(e: Cidade, esfera: "uf" | "mun" = "uf"): Homicidios | null {
   if (!docSeguranca || !docEstados) return null;
-  const ano = Object.keys(docSeguranca.anos).sort().at(-1);
-  if (!ano) return null;
-  const doAno = docSeguranca.anos[ano];
-  const pop = new Map(docEstados.cidades.map((x) => [String(x.ibge), x.pop]));
-  const v = doAno[String(e.ibge)];
+  const porAno = esfera === "uf" ? docSeguranca.anos : docSeguranca.mun ?? {};
+  const ano = Object.keys(porAno).sort().at(-1);
+  if (!ano || (esfera === "mun" && e.pop < POP_HOMICIDIOS)) return null;
+  const doAno = porAno[ano];
+  const v = doAno[String(e.ibge)] ?? (esfera === "mun" ? [0, 0, 0] as [number, number, number] : undefined);
   if (!v || !e.pop) return null;
   const por100mil = (n: number, p: number) => (n / p) * 1e5;
-  const taxas = Object.entries(doAno)
-    .filter(([k]) => k !== "53" && pop.get(k))
-    .map(([k, x]) => por100mil(x[0] + x[1], pop.get(k)!));
+  // Comparação: os outros estados (sem o DF) ou as cidades do mesmo porte com a seção.
+  const comparaveis = esfera === "uf"
+    ? docEstados.cidades.filter((x) => x.ibge !== 53)
+    : (docCidades?.cidades ?? []).filter((x) => x.faixa === e.faixa && x.pop >= POP_HOMICIDIOS);
+  const taxas = comparaveis.map((x) => { const y = doAno[String(x.ibge)]; return por100mil(y ? y[0] + y[1] : 0, x.pop); });
   let n = 0, p = 0;
-  for (const [k, x] of Object.entries(doAno)) if (pop.get(k)) { n += x[0] + x[1]; p += pop.get(k)!; }
+  for (const x of docEstados.cidades) { const y = docSeguranca.anos[ano]?.[String(x.ibge)]; if (y) { n += y[0] + y[1]; p += x.pop; } }
   return {
     fonte: docSeguranca.fonte, ano: Number(ano), homicidios: v[0] + v[1], policia: v[1], indeterminadas: v[2],
     taxa: por100mil(v[0] + v[1], e.pop), taxaIndeterminadas: por100mil(v[2], e.pop),
     mediana: mediana(taxas), brasil: p ? por100mil(n, p) : null,
-    serie: Object.keys(docSeguranca.anos).sort()
-      .filter((a) => docSeguranca.anos[a][String(e.ibge)])
-      .map((a) => ({ ano: Number(a), valor: docSeguranca.anos[a][String(e.ibge)][0] + docSeguranca.anos[a][String(e.ibge)][1], preliminar: false })),
+    serie: Object.keys(porAno).sort().map((a) => {
+      const y = porAno[a][String(e.ibge)];
+      return { ano: Number(a), valor: y ? y[0] + y[1] : 0, preliminar: false };
+    }),
   };
 }
 
