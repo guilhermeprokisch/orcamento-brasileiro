@@ -1,9 +1,6 @@
 # Orçamento Brasileiro
 
-O orçamento federal brasileiro, explicado e explorável. Inspirado no
-[USAspending.gov](https://www.usaspending.gov) (código aberto em
-[fedspendingtransparency](https://github.com/fedspendingtransparency)), mas com
-modelo de dados, textos e stack próprios.
+O orçamento federal brasileiro, explicado e explorável.
 
 Projeto independente, sem vínculo com o Governo Federal.
 
