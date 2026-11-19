@@ -134,6 +134,10 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline saude
 
+      - name: Pipeline da segurança (homicídios)
+        continue-on-error: true
+        run: uv run --project pipeline seguranca
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

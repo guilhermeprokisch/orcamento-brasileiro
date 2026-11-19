@@ -4,6 +4,7 @@ import AnoEmAndamento from "../../components/gasto/AnoEmAndamento.astro";
 import DividaEstado from "../../components/gasto/DividaEstado.astro";
 import CapagNota from "../../components/gasto/CapagNota.astro";
 import SaudeResultado from "../../components/gasto/SaudeResultado.astro";
+import SegurancaEstado from "../../components/gasto/SegurancaEstado.astro";
 import EducacaoEstado from "../../components/gasto/EducacaoEstado.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import { fatorIpca, resumo } from "../../lib/perfis";
@@ -22,6 +23,7 @@ const doc = docEstados!;
 const temDados = e.ano !== null && !!e.total;
 const ehDF = e.ibge === 53;
 const nome = NOMES_UF[e.uf] ?? e.nome;
+const noEstado = ehDF ? "no Distrito Federal" : deUf(e.uf).replace(/^(do|da|de) /, (x) => ({ "do ": "no ", "da ": "na ", "de ": "em " })[x] ?? x);
 const quem = ehDF ? "o Governo do Distrito Federal" : `o governo ${deUf(e.uf)}`;
 
 const [emp] = e.total ?? [0, 0];
@@ -85,7 +87,8 @@ const descricao = temDados
     {ctx && <p class="aviso-ano" id="aviso-ano" hidden></p>}
     {ctx && <div class="ficha" data-parte="areas" set:html={areasHtml(ctx)} />}
     {temDados && <div data-so-padrao="o gasto por aluno"><EducacaoEstado estado={e} quem={quem} /></div>}
-    {temDados && <div data-so-padrao="a mortalidade infantil"><SaudeResultado ente={e} esfera="uf" quem={quem} grupo={ehDF ? null : "dos estados"} onde={ehDF ? "no Distrito Federal" : `${deUf(e.uf).replace(/^(do|da|de) /, (x) => ({ "do ": "no ", "da ": "na ", "de ": "em " })[x] ?? x)}`} /></div>}
+    {temDados && <div data-so-padrao="a mortalidade infantil"><SaudeResultado ente={e} esfera="uf" quem={quem} grupo={ehDF ? null : "dos estados"} onde={noEstado} /></div>}
+    {temDados && <div data-so-padrao="os homicídios"><SegurancaEstado estado={e} quem={quem} onde={noEstado} /></div>}
     {ctx && <div class="ficha" data-parte="contas" set:html={contasHtml(ctx)} />}
     {temDados && <AnoEmAndamento ente={e} esfera="uf" quem={quem} />}
     <DividaEstado ibge={e.ibge} quem={quem} ano={e.ano} />
