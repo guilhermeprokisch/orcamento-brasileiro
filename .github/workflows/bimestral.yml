@@ -1,0 +1,62 @@
+name: Relatório bimestral dos municípios
+
+# Baixa o relatório bimestral (RREO) de todas as prefeituras para o ano em andamento,
+# guarda o cache no release "dados-siconfi" e manda publicar o site.
+#
+# Por que é um workflow à parte: a API do SICONFI responde uma prefeitura por vez e aceita
+# uma consulta por segundo. Quando o bimestre vira são ~5.570 consultas, cerca de duas horas;
+# não cabe no workflow de publicação, que roda todo dia.
+#
+# Quando roda:
+# - nos dias 1 e 31, que é quando o bimestre de referência muda (30 dias depois do fim do
+#   bimestre: 31/1, 31/3, 31/5, 31/7, 1/10 e 1/12);
+# - toda segunda-feira, para pegar as prefeituras que entregaram com atraso. Nessas execuções
+#   só é consultado quem ainda não tinha entregue: alguns minutos.
+on:
+  schedule:
+    - cron: "0 2 1,31 * *"
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: relatorio-bimestral
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # anexar o cache ao release
+  actions: write    # disparar a publicação do site
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      # Parte do que já foi baixado (aqui ou na máquina de alguém).
+      - name: Cache já publicado
+        run: |
+          uv run --project pipeline semente aplicar rreo-a01
+          mkdir -p data/raw/siconfi/rreo-a01
+          cat data/raw/siconfi/rreo-a01/*.json.gz 2>/dev/null | sha256sum > /tmp/antes.sha256
+
+      # O limite de consultas deixa folga no tempo do job; o que faltar fica para a próxima
+      # execução, porque o cache é publicado mesmo se este passo for interrompido.
+      - name: Baixar o relatório das prefeituras
+        run: uv run --project pipeline rreo --municipios --max-chamadas 9000
+
+      - name: Publicar o cache e o site
+        if: always()
+        run: |
+          cat data/raw/siconfi/rreo-a01/*.json.gz 2>/dev/null | sha256sum > /tmp/depois.sha256
+          if cmp -s /tmp/antes.sha256 /tmp/depois.sha256; then
+            echo "::notice::Nada novo desde a última execução."
+            exit 0
+          fi
+          uv run --project pipeline semente publicar rreo-a01
+          gh workflow run publicar.yml --ref "${{ github.event.repository.default_branch }}"

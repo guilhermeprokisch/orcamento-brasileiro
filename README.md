@@ -40,6 +40,7 @@ uv run conciliar 2025
 
 # 1e. o ano em andamento, pelo relatório bimestral (RREO): estados; com --municipios, todos (~1h40).
 #     Rodar depois do mapa: acrescenta o ano em andamento aos arquivos dele.
+#     No GitHub, os municípios são baixados sozinhos pelo workflow bimestral.yml.
 uv run rreo
 uv run federal 2025    # repasses e benefícios federais por município
 uv run inss            # aposentadorias e pensões do INSS por município

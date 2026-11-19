@@ -3,6 +3,7 @@
     uv run semente publicar    # sobe data/raw/siconfi/{dca,rreo}-*/ para o release (precisa de permissão de escrita)
     uv run semente publicar dca-id dca-iab    # só os anexos que mudaram
     uv run semente aplicar     # baixa o release e junta ao cache local o que falta
+    uv run semente aplicar rreo-a01           # só uma das pastas
 
 Os arquivos do FINBRA são baixados à mão (o site tem captcha; ver finbra.py), então o
 histórico dos municípios só existe na máquina de quem baixou. Para o CI e outras
@@ -88,7 +89,7 @@ def _juntar(anexo: str, ano: str, dados: bytes) -> int:
     return novos
 
 
-def aplicar() -> None:
+def aplicar(so: list[str] | None = None) -> None:
     r = _gh("release", "view", RELEASE, "--json", "assets")
     if r.returncode != 0:
         print(f"  aviso: release {RELEASE} indisponível ({r.stderr.strip() or 'gh falhou'}); seguindo sem ele", flush=True)
@@ -100,7 +101,7 @@ def aplicar() -> None:
         marca = {}
     for anexo in sorted(json.loads(r.stdout)["assets"], key=lambda a: a["name"]):
         nome, versao = anexo["name"], anexo["updatedAt"]
-        if not nome.endswith(".tar"):
+        if not nome.endswith(".tar") or (so and nome.removesuffix(".tar") not in so):
             continue
         if marca.get(nome) == versao:
             print(f"  {nome}: já aplicado", flush=True)
@@ -127,9 +128,9 @@ def aplicar() -> None:
 def main() -> None:
     p = argparse.ArgumentParser(prog="semente", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("acao", choices=["publicar", "aplicar"])
-    p.add_argument("anexos", nargs="*", help="só para publicar: pastas do cache a enviar (padrão: todas)")
+    p.add_argument("anexos", nargs="*", help="pastas do cache a enviar ou a trazer (padrão: todas)")
     args = p.parse_args()
-    publicar(args.anexos) if args.acao == "publicar" else aplicar()
+    publicar(args.anexos) if args.acao == "publicar" else aplicar(args.anexos)
 
 
 if __name__ == "__main__":
