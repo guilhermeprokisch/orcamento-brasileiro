@@ -159,7 +159,7 @@ const larga = d.larga;
   .prosa :global(mark) { background: linear-gradient(transparent 58%, var(--marca-texto) 58%); color: inherit; }
   .prosa :global(table) { border-collapse: collapse; font-family: var(--sans); font-size: 15px; width: 100%; }
   .prosa :global(th), .prosa :global(td) { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--regra); vertical-align: top; }
-  .prosa :global(th) { border-bottom: 2px solid var(--tinta); font-weight: 600; }
+  .prosa :global(th) { border-bottom: 2px solid var(--tinta); font-weight: 600; white-space: nowrap; }
   .prosa :global(td.num), .prosa :global(th.num) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
   .vizinhas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; border-top: 2px solid var(--tinta); padding-top: 18px; margin-top: 12px; }
@@ -173,9 +173,12 @@ const larga = d.larga;
   .vizinhas-celular a:first-child { white-space: nowrap; }
   .vizinhas-celular a:last-child { text-align: right; }
 
-  .lado { grid-column: span 4; display: flex; flex-direction: column; gap: 32px; padding-top: 6px; }
+  .lado {
+    grid-column: span 4; display: flex; flex-direction: column; gap: 32px; padding-top: 6px;
+    align-self: start; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;
+  }
+  .grade.larga .lado { position: static; max-height: none; overflow: visible; }
   .bloco { border-top: 2px solid var(--tinta); padding-top: 14px; display: flex; flex-direction: column; gap: 12px; align-self: start; }
-  .lado .bloco:first-child { position: sticky; top: 16px; }
   .rotulo { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--texto-3); }
   .secao { color: var(--texto-3); text-decoration: none; }
   .secao.ativa, .secao:hover { color: var(--tinta); font-weight: 600; }
@@ -187,7 +190,7 @@ const larga = d.larga;
     .grade { display: flex; flex-direction: column; gap: 32px; padding-top: 24px; }
     .grade.larga .lado { display: flex; }
     .lado { padding-top: 0; }
-    .lado .bloco:first-child { position: static; }
+    .lado { position: static; max-height: none; overflow: visible; }
     article { gap: 18px; }
     .cabeca h1 { font-size: 40px; line-height: 1.02; letter-spacing: -0.02em; }
     .dek { font-size: 19px; }
