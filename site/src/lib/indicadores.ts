@@ -175,13 +175,38 @@ export function porAlunoEstado(e: Cidade, estados: Cidade[]): PorAlunoEstado | n
 
 interface DocSaude {
   fonte: string;
-  anos: number[];
-  /** ibge (ou código do estado) → [nascidos vivos, óbitos infantis], somados nos anos */
-  mun: Record<string, [number, number]>;
-  uf: Record<string, [number, number]>;
+  /** ano → {mun: ibge → [nascidos vivos, óbitos infantis], uf: código do estado → [...]} */
+  anos: Record<string, { mun: Record<string, [number, number]>; uf: Record<string, [number, number]> }>;
 }
 const arquivosSaude = import.meta.glob<DocSaude>("../../public/data/indicadores/saude.json", { eager: true, import: "default" });
-const docSaude: DocSaude | null = Object.values(arquivosSaude)[0] ?? null;
+const docSaudeAnual: DocSaude | null = Object.values(arquivosSaude)[0] ?? null;
+const anosSaude = docSaudeAnual ? Object.keys(docSaudeAnual.anos).sort() : [];
+/** Os dois últimos anos, somados: o que a página compara. */
+const ultimosSaude = anosSaude.slice(-2);
+function somar(esfera: "mun" | "uf"): Record<string, [number, number]> {
+  const soma: Record<string, [number, number]> = {};
+  for (const ano of ultimosSaude) {
+    for (const [k, v] of Object.entries(docSaudeAnual!.anos[ano][esfera])) {
+      const s = (soma[k] ??= [0, 0]);
+      s[0] += v[0];
+      s[1] += v[1];
+    }
+  }
+  return soma;
+}
+const docSaude = docSaudeAnual
+  ? { fonte: docSaudeAnual.fonte, anos: ultimosSaude.map(Number), mun: somar("mun"), uf: somar("uf") }
+  : null;
+
+/** Uma série ano a ano só é mostrada quando todo ano tem pelo menos isto de nascimentos. */
+export const NASCIDOS_SERIE = 1000;
+
+export interface PontoSerie {
+  ano: number;
+  valor: number;
+  /** Os dois anos mais recentes do DATASUS ainda são preliminares. */
+  preliminar: boolean;
+}
 
 /** Abaixo disso, a taxa oscila demais de um ano para outro e não é comparada. */
 export const NASCIDOS_MINIMO = 100;
@@ -196,6 +221,9 @@ export interface Mortalidade {
   /** Mediana dos comparáveis (cidades do mesmo porte ou estados) e a taxa do Brasil. */
   mediana: number | null;
   brasil: number | null;
+  /** Mortes antes de 1 ano por mil nascidos, ano a ano (vazia em cidades pequenas), e a do Brasil. */
+  serie: PontoSerie[];
+  serieBrasil: PontoSerie[];
 }
 
 const taxa = (v?: [number, number]) => (v && v[0] >= NASCIDOS_MINIMO ? (v[1] / v[0]) * 1000 : null);
@@ -213,9 +241,18 @@ export function mortalidadeDe(c: Cidade, esfera: "mun" | "uf"): Mortalidade | nu
     medianasSaude.set(chave, mediana(taxas.filter((t): t is number => t !== null)));
   }
   const total = Object.values(docSaude.uf).reduce((s, x) => [s[0] + x[0], s[1] + x[1]], [0, 0]);
+  const preliminar = (ano: string) => ultimosSaude.includes(ano);
+  const doEnte = anosSaude.map((ano) => ({ ano, v: docSaudeAnual!.anos[ano][esfera][String(c.ibge)] }));
+  const serie = doEnte.every((x) => x.v && x.v[0] >= NASCIDOS_SERIE)
+    ? doEnte.map(({ ano, v }) => ({ ano: Number(ano), valor: (v![1] / v![0]) * 1000, preliminar: preliminar(ano) }))
+    : [];
+  const serieBrasil = anosSaude.map((ano) => {
+    const t = Object.values(docSaudeAnual!.anos[ano].uf).reduce((s, x) => [s[0] + x[0], s[1] + x[1]], [0, 0]);
+    return { ano: Number(ano), valor: (t[1] / t[0]) * 1000, preliminar: preliminar(ano) };
+  });
   return {
     fonte: docSaude.fonte, anos: docSaude.anos, nascidos: v[0], obitos: v[1], taxa: taxa(v),
-    mediana: medianasSaude.get(chave)!, brasil: total[0] ? (total[1] / total[0]) * 1000 : null,
+    mediana: medianasSaude.get(chave)!, brasil: total[0] ? (total[1] / total[0]) * 1000 : null, serie, serieBrasil,
   };
 }
 
@@ -240,6 +277,8 @@ export interface Homicidios {
   taxaIndeterminadas: number;
   mediana: number | null;
   brasil: number | null;
+  /** Homicídios (número de mortes) ano a ano. */
+  serie: PontoSerie[];
 }
 
 /** Os números do último ano fechado; a população é a do estado na base do site. */
@@ -261,6 +300,9 @@ export function homicidiosDe(e: Cidade): Homicidios | null {
     fonte: docSeguranca.fonte, ano: Number(ano), homicidios: v[0] + v[1], policia: v[1], indeterminadas: v[2],
     taxa: por100mil(v[0] + v[1], e.pop), taxaIndeterminadas: por100mil(v[2], e.pop),
     mediana: mediana(taxas), brasil: p ? por100mil(n, p) : null,
+    serie: Object.keys(docSeguranca.anos).sort()
+      .filter((a) => docSeguranca.anos[a][String(e.ibge)])
+      .map((a) => ({ ano: Number(a), valor: docSeguranca.anos[a][String(e.ibge)][0] + docSeguranca.anos[a][String(e.ibge)][1], preliminar: false })),
   };
 }
 
