@@ -1,7 +1,8 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { hierarchy, treemap, treemapSquarify, type HierarchyRectangularNode } from "d3-hierarchy";
-import { faixa, taxaRealizacao, ROTULO_METRICA, type Item, type Metrica } from "../../lib/dados";
-import { moedaCompleta, moedaCurta, pct } from "../../lib/formato";
+import { scaleLinear } from "d3-scale";
+import { type Item, type Metrica } from "../../lib/dados";
+import { moedaExtenso, pct } from "../../lib/formato";
 import "./treemap.css";
 
 interface Props {
@@ -12,12 +13,17 @@ interface Props {
   onEscolher: (item: Item) => void;
 }
 
-type No = HierarchyRectangularNode<{ item?: Item; children?: unknown[] }>;
+type Dado = { item?: Item; children?: Dado[] };
+type No = HierarchyRectangularNode<Dado>;
+
+// Rampa sequencial de um só tom: maior valor = mais escuro.
+const CLARO = "#46b9d7";
+const ESCURO = "#1c4956";
 
 export default function Treemap(props: Props) {
   let caixa!: HTMLDivElement;
   const [largura, setLargura] = createSignal(0);
-  const [foco, setFoco] = createSignal<{ item: Item; x: number; y: number } | null>(null);
+  const [foco, setFoco] = createSignal<{ no: No } | null>(null);
 
   onMount(() => {
     const ro = new ResizeObserver(([e]) => setLargura(Math.floor(e.contentRect.width)));
@@ -25,112 +31,108 @@ export default function Treemap(props: Props) {
     onCleanup(() => ro.disconnect());
   });
 
-  const altura = () => (largura() < 640 ? 420 : 540);
+  const altura = () => (largura() < 640 ? 440 : 560);
 
   const folhas = createMemo<No[]>(() => {
     const w = largura();
     if (!w) return [];
     const m = props.metrica;
-    const raiz = hierarchy<{ item?: Item; children?: unknown[] }>(
-      { children: props.itens.map((item) => ({ item })) },
-      (d) => d.children as { item?: Item }[] | undefined,
-    )
+    const raiz = hierarchy<Dado>({ children: props.itens.map((item) => ({ item })) })
       .sum((d) => (d.item ? Math.max(0, d.item.valores[m]) : 0))
       .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-    treemap<{ item?: Item }>()
-      .tile(treemapSquarify.ratio(1.4))
+    treemap<Dado>()
+      .tile(treemapSquarify.ratio(1.2))
       .size([w, altura()])
-      .paddingInner(2)
+      .paddingInner(4)
       .round(true)(raiz);
-    return (raiz.leaves() as No[]).filter((n) => (n.value ?? 0) > 0);
+    // Com paddingInner, blocos minúsculos podem sair com largura/altura negativa.
+    return (raiz.leaves() as No[]).filter((n) => (n.value ?? 0) > 0 && n.x1 - n.x0 >= 1 && n.y1 - n.y0 >= 1);
   });
 
-  const mover = (item: Item, ev: PointerEvent) => {
-    const r = caixa.getBoundingClientRect();
-    setFoco({ item, x: ev.clientX - r.left, y: ev.clientY - r.top });
-  };
-  const focarTeclado = (item: Item, n: No) =>
-    setFoco({ item, x: (n.x0 + n.x1) / 2, y: (n.y0 + n.y1) / 2 });
+  const cor = createMemo(() => {
+    const vs = folhas().map((n) => n.value ?? 0);
+    const max = Math.max(1, ...vs);
+    const min = Math.min(max, ...vs);
+    const esc = scaleLinear<string>().domain([min, max]).range([CLARO, ESCURO]);
+    const t = scaleLinear().domain([min, max]).range([0, 1]);
+    return (v: number) => ({ fundo: esc(v), escuro: t(v) > 0.45 });
+  });
 
   const posTooltip = () => {
     const f = foco();
     if (!f) return {};
+    const n = f.no;
     const w = largura();
-    const larg = Math.min(280, w - 16);
-    const esquerda = Math.min(Math.max(8, f.x + 14), w - larg - 8);
-    const emCima = f.y > altura() - 150;
+    const larg = Math.min(260, w - 16);
+    const cx = (n.x0 + n.x1) / 2;
+    const esquerda = Math.min(Math.max(8, cx - larg / 2), w - larg - 8);
+    const abaixo = n.y0 < 140;
     return {
       left: `${esquerda}px`,
       width: `${larg}px`,
-      top: emCima ? undefined : `${f.y + 14}px`,
-      bottom: emCima ? `${altura() - f.y + 14}px` : undefined,
-    };
+      top: abaixo ? `${Math.min(n.y1, altura() - 20) - 10}px` : undefined,
+      bottom: abaixo ? undefined : `${altura() - n.y0 - 10}px`,
+      "--seta": `${Math.min(Math.max(16, cx - esquerda), larg - 16)}px`,
+    } as Record<string, string | undefined>;
   };
 
   return (
     <div class="tm" ref={caixa} style={{ height: `${altura()}px` }} onPointerLeave={() => setFoco(null)}>
       <Show when={largura() > 0 && folhas().length === 0}>
-        <p class="tm-vazio muted">Nenhum valor positivo de {ROTULO_METRICA[props.metrica].toLowerCase()} neste nível.</p>
+        <p class="tm-vazio">Nenhum valor positivo neste nível.</p>
       </Show>
+      <div class="tm-celulas">
       <For each={folhas()}>
         {(n) => {
           const item = n.data.item!;
-          const f = faixa(taxaRealizacao(item.valores));
           const w = n.x1 - n.x0;
           const h = n.y1 - n.y0;
-          const valor = item.valores[props.metrica];
+          const c = cor()(n.value ?? 0);
+          const parcela = (n.value ?? 0) / props.total;
+          const ativo = () => foco()?.no === n;
           return (
             <button
               type="button"
               class="tm-cel"
-              classList={{ "tm-fixo": !props.podeDescer }}
+              classList={{ "tm-fixo": !props.podeDescer, "tm-ativo": ativo(), "tm-claro": !c.escuro }}
               style={{
                 left: `${n.x0}px`, top: `${n.y0}px`, width: `${w}px`, height: `${h}px`,
-                background: f ? `var(--exec-${f})` : "var(--neutral-cell)",
-                color: f ? `var(--exec-ink-${f})` : "var(--text)",
+                "--fundo": c.fundo,
               }}
-              aria-label={`${item.nome}: ${moedaCurta(valor)}, ${pct(valor / props.total)} do total`}
+              aria-label={`${item.nome}: ${moedaExtenso(item.valores[props.metrica])}, ${pct(parcela)} do total`}
               aria-disabled={!props.podeDescer}
               onClick={() => props.podeDescer && props.onEscolher(item)}
-              onPointerMove={(e) => mover(item, e)}
-              onFocus={() => focarTeclado(item, n)}
+              onPointerEnter={() => setFoco({ no: n })}
+              onFocus={() => setFoco({ no: n })}
               onBlur={() => setFoco(null)}
             >
-              <Show when={w >= 96 && h >= 40}>
-                <span class="tm-nome" style={{ "-webkit-line-clamp": h >= 70 ? 3 : 1 }}>{item.nome}</span>
-                <span class="tm-valor num">{moedaCurta(valor)}</span>
+              <Show when={w >= 56 && h >= 34}>
+                <span class="tm-nome">{item.nome}</span>
+                <span class="tm-pct num">{pct(parcela)}</span>
               </Show>
             </button>
           );
         }}
       </For>
+      </div>
 
       <Show when={foco()}>
         {(f) => {
-          const v = () => f().item.valores;
+          const item = () => f().no.data.item!;
+          const valor = () => item().valores[props.metrica];
           return (
-            <div class="tm-tip" style={posTooltip()} role="status">
-              <div class="tm-tip-nome">{f().item.nome}</div>
-              <div class="tm-tip-cod muted small">Código {f().item.codigo}</div>
-              <dl class="num small">
-                <dt>{ROTULO_METRICA[props.metrica]}</dt>
-                <dd><strong>{moedaCompleta(v()[props.metrica])}</strong></dd>
-                <dt>Parcela do total</dt>
-                <dd>{pct(v()[props.metrica] / props.total)}</dd>
-                <Show when={props.metrica !== "atualizado"}>
-                  <dt>Dotação atualizada</dt>
-                  <dd>{moedaCurta(v().atualizado)}</dd>
-                </Show>
-                <Show when={props.metrica !== "empenhado"}>
-                  <dt>Empenhado</dt>
-                  <dd>{moedaCurta(v().empenhado)}</dd>
-                </Show>
-                <dt>Realizado</dt>
-                <dd>{moedaCurta(v().realizado)} ({pct(taxaRealizacao(v()))})</dd>
-              </dl>
-              <Show when={props.podeDescer}>
-                <div class="muted small">Clique para detalhar</div>
-              </Show>
+            <div class="tm-tip" classList={{ "tm-tip-baixo": f().no.y0 < 140 }} style={posTooltip()} role="status">
+              <div class="tm-tip-nome">{item().nome}</div>
+              <div class="tm-tip-numeros">
+                <div>
+                  <div class="tm-tip-v num">{moedaExtenso(valor())}</div>
+                  <div class="tm-tip-r">Valor</div>
+                </div>
+                <div>
+                  <div class="tm-tip-v num">{pct(valor() / props.total)}</div>
+                  <div class="tm-tip-r">Percentual</div>
+                </div>
+              </div>
             </div>
           );
         }}

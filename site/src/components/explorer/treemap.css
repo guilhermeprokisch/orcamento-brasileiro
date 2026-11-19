@@ -2,41 +2,52 @@
   position: relative;
   width: 100%;
   background: var(--surface);
-  border-radius: var(--radius);
-  overflow: hidden;
   touch-action: manipulation;
 }
-.tm-vazio { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
+.tm-celulas { position: absolute; inset: 0; overflow: hidden; }
+.tm-vazio { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--text-2); }
+
 .tm-cel {
   position: absolute;
   border: 0;
-  border-radius: 4px;
-  padding: 6px 8px;
+  border-radius: 0;
+  /* sem padding: um botão nunca fica mais estreito que o próprio padding,
+     e os blocos pequenos vazariam para fora do mapa */
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
   margin: 0;
-  text-align: left;
   font: inherit;
+  background: var(--fundo);
+  color: #ffffff;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   overflow: hidden;
   cursor: pointer;
-  transition: filter 120ms ease;
+  transition: background-color 120ms ease, color 120ms ease;
 }
-.tm-cel:hover { filter: brightness(1.08) saturate(1.05); }
+.tm-cel.tm-claro { color: #1b1b1b; }
+.tm-cel.tm-ativo,
+.tm-cel:focus-visible {
+  background: var(--destaque);
+  color: #1b1b1b;
+  outline: none;
+}
 .tm-cel.tm-fixo { cursor: default; }
-.tm-cel:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; z-index: 1; }
+
+.tm-nome, .tm-pct { padding: 0 6px; }
 .tm-nome {
-  font-size: 0.8125rem;
-  font-weight: 600;
+  max-width: 100%;
+  font-size: 0.9375rem;
   line-height: 1.25;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
-  overflow-wrap: break-word;
-  hyphens: auto;
+  text-overflow: ellipsis;
 }
-.tm-valor { font-size: 0.8125rem; opacity: 0.9; white-space: nowrap; }
+.tm-pct { font-size: 0.875rem; font-weight: 700; }
 
 .tm-tip {
   position: absolute;
@@ -44,17 +55,34 @@
   pointer-events: none;
   background: var(--surface);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 6px 24px rgb(0 0 0 / 0.16);
-  padding: 10px 12px;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.28);
+  text-align: center;
 }
-.tm-tip-nome { font-weight: 600; line-height: 1.3; }
-.tm-tip dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 2px 12px;
-  margin: 8px 0 4px;
+.tm-tip::after {
+  content: "";
+  position: absolute;
+  left: var(--seta);
+  bottom: -8px;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-bottom: 0;
+  border-top-color: var(--surface);
 }
-.tm-tip dt { color: var(--text-2); white-space: nowrap; }
-.tm-tip dd { margin: 0; text-align: right; }
+.tm-tip.tm-tip-baixo::after {
+  bottom: auto;
+  top: -8px;
+  border: 8px solid transparent;
+  border-top: 0;
+  border-bottom-color: var(--surface);
+}
+.tm-tip-nome {
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.3;
+}
+.tm-tip-numeros { display: grid; grid-template-columns: 1fr 1fr; padding: 10px 6px 12px; }
+.tm-tip-numeros > div + div { border-left: 1px solid var(--border); }
+.tm-tip-v { font-size: 1.125rem; color: var(--text-2); }
+.tm-tip-r { font-size: 0.8125rem; color: var(--text-2); margin-top: 4px; }

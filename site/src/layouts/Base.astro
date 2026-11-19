@@ -16,11 +16,17 @@ const path = Astro.url.pathname;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap"
+    />
     <title>{title}</title>
   </head>
   <body>
     <header class="topo">
-      <div class="wrap topo-inner">
+      <div class="topo-inner">
         <a class="marca" href="/">
           <span class="marca-ico" aria-hidden="true"></span>
           Orçamento BR
@@ -52,25 +58,25 @@ const path = Astro.url.pathname;
   }
   .topo-inner {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 16px; height: 56px;
+    gap: 16px; height: 64px; padding: 0 16px;
   }
   .marca {
     display: inline-flex; align-items: center; gap: 10px;
-    font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: -0.01em;
+    font-size: 1.375rem; font-weight: 700; color: var(--text); text-decoration: none; letter-spacing: -0.01em;
   }
   .marca-ico {
-    width: 22px; height: 22px; border-radius: 5px;
+    width: 26px; height: 26px; border-radius: 3px;
     background:
-      linear-gradient(var(--exec-5), var(--exec-5)) 0 0 / 60% 100% no-repeat,
-      linear-gradient(var(--exec-3), var(--exec-3)) 100% 0 / 36% 58% no-repeat,
-      linear-gradient(var(--exec-1), var(--exec-1)) 100% 100% / 36% 36% no-repeat;
+      linear-gradient(#1c4956, #1c4956) 0 0 / 58% 100% no-repeat,
+      linear-gradient(#2d778b, #2d778b) 100% 0 / 38% 60% no-repeat,
+      linear-gradient(#46b9d7, #46b9d7) 100% 100% / 38% 36% no-repeat;
   }
-  nav { display: flex; gap: 4px; }
+  nav { display: flex; gap: 8px; }
   nav a {
-    color: var(--text-2); text-decoration: none; padding: 6px 10px; border-radius: var(--radius);
+    color: var(--text); font-weight: 600; text-decoration: none; padding: 6px 12px; border-radius: var(--radius);
   }
-  nav a:hover { background: var(--surface-2); color: var(--text); }
-  nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
-  main { min-height: calc(100vh - 56px - 72px); }
-  .rodape { border-top: 1px solid var(--border); padding: 24px 0; margin-top: 48px; }
+  nav a:hover { color: var(--link); }
+  nav a[aria-current="page"] { color: var(--link); box-shadow: inset 0 -3px 0 var(--link); border-radius: 0; }
+  main { min-height: calc(100vh - 64px - 60px); }
+  .rodape { border-top: 1px solid var(--border); padding: 20px 0; }
 </style>

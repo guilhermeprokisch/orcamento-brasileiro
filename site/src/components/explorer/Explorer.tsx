@@ -1,45 +1,61 @@
 import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import Treemap from "./Treemap";
+import Tabela from "./Tabela";
 import {
-  agrupar, carregarAno, carregarResumo, faixa, FAIXAS, METRICAS, ROTULO_DIM, ROTULO_DIM_PLURAL, ROTULO_METRICA,
-  taxaRealizacao, VISOES, type Item, type Metrica, type Visao,
+  agrupar, ARTIGO_DIM, carregarAno, carregarResumo, DIMS, dimsDisponiveis, METRICAS, proximaSugerida,
+  ROTULO_DIM, ROTULO_METRICA, totaisDaTrilha, type Dim, type Filtro, type Item, type Metrica,
 } from "../../lib/dados";
-import { moedaCompleta, moedaCurta, pct } from "../../lib/formato";
+import { moedaCompleta, moedaExtenso } from "../../lib/formato";
 import "./explorer.css";
+
+type Vista = "mapa" | "tabela";
 
 interface Estado {
   ano: number | null;
-  visao: Visao;
   metrica: Metrica;
-  caminho: string[];
+  filtros: Filtro[];
+  por: Dim | null;
   semRefin: boolean;
+  vista: Vista;
 }
+
+const ehDim = (s: string | null): s is Dim => !!s && (DIMS as string[]).includes(s);
 
 function lerUrl(): Estado {
   const p = new URLSearchParams(location.search);
   const ano = Number(p.get("ano"));
-  const visao = (p.get("por") ?? "orgao") as Visao;
-  const metrica = (p.get("metrica") ?? "atualizado") as Metrica;
+  const metrica = p.get("metrica") as Metrica;
+  const filtros = (p.get("f") ?? "")
+    .split(",")
+    .map((par) => par.split(":"))
+    .filter(([d, c]) => ehDim(d) && c)
+    .map(([d, c]) => ({ dim: d as Dim, cod: c }));
+  const por = p.get("por");
   return {
     ano: Number.isInteger(ano) && ano > 0 ? ano : null,
-    visao: visao in VISOES ? visao : "orgao",
     metrica: METRICAS.includes(metrica) ? metrica : "atualizado",
-    caminho: (p.get("c") ?? "").split(",").filter(Boolean),
+    filtros,
+    por: ehDim(por) && !filtros.some((f) => f.dim === por) ? por : proximaSugerida(filtros),
     semRefin: p.get("refin") === "0",
+    vista: p.get("vista") === "tabela" ? "tabela" : "mapa",
   };
 }
 
 function escreverUrl(e: Estado, push: boolean) {
   const p = new URLSearchParams();
   if (e.ano) p.set("ano", String(e.ano));
-  p.set("por", e.visao);
-  p.set("metrica", e.metrica);
+  if (e.metrica !== "atualizado") p.set("metrica", e.metrica);
+  if (e.filtros.length) p.set("f", e.filtros.map((f) => `${f.dim}:${f.cod}`).join(","));
+  if (e.por) p.set("por", e.por);
   if (e.semRefin) p.set("refin", "0");
-  if (e.caminho.length) p.set("c", e.caminho.join(","));
-  const url = `${location.pathname}?${p}`;
+  if (e.vista === "tabela") p.set("vista", "tabela");
+  const url = `${location.pathname}?${p.toString().replaceAll("%3A", ":").replaceAll("%2C", ",")}`;
   if (push) history.pushState(null, "", url);
   else history.replaceState(null, "", url);
 }
+
+const dataCurta = (iso: string) =>
+  new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
 export default function Explorer() {
   const [estado, setEstado] = createSignal<Estado>(lerUrl());
@@ -51,8 +67,7 @@ export default function Explorer() {
     const anos = resumo()?.anos.map((a) => a.ano) ?? [];
     if (e && anos.includes(e)) return e;
     const corrente = new Date().getFullYear();
-    const completos = anos.filter((a) => a < corrente);
-    return completos.at(-1) ?? anos.at(-1) ?? null;
+    return anos.filter((a) => a < corrente).at(-1) ?? anos.at(-1) ?? null;
   });
   const [doc] = createResource(ano, carregarAno);
 
@@ -68,213 +83,183 @@ export default function Explorer() {
     onCleanup(() => removeEventListener("popstate", voltar));
   });
 
-  const niveis = () => VISOES[estado().visao].niveis;
   const grupo = createMemo(() => {
     const d = doc();
     if (!d) return null;
-    return agrupar(d, [...niveis()], estado().caminho, estado().semRefin);
+    const e = estado();
+    return agrupar(d, e.filtros, e.por, e.semRefin);
   });
-  const filhos = createMemo(() => {
-    const g = grupo();
-    if (!g) return [];
+  const itens = createMemo(() => {
     const m = estado().metrica;
-    return [...g.filhos].sort((a, b) => b.valores[m] - a.valores[m]);
+    return [...(grupo()?.itens ?? [])].sort((a, b) => b.valores[m] - a.valores[m]);
   });
-  const podeDescer = () => estado().caminho.length < niveis().length - 1;
+  const total = () => grupo()?.total[estado().metrica] ?? 0;
 
-  const migalhas = createMemo(() => {
+  const trilha = createMemo(() => {
     const d = doc();
     if (!d) return [];
-    return estado().caminho.map((cod, i) => ({
-      nivel: niveis()[i],
-      nome: d.dims[niveis()[i]][cod] ?? cod,
-      caminho: estado().caminho.slice(0, i + 1),
+    const e = estado();
+    const totais = totaisDaTrilha(d, e.filtros, e.metrica, e.semRefin);
+    return e.filtros.map((f, i) => ({
+      ...f,
+      nome: d.dims[f.dim][f.cod] ?? f.cod,
+      total: totais[i],
+      filtros: e.filtros.slice(0, i + 1),
     }));
   });
+  const totalGeral = createMemo(() => {
+    const d = doc();
+    if (!d) return 0;
+    return agrupar(d, [], null, estado().semRefin).total[estado().metrica];
+  });
 
-  const descer = (item: Item) => mudar({ caminho: [...estado().caminho, item.codigo] }, true);
-
-  const total = () => grupo()?.total;
-  const totalMetrica = () => Math.max(1, total()?.[estado().metrica] ?? 1);
-  const vazio = () => {
-    const t = total();
-    return !!t && METRICAS.every((m) => t[m] === 0);
+  const descer = (item: Item) => {
+    const e = estado();
+    if (!e.por) return;
+    const filtros = [...e.filtros, { dim: e.por, cod: item.codigo }];
+    mudar({ filtros, por: proximaSugerida(filtros) }, true);
   };
+  const irPara = (filtros: Filtro[]) => mudar({ filtros, por: proximaSugerida(filtros) }, true);
+  const podeDescer = () => dimsDisponiveis(estado().filtros).length > 1;
+  const ultimo = () => trilha().at(-1);
 
   return (
     <div class="ex">
-      <div class="ex-controles" role="group" aria-label="Filtros do Explorer">
-        <label class="ex-campo">
-          <span class="small muted">Ano</span>
-          <select
-            onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })}
-            disabled={!resumo()}
-          >
-            <For each={[...(resumo()?.anos ?? [])].reverse()}>
-              {(a) => (
-                <option value={a.ano} selected={a.ano === ano()}>
-                  {a.ano}{a.ano === new Date().getFullYear() ? " (em execução)" : ""}
-                </option>
-              )}
-            </For>
-          </select>
-        </label>
+      <aside class="ex-lado" aria-label="Seleção">
+        <button type="button" class="ex-recomecar" onClick={() => irPara([])}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 12h3v9h6v-6h2v6h6v-9h3L12 3z" /></svg>
+          Recomeçar
+        </button>
 
-        <fieldset class="ex-campo">
-          <legend class="small muted">Ver por</legend>
-          <div class="seg">
-            <For each={Object.entries(VISOES) as [Visao, (typeof VISOES)[Visao]][]}>
-              {([k, v]) => (
-                <button type="button" aria-pressed={estado().visao === k}
-                  onClick={() => mudar({ visao: k, caminho: [] }, true)}>
-                  {v.rotulo}
-                </button>
-              )}
-            </For>
-          </div>
-        </fieldset>
+        <div class="ex-lado-bloco">
+          <label class="ex-ano">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 2v2H4a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-3V2h-2v2H9V2H7zM5 9h14v10H5V9z" />
+            </svg>
+            <span class="visually-hidden">Ano</span>
+            <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })} disabled={!resumo()}>
+              <For each={[...(resumo()?.anos ?? [])].reverse()}>
+                {(a) => (
+                  <option value={a.ano} selected={a.ano === ano()}>
+                    {a.ano}{a.ano === new Date().getFullYear() ? " (em execução)" : ""}
+                  </option>
+                )}
+              </For>
+            </select>
+          </label>
+          <label class="ex-refin">
+            <input type="checkbox" checked={estado().semRefin}
+              onChange={(e) => mudar({ semRefin: e.currentTarget.checked })} />
+            <span>Excluir refinanciamento da dívida</span>
+          </label>
+        </div>
 
-        <fieldset class="ex-campo">
-          <legend class="small muted">Tamanho dos blocos</legend>
-          <div class="seg">
-            <For each={["atualizado", "empenhado", "realizado"] as Metrica[]}>
-              {(m) => (
-                <button type="button" aria-pressed={estado().metrica === m} onClick={() => mudar({ metrica: m })}>
-                  {m === "atualizado" ? "Dotação" : ROTULO_METRICA[m]}
-                </button>
-              )}
-            </For>
-          </div>
-        </fieldset>
-
-        <label class="ex-check">
-          <input type="checkbox" checked={estado().semRefin}
-            onChange={(e) => mudar({ semRefin: e.currentTarget.checked })} />
-          <span>Excluir refinanciamento da dívida</span>
-        </label>
-      </div>
-
-      <nav class="ex-migalhas" aria-label="Caminho">
-        <ol>
-          <li>
-            <button type="button" class="link" onClick={() => mudar({ caminho: [] }, true)}
-              aria-current={estado().caminho.length === 0 ? "page" : undefined}>
-              Orçamento federal {ano() ?? ""}
+        <ol class="ex-trilha">
+          <li classList={{ atual: estado().filtros.length === 0 }}>
+            <span class="ponto" aria-hidden="true" />
+            <button type="button" onClick={() => irPara([])}>
+              <span class="rotulo">Todo o orçamento</span>
+              <span class="nome num">{moedaExtenso(totalGeral())}</span>
             </button>
           </li>
-          <For each={migalhas()}>
-            {(m, i) => (
-              <li>
-                <span class="sep" aria-hidden="true">›</span>
-                <button type="button" class="link" onClick={() => mudar({ caminho: m.caminho }, true)}
-                  aria-current={i() === migalhas().length - 1 ? "page" : undefined}
-                  title={ROTULO_DIM[m.nivel]}>
-                  {m.nome}
+          <For each={trilha()}>
+            {(passo, i) => (
+              <li classList={{ atual: i() === trilha().length - 1 }}>
+                <span class="trilho" aria-hidden="true" />
+                <span class="ponto" aria-hidden="true" />
+                <button type="button" onClick={() => irPara(passo.filtros)}>
+                  <span class="rotulo">{ROTULO_DIM[passo.dim]}</span>
+                  <span class="nome">{passo.nome}</span>
+                  <span class="valor num">{moedaExtenso(passo.total)}</span>
                 </button>
               </li>
             )}
           </For>
         </ol>
-      </nav>
+      </aside>
 
-      <Show when={doc.error || resumo.error}>
-        <p class="ex-erro">Não foi possível carregar os dados. {String((doc.error ?? resumo.error)?.message ?? "")}</p>
-      </Show>
+      <section class="ex-principal">
+        <Show when={doc.error || resumo.error}>
+          <p class="ex-erro">Não foi possível carregar os dados. {String((doc.error ?? resumo.error)?.message ?? "")}</p>
+        </Show>
 
-      <Show when={total()} fallback={<div class="ex-carregando muted" aria-busy="true">Carregando dados…</div>}>
-        {(t) => (
-          <>
-            <section class="ex-numeros" aria-label="Totais do nível atual">
-              <For each={METRICAS}>
-                {(m) => (
-                  <div class="ex-num" classList={{ ativo: m === estado().metrica }}>
-                    <div class="small muted">{ROTULO_METRICA[m]}</div>
-                    <div class="ex-num-valor num" title={moedaCompleta(t()[m])}>{moedaCurta(t()[m])}</div>
-                  </div>
-                )}
-              </For>
-              <div class="ex-num">
-                <div class="small muted">Realizado / dotação atualizada</div>
-                <div class="ex-num-valor num">{pct(taxaRealizacao(t()))}</div>
-              </div>
-            </section>
+        <header class="ex-cabeca">
+          <div class="ex-titulo">
+            <Show when={ultimo()} fallback={
+              <>
+                <h2>Você está vendo o orçamento de {ano() ?? "…"} por {estado().por ? ROTULO_DIM[estado().por!].toLowerCase() : ""}</h2>
+                <p>Escolha um item abaixo para começar a explorar.</p>
+              </>
+            }>
+              {(u) => (
+                <>
+                  <p class="ex-escolheu">Você escolheu</p>
+                  <h2 class="ex-nome">{u().nome}</h2>
+                  <p>{ARTIGO_DIM[u().dim]} <span class="cod">{u().cod}</span></p>
+                </>
+              )}
+            </Show>
+          </div>
+          <div class="ex-total">
+            <div class="ex-total-rotulo">{ROTULO_METRICA[estado().metrica]} {ano() ?? ""}</div>
+            <div class="ex-total-valor num" title={moedaCompleta(total())}>{doc() ? moedaExtenso(total()) : "…"}</div>
+            <Show when={doc()}>
+              <div class="ex-total-data">Dados baixados em {dataCurta(doc()!.gerado_em)}</div>
+            </Show>
+          </div>
+        </header>
 
-            <Show when={!vazio()} fallback={
-              <div class="ex-vazio">
+        <div class="ex-cartao">
+          <div class="ex-barra">
+            <label class="ex-por">
+              <span>Detalhar por:</span>
+              <select onChange={(e) => mudar({ por: e.currentTarget.value as Dim })}>
+                <For each={dimsDisponiveis(estado().filtros)}>
+                  {(d) => <option value={d} selected={d === estado().por}>{ROTULO_DIM[d]}</option>}
+                </For>
+              </select>
+            </label>
+            <label class="ex-por">
+              <span>Valor:</span>
+              <select onChange={(e) => mudar({ metrica: e.currentTarget.value as Metrica })}>
+                <For each={METRICAS}>
+                  {(m) => <option value={m} selected={m === estado().metrica}>{ROTULO_METRICA[m]}</option>}
+                </For>
+              </select>
+            </label>
+            <div class="ex-vistas" role="group" aria-label="Forma de visualização">
+              <button type="button" aria-pressed={estado().vista === "mapa"} title="Mapa de blocos"
+                onClick={() => mudar({ vista: "mapa" })}>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1h8v9H1zM10 1h5v5h-5zM10 7h5v8h-5zM1 11h8v4H1z" /></svg>
+                <span class="visually-hidden">Mapa de blocos</span>
+              </button>
+              <button type="button" aria-pressed={estado().vista === "tabela"} title="Tabela"
+                onClick={() => mudar({ vista: "tabela" })}>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 2h14v3H1zM1 6.5h14v3H1zM1 11h14v3H1z" /></svg>
+                <span class="visually-hidden">Tabela</span>
+              </button>
+            </div>
+          </div>
+
+          <Show when={grupo()} fallback={<div class="ex-carregando" aria-busy="true">Carregando…</div>}>
+            <Show when={itens().length > 0} fallback={
+              <div class="ex-carregando">
                 <p>Este caminho não tem valores em {ano()}.</p>
-                <button type="button" onClick={() => mudar({ caminho: [] }, true)}>Voltar ao início</button>
+                <button type="button" class="ex-botao" onClick={() => irPara([])}>Recomeçar</button>
               </div>
             }>
-              <div class="ex-cabecalho">
-                <h2>
-                  {grupo()?.proximo ? ROTULO_DIM_PLURAL[grupo()!.proximo!] : ""}
-                  <span class="muted small"> · {filhos().length} {filhos().length === 1 ? "item" : "itens"} ·blocos por {ROTULO_METRICA[estado().metrica].toLowerCase()}</span>
-                </h2>
-                <div class="ex-legenda" aria-label="Legenda de cores">
-                  <span class="small muted">Realizado da dotação atualizada:</span>
-                  <ul>
-                    <For each={FAIXAS}>
-                      {(rotulo, i) => (
-                        <li>
-                          <span class="sw" style={{ background: i() === 0 ? "var(--neutral-cell)" : `var(--exec-${i()})` }} />
-                          <span class="small">{rotulo}</span>
-                        </li>
-                      )}
-                    </For>
-                  </ul>
-                </div>
-              </div>
-
-              <Treemap
-                itens={filhos()}
-                metrica={estado().metrica}
-                total={totalMetrica()}
-                podeDescer={podeDescer()}
-                onEscolher={descer}
-              />
-
-              <div class="ex-tabela-wrap">
-                <table class="ex-tabela">
-                  <caption class="visually-hidden">Itens do nível atual</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">{grupo()?.proximo ? ROTULO_DIM[grupo()!.proximo!] : ""}</th>
-                      <th scope="col" class="n">Dotação atualizada</th>
-                      <th scope="col" class="n">Empenhado</th>
-                      <th scope="col" class="n">Realizado</th>
-                      <th scope="col" class="n">% realizado</th>
-                      <th scope="col" class="n">Parcela</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={filhos()}>
-                      {(f) => {
-                        const tx = taxaRealizacao(f.valores);
-                        return (
-                          <tr>
-                            <th scope="row">
-                              <span class="sw" style={{ background: faixa(tx) ? `var(--exec-${faixa(tx)})` : "var(--neutral-cell)" }} />
-                              <Show when={podeDescer()} fallback={<span>{f.nome}</span>}>
-                                <button type="button" class="link" onClick={() => descer(f)}>{f.nome}</button>
-                              </Show>
-                              <span class="cod muted">{f.codigo}</span>
-                            </th>
-                            <td class="n num">{moedaCurta(f.valores.atualizado)}</td>
-                            <td class="n num">{moedaCurta(f.valores.empenhado)}</td>
-                            <td class="n num">{moedaCurta(f.valores.realizado)}</td>
-                            <td class="n num">{pct(tx)}</td>
-                            <td class="n num">{pct(f.valores[estado().metrica] / totalMetrica())}</td>
-                          </tr>
-                        );
-                      }}
-                    </For>
-                  </tbody>
-                </table>
-              </div>
+              <Show when={estado().vista === "mapa"} fallback={
+                <Tabela itens={itens()} metrica={estado().metrica} total={Math.max(1, total())}
+                  rotuloNome={estado().por ? ROTULO_DIM[estado().por!] : "Nome"}
+                  podeDescer={podeDescer()} onEscolher={descer} />
+              }>
+                <Treemap itens={itens()} metrica={estado().metrica} total={Math.max(1, total())}
+                  podeDescer={podeDescer()} onEscolher={descer} />
+              </Show>
             </Show>
-          </>
-        )}
-      </Show>
+          </Show>
+        </div>
+      </section>
     </div>
   );
 }

@@ -4,6 +4,7 @@ export type Dim = "orgao" | "uo" | "funcao" | "subfuncao" | "programa" | "acao" 
 export type Metrica = "inicial" | "atualizado" | "empenhado" | "realizado";
 
 export const METRICAS: Metrica[] = ["inicial", "atualizado", "empenhado", "realizado"];
+export const DIMS: Dim[] = ["orgao", "funcao", "gnd", "uo", "subfuncao", "programa", "acao"];
 
 export const ROTULO_METRICA: Record<Metrica, string> = {
   inicial: "Dotação inicial",
@@ -22,23 +23,44 @@ export const ROTULO_DIM: Record<Dim, string> = {
   gnd: "Grupo de despesa",
 };
 
-export const ROTULO_DIM_PLURAL: Record<Dim, string> = {
-  orgao: "Órgãos",
-  uo: "Unidades orçamentárias",
-  funcao: "Funções",
-  subfuncao: "Subfunções",
-  programa: "Programas",
-  acao: "Ações",
-  gnd: "Grupos de despesa",
+/** "um órgão", "uma função"… usado em "Você escolheu … Um órgão". */
+export const ARTIGO_DIM: Record<Dim, string> = {
+  orgao: "Um órgão",
+  uo: "Uma unidade orçamentária",
+  funcao: "Uma função",
+  subfuncao: "Uma subfunção",
+  programa: "Um programa",
+  acao: "Uma ação",
+  gnd: "Um grupo de despesa",
 };
 
-/** Caminhos de drill-down do Explorer. */
-export const VISOES = {
-  orgao: { rotulo: "Órgão", niveis: ["orgao", "uo", "programa", "acao"] as Dim[] },
-  funcao: { rotulo: "Função", niveis: ["funcao", "subfuncao", "programa", "acao"] as Dim[] },
-  gnd: { rotulo: "Natureza da despesa", niveis: ["gnd", "orgao", "uo", "acao"] as Dim[] },
-} as const;
-export type Visao = keyof typeof VISOES;
+/** Próximo nível sugerido depois de escolher um item de cada dimensão. */
+const SUGESTAO: Record<Dim, Dim[]> = {
+  orgao: ["uo", "programa", "acao"],
+  uo: ["programa", "acao"],
+  funcao: ["subfuncao", "programa", "acao"],
+  subfuncao: ["programa", "acao"],
+  programa: ["acao"],
+  acao: ["gnd", "uo"],
+  gnd: ["orgao", "uo", "acao"],
+};
+
+export interface Filtro {
+  dim: Dim;
+  cod: string;
+}
+
+export function dimsDisponiveis(filtros: Filtro[]): Dim[] {
+  const usadas = new Set(filtros.map((f) => f.dim));
+  return DIMS.filter((d) => !usadas.has(d));
+}
+
+export function proximaSugerida(filtros: Filtro[]): Dim | null {
+  const livres = dimsDisponiveis(filtros);
+  const ultima = filtros.at(-1)?.dim;
+  const preferidas = ultima ? SUGESTAO[ultima] : ["orgao" as Dim];
+  return preferidas.find((d) => livres.includes(d)) ?? livres[0] ?? null;
+}
 
 export interface DocAno {
   ano: number;
@@ -85,20 +107,19 @@ export async function carregarResumo(): Promise<ResumoAnos> {
 
 const zero = (): Valores => ({ inicial: 0, atualizado: 0, empenhado: 0, realizado: 0 });
 
-/**
- * Filtra as linhas pelo caminho (um código por nível já escolhido) e agrupa
- * pelo próximo nível. Retorna o total do nó atual e os filhos.
- */
 /** Subfunções de refinanciamento da dívida (rolagem: troca dívida velha por nova). */
 export const SUBFUNCOES_REFINANCIAMENTO = new Set(["841", "842"]);
 
-export function agrupar(doc: DocAno, niveis: Dim[], caminho: string[], semRefinanciamento = false) {
+/**
+ * Aplica os filtros (um código por dimensão já escolhida) e agrupa pela
+ * dimensão `por`. Retorna o total filtrado e os grupos.
+ */
+export function agrupar(doc: DocAno, filtros: Filtro[], por: Dim | null, semRefinanciamento = false) {
   const idx = (c: string) => doc.colunas.indexOf(c);
-  const iNiveis = niveis.map(idx);
+  const iFiltros = filtros.map((f) => idx(f.dim));
   const iVal = METRICAS.map(idx);
   const iSub = idx("subfuncao");
-  const proximo = caminho.length < niveis.length ? niveis[caminho.length] : null;
-  const iProx = proximo ? idx(proximo) : -1;
+  const iPor = por ? idx(por) : -1;
 
   const total = zero();
   const grupos = new Map<string, Valores>();
@@ -106,13 +127,13 @@ export function agrupar(doc: DocAno, niveis: Dim[], caminho: string[], semRefina
   for (const l of doc.linhas) {
     if (semRefinanciamento && SUBFUNCOES_REFINANCIAMENTO.has(l[iSub] as string)) continue;
     let ok = true;
-    for (let k = 0; k < caminho.length; k++) {
-      if (l[iNiveis[k]] !== caminho[k]) { ok = false; break; }
+    for (let k = 0; k < filtros.length; k++) {
+      if (l[iFiltros[k]] !== filtros[k].cod) { ok = false; break; }
     }
     if (!ok) continue;
     let g: Valores | undefined;
-    if (proximo) {
-      const cod = l[iProx] as string;
+    if (por) {
+      const cod = l[iPor] as string;
       g = grupos.get(cod);
       if (!g) grupos.set(cod, (g = zero()));
     }
@@ -123,29 +144,22 @@ export function agrupar(doc: DocAno, niveis: Dim[], caminho: string[], semRefina
     });
   }
 
-  const filhos: Item[] = proximo
+  const itens: Item[] = por
     ? [...grupos].map(([codigo, valores]) => ({
         codigo,
-        nome: doc.dims[proximo][codigo] ?? codigo,
+        nome: doc.dims[por][codigo] ?? codigo,
         valores,
       }))
     : [];
 
-  return { total, filhos, proximo };
+  return { total, itens };
+}
+
+/** Total de cada passo da trilha (filtros[0..i]). */
+export function totaisDaTrilha(doc: DocAno, filtros: Filtro[], m: Metrica, semRefin: boolean): number[] {
+  return filtros.map((_, i) => agrupar(doc, filtros.slice(0, i + 1), null, semRefin).total[m]);
 }
 
 export function taxaRealizacao(v: Valores): number | null {
   return v.atualizado > 0 ? v.realizado / v.atualizado : null;
 }
-
-/** Faixa de cor 1–5 para a taxa de realização; 0 = sem dotação. */
-export function faixa(taxa: number | null): number {
-  if (taxa === null) return 0;
-  if (taxa < 0.2) return 1;
-  if (taxa < 0.4) return 2;
-  if (taxa < 0.6) return 3;
-  if (taxa < 0.8) return 4;
-  return 5;
-}
-
-export const FAIXAS = ["sem dotação", "até 20%", "20–40%", "40–60%", "60–80%", "80% ou mais"];
