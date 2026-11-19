@@ -3,1436 +3,734 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="O que cada cidade paga em impostos, o que volta, onde a prefeitura gasta e como fechou a conta, de 2013 até o ano em andamento.">
+<meta name="description" content="Quanto se paga em impostos em cada lugar, como prefeitura, estado e governo federal usam o dinheiro, o que volta e se as contas fecham.">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <title>Mapa · Orçamento Brasileiro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600&display=swap">
 <style>
-  /* Layout: mapa ocupa a tela; painel de perguntas à esquerda (embaixo no celular); cartão de detalhe flutuante. */
+  /* O desenho segue o mock aprovado: menu à esquerda (o que olhar, onde, o que saber, como mostrar),
+     mapa no meio dizendo o que a cor significa, e o detalhe da pergunta escolhida à direita,
+     sempre dividido por prefeitura, governo do estado e governo federal. */
   :root {
-    --papel: #f7f4ec; --papel-2: #eee9dc; --tinta: #191919; --texto-2: #4a4740; --texto-3: #7a7466;
-    --regra: #c9c2b2; --verde: #0e6b3b; --sem-dados: #e2dccd; --contorno: rgba(25, 25, 25, .18);
-    --contorno-uf: rgba(25, 25, 25, .55); --fluxo: #1d4f91; --sombra: rgba(25, 25, 25, .12);
-    --r0: #e3f0e6; --r1: #b3dfc4; --r2: #74c193; --r3: #3f9a63; --r4: #1f7a47; --r5: #0a4a29;
-    --o0: #f6ecd2; --o1: #ecd49a; --o2: #dcb565; --o3: #c2913a; --o4: #9c6c1c; --o5: #6e4a0c;
-    --c-propria: #1f7a47; --c-uniao: #1d4f91; --c-estado: #7a9fd1; --c-fundeb: #c2913a; --c-credito: #a39d8e;
-    --a0: #e4ecf7; --a1: #b9cfec; --a2: #86abd9; --a3: #5285c0; --a4: #2c62a0; --a5: #173f70; --c-bf: #b04a7a; --c-bpc: #6a4fa3; --c-sai: #a3401a; --c-inss: #1a7f7a;
+    --papel: #f7f4ec; --papel-2: #eee9dc; --cartao: #fffdf7; --tinta: #191919; --texto-2: #4a4740;
+    --regra: #d9d2c0; --regra-2: #b9b19c; --linha: #e6dfcd; --grupo: #f3eee1; --sem-dados: #ddd6c6;
+    --pref: #1f7a47; --est: #8a5d10; --fed: #1d4f91;
     --serifa: "Source Serif 4", Georgia, serif;
     --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --papel: #131512; --papel-2: #1b1e1a; --tinta: #ece8de; --texto-2: #c4beb0; --texto-3: #8f897c;
-      --regra: #3a3d37; --verde: #6cc28c; --sem-dados: #262a25; --contorno: rgba(236, 232, 222, .14);
-      --contorno-uf: rgba(236, 232, 222, .5); --fluxo: #8db8f0; --sombra: rgba(0, 0, 0, .4);
-      --r0: #1c2e22; --r1: #22513a; --r2: #2d7a4f; --r3: #4fae73; --r4: #8fcea8; --r5: #d6f0de;
-      --o0: #2c2414; --o1: #4a3a17; --o2: #6e531c; --o3: #9c7426; --o4: #cda243; --o5: #f0d58a;
-      --c-propria: #4fae73; --c-uniao: #8db8f0; --c-estado: #4a6fa5; --c-fundeb: #cda243; --c-credito: #6b675d;
-      --a0: #18222f; --a1: #1f3a5c; --a2: #2c5a8c; --a3: #4a85c4; --a4: #8db8f0; --a5: #d5e5fa; --c-bf: #e08ab3; --c-bpc: #b09be0; --c-sai: #f0a070; --c-inss: #6fd0c8;
-      color-scheme: dark;
-    }
-  }
-  :root[data-theme="dark"] {
-    --papel: #131512; --papel-2: #1b1e1a; --tinta: #ece8de; --texto-2: #c4beb0; --texto-3: #8f897c;
-    --regra: #3a3d37; --verde: #6cc28c; --sem-dados: #262a25; --contorno: rgba(236, 232, 222, .14);
-    --contorno-uf: rgba(236, 232, 222, .5); --fluxo: #8db8f0; --sombra: rgba(0, 0, 0, .4);
-    --r0: #1c2e22; --r1: #22513a; --r2: #2d7a4f; --r3: #4fae73; --r4: #8fcea8; --r5: #d6f0de;
-    --o0: #2c2414; --o1: #4a3a17; --o2: #6e531c; --o3: #9c7426; --o4: #cda243; --o5: #f0d58a;
-    --c-propria: #4fae73; --c-uniao: #8db8f0; --c-estado: #4a6fa5; --c-fundeb: #cda243; --c-credito: #6b675d;
-      --a0: #18222f; --a1: #1f3a5c; --a2: #2c5a8c; --a3: #4a85c4; --a4: #8db8f0; --a5: #d5e5fa; --c-bf: #e08ab3; --c-bpc: #b09be0; --c-sai: #f0a070; --c-inss: #6fd0c8;
-    color-scheme: dark;
-  }
   [hidden] { display: none !important; }
   *, *::before, *::after { box-sizing: border-box; }
-  html, body { height: 100%; }
-  body { margin: 0; font-size: 14px; }
-  img { max-width: 100%; }
-  body { background: var(--papel); color: var(--tinta); font-family: var(--sans); }
-  .app { height: 100%; display: grid; grid-template-columns: 340px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  header {
-    grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-    padding-block: 14px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
-    border-bottom: 2px solid var(--tinta);
-  }
-  header h1 { margin: 0; font-family: var(--serifa); font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
-  header p { margin: 0; font-size: 13px; color: var(--texto-3); }
-  .selo a { color: inherit; }
-  .selo { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--verde); }
+  body { margin: 0; background: var(--papel); color: var(--tinta); font-family: var(--sans); font-size: 15px; line-height: 1.4; }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--fed); outline-offset: 2px; }
+  .app { display: flex; flex-wrap: wrap; min-height: 100vh; }
 
-  aside {
-    border-right: 1px solid var(--regra); overflow-y: auto; display: flex; flex-direction: column; gap: 20px;
-    padding-block: 20px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: 20px;
-  }
-  fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  legend, .rotulo { padding: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--texto-3); }
-  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--tinta); }
-  .seg button { font: inherit; font-size: 13px; padding: 8px 6px; background: none; color: var(--tinta); border: 0; cursor: pointer; border-right: 1px solid var(--tinta); }
-  .seg button:last-child { border-right: 0; }
-  .seg button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); font-weight: 600; }
-  button:focus-visible, input:focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
-  .busca { position: relative; display: flex; flex-direction: column; gap: 6px; }
-  .busca input { height: 40px; border: 0; border-bottom: 2px solid var(--tinta); background: transparent; border-radius: 0; font: inherit; font-size: 15px; color: var(--tinta); padding: 0 2px; }
-  .busca ul { list-style: none; margin: 0; padding: 0; position: absolute; top: 100%; left: 0; right: 0; z-index: 5; background: var(--papel); border: 1px solid var(--tinta); box-shadow: 0 8px 24px var(--sombra); }
-  .busca li button { width: 100%; text-align: left; font: inherit; font-size: 14px; padding: 9px 10px; background: none; border: 0; border-bottom: 1px solid var(--regra); color: var(--tinta); cursor: pointer; }
-  .busca li button:hover { background: var(--papel-2); }
-  .busca li span { color: var(--texto-3); font-size: 12px; }
-  .busca .nada { padding: 9px 10px; font-size: 13px; color: var(--texto-3); }
-  .ano { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
-  .ano button { font: inherit; font-size: 18px; width: 30px; height: 30px; background: none; border: 1px solid var(--tinta); color: var(--tinta); cursor: pointer; line-height: 1; }
-  .ano input { width: 100%; accent-color: var(--verde); }
-  .ano strong { font-family: var(--serifa); font-size: 22px; font-variant-numeric: tabular-nums; min-width: 52px; text-align: right; }
-  .tocar { align-self: flex-start; font: inherit; font-size: 12.5px; padding: 5px 10px; background: none; border: 1px solid var(--regra); color: var(--texto-2); cursor: pointer; }
-  .tocar[aria-pressed="true"] { border-color: var(--tinta); background: var(--tinta); color: var(--papel); }
-  .como-ler { font: inherit; font-size: 13px; font-weight: 600; margin-left: 8px; padding: 0; background: none; border: 0; color: var(--verde); text-decoration: underline; cursor: pointer; }
-  .guia { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--papel-2) 80%, transparent); }
-  .guia-caixa { width: min(560px, 100%); max-height: 100%; overflow-y: auto; background: var(--papel); border: 1px solid var(--tinta); box-shadow: 0 8px 24px var(--sombra); padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; }
-  .guia-caixa h2 { margin: 0; font-family: var(--serifa); font-size: 26px; }
-  .guia-caixa ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; line-height: 1.5; color: var(--texto-2); }
-  .guia-caixa li strong, .guia-caixa p strong { color: var(--tinta); }
-  .guia-caixa p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
-  .guia-ok { align-self: flex-start; font: inherit; font-size: 14px; font-weight: 600; padding: 9px 20px; background: var(--tinta); color: var(--papel); border: 0; cursor: pointer; }
-  .perguntas { display: flex; flex-direction: column; }
-  .perguntas button {
-    font: inherit; text-align: left; padding: 10px 0; background: none; border: 0; border-bottom: 1px solid var(--regra);
-    cursor: pointer; color: var(--texto-2); display: flex; flex-direction: column; gap: 3px;
-  }
-  .perguntas button strong { font-family: var(--serifa); font-size: 17px; font-weight: 600; color: var(--tinta); }
-  .perguntas button span { font-size: 12.5px; line-height: 1.45; display: none; }
-  .perguntas button[aria-pressed="true"] { border-left: 3px solid var(--verde); padding-left: 10px; }
-  .perguntas button[aria-pressed="true"] span { display: block; }
-  .areas { display: flex; flex-wrap: wrap; gap: 6px; }
-  .areas button { font: inherit; font-size: 12.5px; padding: 5px 10px; background: none; border: 1px solid var(--regra); color: var(--texto-2); cursor: pointer; }
-  .areas button[aria-pressed="true"] { border-color: var(--tinta); background: var(--tinta); color: var(--papel); }
-  .camada { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; line-height: 1.4; }
-  .camada input { margin-top: 3px; accent-color: var(--fluxo); }
-  .camada small { display: block; color: var(--texto-3); font-size: 12px; margin-top: 2px; }
-  .maiores { margin: 0; padding: 0 0 0 26px; list-style: none; font-size: 12px; color: var(--texto-2); display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
-  .legenda { display: flex; flex-direction: column; gap: 6px; }
-  .legenda .faixas { display: grid; grid-template-columns: repeat(6, 1fr); height: 12px; }
-  .legenda .rotulos { display: flex; justify-content: space-between; font-size: 11px; color: var(--texto-3); font-variant-numeric: tabular-nums; }
-  .legenda .sem { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--texto-3); }
-  .legenda .sem i { width: 14px; height: 10px; background: var(--sem-dados); display: inline-block; }
-  .rodape { font-size: 12px; line-height: 1.5; color: var(--texto-3); border-top: 1px solid var(--regra); padding-top: 14px; margin: 0; }
-  .rodape strong { color: var(--tinta); font-weight: 600; }
+  /* ----- menu ----- */
+  aside { flex: 1 1 290px; padding: 28px 24px; border-right: 1px solid var(--regra); display: flex; flex-direction: column; gap: 22px; }
+  .rotulo { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--texto-2); }
+  .bloco { display: flex; flex-direction: column; gap: 8px; }
+  .marca { display: flex; flex-direction: column; gap: 4px; }
+  .marca a { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; text-decoration: none; color: var(--texto-2); }
+  .marca h1 { margin: 0; font-family: var(--serifa); font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+  .tres, .dois { display: grid; gap: 6px; }
+  .tres { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dois { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bt { min-height: 46px; padding: 4px 6px; border: 1.5px solid var(--regra-2); background: transparent; font-weight: 500; cursor: pointer; }
+  .bt[aria-pressed="true"], .perg[aria-pressed="true"] { border-color: var(--tinta); background: var(--tinta); color: var(--papel); }
+  .onde { position: relative; }
+  .onde input { width: 100%; height: 46px; padding: 0 12px; border: 1.5px solid var(--tinta); background: var(--cartao); font-size: 16px; border-radius: 0; }
+  .onde ul { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin: 0; padding: 0; list-style: none; background: var(--cartao); border: 1.5px solid var(--tinta); border-top: 0; max-height: 320px; overflow-y: auto; }
+  .onde li button { display: flex; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--linha); background: none; text-align: left; cursor: pointer; }
+  .onde li button:hover, .onde li button:focus-visible { background: var(--papel-2); }
+  .onde li small { color: var(--texto-2); white-space: nowrap; }
+  .dica { font-size: 13px; color: var(--texto-2); }
+  .perg { display: flex; flex-direction: column; justify-content: center; gap: 1px; min-height: 60px; padding: 8px 12px; border: 1.5px solid var(--regra-2); background: transparent; text-align: left; cursor: pointer; }
+  .perg strong { font-family: var(--serifa); font-size: 17px; font-weight: 600; line-height: 1.2; }
+  .perg span { font-size: 13px; color: var(--texto-2); }
+  .perg[aria-pressed="true"] span { color: #d9d2c0; }
+  .pe { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--regra); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 13px; }
+  .pe b { font-family: var(--serifa); font-size: 20px; font-weight: 700; }
+  .pe button { padding: 0; border: 0; background: none; color: var(--texto-2); text-decoration: underline; cursor: pointer; min-height: 32px; }
+  .opcoes { flex: 1 1 100%; display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+  .opcoes .ano { display: flex; align-items: center; gap: 10px; }
+  .opcoes .ano input { flex: 1 1 auto; min-width: 0; accent-color: var(--tinta); }
+  .opcoes label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+  .opcoes label input { margin-top: 3px; accent-color: var(--tinta); }
 
-  main { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--papel-2); }
-  /* O palco é a área do mapa: ocupa o <main> inteiro, menos no celular, onde fica preso no alto da tela. */
-  .palco { position: absolute; inset: 0; }
-  #mapa, #fluxo { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #mapa { touch-action: none; }
-  #fluxo { pointer-events: none; }
-  #mapa path.mun { stroke: var(--contorno); stroke-width: .3; vector-effect: non-scaling-stroke; cursor: pointer; }
-  #mapa path.uf { fill: none; stroke: var(--contorno-uf); stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
-  #mapa path.ufsel { stroke: var(--contorno-uf); stroke-width: .8; vector-effect: non-scaling-stroke; cursor: pointer; }
-  #mapa path.ativo { stroke: var(--tinta); stroke-width: 2.2; }
-  .zoom { position: absolute; left: 16px; top: 16px; display: flex; flex-direction: column; border: 1px solid var(--tinta); background: var(--papel); }
-  .zoom button { font: inherit; font-size: 16px; width: 34px; height: 34px; background: none; border: 0; color: var(--tinta); cursor: pointer; }
-  .zoom button + button { border-top: 1px solid var(--tinta); }
+  /* ----- mapa ----- */
+  main { flex: 999 1 560px; min-width: 0; padding: 28px 32px; display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
+  .col-mapa { flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 28px; }
+  .mostra { display: flex; flex-direction: column; gap: 2px; min-height: 96px; }
+  .mostra p { margin: 0; font-family: var(--serifa); font-size: 21px; font-weight: 600; line-height: 1.22; }
+  .mostra small { font-size: 12px; color: var(--texto-2); }
+  .mapa-caixa { position: relative; width: 100%; aspect-ratio: 640 / 660; max-height: 580px; overflow: hidden; }
+  #mapa { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  #mapa:active { cursor: grabbing; }
+  #mapa path { vector-effect: non-scaling-stroke; }
+  #mapa path.mun { stroke: var(--papel); stroke-width: .25; cursor: pointer; }
+  #mapa path.ufsel { stroke: var(--papel); stroke-width: 1; cursor: pointer; }
+  #mapa path.uf { fill: none; pointer-events: none; stroke: rgba(25, 25, 25, .45); stroke-width: .7; }
+  #mapa path.ativo { stroke: var(--tinta); stroke-width: 2.5; }
+  .zoom { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; gap: 4px; }
+  .zoom button { width: 34px; height: 34px; padding: 0; border: 1.5px solid var(--regra-2); background: var(--papel); font-size: 17px; line-height: 1; cursor: pointer; }
+  .pino { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .pino i { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 50%; background: var(--papel); border: 2.5px solid var(--tinta); }
+  .pino svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  .pino line { stroke: var(--tinta); stroke-width: 1.5; }
+  .pino b { position: absolute; left: 21px; top: 40px; padding: 5px 10px; background: var(--tinta); color: var(--papel); font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .balao { position: absolute; z-index: 3; pointer-events: none; padding: 5px 9px; background: var(--cartao); border: 1px solid var(--tinta); font-size: 13px; white-space: nowrap; transform: translate(-50%, calc(-100% - 12px)); }
+  .leg { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--texto-2); }
+  .leg span.faixas { display: flex; }
+  .leg i { display: block; width: 28px; height: 14px; }
+  .leg .sem { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
+  .leg .sem i { width: 14px; background: var(--sem-dados); }
 
-  .detalhe {
-    position: absolute; right: 16px; top: 16px; width: min(428px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow-y: auto;
-    background: var(--papel); border: 1px solid var(--tinta); box-shadow: 0 8px 24px var(--sombra); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
-  }
-  .detalhe h2 { margin: 0; font-family: var(--serifa); font-size: 24px; line-height: 1.1; text-wrap: balance; }
-  .detalhe .sub { font-size: 11.5px; color: var(--texto-3); letter-spacing: .04em; text-transform: uppercase; }
-  .par { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .par div { display: flex; flex-direction: column; }
-  .par span { font-size: 12px; color: var(--texto-3); }
-  .par strong { font-family: var(--serifa); font-size: 21px; font-variant-numeric: tabular-nums; }
-  .par small { font-size: 12px; color: var(--texto-2); font-variant-numeric: tabular-nums; }
-  .saldo { margin: 0; font-size: 14px; padding: 8px 10px; background: var(--papel-2); }
-  .saldo b { font-weight: 600; }
-  .origem h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--texto-2); }
-  .barra-origem { display: flex; height: 14px; width: 100%; }
-  .barra-origem span { height: 100%; min-width: 1px; }
-  .origem ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; font-size: 12.5px; }
-  .origem li { display: contents; }
-  .origem i { display: inline-block; width: 9px; height: 9px; margin-right: 6px; }
-  .origem em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; color: var(--texto-2); }
-  #mapa path.uf.origem { stroke: var(--fluxo); stroke-width: 3.5; }
-  #mapa path.uf.destino { stroke: var(--fluxo); stroke-width: 2.5; }
-  .fechar { align-self: flex-start; font: inherit; font-size: 12px; font-weight: 600; padding: 3px 8px; background: none; border: 1px solid var(--regra); color: var(--texto-2); cursor: pointer; }
-  .fechar:hover { border-color: var(--tinta); color: var(--tinta); }
-  .nota.forte { font-size: 12.5px; color: var(--texto-2); }
-  .rk-corpo { display: flex; flex-direction: column; gap: 10px; }
-  .rk-corpo[open] { display: flex; }
-  .rk-corpo > *:not(summary) { margin-top: 10px; }
-  .rk-corpo summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  .rk-corpo summary::-webkit-details-marker { display: none; }
-  .rk-corpo .abrir { font-size: 12px; font-weight: 600; color: var(--texto-3); white-space: nowrap; text-decoration: underline; }
-  .rk-corpo[open] .abrir { display: none; }
-  .rk-filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .rk-filtros select { font: inherit; font-size: 12.5px; padding: 5px 6px; background: var(--papel); color: var(--tinta); border: 1px solid var(--regra); max-width: 100%; }
-  .seg.mini button { font-size: 12.5px; padding: 5px 10px; }
-  .rk { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .rk li button { width: 100%; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; text-align: left; font: inherit; font-size: 13.5px; padding: 6px 0; background: none; border: 0; border-bottom: 1px solid var(--regra); color: var(--tinta); cursor: pointer; }
-  .rk li button:hover { background: var(--papel-2); }
-  .rk .pos { color: var(--texto-3); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .rk .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .rk .nm i { font-style: normal; font-weight: 400; font-size: 12px; color: var(--texto-3); }
-  .rk em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--texto-2); white-space: nowrap; }
-  .rk .nada { padding: 8px 0; font-size: 13px; color: var(--texto-3); }
-  .so-2025 { margin: 0; font-size: 12px; line-height: 1.45; color: var(--texto-3); }
-  .seg button:disabled, .ano button:disabled, .tocar:disabled { opacity: .4; cursor: not-allowed; }
-  .fed h3 { margin: 0 0 2px; font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--texto-2); }
-  .fed-total { margin: 0 0 8px; font-size: 14px; }
-  .fed-total b { font-family: var(--serifa); font-size: 21px; }
-  .fed ul { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-  .fed li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 12px; font-size: 12.5px; }
-  .fed li em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--texto-2); }
-  .fed li i { grid-column: 1 / -1; height: 5px; min-width: 1px; }
-  .bloco { border-top: 1px solid var(--tinta); }
-  .bloco:last-of-type { border-bottom: 1px solid var(--tinta); }
-  .bloco summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 9px 0; }
-  .bloco summary::-webkit-details-marker { display: none; }
-  .bloco summary span { font-family: var(--serifa); font-size: 16.5px; font-weight: 600; }
-  .bloco summary span::before { content: "+"; display: inline-block; width: 16px; font-family: var(--sans); font-weight: 400; color: var(--texto-3); }
-  .bloco[open] summary span::before { content: "−"; }
-  .bloco summary b { font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .bloco-corpo { display: flex; flex-direction: column; gap: 8px; padding: 0 0 12px; }
-  .bloco-nota { margin: 0; font-size: 13px; color: var(--texto-2); }
-  .bloco h4 { margin: 6px 0 0; font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--tinta); }
-  .bloco h4 small, .linhas small { font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--texto-3); border: 1px solid var(--regra); padding: 0 4px; margin-left: 4px; }
-  .linhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .linhas li { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid var(--regra); }
-  .linhas li span { color: var(--texto-2); min-width: 0; }
-  .linhas li i { display: inline-block; width: 9px; height: 9px; margin-right: 6px; }
-  .linhas li em { font-style: normal; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-  .barras li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 12px; font-size: 12.5px; }
-  .barras li em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--texto-2); white-space: nowrap; }
-  .barras li i { grid-column: 1 / -1; height: 5px; min-width: 1px; }
-  .destaque { margin: 0; font-size: 13.5px; line-height: 1.45; padding: 8px 10px; background: var(--papel-2); }
-  .destaque b { font-weight: 700; }
-  .ver-fluxo { margin-top: 8px; font: inherit; font-size: 12.5px; font-weight: 600; padding: 0; background: none; border: 0; color: var(--c-uniao); cursor: pointer; text-decoration: underline; }
-  .comp { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  .comp caption { text-align: left; font-size: 12px; font-weight: 600; color: var(--texto-2); padding-bottom: 4px; }
-  .comp th, .comp td { padding: 3px 0; border-bottom: 1px solid var(--regra); font-variant-numeric: tabular-nums; }
-  .comp thead th { font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--texto-3); text-align: right; }
-  .comp tbody th { text-align: left; font-weight: 400; color: var(--texto-2); }
-  .comp td { text-align: right; padding-left: 8px; }
-  .comp td:nth-child(3) { color: var(--texto-3); }
-  .comp .sinal { font-size: 11px; color: var(--texto-3); white-space: nowrap; }
-  .detalhe dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; font-size: 12.5px; }
-  .detalhe dt { color: var(--texto-2); }
-  .detalhe dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-  .serie { display: flex; align-items: flex-end; gap: 4px; height: 48px; }
-  .serie > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; height: 100%; }
-  .serie .colunas { flex: 1; width: 100%; display: flex; align-items: flex-end; gap: 1px; }
-  .serie span.b { flex: 1; background: var(--r3); }
-  .serie span.b.rec { background: var(--c-uniao); opacity: .55; }
-  .serie .atual em { color: var(--tinta); font-weight: 700; }
-  .serie .atual .colunas { outline: 1px solid var(--tinta); outline-offset: 1px; }
-  .nota .q { display: inline-block; width: 9px; height: 9px; margin: 0 3px 0 2px; }
-  .nota .q.rec { background: var(--c-uniao); opacity: .55; }
-  .nota .q.desp { background: var(--r3); }
-  .serie span.b.falta { background: repeating-linear-gradient(45deg, var(--regra) 0 3px, transparent 3px 6px); }
-  .serie em { font-style: normal; font-size: 10px; color: var(--texto-3); font-variant-numeric: tabular-nums; }
-  .detalhe .nota { font-size: 11px; color: var(--texto-3); margin: 0; line-height: 1.45; }
-  .dica { position: absolute; pointer-events: none; background: var(--tinta); color: var(--papel); font-size: 12px; padding: 6px 9px; white-space: nowrap; transform: translate(12px, -50%); }
-  .dica b { font-weight: 600; }
-  .carregando { position: absolute; inset: 0; display: grid; place-items: center; color: var(--texto-3); font-size: 14px; }
+  /* ----- detalhe ----- */
+  .det { flex: 1.4 1 480px; min-width: 0; padding: 22px 24px; background: var(--cartao); border: 1px solid var(--regra); display: flex; flex-direction: column; gap: 12px; }
+  .det .sub { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--texto-2); }
+  .cab { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding-bottom: 12px; border-bottom: 1px solid var(--tinta); }
+  .cab h2 { margin: 0; flex: 1 1 260px; font-family: var(--serifa); font-size: 27px; font-weight: 700; line-height: 1.15; letter-spacing: -.01em; }
+  .cab b { font-family: var(--serifa); font-size: 27px; font-weight: 700; }
+  .un { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; color: var(--texto-2); }
+  .un i { font-style: normal; padding: 2px 8px; background: var(--tinta); color: var(--papel); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+  .barra { display: flex; gap: 2px; height: 14px; }
+  .grupos { display: flex; flex-direction: column; }
+  .gr { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 50px; margin-top: 12px; padding: 6px 12px; border: 0; border-top: 4px solid var(--cor); background: var(--grupo); text-align: left; cursor: pointer; }
+  .gr:not([data-mapa]) { cursor: default; }
+  .gr .n { flex: 1 1 auto; display: flex; flex-direction: column; }
+  .gr .n b { font-weight: 600; line-height: 1.2; }
+  .gr .n small { font-size: 12px; color: var(--texto-2); }
+  .gr .v { font-family: var(--serifa); font-size: 18px; font-weight: 700; white-space: nowrap; }
+  .gr[aria-pressed="true"] { background: var(--cor); color: #fff; }
+  .gr[aria-pressed="true"] .n small { color: #fff; }
+  .ln { display: flex; justify-content: space-between; gap: 16px; padding: 6px 12px; border-bottom: 1px solid var(--linha); font-size: 14px; }
+  .ln span:first-child { color: var(--texto-2); }
+  .ln span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .nota { font-size: 12px; color: var(--texto-2); }
+  .aviso { margin: 0; font-size: 15px; color: var(--texto-2); }
+  .links { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--regra); }
+  .links div { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .links a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; padding: 6px 12px; border: 1.5px solid var(--regra-2); border-top: 4px solid var(--cor); color: var(--tinta); text-decoration: none; font-size: 14px; font-weight: 500; line-height: 1.2; }
+  .links a:hover { background: var(--papel-2); }
 
-  @media (max-width: 1200px) {
-    /* sem espaço para o cartão ao lado: ele vira uma faixa baixa, com rolagem, e o mapa fica visível em cima */
-    .detalhe { top: auto; right: auto; left: 16px; bottom: 16px; width: min(598px, calc(100% - 32px)); max-height: 42%; }
+  @media (max-width: 760px) {
+    aside { padding: 16px; gap: 14px; border-right: 0; border-bottom: 1px solid var(--regra); }
+    .marca h1 { font-size: 22px; }
+    .perguntas { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .perguntas .rotulo { grid-column: 1 / -1; }
+    .perg { min-height: 56px; padding: 6px 10px; }
+    .perg strong { font-size: 15px; }
+    .pe { margin-top: 0; }
+    main { padding: 16px; gap: 18px; }
+    .col-mapa { position: static; }
+    .mostra { min-height: 0; }
+    .det { padding: 16px; }
+    .cab h2, .cab b { font-size: 23px; }
   }
-  @media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
-    /* Celular (em pé ou deitado): a página rola inteira. O mapa fica preso no alto e, embaixo dele, vêm o cartão
-       e depois os controles, numa coluna só (o <main> some do layout para o mapa poder ficar
-       preso enquanto os controles passam). */
-    html, body { height: auto; }
-    .app { display: flex; flex-direction: column; height: auto; }
-    main { display: contents; }
-    header { position: relative; z-index: 4; padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px; gap: 10px; }
-    header h1 { font-size: 21px; }
-    header .lema { display: none; }
-    .como-ler { margin-left: 0; }
-    header .busca { flex: 1 0 100%; }
-    .palco { order: 1; position: sticky; top: 0; z-index: 3; flex: none; height: 46vh; height: 46svh; min-height: 260px; overflow: hidden; background: var(--papel-2); border-bottom: 2px solid var(--tinta); }
-    .detalhe { order: 2; position: static; width: auto; max-height: none; overflow: visible; box-shadow: none; border: 0; border-bottom: 2px solid var(--tinta); padding: 14px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
-    aside { order: 3; border-right: 0; overflow: visible; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: max(24px, env(safe-area-inset-bottom, 0px)); gap: 16px; }
-    .zoom { left: 12px; top: 12px; }
-    .guia { position: fixed; z-index: 9; }
-    .serie { display: none; }
-  }
-  /* Celular deitado: a tela é baixa demais para o mapa ficar preso; ele rola com o resto. */
-  @media (max-height: 520px) and (pointer: coarse) {
-    .palco { position: relative; height: 82vh; height: 82svh; min-height: 0; }
-  }
-  @media (prefers-reduced-motion: reduce) { #fluxo { display: none; } }
-
-  /* ===== Nova arrumação: menu à esquerda em três grupos separados (procurar, perguntar, opções);
-     legenda sobre o mapa; sem escolha de nível de governo ===== */
-  .so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .app { grid-template-columns: 330px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-  aside.topo { display: flex; flex-direction: column; gap: 0; padding: 18px 0 0; border-right: 1px solid var(--regra); overflow-y: auto; }
-  aside.topo > * { margin-inline: 20px; }
-  aside.topo .marca h1 { margin: 2px 0 0; font-family: var(--serifa); font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
-  aside.topo .busca { margin-top: 16px; }
-  aside.topo .busca input { border: 1px solid var(--tinta); padding: 0 12px; background: #fff; height: 40px; }
-  .titulo-grupo { display: block; margin-top: 26px; padding: 0 0 8px; border-bottom: 2px solid var(--tinta); }
-  aside.topo .perguntas { margin-inline: 0; }
-  aside.topo .perguntas button { padding: 11px 20px 11px 17px; border: 0; border-left: 3px solid transparent; border-bottom: 1px solid var(--regra); margin-inline: 0; }
-  aside.topo .perguntas button:hover { background: var(--papel-2); }
-  aside.topo .perguntas button[aria-pressed="true"] { border-left-color: var(--verde); padding-left: 17px; background: var(--papel-2); }
-  aside.topo .perguntas button[aria-pressed="true"] strong { color: var(--verde); }
-  .sob { margin-top: 10px; }
-  #q-explica { display: none; }
-  .opcoes { margin: auto 0 0 !important; border-top: 1px solid var(--regra); }
-  .opcoes > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 14px 20px; font-size: 13px; font-weight: 600; }
-  .opcoes > summary::-webkit-details-marker { display: none; }
-  .opcoes > summary span::before { content: "+ "; color: var(--texto-3); }
-  .opcoes[open] > summary span::before { content: "− "; }
-  .opcoes > summary b { font-family: var(--serifa); font-size: 18px; }
-  .opcoes-caixa { padding: 4px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
-  .opcoes-caixa .como-ler { margin: 0; align-self: flex-start; }
-  .palco .legenda { position: absolute; left: 16px; bottom: 16px; z-index: 2; width: 250px; background: var(--papel); border: 1px solid var(--tinta); padding: 10px 12px; }
-  .fluxo-legenda { position: absolute; left: 62px; top: 16px; z-index: 2; margin: 0; padding: 8px 10px; list-style: none; background: var(--papel); border: 1px solid var(--regra); font-size: 12px; display: flex; flex-direction: column; gap: 4px; max-width: min(340px, calc(100% - 78px)); }
-  .fluxo-legenda li { display: flex; gap: 7px; align-items: center; }
-  .fluxo-legenda i { flex: none; width: 9px; height: 9px; border-radius: 50%; }
-  .fluxo-legenda i.estim { background: none !important; border: 2px solid; }
-  /* No celular não cabe coluna: o mesmo menu vira uma faixa presa no alto, com as perguntas em fila. */
-  @media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
-    aside.topo { order: 0; position: sticky; top: 0; z-index: 6; background: var(--papel); border-right: 0; border-bottom: 1px solid var(--tinta); overflow: visible; max-height: none;
-      display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "busca opcoes" "perguntas perguntas"; gap: 8px 10px; padding: 8px 16px; }
-    aside.topo > * { margin-inline: 0; }
-    aside.topo .marca, aside.topo .sob, .titulo-grupo { display: none; }
-    aside.topo .busca { grid-area: busca; margin-top: 0; }
-    aside.topo .busca input { height: 38px; }
-    aside.topo .perguntas { grid-area: perguntas; flex-direction: row; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
-    aside.topo .perguntas button, aside.topo .perguntas button[aria-pressed="true"] { flex: none; flex-direction: row; white-space: nowrap; padding: 8px 13px; border: 1px solid var(--regra); background: none; }
-    aside.topo .perguntas button strong { font-family: var(--sans); font-size: 14px; font-weight: 500; }
-    aside.topo .perguntas button span { display: none !important; }
-    aside.topo .perguntas button[aria-pressed="true"] { border-color: var(--tinta); background: var(--tinta); }
-    aside.topo .perguntas button[aria-pressed="true"] strong { color: var(--papel); font-weight: 600; }
-    .opcoes { grid-area: opcoes; margin: 0 !important; border: 0; position: relative; }
-    .opcoes > summary { border: 1px solid var(--regra); padding: 8px 10px; gap: 6px; }
-    .opcoes > summary span { display: none; }
-    .opcoes > summary b { font-family: var(--sans); font-size: 13px; }
-    .opcoes > summary b::after { content: " · opções"; font-weight: 600; }
-    .opcoes-caixa { position: fixed; left: 8px; right: 8px; z-index: 20; background: var(--papel); border: 1px solid var(--tinta); box-shadow: 0 8px 24px var(--sombra); padding: 16px; max-height: 70vh; overflow-y: auto; }
-    .palco { top: var(--topo-h, 96px); height: 42vh; height: 42svh; }
-    .palco .legenda { left: 8px; bottom: 8px; width: 200px; padding: 6px 8px; }
-    .fluxo-legenda { left: 54px; top: 8px; }
-  }
-  .barras li i.duas { display: flex; background: none; }
-  .barras li i.duas b { display: block; height: 100%; }
-  .nota i.q { display: inline-block; width: 9px; height: 9px; margin: 0 4px 0 8px; }
-  .nota i.q:first-child { margin-left: 0; }
-  #rk-caixa { display: flex; flex-direction: column; gap: 10px; }
-  .no-estado { margin: 0; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: var(--texto-2); }
-  .no-estado .fechar { flex: none; margin: 0; }
-  .no-estado b { color: var(--tinta); }
 </style>
 </head>
 <body>
 
 <div class="app">
-  <aside class="topo" aria-label="Menu do mapa">
+  <aside aria-label="Menu do mapa">
     <div class="marca">
-      <span class="selo"><a href="/">← Orçamento Brasileiro</a></span>
+      <a href="/">← Orçamento Brasileiro</a>
       <h1>Mapa do Orçamento</h1>
     </div>
-    <div class="busca">
-      <label class="so-leitor" for="busca">Procure um lugar</label>
-      <input type="search" id="busca" placeholder="Procure sua cidade" autocomplete="off">
-      <ul id="busca-lista" hidden></ul>
-    </div>
-    <span class="rotulo titulo-grupo">O que você quer saber</span>
-    <div class="perguntas" role="group" aria-label="Pergunta">
-        <button type="button" id="q-imp" data-medida="imp" aria-pressed="false"><strong>O que a cidade paga</strong>
-          <span>Os impostos que moradores e empresas pagam à prefeitura (IPTU, ISS, ITBI, taxas), por morador. Clique numa cidade para ver também o que ela manda para o estado e para a União, e o que volta.</span></button>
-        <button type="button" id="q-desp" data-medida="desp" aria-pressed="true"><strong>Quanto gasta</strong>
-          <span>Tudo o que <b data-quem>a prefeitura</b> gastou no ano, dividido pelo número de moradores. É só o gasto <b data-dela>da prefeitura</b>: não inclui o que o governo federal ou outra esfera gasta no mesmo lugar.</span></button>
-        <button type="button" id="q-rec" data-medida="rec" aria-pressed="false"><strong>Quanto recebe</strong>
-          <span>Tudo o que entrou no caixa <b data-dela>da prefeitura</b> no ano, por morador: impostos próprios mais os repasses de outras esferas.</span></button>
-        <button type="button" id="q-saldo" data-medida="saldo" aria-pressed="false"><strong>Sobrou ou faltou</strong>
-          <span>Receita menos despesa do ano, como parte da receita. Verde: entrou mais do que saiu. Ocre: gastou mais do que recebeu.</span></button>
-        <button type="button" id="q-dep" data-medida="dep" aria-pressed="false"><strong>De onde vem o dinheiro</strong>
-          <span>Que parte da receita chega por repasse (da União, <b data-doestado>do estado</b> e do FUNDEB) e não por impostos cobrados ali mesmo. Mais escuro: mais dependente de repasses.</span></button>
-        <button type="button" id="q-fed" data-medida="fed" aria-pressed="false"><strong>O que vem do governo federal</strong>
-          <span>Tudo o que o governo federal mandou para cada cidade em 2025, por morador: repasses à prefeitura e a outras entidades, e benefícios pagos direto às pessoas (aposentadorias e pensões do INSS, Bolsa Família e BPC). Não inclui o gasto direto de órgãos federais, como universidades e salários de servidores.</span></button>
-      </div>
-    <div class="sob">
-      <p id="q-explica"></p>
-      <div class="areas" id="areas" role="group" aria-label="Área do gasto">
-        <button type="button" id="area-total" data-area="total" aria-pressed="true">Tudo</button>
-        <button type="button" id="area-saude" data-area="saude" aria-pressed="false">Saúde</button>
-        <button type="button" id="area-edu" data-area="edu" aria-pressed="false">Educação</button>
-        <button type="button" id="area-seg" data-area="seg" aria-pressed="false">Segurança</button>
+    <div class="bloco">
+      <span class="rotulo">1 · O que você quer olhar</span>
+      <div class="tres" role="group" aria-label="O que você quer olhar">
+        <button type="button" class="bt" data-nivel="brasil" aria-pressed="true">Brasil</button>
+        <button type="button" class="bt" data-nivel="estado" aria-pressed="false">Estado</button>
+        <button type="button" class="bt" data-nivel="cidade" aria-pressed="false">Cidade</button>
       </div>
     </div>
-    <details class="opcoes" id="opcoes">
-      <summary><span>Ano e opções</span><b id="ano-topo">2025</b></summary>
-      <div class="opcoes-caixa">
-        <fieldset>
-          <legend>Em que ano</legend>
-          <div class="ano">
-        <button type="button" id="ano-menos" aria-label="Ano anterior">‹</button>
-        <input type="range" id="ano" min="2013" max="2025" step="1" value="2025" aria-label="Ano das contas">
-        <button type="button" id="ano-mais" aria-label="Ano seguinte">›</button>
-        <strong id="ano-rotulo">2025</strong>
+    <div class="bloco">
+      <label class="rotulo" for="onde">2 · Onde</label>
+      <div class="onde">
+        <input type="text" id="onde" autocomplete="off" spellcheck="false" placeholder="O país inteiro: não precisa escolher">
+        <ul id="onde-lista" hidden></ul>
       </div>
-          <button type="button" class="tocar" id="tocar" aria-pressed="false">▶ Passar os anos sozinho</button>
-          <p class="so-2025" id="so-parcial" hidden></p>
-      <p class="so-2025" id="so-2025" hidden>O dinheiro federal por cidade está disponível só para 2025 e só para prefeituras, por enquanto.</p>
-        </fieldset>
-        <label class="camada"><input type="checkbox" id="real">
-        <span>Corrigir pela inflação<small>Mostra os valores de todos os anos em reais de 2025 (IPCA), para comparar anos diferentes.</small></span></label>
-        <fieldset id="bloco-fluxo" hidden>
-      <label class="camada"><input type="checkbox" id="cam-fluxo" checked>
-        <span>Mostrar os repasses da União<small id="fluxo-explica"></small></span></label>
-      <ul class="maiores" id="maiores"></ul>
-    </fieldset>
-        <p class="rodape" id="rodape"></p>
-        <button type="button" class="como-ler" id="abrir-guia">Como ler este mapa</button>
+      <span class="dica">Escreva o nome ou clique no mapa.</span>
+    </div>
+    <div class="bloco perguntas" role="group" aria-label="O que você quer saber">
+      <span class="rotulo">3 · O que você quer saber</span>
+      <button type="button" class="perg" data-q="q1" aria-pressed="true"><strong>1 · Quanto se paga aqui</strong><span></span></button>
+      <button type="button" class="perg" data-q="q2" aria-pressed="false"><strong>2 · Como cada governo usa</strong><span></span></button>
+      <button type="button" class="perg" data-q="q3" aria-pressed="false"><strong>3 · O que volta para cá</strong><span></span></button>
+      <button type="button" class="perg" data-q="q4" aria-pressed="false"><strong>4 · As contas fecham?</strong><span></span></button>
+    </div>
+    <div class="bloco">
+      <span class="rotulo">Mostrar os valores</span>
+      <div class="dois" role="group" aria-label="Mostrar os valores">
+        <button type="button" class="bt" data-unidade="morador" aria-pressed="true">Por morador</button>
+        <button type="button" class="bt" data-unidade="total" aria-pressed="false">Total</button>
       </div>
-    </details>
-    <div hidden><button type="button" id="esf-mun" data-esfera="mun"></button><button type="button" id="esf-uf" data-esfera="uf"></button></div>
+      <span class="dica" id="unidade-dica"></span>
+    </div>
+    <div class="pe">
+      <b id="ano-rotulo">2025</b>
+      <button type="button" id="abrir-ano" aria-expanded="false" aria-controls="opcoes">Mudar o ano</button>
+      <button type="button" id="abrir-opcoes" aria-expanded="false" aria-controls="opcoes">Mais opções</button>
+      <div class="opcoes" id="opcoes" hidden>
+        <div class="ano">
+          <span id="ano-min"></span>
+          <input type="range" id="ano" step="1" aria-label="Ano das contas">
+          <span id="ano-max"></span>
+        </div>
+        <label><input type="checkbox" id="real"><span>Corrigir pela inflação: mostra os valores de qualquer ano em reais de hoje, para comparar anos diferentes.</span></label>
+      </div>
+    </div>
   </aside>
 
   <main>
-    <div class="palco" id="palco">
-    <svg id="mapa" role="img" aria-label="Mapa do Brasil"></svg>
-    <canvas id="fluxo" aria-hidden="true"></canvas>
-    <div class="carregando" id="carregando">Desenhando 5.570 municípios…</div>
-    <div class="zoom">
-      <button type="button" id="zoom-mais" aria-label="Aproximar">+</button>
-      <button type="button" id="zoom-menos" aria-label="Afastar">−</button>
-      <button type="button" id="zoom-br" aria-label="Ver o Brasil inteiro">⌂</button>
-    </div>
-    <div class="dica" id="dica" hidden></div>
-    <ul class="fluxo-legenda" id="fluxo-legenda" hidden></ul>
-    <div class="legenda" aria-live="polite">
-      <span class="rotulo" id="leg-titulo" style="padding:0"></span>
-      <div class="faixas" id="faixas"></div>
-      <div class="rotulos" id="rotulos"></div>
-      <div class="sem"><i></i> sem prestação de contas</div>
-    </div>
-    </div>
-    <div class="detalhe" id="detalhe" aria-live="polite"></div>
-    <div class="guia" id="guia" role="dialog" aria-labelledby="guia-titulo" hidden>
-      <div class="guia-caixa">
-        <h2 id="guia-titulo">Como ler este mapa</h2>
-        <ol>
-          <li><strong>Escolha uma pergunta</strong> no painel: quanto gasta, quanto recebe, se sobrou ou faltou, de onde vem o dinheiro. O mapa inteiro muda para responder a ela.</li>
-          <li><strong>A cor é a resposta.</strong> Mais escuro quer dizer mais: mais gasto por morador, mais receita, mais dependência de repasses. Em "sobrou ou faltou", verde é sobra e ocre é falta.</li>
-          <li><strong>Clique numa cidade ou num estado</strong> (ou procure pelo nome) para ver quanto entrou, quanto saiu, de onde veio e como ela se compara com as parecidas.</li>
-          <li><strong>As linhas são dinheiro em movimento.</strong> Em "de onde vem o dinheiro", elas saem de Brasília (repasses da União) e da capital do estado (repasses do estado). Quanto mais grossa, maior o valor.</li>
-        </ol>
-        <p>Tudo aqui é dinheiro <strong>das prefeituras e dos governos estaduais</strong>, declarado por eles ao Tesouro Nacional. O gasto direto do governo federal ainda não está no mapa.</p>
-        <button type="button" class="guia-ok" id="fechar-guia">Entendi</button>
+    <div class="col-mapa">
+      <div class="mostra">
+        <span class="rotulo">O mapa mostra</span>
+        <p id="frase"></p>
+        <small>O mapa compara sempre por morador, para lugares grandes e pequenos ficarem na mesma régua.</small>
+      </div>
+      <div class="mapa-caixa" id="caixa">
+        <svg id="mapa" role="img" aria-label="Mapa do Brasil"></svg>
+        <div class="zoom">
+          <button type="button" id="zoom-mais" aria-label="Aproximar">+</button>
+          <button type="button" id="zoom-menos" aria-label="Afastar">−</button>
+          <button type="button" id="zoom-br" aria-label="Ver o Brasil inteiro">⌂</button>
+        </div>
+        <div class="pino" id="pino" hidden><svg width="1" height="1" aria-hidden="true"><line x1="0" y1="0" x2="49" y2="40"></line></svg><i></i><b></b></div>
+        <div class="balao" id="balao" hidden></div>
+      </div>
+      <div class="leg" aria-hidden="true">
+        <span id="leg-menos">menos</span>
+        <span class="faixas" id="faixas"></span>
+        <span id="leg-mais">mais</span>
+        <span class="sem"><i></i>sem dado</span>
       </div>
     </div>
+    <section class="det" id="det" aria-live="polite"></section>
   </main>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
 (async () => {
+  const $ = (id) => document.getElementById(id);
   window.addEventListener("unhandledrejection", () => {
-    const c = document.getElementById("carregando");
-    if (c) c.textContent = "Dados do mapa não encontrados. Rode `uv run mapa` e `uv run federal 2025` no pipeline.";
+    if (!$("det").innerHTML) $("det").innerHTML = `<p class="aviso">Dados do mapa não encontrados. Rode <code>uv run mapa</code> e <code>uv run federal 2025</code> no pipeline.</p>`;
   });
-  const CAPITAIS = { RO:"1100205",AC:"1200401",AM:"1302603",RR:"1400100",PA:"1501402",AP:"1600303",TO:"1721000",MA:"2111300",PI:"2211001",CE:"2304400",RN:"2408102",PB:"2507507",PE:"2611606",AL:"2704302",SE:"2800308",BA:"2927408",MG:"3106200",ES:"3205309",RJ:"3304557",SP:"3550308",PR:"4106902",SC:"4205407",RS:"4314902",MS:"5002704",MT:"5103403",GO:"5208707",DF:"5300108" };
-  // Colunas de cada registro do ano: população, despesa, saúde, educação, segurança, receita, própria, União, estado, FUNDEB, empréstimos
+  // Colunas de cada registro do ano (mapa.py): população, despesa, áreas, receita e origem dela, tributos.
   const I = { pop: 0, desp: 1, saude: 2, edu: 3, seg: 4, pago: 5, rec: 6, propria: 7, uniao: 8, estado: 9, fundeb: 10, credito: 11,
     iptu: 12, iss: 13, itbi: 14, irrf: 15, taxas: 16, cosip: 17, outrosTrib: 18, cotaIcms: 19, cotaIpva: 20 };
-  const AREA = { total: I.desp, saude: I.saude, edu: I.edu, seg: I.seg };
-  const NOME_AREA = { total: "tudo", saude: "saúde", edu: "educação", seg: "segurança pública" };
-  const FAIXAS = [[5e3, "até 5 mil moradores"], [1e4, "de 5 a 10 mil moradores"], [2e4, "de 10 a 20 mil moradores"], [5e4, "de 20 a 50 mil moradores"], [1e5, "de 50 a 100 mil moradores"], [5e5, "de 100 a 500 mil moradores"], [Infinity, "mais de 500 mil moradores"]];
-  const faixaDe = (pop) => FAIXAS.findIndex(([ate]) => pop <= ate);
+  const TRIBUTOS = [["IPTU", I.iptu], ["ISS (imposto sobre serviços)", I.iss], ["ITBI (compra de imóveis)", I.itbi], ["Taxas", I.taxas], ["Iluminação pública", I.cosip], ["Outros tributos", I.outrosTrib]];
+  const PUBLICA_POR_CIDADE = new Set(["PB", "MG"]);   // estados que divulgam o gasto do governo estadual em cada município
   const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
   const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const reais = (v) => `R$ ${nf0.format(Math.round(v))}`;
-  const curto = (v) => v >= 1e12 ? `R$ ${new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v / 1e12)} tri` : v >= 1e9 ? `R$ ${nf1.format(v / 1e9)} bi` : v >= 1e6 ? `R$ ${nf1.format(v / 1e6)} mi` : `R$ ${nf0.format(v / 1e3)} mil`;
-  const pct = (v) => `${nf0.format(v * 100)}%`;
-  const pct1 = (v) => `${nf1.format(Math.abs(v) * 100)}%`;
+  const curto = (v) => v >= 1e12 ? `R$ ${nf2.format(v / 1e12)} tri` : v >= 1e9 ? `R$ ${nf1.format(v / 1e9)} bi` : v >= 1e6 ? `R$ ${nf1.format(v / 1e6)} mi` : `R$ ${nf0.format(v / 1e3)} mil`;
   const semAcento = (t) => t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
-  const BASE = document.documentElement.dataset.dados || "";   // pasta dos arquivos gerados pelo pipeline
+  const slug = (t) => semAcento(t).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const BASE = document.documentElement.dataset.dados || "";
   const json = (u) => fetch(BASE + u).then((r) => { if (!r.ok) throw new Error(`${u}: ${r.status}`); return r.json(); });
 
-  // O arquivo federal depende de downloads que o Portal da Transparência às vezes bloqueia: sem ele,
-  // o mapa funciona e só a pergunta "O que vem do governo federal" some.
+  $("det").innerHTML = `<p class="aviso">Desenhando o mapa…</p>`;
   const SEM_FEDERAL = { ano: 0, mun: {}, meses_beneficios: { "novo-bolsa-familia": [], bpc: [] } };
-  const [geoMun, geoUf, nomes, serie, ipca, rfb, federal, andamento] = await Promise.all([
+  const [geoMun, geoUf, nomes, serie, ipca, rfb, federal] = await Promise.all([
     ...["municipios.geojson", "estados.geojson", "nomes.json", "serie.json", "ipca.json", "rfb.json"].map(json),
     json("federal-2025.json").catch(() => SEM_FEDERAL),
-    json("andamento.json").catch(() => null),
   ]);
-  // Anos com prestação de contas anual e, depois deles, o ano em andamento (relatório bimestral):
-  // números de janeiro até um mês, só com gasto total, receita e origem do dinheiro.
-  const ANO_MIN = serie.anos[0], ANO_FECHADO = serie.anos.at(-1);
-  const parcial = andamento && andamento.ano > ANO_FECHADO ? andamento : null;
-  const ANO_MAX = parcial ? parcial.ano : ANO_FECHADO;
-  if (!federal.ano) document.getElementById("q-fed").remove();
-  const porAno = {};
-  const inssAno = {};   // benefícios do INSS pagos em cada município: {ibge: [total, aposentadorias, pensões]}
-  async function carregarAno(ano) {
+  const ANO_MIN = serie.anos[0], ANO_MAX = serie.anos.at(-1);
+  const SIGLA = Object.fromEntries(Object.entries(nomes.uf).map(([cod, [, sg]]) => [cod, sg]));
+
+  // ----- dados de cada ano -----
+  const porAno = {}, inssAno = {}, contasAno = {}, federalAno = {}, estadual = {};
+  async function carregar(ano) {
     if (!porAno[ano]) {
-      const [d, inss] = await Promise.all([json(`anos/${ano}.json`), json(`inss/${ano}.json`).catch(() => ({}))]);
-      inssAno[ano] = inss; porAno[ano] = d;
+      const [d, inss, contas] = await Promise.all([json(`anos/${ano}.json`), json(`inss/${ano}.json`).catch(() => ({})), json(`contas/${ano}.json`).catch(() => ({}))]);
+      inssAno[ano] = inss; contasAno[ano] = contas; porAno[ano] = d;
     }
     return porAno[ano];
   }
-  const areasAno = {};   // gasto por área (28 funções), carregado só quando um cartão é aberto
-  // Despesa por natureza e balanço patrimonial de cada município e estado: {id: {n: [...], b: [...]}}.
-  // n: pessoal, juros, custeio, investimentos, inversões, amortização, restos a pagar processados e não processados.
-  // b: caixa, ativo financeiro, passivo financeiro, empréstimos de curto e de longo prazo, provisões de longo prazo.
-  const contasAno = {};
-  async function carregarAreas(ano) {
-    if (!areasAno[ano]) {
-      const vazio = () => ({});
-      const [a, c, anterior] = await Promise.all([json(`areas/${ano}.json`).catch(vazio), json(`contas/${ano}.json`).catch(vazio), json(`contas/${ano - 1}.json`).catch(vazio)]);
-      contasAno[ano] = c; contasAno[ano - 1] ??= anterior; areasAno[ano] = a;
+  /** O orçamento do governo federal no ano, somado em poucas linhas. Vem do arquivo do Explorer, que é grande: chega depois. */
+  function federalDe(ano) {
+    if (!(ano in federalAno)) {
+      federalAno[ano] = null;
+      json(`../explorer/${ano}.json`).then((d) => {
+        const c = d.colunas, f = c.indexOf("funcao"), g = c.indexOf("gnd"), e = c.indexOf("empenhado");
+        let tot = 0, juros = 0, rol = 0; const F = {};
+        for (const l of d.linhas) { const v = l[e] || 0; tot += v; F[l[f]] = (F[l[f]] || 0) + v; if (String(l[g]) === "2") juros += v; else if (String(l[g]) === "6") rol += v; }
+        const de = (k) => F[k] || 0, divida = juros + rol;
+        federalAno[ano] = { tot, juros, rol, linhas: [["Dívida (juros e troca de dívida velha por nova)", divida], ["Aposentadorias e pensões", de("09")],
+          ["Repasses a estados e prefeituras e outros encargos", de("28") - divida], ["Assistência social (Bolsa Família, BPC)", de("08")], ["Saúde", de("10")], ["Educação", de("12")],
+          ["Outras áreas", tot - de("28") - de("09") - de("08") - de("10") - de("12")]] };
+        if (estado.ano === ano) atualizar();
+      }).catch(() => { federalAno[ano] = false; if (estado.ano === ano) atualizar(); });
     }
-    return areasAno[ano];
+    return federalAno[ano];
   }
-  document.getElementById("carregando").remove();
-  // O IBGE entrega os polígonos no sentido anti-horário (padrão GeoJSON); o d3 espera o contrário
-  // e leria cada um como "o globo inteiro menos o polígono". Inverte polígono a polígono.
+  /** Gasto do governo estadual em cada cidade, só para os estados que publicam. */
+  const publicaEm = (sg, ano) => PUBLICA_POR_CIDADE.has(sg) && ano === ANO_MAX;   // só há arquivo do ano mais recente
+  function estadualDe(sg, ano) {
+    if (!publicaEm(sg, ano)) return null;
+    const k = `${sg}-${ano}`;
+    if (!(k in estadual)) {
+      estadual[k] = null;
+      json(`../estados/${sg.toLowerCase()}/${ano}.json`).then((d) => { estadual[k] = d; if (estado.ano === ano) atualizar(); }).catch(() => { estadual[k] = false; });
+    }
+    return estadual[k] || null;
+  }
+
+  // O IBGE entrega os polígonos no sentido anti-horário (padrão GeoJSON); o d3 espera o contrário.
   for (const geo of [geoMun, geoUf]) {
     for (const f of geo.features) {
-      const g = f.geometry;
-      const polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
-      for (const p of polys) {
-        if (d3.geoArea({ type: "Polygon", coordinates: p }) > 2 * Math.PI) for (const anel of p) anel.reverse();
-      }
+      const g = f.geometry, polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
+      for (const p of polys) if (d3.geoArea({ type: "Polygon", coordinates: p }) > 2 * Math.PI) for (const anel of p) anel.reverse();
     }
   }
   const feicao = { mun: new Map(geoMun.features.map((f) => [f.properties.id, f])), uf: new Map(geoUf.features.map((f) => [f.properties.id, f])) };
 
-  const estado = { esfera: "uf", medida: "desp", area: "total", ano: ANO_FECHADO, sel: null, fluxo: true, real: false, rk: { uf: "", porte: 0, ordem: "desc" } };
-  /** Fator que leva reais de um ano a reais de hoje (IPCA); 1 quando a correção está desligada. */
-  const fator = (ano = estado.ano) => (estado.real ? ipca.fatores[ano] ?? 1 : 1);
-  const ehParcial = (ano = estado.ano) => !!parcial && ano === parcial.ano;
-  const rotuloAno = (ano = estado.ano) => (ehParcial(ano) ? `${ano} (até ${parcial.ate})` : `${ano}`);
-  let doc = await carregarAno(estado.ano);
-  const svg = d3.select("#mapa");
-  const g = svg.append("g");
-  const gMun = g.append("g"), gUfFill = g.append("g"), gUf = g.append("g");
-  const projecao = d3.geoMercator();
-  const caminho = d3.geoPath(projecao);
-  const palco = document.getElementById("palco");
-  // No celular (ver o CSS) a página rola, o mapa fica preso no alto e a busca vai para o cabeçalho.
-  const estreito = matchMedia("(max-width: 760px), (max-height: 520px) and (pointer: coarse)");
-  const css = (nome) => getComputedStyle(document.documentElement).getPropertyValue(nome).trim();
-  const verdes = () => ["--r0", "--r1", "--r2", "--r3", "--r4", "--r5"].map(css);
-  const ocres = () => ["--o0", "--o1", "--o2", "--o3", "--o4", "--o5"].map(css);
-  const azuis = () => ["--a0", "--a1", "--a2", "--a3", "--a4", "--a5"].map(css);
+  // nivel: o que se olha (brasil, estado, cidade). uf e mun: o lugar escolhido. q: a pergunta. grupo: o governo
+  // que o mapa mostra sozinho (null = a pergunta inteira). unidade: como os números aparecem.
+  const estado = { nivel: "brasil", uf: null, mun: null, q: "q1", grupo: null, unidade: "morador", ano: ANO_MAX, real: false };
+  let doc = await carregar(estado.ano);
+  const fator = () => (estado.real ? ipca.fatores[estado.ano] ?? 1 : 1);
 
+  // ----- contas -----
+  const temReceita = (r) => !!r && r.length > I.rec && r[I.rec] > 0;
+  const temTributos = (r) => !!r && r.length > I.cotaIpva;
+  const tributosLocais = (r) => r[I.iptu] + r[I.iss] + r[I.itbi] + r[I.taxas] + r[I.cosip] + r[I.outrosTrib];
+  const soma = (...xs) => { const ys = xs.filter((x) => x !== null && x !== undefined && Number.isFinite(x)); return ys.length ? d3.sum(ys) : null; };
+  const juntar = (lista) => { const a = []; for (const r of lista) for (let i = 0; i < r.length; i++) a[i] = (a[i] || 0) + (r[i] || 0); return a; };
+  const memo = {};
+  const doAno = (nome, fn) => ((memo[nome] ??= {})[estado.ano] ??= fn());
+  /** As prefeituras de cada estado, somadas (só as que declararam receita). */
+  const prefeituras = () => doAno("pref", () => {
+    const t = {}, com = {};
+    for (const [id, r] of Object.entries(doc.mun)) {
+      if (!temReceita(r)) continue;
+      const uf = id.slice(0, 2), a = (t[uf] ??= []);
+      com[uf] = (com[uf] || 0) + 1;
+      for (let i = 0; i < r.length; i++) a[i] = (a[i] || 0) + r[i];
+    }
+    return { soma: t, com };
+  });
+  // Quantas prefeituras cada estado tem (o Distrito Federal não tem: presta contas como estado).
+  const QUANTAS = {};
+  for (const id of Object.keys(nomes.mun)) if (id.slice(0, 2) !== "53") QUANTAS[id.slice(0, 2)] = (QUANTAS[id.slice(0, 2)] || 0) + 1;
+  const somaIcms = () => doAno("icms", () => { const t = {}; for (const [id, r] of Object.entries(doc.mun)) if (temTributos(r)) t[id.slice(0, 2)] = (t[id.slice(0, 2)] || 0) + r[I.cotaIcms]; return t; });
+  const popBrasil = () => doAno("pop", () => d3.sum(Object.values(doc.uf), (r) => r[I.pop]));
+  /** Impostos federais atribuídos a uma cidade: o total do estado (Receita Federal) repartido pelo peso dela no ICMS. Estimativa. */
+  function federalDaCidade(id) {
+    const r = doc.mun[id], uf = id.slice(0, 2), tot = somaIcms()[uf], doEstado = rfb.anos[estado.ano]?.[SIGLA[uf]];
+    return temTributos(r) && tot && doEstado ? (doEstado * r[I.cotaIcms]) / tot : null;
+  }
+  const mesesBF = federal.meses_beneficios["novo-bolsa-familia"].length, mesesBPC = federal.meses_beneficios.bpc.length;
+  const temBeneficios = () => estado.ano === federal.ano;
+  /** O que o governo federal paga direto às pessoas numa cidade: [INSS total, aposentadorias, pensões, Bolsa Família, BPC]. */
+  function diretoDaCidade(id) {
+    const i = inssAno[estado.ano]?.[id] || [0, 0, 0], f = temBeneficios() ? federal.mun[id] : null;
+    return [i[0], i[1], i[2], f && mesesBF ? (f[8] * 12) / mesesBF : 0, f && mesesBPC ? (f[9] * 12) / mesesBPC : 0];
+  }
+  const diretoPorUf = () => doAno("direto", () => {
+    const t = {}, ids = new Set([...Object.keys(inssAno[estado.ano] || {}), ...(temBeneficios() ? Object.keys(federal.mun) : [])]);
+    for (const id of ids) { const a = (t[id.slice(0, 2)] ??= [0, 0, 0, 0, 0]); diretoDaCidade(id).forEach((v, i) => (a[i] += v)); }
+    return t;
+  });
+  const emprestimos = (id) => { const b = contasAno[estado.ano]?.[id]?.b; return b ? b[3] + b[4] : null; };
+  const emprestimosPorUf = () => doAno("emp", () => { const t = {}; for (const [id, x] of Object.entries(contasAno[estado.ano] || {})) if (id.length === 7 && x.b) t[id.slice(0, 2)] = (t[id.slice(0, 2)] || 0) + x.b[3] + x.b[4]; return t; });
+
+  /** Tudo o que o mapa pode pintar para um estado (2 dígitos) ou uma cidade (7), sempre por morador. */
+  const numerosMemo = {};
+  function numeros(id) {
+    const chave = `${estado.ano}-${id}`;
+    if (numerosMemo[chave]) return numerosMemo[chave];
+    const n = {};
+    if (id.length === 2) {
+      const p = prefeituras().soma[id], g = doc.uf[id], pop = g?.[I.pop] ?? p?.[I.pop];
+      const por = (v) => (v === null || v === undefined || !pop ? null : v / pop);
+      const d = diretoPorUf()[id];
+      n.paga_pref = por(temTributos(p) ? tributosLocais(p) : null);
+      n.paga_est = por(g && g.length > I.outrosTrib ? g[I.taxas] + g[I.outrosTrib] : null);
+      n.paga_fed = por(rfb.anos[estado.ano]?.[SIGLA[id]] ?? null);
+      n.gasta_pref = por(p ? p[I.desp] : null); n.gasta_est = por(g ? g[I.desp] : null);
+      n.gasta_total = soma(n.gasta_pref, n.gasta_est);
+      n.recebe_pref = por(temReceita(p) ? p[I.uniao] + p[I.estado] + p[I.fundeb] : null);
+      n.recebe_est = por(temReceita(g) ? g[I.uniao] + g[I.fundeb] : null);
+      n.gasta_fed = por(d && d[0] + d[3] + d[4] > 0 ? d[0] + d[3] + d[4] : null);
+      n.volta_total = soma(n.recebe_pref, n.recebe_est, n.gasta_fed);
+      n.saldo_pref = por(temReceita(p) ? p[I.rec] - p[I.desp] : null);
+      n.saldo_est = por(temReceita(g) ? g[I.rec] - g[I.desp] : null);
+    } else {
+      const r = doc.mun[id], pop = r?.[I.pop];
+      const por = (v) => (v === null || v === undefined || !pop ? null : v / pop);
+      const d = diretoDaCidade(id);
+      n.paga_pref = por(temTributos(r) ? tributosLocais(r) : null);
+      n.paga_est = por(temTributos(r) ? r[I.cotaIcms] * 4 + r[I.cotaIpva] * 2 : null);
+      n.paga_fed = por(r ? federalDaCidade(id) : null);
+      n.gasta_pref = por(r ? r[I.desp] : null);
+      n.gasta_est = null;   // só existe para os estados que publicam; ver gastoEstadualNaCidade
+      n.gasta_total = n.gasta_pref;
+      n.recebe_pref = por(temReceita(r) ? r[I.uniao] + r[I.estado] + r[I.fundeb] : null);
+      n.recebe_est = null;
+      n.gasta_fed = por(d[0] + d[3] + d[4] > 0 ? d[0] + d[3] + d[4] : null);
+      n.volta_total = soma(n.recebe_pref, n.gasta_fed);
+      n.saldo_pref = por(temReceita(r) ? r[I.rec] - r[I.desp] : null);
+      n.saldo_est = null;
+    }
+    n.paga_total = soma(n.paga_pref, n.paga_est, n.paga_fed);
+    return (numerosMemo[chave] = n);
+  }
+  /** Gasto do governo estadual numa cidade, por morador. O arquivo é grande e só é buscado quando o mapa precisa dele. */
+  function gastoEstadualNaCidade(id) {
+    const v = estadualDe(SIGLA[id.slice(0, 2)], estado.ano)?.mun?.[id]?.local, pop = doc.mun[id]?.[I.pop];
+    return v && pop ? v / pop : null;
+  }
+
+  const PERGUNTAS = [
+    { id: "q1", longo: "1 · Quanto se paga aqui", mapa: "paga_total" },
+    { id: "q2", longo: "2 · Como cada governo usa o dinheiro", mapa: "gasta_total" },
+    { id: "q3", longo: "3 · O que volta para cá", mapa: "volta_total" },
+    { id: "q4", longo: "4 · As contas fecham? Sobras, faltas e dívidas", mapa: "saldo_pref" },
+  ];
+  const FRASE = {
+    paga_total: "Quanto cada morador paga aos três governos juntos", paga_pref: "Quanto cada morador paga à prefeitura", paga_est: "Quanto cada morador paga ao governo do estado", paga_fed: "Quanto cada morador paga ao governo federal",
+    gasta_total: "Quanto prefeitura e estado gastam, por morador", gasta_pref: "Quanto a prefeitura gasta, por morador", gasta_est: "Quanto o governo do estado gasta, por morador",
+    volta_total: "Quanto volta para cada lugar, por morador", recebe_pref: "Quanto a prefeitura recebe dos outros governos, por morador", recebe_est: "Quanto o governo do estado recebe do governo federal, por morador", gasta_fed: "Quanto o governo federal paga direto às pessoas, por morador",
+    saldo_pref: "Onde sobrou e onde faltou dinheiro nas prefeituras", saldo_est: "Onde sobrou e onde faltou dinheiro nos governos estaduais",
+  };
+  const RAMPA = {
+    pref: ["#e3efe2", "#bfdcc1", "#92c39b", "#5ba473", "#2f8050", "#175a35"],
+    est: ["#f6ead0", "#ecd29b", "#dfb563", "#c8922f", "#9c6c16", "#6e4a0c"],
+    fed: ["#e4ecf7", "#b9cfec", "#86abd9", "#5285c0", "#2c62a0", "#173f70"],
+    tudo: ["#ece6d6", "#d6cdb6", "#b5aa8d", "#8c8168", "#5f5744", "#383326"],
+  };
+
+  /** A conta do lugar escolhido, pergunta por pergunta, cada uma dividida pelos três governos. null se não há lugar. */
+  function conta() {
+    const { nivel, ano } = estado, cid = nivel === "cidade";
+    const popBR = popBrasil(), fedR = federalDe(ano) || null;
+    let p, g, ge, pop, popE, nomeLugar, sub, nP, nE, pagaEst, pagaFed, direto, empP, empG, local, publica = false, links, faltam = "";
+    const milhoes = (n) => (n >= 1e6 ? `${nf1.format(n / 1e6)} milhões de moradores` : n >= 1e3 ? `${nf0.format(n / 1e3)} mil moradores` : `${nf0.format(n)} moradores`);
+    const todas = [["pref", "Todas as cidades", "/cidades"], ["est", "Todos os estados", "/estados"], ["fed", "Governo federal", "/"]];
+    if (cid) {
+      const id = estado.mun;
+      if (!id) return null;
+      const [nm, sg] = nomes.mun[id], cod = id.slice(0, 2);
+      p = doc.mun[id]; ge = doc.uf[cod]; g = null; nomeLugar = nm;
+      links = [["pref", `Prefeitura de ${nm}`, sg === "DF" ? "/cidades/df/brasilia" : `/cidades/${sg.toLowerCase()}/${slug(nm)}`], ["est", `Governo do estado (${sg})`, `/estados/${sg.toLowerCase()}`], ["fed", "Governo federal", "/"]];
+      if (!p) return { semConta: true, nome: nm, sub: `${nm} · ${nomes.uf[cod][0]} · ${ano}`, links, df: sg === "DF" };
+      pop = p[I.pop]; popE = ge?.[I.pop];
+      sub = `${nm} · ${nomes.uf[cod][0]} · ${milhoes(pop)} · ${ano}`;
+      nP = ["Prefeitura", "a prefeitura"]; nE = ["Governo do estado", "o governo do estado"];
+      pagaEst = temTributos(p) ? [["IPVA dos veículos da cidade", p[I.cotaIpva] * 2], ["ICMS (imposto embutido nas compras)", p[I.cotaIcms] * 4]] : null;
+      pagaFed = federalDaCidade(id); direto = diretoDaCidade(id); empP = emprestimos(id); empG = emprestimos(cod);
+      publica = publicaEm(sg, ano); local = publica ? estadualDe(sg, ano)?.mun?.[id]?.local ?? null : null;
+    } else {
+      const ufs = nivel === "estado" ? (estado.uf ? [estado.uf] : null) : Object.keys(nomes.uf);
+      if (!ufs) return null;
+      const ps = ufs.map((u) => prefeituras().soma[u]).filter(Boolean), gs = ufs.map((u) => doc.uf[u]).filter(Boolean);
+      p = ps.length ? juntar(ps) : null; g = gs.length ? juntar(gs) : null; ge = g;
+      pop = g?.[I.pop] ?? p?.[I.pop]; popE = pop;
+      const n = d3.sum(ufs, (u) => QUANTAS[u] || 0), fora = n - d3.sum(ufs, (u) => prefeituras().com[u] || 0);
+      if (fora > 0) faltam = ` ${nf0.format(fora)} das ${nf0.format(n)} prefeituras não entregaram as contas de ${ano} e ficam fora das somas.`;
+      nP = [`As ${nf0.format(n)} prefeituras`, `as ${nf0.format(n)} prefeituras`];
+      nE = nivel === "estado" ? ["Governo do estado", "o governo do estado"] : [`Os ${gs.length} governos estaduais`, `os ${gs.length} governos estaduais`];
+      nomeLugar = nivel === "estado" ? nomes.uf[estado.uf][0] : "Brasil";
+      sub = nivel === "estado" ? `${nomeLugar} · ${milhoes(pop)} · ${n ? `${nf0.format(n)} cidades · ` : ""}${ano}` : `Brasil · o país inteiro · ${ano}`;
+      const estadual = d3.sum(gs, (r) => (r.length > I.outrosTrib ? r[I.taxas] + r[I.outrosTrib] : 0));
+      pagaEst = estadual > 0 ? [["ICMS, IPVA e outros impostos estaduais", estadual]] : null;
+      const rf = d3.sum(ufs, (u) => rfb.anos[ano]?.[SIGLA[u]] || 0); pagaFed = rf > 0 ? rf : null;
+      direto = juntar(ufs.map((u) => diretoPorUf()[u]).filter(Boolean)); if (!direto.length) direto = [0, 0, 0, 0, 0];
+      empP = contasAno[ano] && ps.length ? d3.sum(ufs, (u) => emprestimosPorUf()[u] || 0) : null;
+      empG = soma(...ufs.map(emprestimos));
+      links = nivel === "estado" ? [["est", `Governo do estado (${SIGLA[estado.uf]})`, `/estados/${SIGLA[estado.uf].toLowerCase()}`], ["pref", "Todas as cidades", "/cidades"], ["fed", "Governo federal", "/"]] : todas;
+    }
+    const L = (r, v, pp = pop, o = {}) => ({ r, v, pop: pp, ...o });
+    const texto = (r, t) => ({ r, t });
+    const semMapaPais = "igual para o país inteiro, não entra no mapa", semMapaEstado = "igual para o estado inteiro, não entra no mapa";
+    // 1 · quanto se paga
+    const tp = temTributos(p) ? tributosLocais(p) : null, te = pagaEst ? d3.sum(pagaEst, (x) => x[1]) : null, tf = pagaFed ?? null, t1 = soma(tp, te, tf);
+    const q1 = { total: t1, pop, estim: cid, barra: t1 ? [tp || 0, te || 0, tf || 0] : null, extra: "A barra mostra a parte de cada governo.",
+      nota: cid ? "Estimativas: os impostos estadual e federal só são divulgados por estado; a parte da cidade é calculada pelo peso dela no ICMS."
+        : nivel === "estado" ? "O imposto é registrado onde a empresa tem sede, e não onde mora quem paga." : "",
+      grupos: [
+        p && { gov: "pref", nome: `Para ${nP[1]}`, total: tp, pop, mapa: "paga_pref", linhas: tp !== null ? TRIBUTOS.map(([n, i]) => L(n, p[i])).filter((x) => x.v > 0) : [] },
+        { gov: "est", nome: `Para ${nE[1]}`, estim: cid, total: te, pop, mapa: "paga_est", linhas: (pagaEst || []).map(([n, v]) => L(n, v)) },
+        { gov: "fed", nome: "Para o governo federal", estim: cid, total: tf, pop, mapa: "paga_fed", linhas: tf !== null ? [L("Imposto de renda, INSS, PIS/Cofins e outros", tf)] : [] },
+      ] };
+    // 2 · como cada governo usa
+    const areas = (r, pp) => {
+      const tres = [["Saúde", r[I.saude]], ["Educação", r[I.edu]], ["Segurança", r[I.seg]]].sort((a, b) => b[1] - a[1]);
+      return [...tres.map(([n, v]) => L(n, v, pp)), L("Outras áreas", r[I.desp] - d3.sum(tres, (x) => x[1]), pp)];
+    };
+    const q2 = { total: cid ? p[I.desp] : soma(p?.[I.desp], g?.[I.desp]), pop,
+      extra: cid ? "O número de cima é o da prefeitura. Estado e governo federal aparecem com a conta inteira deles."
+        : nivel === "estado" ? "O número de cima soma as prefeituras e o governo do estado." : "O número de cima soma as prefeituras e os governos estaduais.",
+      nota: (cid ? (publica ? "O gasto do estado nesta cidade não conta os salários, que ele registra na sede de cada órgão. " : "O governo do estado não publica quanto do gasto dele acontece em cada cidade. ")
+        + "Nos blocos do estado e do governo federal, \"por morador\" quer dizer por morador do estado e do país." : nivel === "estado" ? "No bloco do governo federal, \"por morador\" quer dizer por morador do país." : ""),
+      grupos: [
+        p && { gov: "pref", nome: cid ? "Prefeitura · gasta aqui" : nP[0], total: p[I.desp], pop, mapa: "gasta_pref", linhas: areas(p, pop) },
+        ge && { gov: "est", nome: nE[0] + (cid ? " · no estado inteiro" : ""), total: ge[I.desp], pop: popE, mapa: !cid || publica ? "gasta_est" : null, semMapa: semMapaEstado,
+          linhas: [...areas(ge, popE), ...(cid ? [local !== null ? L(`Quanto disso é gasto em ${nomeLugar}`, local) : texto(`Quanto disso é gasto em ${nomeLugar}`, publica ? "sem dado" : "não publica")] : [])] },
+        { gov: "fed", nome: "Governo federal · no país inteiro", total: fedR ? fedR.tot : null, pop: popBR, mapa: null, semMapa: semMapaPais, linhas: fedR ? fedR.linhas.map(([n, v]) => L(n, v, popBR)) : [] },
+      ] };
+    // 3 · o que volta
+    const rp = temReceita(p) ? p[I.uniao] + p[I.estado] + p[I.fundeb] : null, rg = !cid && temReceita(g) ? g[I.uniao] + g[I.fundeb] : null;
+    const dp = direto[0] + direto[3] + direto[4] > 0 ? direto[0] + direto[3] + direto[4] : null;
+    const q3 = { total: soma(rp, rg, dp), pop,
+      extra: cid ? "Soma o que chega à prefeitura e o que é pago direto às pessoas." : nivel === "estado" ? "Soma o que chega às prefeituras, ao governo do estado e direto às pessoas." : "Soma o que chega às prefeituras, aos governos estaduais e direto às pessoas.",
+      nota: (cid ? "O INSS conta onde o benefício é pago: quem mora aqui e recebe em outra cidade aparece lá. " : "") + (temBeneficios() ? "" : `Bolsa Família e BPC por lugar só existem para ${federal.ano || "2025"}.`),
+      grupos: [
+        p && { gov: "pref", nome: `Para ${nP[1]}`, total: rp, pop, mapa: "recebe_pref", linhas: rp !== null ? [L("Repasses do governo federal", p[I.uniao]), L(nivel === "brasil" ? "Repasses dos governos estaduais" : "Repasses do governo do estado", p[I.estado]), L("FUNDEB (fundo da educação)", p[I.fundeb])] : [] },
+        !cid && g && { gov: "est", nome: `Para ${nE[1]}`, total: rg, pop, mapa: "recebe_est", linhas: rg !== null ? [L("Repasses do governo federal", g[I.uniao]), L("FUNDEB (fundo da educação)", g[I.fundeb])] : [] },
+        { gov: "fed", nome: "Direto às pessoas, pago pelo governo federal", total: dp, pop, mapa: "gasta_fed", linhas: dp !== null ? [L("Aposentadorias do INSS", direto[1]), L("Pensões por morte", direto[2]), L("Auxílios e outros do INSS", direto[0] - direto[1] - direto[2]),
+          ...(temBeneficios() ? [L("Bolsa Família", direto[3]), L("BPC (idosos e pessoas com deficiência)", direto[4])] : [])] : [] },
+      ] };
+    // 4 · as contas fecham?
+    const caixa = (r, pp, emp) => [L("Receita do ano", r[I.rec], pp), L("Despesa do ano", r[I.desp], pp), ...(emp !== null && emp !== undefined ? [L("Empréstimos a pagar", emp, pp)] : [])];
+    const sp = temReceita(p) ? p[I.rec] - p[I.desp] : null, se = temReceita(ge) ? ge[I.rec] - ge[I.desp] : null;
+    const q4 = { total: p ? sp : se, pop: p ? pop : popE, saldo: true,
+      extra: !p ? "O número de cima é o do governo do estado: receita menos despesa." : cid ? "O número de cima é o da prefeitura: receita do ano menos despesa do ano." : "O número de cima é o da soma das prefeituras: receita menos despesa.",
+      nota: cid ? "Nos blocos do estado e do governo federal, \"por morador\" quer dizer por morador do estado e do país." : nivel === "estado" ? "No bloco do governo federal, \"por morador\" quer dizer por morador do país." : "",
+      grupos: [
+        p && { gov: "pref", nome: nP[0], total: sp, saldo: true, pop, mapa: "saldo_pref", linhas: sp !== null ? caixa(p, pop, empP) : [] },
+        ge && { gov: "est", nome: nE[0] + (cid ? " · conta do estado inteiro" : ""), total: se, saldo: true, pop: popE, mapa: cid ? null : "saldo_est", semMapa: semMapaEstado, linhas: se !== null ? caixa(ge, popE, empG) : [] },
+        { gov: "fed", nome: "Governo federal · conta do país", total: null, semValor: true, pop: popBR, mapa: null, semMapa: semMapaPais, linhas: fedR ? [L("Juros da dívida pagos no ano", fedR.juros, popBR), L("Dívida velha trocada por nova", fedR.rol, popBR)] : [] },
+      ] };
+    for (const q of [q1, q2, q3, q4]) { q.grupos = q.grupos.filter(Boolean); q.nota = (q.nota + faltam).trim(); }
+    return { nome: nomeLugar, sub, links, q1, q2, q3, q4 };
+  }
+
+  /** Um valor na unidade escolhida: total do ano ou dividido pelos moradores. */
+  function fmt(v, pop, o = {}) {
+    if (v === null || v === undefined || !Number.isFinite(v)) return "sem dado";
+    const a = Math.abs(v) * fator(), base = estado.unidade === "total" || !pop ? curto(a) : reais(a / pop);
+    return (o.saldo ? (v >= 0 ? "sobrou " : "faltou ") : "") + (o.estim ? "cerca de " : "") + base;
+  }
+  /** O que o mapa pinta agora: a pergunta inteira, ou só o governo escolhido no detalhe. */
+  function chaveDoMapa(c) {
+    const perg = PERGUNTAS.find((x) => x.id === estado.q), g = c?.[estado.q]?.grupos.find((x) => x.gov === estado.grupo && x.mapa);
+    return { chave: g ? g.mapa : perg.mapa, gov: g ? g.gov : estado.q === "q4" ? "pref" : null };
+  }
+
+  // ----- mapa -----
+  const caixa = $("caixa"), svg = d3.select("#mapa"), raiz = svg.append("g");
+  const gMun = raiz.append("g"), gUfFill = raiz.append("g"), gUf = raiz.append("g");
+  const projecao = d3.geoMercator(), caminho = d3.geoPath(projecao);
   const pathsMun = gMun.selectAll("path").data(geoMun.features).join("path").attr("class", "mun");
   const pathsUfFill = gUfFill.selectAll("path").data(geoUf.features).join("path").attr("class", "ufsel");
-  gUf.selectAll("path").data(geoUf.features).join("path").attr("class", "uf");
-
-  const centroCapital = {};
-  for (const [uf, id] of Object.entries(CAPITAIS)) centroCapital[uf] = d3.geoCentroid(feicao.mun.get(id));
-
-  // No nível "Brasil" cada estado mostra a soma das prefeituras dele. Assim ninguém precisa
-  // escolher entre "prefeitura" e "governo estadual": as mesmas perguntas valem nos dois zooms,
-  // e o governo do estado aparece dentro do estado, com link para a página dele.
-  const somaUf = {};
-  function agregado(ano) {
-    if (!somaUf[ano]) {
-      const t = {};
-      for (const [id, r] of Object.entries(porAno[ano].mun)) {
-        if (!temReceita(r)) continue;
-        const a = (t[id.slice(0, 2)] ??= []);
-        for (let i = 0; i < r.length; i++) a[i] = (a[i] || 0) + r[i];
-      }
-      somaUf[ano] = t;
+  const pathsUf = gUf.selectAll("path").data(geoUf.features).join("path").attr("class", "uf");
+  let W = 0, H = 0, transformada = d3.zoomIdentity, valores = {}, chaveAtual = "paga_total";
+  const zoom = d3.zoom().scaleExtent([1, 80]).on("zoom", (ev) => { transformada = ev.transform; raiz.attr("transform", transformada); pino(); $("balao").hidden = true; });
+  svg.call(zoom).on("dblclick.zoom", null);
+  function medir() {
+    const r = caixa.getBoundingClientRect();
+    if (!r.width || (r.width === W && r.height === H)) return false;
+    W = r.width; H = r.height;
+    svg.attr("viewBox", `0 0 ${W} ${H}`);
+    projecao.fitExtent([[2, 2], [W - 2, H - 2]], geoUf);
+    pathsMun.attr("d", caminho); pathsUfFill.attr("d", caminho); pathsUf.attr("d", caminho);
+    zoom.extent([[0, 0], [W, H]]).translateExtent([[0, 0], [W, H]]);
+    return true;
+  }
+  function enquadrar(f, animar = true) {
+    let t = d3.zoomIdentity;
+    if (f) {
+      const [[x0, y0], [x1, y1]] = caminho.bounds(f), s = Math.min(60, 0.85 / Math.max((x1 - x0) / W, (y1 - y0) / H));
+      t = d3.zoomIdentity.translate(W / 2, H / 2).scale(Math.max(1, s)).translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
     }
-    return somaUf[ano];
+    (animar ? svg.transition().duration(450) : svg).call(zoom.transform, t);
   }
-  const base = () => (estado.esfera === "uf" ? agregado(estado.ano) : doc.mun);
-  const nome = (id) => nomes[estado.esfera][id] || ["?", "?"];
-  const ufDe = (id) => nome(id)[1];
-  const temReceita = (r) => r && r.length > I.rec && r[I.rec] > 0;
-  const repasses = (r) => r[I.uniao] + r[I.estado] + r[I.fundeb];
-
-  /** As quatro medidas de um registro; `area` só vale para a despesa. */
-  const MEDIDA = {
-    desp: (r, area = estado.area) => (r[AREA[area]] / r[I.pop]) * fator(),
-    rec: (r) => (temReceita(r) ? (r[I.rec] / r[I.pop]) * fator() : null),
-    saldo: (r) => (temReceita(r) ? (r[I.rec] - r[I.desp]) / r[I.rec] : null),
-    dep: (r) => (temReceita(r) ? Math.max(0, Math.min(1, repasses(r) / r[I.rec])) : null),   // declarações com erro passam de 100%
-    imp: (r) => (temReceita(r) && r.length > I.cotaIpva ? (tributosLocais(r) / r[I.pop]) * fator() : null),
-  };
-  /** Tributos cobrados pela prefeitura dos moradores e empresas da cidade (sem o IR retido dos próprios servidores). */
-  const tributosLocais = (r) => r[I.iptu] + r[I.iss] + r[I.itbi] + r[I.taxas] + r[I.cosip] + r[I.outrosTrib];
-  const SO_PREFEITURAS = new Set(["fed", "imp"]);
-  const COM_FLUXO = new Set(["dep", "fed", "imp"]);   // perguntas em que as linhas de dinheiro aparecem   // perguntas que só existem para cidades
-  const valor = (r) => (r ? MEDIDA[estado.medida](r) : null);
-
-  // O que sai de uma cidade em impostos. À prefeitura: medido. Ao estado e à União: estimativas
-  // a partir das cotas que o estado devolve (IPVA: metade; ICMS: um quarto) e do peso da cidade no estado.
-  const somaIcms = {};
-  function pesoNoEstado(id) {
-    const ano = estado.ano;
-    if (!somaIcms[ano]) {
-      somaIcms[ano] = {};
-      for (const [k, x] of Object.entries(doc.mun)) if (x.length > I.cotaIcms) { const u = nomes.mun[k][1]; somaIcms[ano][u] = (somaIcms[ano][u] || 0) + x[I.cotaIcms]; }
-    }
-    const r = doc.mun[id], tot = somaIcms[ano][nomes.mun[id][1]];
-    return r && r.length > I.cotaIcms && tot ? r[I.cotaIcms] / tot : null;
+  const alvoDoZoom = () => (estado.nivel === "cidade" && (estado.uf || estado.mun) ? feicao.uf.get(estado.uf || estado.mun.slice(0, 2)) : null);
+  function pino() {
+    const el = $("pino"), f = estado.nivel === "cidade" && estado.mun ? feicao.mun.get(estado.mun) : null;
+    el.hidden = !f;
+    if (!f) return;
+    const [x, y] = transformada.apply(caminho.centroid(f));
+    el.style.transform = `translate(${x}px, ${y}px)`;
+    el.querySelector("b").textContent = nomes.mun[estado.mun][0];
   }
-  function saiDaqui(id) {
-    const r = doc.mun[id];
-    if (!temReceita(r) || r.length <= I.cotaIpva) return null;
-    const k = fator(), peso = pesoNoEstado(id), fedUf = rfb.anos[estado.ano]?.[nomes.mun[id][1]];
-    const pref = [["IPTU", r[I.iptu]], ["ISS (imposto sobre serviços)", r[I.iss]], ["ITBI (compra de imóveis)", r[I.itbi]], ["Taxas", r[I.taxas]],
-      ["Iluminação pública", r[I.cosip]], ["Outros tributos", r[I.outrosTrib]]].map(([n, v]) => [n, v * k]).filter((x) => x[1] > 0);
-    return { pref, totalPref: d3.sum(pref, (x) => x[1]), ipva: r[I.cotaIpva] * 2 * k, icms: r[I.cotaIcms] * 4 * k,
-      uniao: peso !== null && fedUf ? fedUf * peso * k : null };
+  function pintar(c) {
+    const cid = estado.nivel === "cidade", { chave, gov } = chaveDoMapa(c);
+    chaveAtual = chave; valores = {};
+    const ids = cid ? Object.keys(nomes.mun) : Object.keys(nomes.uf);
+    const soDoEstado = cid && chave === "gasta_est" ? estado.uf : null;   // nas cidades, o gasto estadual só existe dentro do estado escolhido
+    for (const id of ids) { const v = soDoEstado ? (id.startsWith(soDoEstado) ? gastoEstadualNaCidade(id) : null) : numeros(id)[chave]; valores[id] = v === null || v === undefined || !Number.isFinite(v) ? null : v; }
+    const rampa = RAMPA[gov || "tudo"], escala = d3.scaleQuantile().domain(Object.values(valores).filter((v) => v !== null)).range(rampa);
+    const cor = (f) => { const v = valores[f.properties.id]; return v === null || v === undefined ? "var(--sem-dados)" : escala(v); };
+    gMun.attr("display", cid ? null : "none"); gUfFill.attr("display", cid ? "none" : null); gUf.attr("display", cid ? null : "none");
+    if (cid) pathsMun.attr("fill", cor).classed("ativo", (f) => f.properties.id === estado.mun).filter((f) => f.properties.id === estado.mun).raise();
+    else pathsUfFill.attr("fill", cor).classed("ativo", (f) => estado.nivel === "estado" && f.properties.id === estado.uf).filter((f) => estado.nivel === "estado" && f.properties.id === estado.uf).raise();
+    $("frase").textContent = FRASE[chave];
+    const saldo = chave.startsWith("saldo");
+    $("leg-menos").textContent = saldo ? "faltou mais" : "menos"; $("leg-mais").textContent = saldo ? "sobrou mais" : "mais";
+    $("faixas").innerHTML = rampa.map((x) => `<i style="background:${x}"></i>`).join("");
+    pino();
   }
-
-  // Dinheiro federal por município (só 2025, Portal da Transparência): repasses à prefeitura por programa,
-  // a outras entidades da cidade e benefícios pagos direto às pessoas. Colunas na ordem de federal.colunas.
-  const FED = [["FPM (já sem a parte retida para o FUNDEB)", 0, "--c-uniao"], ["SUS (saúde)", 1, "--c-uniao"], ["FUNDEB (complemento da União e parte federal do fundo)", 2, "--c-fundeb"],
-    ["Royalties e compensações", 3, "--c-uniao"], ["Educação (merenda, transporte…)", 4, "--c-uniao"], ["Assistência social", 5, "--c-uniao"],
-    ["Outros repasses à prefeitura", 6, "--c-uniao"], ["A outras entidades na cidade", 7, "--c-estado"],
-    ["Bolsa Família (direto às pessoas)", 8, "--c-bf"], ["BPC (direto às pessoas)", 9, "--c-bpc"],
-    ["Aposentadorias e pensões do INSS", 10, "--c-inss"]];
-  const mesesBen = { 8: federal.meses_beneficios["novo-bolsa-familia"].length, 9: federal.meses_beneficios.bpc.length };
-  const beneficiosParciais = mesesBen[8] < 12 || mesesBen[9] < 12;
-  /** Valores federais do ano para um município. Benefício com menos de 12 meses de dados é projetado para o ano. */
-  function fedDe(id) {
-    const f = federal.mun[id];
-    if (!f) return null;
-    return [...f.map((v, i) => (mesesBen[i] ? (v * 12) / mesesBen[i] : v)), inssAno[federal.ano]?.[id]?.[0] ?? 0];
-  }
-  const fedUf = {};
-  const fedPorMorador = (id) => {
-    if (id.length === 2) {   // estado: tudo o que chegou às cidades dele, por morador
-      if (!(id in fedUf)) {
-        let v = 0, pop = 0;
-        for (const k of Object.keys(federal.mun)) if (k.startsWith(id)) { const f = fedDe(k), r = porAno[federal.ano]?.mun[k]; if (f && r) { v += d3.sum(f); pop += r[I.pop]; } }
-        fedUf[id] = pop ? v / pop : null;
-      }
-      return fedUf[id];
-    }
-    const f = fedDe(id), r = porAno[federal.ano]?.mun[id];
-    return f && r ? d3.sum(f) / r[I.pop] : null;
-  };
-  /** Valor da medida escolhida para um ente (a medida federal não vem das contas do ente). */
-  const valorDe = (id) => (estado.medida === "fed" ? fedPorMorador(id) : valor(base()[id]));
-
-  function formatar(v, medida = estado.medida) {
-    if (v === null || v === undefined) return "—";
-    if (medida === "desp" || medida === "rec" || medida === "fed" || medida === "imp") return reais(v);
-    if (medida === "saldo") return v >= 0 ? `sobrou ${pct1(v)}` : `faltou ${pct1(v)}`;
-    return pct(v);
-  }
-
-  let escala;
-  function pintar() {
-    const ids = Object.keys(base());
-    const vals = ids.map(valorDe).filter((v) => v !== null && Number.isFinite(v));
-    let cores, rot;
-    if (estado.medida === "saldo") {
-      const o = ocres(), v = verdes();
-      cores = [o[4], o[2], o[0], v[0], v[2], v[4]];
-      escala = d3.scaleThreshold().domain([-0.10, -0.03, 0, 0.03, 0.10]).range(cores);
-      rot = ["faltou 10%+", "0", "sobrou 10%+"];
-    } else {
-      cores = estado.medida === "dep" ? ocres() : estado.medida === "fed" ? azuis() : verdes();
-      escala = d3.scaleQuantile().domain(vals).range(cores);
-      const q = [d3.min(vals), d3.median(vals), d3.max(vals)];
-      rot = vals.length ? (estado.medida === "dep" ? q.map(pct) : q.map((x) => nf0.format(x))) : ["—"];
-    }
-    const cor = (f) => { const v = valorDe(f.properties.id); return v === null || !Number.isFinite(v) ? css("--sem-dados") : escala(v); };
-    pathsMun.attr("display", estado.esfera === "mun" ? null : "none").attr("fill", (f) => (estado.esfera === "mun" ? cor(f) : null));
-    pathsUfFill.attr("display", estado.esfera === "uf" ? null : "none").attr("fill", (f) => (estado.esfera === "uf" ? cor(f) : null));
-    pathsMun.classed("ativo", (f) => estado.sel === f.properties.id);
-    pathsUfFill.classed("ativo", (f) => estado.sel === f.properties.id);
-    document.getElementById("faixas").innerHTML = cores.map((c) => `<span style="background:${c}"></span>`).join("");
-    document.getElementById("rotulos").innerHTML = rot.map((t) => `<span>${t}</span>`).join("");
-    const quem = estado.esfera === "mun" ? "da prefeitura" : "das prefeituras";
-    document.getElementById("leg-titulo").textContent = {
-      desp: `Gasto ${quem} por morador (R$)${estado.area === "total" ? "" : ", " + NOME_AREA[estado.area]}`,
-      rec: `Receita ${quem} por morador (R$)`,
-      saldo: "Receita menos despesa",
-      dep: "Parte da receita que vem de repasses",
-      fed: "Dinheiro do governo federal por morador (R$)",
-      imp: "Impostos pagos à prefeitura por morador (R$)",
-    }[estado.medida] + ` · ${rotuloAno()}` + (estado.real && (estado.medida === "desp" || estado.medida === "rec") ? `, em reais de ${ipca.base}` : "");
-    // No fluxo, destaca a borda de onde o dinheiro sai (o DF) e do estado envolvido na seleção.
-    const noFluxo = COM_FLUXO.has(estado.medida) && estado.fluxo;
-    const ufSel = estado.sel ? (estado.esfera === "mun" ? estado.sel.slice(0, 2) : estado.sel) : null;
-    gUf.selectAll("path")
-      .classed("origem", (f) => noFluxo && f.properties.id === "53")
-      .classed("destino", (f) => noFluxo && f.properties.id === ufSel && ufSel !== "53")
-      .filter((f) => noFluxo && (f.properties.id === "53" || f.properties.id === ufSel)).raise();
-  }
-
-  /** Total por estado que o fluxo geral desenha: repasses da União (contas dos entes) ou todo o dinheiro federal. */
-  function totaisFluxo() {
-    if (estado.medida === "imp") {   // arrecadação federal em cada estado (Receita Federal)
-      return Object.fromEntries(Object.entries(rfb.anos[estado.ano] || {}).filter(([uf]) => uf !== "DF").map(([uf, v]) => [uf, v * fator()]));
-    }
-    if (estado.medida !== "fed") return totaisUniao();
-    const tot = {};
-    for (const id of Object.keys(federal.mun)) {
-      const uf = nomes.mun[id]?.[1];
-      if (uf && uf !== "DF") tot[uf] = (tot[uf] || 0) + d3.sum(fedDe(id));
-    }
-    return tot;
-  }
-  function totaisUniao() {
-    const tot = {};
-    for (const [id, r] of Object.entries(base())) {
-      if (!temReceita(r) || ufDe(id) === "DF") continue;
-      tot[ufDe(id)] = (tot[ufDe(id)] || 0) + r[I.uniao];
-    }
-    return tot;
-  }
-
-  function textos() {
-    const mun = estado.esfera === "mun";
-    document.querySelectorAll("[data-quem]").forEach((e) => (e.textContent = "a prefeitura"));
-    document.querySelectorAll("[data-dela]").forEach((e) => (e.textContent = "da prefeitura"));
-    document.querySelectorAll("[data-doestado]").forEach((e) => (e.textContent = "do estado"));
-    document.getElementById("areas").hidden = estado.medida !== "desp" || ehParcial();
-    const fed = estado.medida === "fed", imp = estado.medida === "imp";
-    document.getElementById("bloco-fluxo").hidden = !COM_FLUXO.has(estado.medida);
-    for (const idc of ["ano", "ano-menos", "ano-mais", "tocar", "real"]) document.getElementById(idc).disabled = fed;
-    if (ehParcial()) document.getElementById("real").disabled = true;
-    const avisoParcial = document.getElementById("so-parcial");
-    avisoParcial.hidden = !ehParcial();
-    if (ehParcial()) avisoParcial.textContent = `${parcial.ano} ainda está em andamento: os números vão de janeiro a ${parcial.ate} e vêm do relatório que ${mun ? "as prefeituras entregam" : "os governos entregam"} a cada dois meses. Há gasto total, receita, saldo e origem do dinheiro; o gasto por área e os impostos só saem na prestação de contas anual.`;
-    document.getElementById("esf-uf").disabled = SO_PREFEITURAS.has(estado.medida);
-    document.getElementById("so-2025").hidden = !fed;
-    document.querySelector("#bloco-fluxo .camada span").firstChild.textContent = fed ? "Mostrar o dinheiro saindo de Brasília" : imp ? "Mostrar o dinheiro indo e voltando" : "Mostrar os repasses da União";
-    document.getElementById("ano-rotulo").textContent = estado.ano;
-    document.getElementById("ano-topo").textContent = rotuloAno();
-    // a explicação da pergunta escolhida fica numa linha só, embaixo das perguntas
-    document.getElementById("q-explica").innerHTML = document.querySelector(`[data-medida="${estado.medida}"] span`)?.innerHTML ?? "";
-    document.getElementById("ano").value = estado.ano;
-    const n = Object.keys(base()).length;
-    document.getElementById("rodape").innerHTML = ehParcial()
-      ? `<strong>${nf0.format(n)} ${mun ? "prefeituras" : "estados (prefeituras somadas)"}</strong> com o relatório de janeiro a ${parcial.ate} de ${parcial.ano} entregue ao Tesouro Nacional. Valores acumulados no ano, que ainda podem ser corrigidos.`
-      : mun
-      ? `<strong>${nf0.format(n)} prefeituras</strong> com contas de ${estado.ano} declaradas ao Tesouro Nacional. ${estado.real ? `Valores corrigidos pela inflação, em reais de ${ipca.base}.` : "Valores da época, sem correção pela inflação."}`
-      : `<strong>${n} estados</strong>, cada um com a soma das prefeituras dele em ${estado.ano}. Clique num estado para ver as cidades. ${estado.real ? `Valores corrigidos pela inflação, em reais de ${ipca.base}.` : "Valores da época, sem correção pela inflação."} O gasto do governo federal em cada lugar ainda não está no mapa.`;
-    const maiores = Object.entries(totaisFluxo()).sort((a, b) => b[1] - a[1]).slice(0, 4);
-    if (imp) {
-      document.getElementById("fluxo-explica").textContent = estado.sel
-        ? "Linhas tracejadas: o que sai da cidade em impostos, para o estado e para a União (estimativas). Linhas cheias: o que volta em repasses para a prefeitura."
-        : `Cada linha vai de um estado até Brasília. A espessura é tudo o que a Receita Federal arrecadou naquele estado em ${estado.ano}. Clique numa cidade para ver o que sai dela e o que volta.`;
-      document.getElementById("maiores").innerHTML = estado.sel ? "" : maiores.map(([uf, v]) => `<li>${uf}: ${curto(v)}</li>`).join("");
-      return;
-    }
-    if (fed) {
-      document.getElementById("fluxo-explica").textContent = estado.sel
-        ? "As linhas mostram o que saiu de Brasília para esta cidade em 2025: para a prefeitura, para outras entidades e direto para as pessoas (INSS, Bolsa Família e BPC)."
-        : "Cada linha sai de Brasília e vai até um estado. A espessura é tudo o que o governo federal mandou para as cidades daquele estado em 2025. Clique numa cidade para ver o detalhe.";
-      document.getElementById("maiores").innerHTML = estado.sel ? "" : maiores.map(([uf, v]) => `<li>${uf}: ${curto(v)}</li>`).join("");
-      document.getElementById("rodape").innerHTML = `<strong>Dinheiro federal em 2025</strong>, pelo Portal da Transparência: repasses às prefeituras e a outras entidades, mais Bolsa Família e BPC${beneficiosParciais ? ` (estimados para o ano a partir de ${mesesBen[8]} mês de dados)` : ""}, e as aposentadorias e pensões do INSS, pelo Ministério da Previdência. Não inclui o gasto direto de órgãos federais.`;
-      return;
-    }
-    document.getElementById("fluxo-explica").textContent = estado.sel
-      ? (mun ? "As linhas mostram o que chegou a esta cidade no ano: da União (de Brasília) e do estado e do FUNDEB (da capital do estado)."
-             : "A linha de Brasília é o que este governo estadual recebeu da União. As linhas que saem da capital são o que ele repassou a cada prefeitura.")
-      : `Cada linha sai de Brasília e vai até um estado. A espessura é o total que a União repassou ${mun ? "às prefeituras" : "ao governo"} daquele estado em ${estado.ano}. Clique ${mun ? "numa cidade" : "num estado"} para ver só o que chegou ali.`;
-    document.getElementById("maiores").innerHTML = estado.sel ? "" : maiores.map(([uf, v]) => `<li>${uf}: ${curto(v)}</li>`).join("");
-  }
-
-  /** Mediana de cada medida entre os entes comparáveis (mesma faixa de população, ou os estados). */
-  function parecidas(id) {
-    const r = base()[id];
-    const mun = estado.esfera === "mun";
-    const fx = mun ? faixaDe(r[I.pop]) : null;
-    const pares = Object.entries(base()).filter(([k, x]) => (mun ? faixaDe(x[I.pop]) === fx : nomes.uf[k][1] !== "DF"));
-    const grupo = pares.map(([, x]) => x);
-    const fed = mun && estado.ano === federal.ano ? d3.median(pares.map(([k]) => fedPorMorador(k)).filter((v) => v !== null)) : null;
-    const med = (fn) => d3.median(grupo.map(fn).filter((v) => v !== null && Number.isFinite(v)));
-    return {
-      rotulo: mun ? `cidades ${FAIXAS[fx][1]}` : "os outros estados", n: grupo.length,
-      rec: med(MEDIDA.rec), desp: med((x) => MEDIDA.desp(x, "total")), saude: med((x) => MEDIDA.desp(x, "saude")),
-      edu: med((x) => MEDIDA.desp(x, "edu")), seg: med((x) => MEDIDA.desp(x, "seg")), saldo: med(MEDIDA.saldo), dep: med(MEDIDA.dep), fed, imp: mun ? med(MEDIDA.imp) : null,
-    };
-  }
-
-  // ----- Cartão de um estado ou do país: os mesmos quatro passos, sobre o lugar inteiro -----
-  const areasSoma = {};
-  /** Gasto por área das prefeituras e do(s) governo(s) estadual(is) de um estado, ou do país (uf = null). */
-  function areasDoLugar(ano, uf) {
-    const chave = `${ano}-${uf ?? "br"}`;
-    if (!areasSoma[chave]) {
-      const pref = {}, gov = {};
-      for (const [c, a] of Object.entries(areasAno[ano].mun || {})) if (!uf || c.startsWith(uf)) for (const [cod, v] of Object.entries(a)) pref[cod] = (pref[cod] || 0) + v;
-      for (const [c, a] of Object.entries(areasAno[ano].uf || {})) if (!uf || c === uf) for (const [cod, v] of Object.entries(a)) gov[cod] = (gov[cod] || 0) + v;
-      areasSoma[chave] = { pref, gov };
-    }
-    return areasSoma[chave];
-  }
-  function cartaoLugar(el, id) {
-    const k = fator(), ano = estado.ano, q = estado.medida;
-    const ufs = id ? [id] : Object.keys(nomes.uf);
-    const prefs = ufs.map((u) => agregado(ano)[u]).filter(Boolean);   // as prefeituras de cada estado, somadas
-    const govs = ufs.map((u) => doc.uf?.[u]).filter(Boolean);          // os governos estaduais
-    const S = (lista, i) => d3.sum(lista, (r) => r[i] || 0) * k;
-    const nome = id ? nomes.uf[id][0] : "Brasil", sigla = id ? nomes.uf[id][1] : null;
-    const pop = d3.sum(prefs, (r) => r[I.pop]) || d3.sum(govs, (r) => r[I.pop]);
-    const nCidades = Object.keys(doc.mun).filter((c) => !id || c.startsWith(id)).length;
-    const porHab = (v) => (pop ? `${reais(v / pop)} por morador` : "");
-    const linhas = (itens) => `<ul class="linhas">${itens.filter((x) => x && x[1] > 0).map(([rot, v, cor, marca]) => `<li><span>${cor ? `<i style="background:var(${cor})"></i>` : ""}${rot}${marca ? ` <small>${marca}</small>` : ""}</span><em>${curto(v)}</em></li>`).join("")}</ul>`;
-    const bloco = (titulo, resumo, corpo, aberto) => `<details class="bloco"${aberto ? " open" : ""}><summary><span>${titulo}</span><b>${resumo}</b></summary><div class="bloco-corpo">${corpo}</div></details>`;
-    const governo = id ? "o governo do estado" : "os governos estaduais", doGoverno = id ? "do governo do estado" : "dos governos estaduais";
-    const blocos = [];
-
-    // 1 · O que se paga aqui. No estado e no país os três valores são medidos (não há estimativa).
-    if (!ehParcial()) {
-      const aPref = d3.sum(prefs, (r) => (r.length > I.cotaIpva ? tributosLocais(r) : 0)) * k;
-      const aoEstado = d3.sum(govs, (r) => (r.length > I.outrosTrib ? r[I.taxas] + r[I.outrosTrib] : 0)) * k;
-      const aUniao = (id ? rfb.anos[ano]?.[sigla] ?? 0 : d3.sum(Object.values(rfb.anos[ano] || {}))) * k;
-      const total = aPref + aoEstado + aUniao;
-      if (total > 0) blocos.push(bloco("1 · O que se paga aqui", curto(total), `
-        <p class="bloco-nota">${porHab(total)}. É o imposto recolhido ${id ? "no estado" : "no país"} por moradores e empresas.</p>
-        ${linhas([["Às prefeituras: IPTU, ISS, taxas", aPref, "--c-propria", "medido"], [`A${id ? "o governo do estado" : "os governos estaduais"}: ICMS, IPVA e outros`, aoEstado, "--c-estado", "medido"], ["À União: imposto de renda, INSS, PIS/Cofins e outros", aUniao, "--c-uniao", "medido"]])}
-        <p class="nota">O imposto é contado onde é recolhido (a sede da empresa), não onde mora quem paga no fim. ${id ? "Por isso estados com muitas sedes de empresas aparecem com mais." : ""}</p>`, q === "imp"));
-    }
-
-    // 2 · O que volta: o que a União manda para os governos daqui e paga direto às pessoas.
-    const repPref = S(prefs, I.uniao), repGov = S(govs, I.uniao), fundeb = S(prefs, I.fundeb) + S(govs, I.fundeb);
-    let inss = 0, bf = 0, bpc = 0;
-    for (const [c, v] of Object.entries(inssAno[ano] || {})) if (!id || c.startsWith(id)) inss += v[0] * k;
-    if (ano === federal.ano) for (const c of Object.keys(federal.mun)) if (!id || c.startsWith(id)) { const f = fedDe(c); if (f) { bf += f[8]; bpc += f[9]; } }
-    const volta = repPref + repGov + inss + bf + bpc;
-    if (volta > 0) blocos.push(bloco(id ? "2 · O que volta para cá" : "2 · O que a União devolve", curto(volta), `
-      <p class="bloco-nota">${porHab(volta)}.</p>
-      <h4>Para os governos <small>medido</small></h4>
-      ${linhas([["Repasses da União às prefeituras", repPref, "--c-uniao"], [`Repasses da União a${id ? "o governo do estado" : "os governos estaduais"}`, repGov, "--c-uniao"]])}
-      ${inss + bf + bpc > 0 ? `<h4>Direto às pessoas <small>${ano === federal.ano && beneficiosParciais ? "estimativa" : "medido"}</small></h4>
-      ${linhas([["Aposentadorias e pensões do INSS", inss, "--c-inss"], ["Bolsa Família", bf, "--c-bf"], ["BPC (idosos e pessoas com deficiência)", bpc, "--c-bpc"]])}` : ""}
-      <p class="nota">Fora desta conta: o FUNDEB (${curto(fundeb)}), que mistura dinheiro federal com imposto do próprio estado, e o que a União gasta direto aqui (universidades, hospitais, quartéis).${ano === federal.ano ? "" : " Bolsa Família e BPC só estão disponíveis para 2025."}</p>`, q === "dep" || q === "rec" || q === "fed"));
-
-    // 3 · Onde é gasto: prefeituras e governo(s) do estado, cada um com a sua parte à vista.
-    const gPref = S(prefs, I.desp), gGov = S(govs, I.desp);
-    const chaveSel = id ?? null;
-    if (!areasAno[ano]) carregarAreas(ano).then(() => { if (estado.esfera === "uf" && (estado.sel ?? null) === chaveSel) detalhe(estado.sel); });
-    let porArea = areasAno[ano] && !ehParcial() ? "" : `<p class="nota">${ehParcial() ? "O gasto por área só sai na prestação de contas anual." : "Carregando as áreas…"}</p>`;
-    if (areasAno[ano] && !ehParcial()) {
-      const { pref, gov } = areasDoLugar(ano, id ?? null);
-      const ord = [...new Set([...Object.keys(pref), ...Object.keys(gov)])].map((c) => [c, pref[c] || 0, gov[c] || 0]).sort((a, b) => b[1] + b[2] - (a[1] + a[2])).slice(0, 8);
-      const maior = ord[0] ? ord[0][1] + ord[0][2] : 1;
-      porArea = `<h4>As maiores áreas</h4>
-        <ul class="barras">${ord.map(([c, p, g]) => `<li><span>${nomes.areas[c] || c}</span><em>${curto((p + g) * k)}</em><i class="duas" style="width:${((p + g) / maior) * 100}%"><b style="flex:${p};background:var(--r3)"></b><b style="flex:${g};background:var(--a3)"></b></i></li>`).join("")}</ul>
-        <p class="nota"><i class="q" style="background:var(--r3)"></i> prefeituras <i class="q" style="background:var(--a3)"></i> ${id ? "governo do estado" : "governos estaduais"}</p>`;
-    }
-    blocos.push(bloco("3 · Onde é gasto", curto(gPref + gGov), `
-      <p class="bloco-nota">${porHab(gPref + gGov)}${gPref > 0 ? `, somando prefeituras e ${governo}` : ""}.</p>
-      ${linhas([[`As ${nf0.format(nCidades)} prefeituras`, gPref, "--r3"], [id ? "O governo do estado" : "Os governos estaduais", gGov, "--a3"]])}
-      ${porArea}
-      <p class="nota">Em geral, a prefeitura cuida de creche, ensino fundamental, posto de saúde, limpeza e ruas; o governo do estado, de ensino médio, polícia, hospitais maiores e estradas. Parte do gasto ${doGoverno} são repasses às prefeituras, que aparecem também no gasto delas: a soma está um pouco acima do real.</p>`, q === "desp"));
-
-    // 4 · Sobrou ou faltou, para cada um.
-    const conta = (rot, lista) => {
-      const rec = S(lista, I.rec), desp = S(lista, I.desp);
-      if (!(rec > 0)) return "";
-      const d = rec - desp;
-      return `<li><span>${rot}</span><em>${d >= 0 ? "sobrou" : "faltou"} ${curto(Math.abs(d))} · ${pct1(d / rec)} da receita</em></li>`;
-    };
-    const contas = conta("As prefeituras, somadas", prefs) + conta(id ? "O governo do estado" : "Os governos estaduais, somados", govs);
-    const sPref = S(prefs, I.rec) - S(prefs, I.desp), sGov = S(govs, I.rec) - S(govs, I.desp), sTot = sPref + sGov;
-    if (contas) blocos.push(bloco(ehParcial() ? `4 · Como está a conta até ${parcial.ate}` : "4 · Sobrou ou faltou", `${sTot >= 0 ? "sobrou" : "faltou"} ${curto(Math.abs(sTot))}`, `
-      <ul class="linhas">${contas}</ul>
-      <p class="nota">Receita menos gasto comprometido no ano. ${!id ? "Clique num estado para ver a conta dele." : nCidades ? "Dentro do estado há prefeituras no azul e no vermelho: veja as cidades." : ""}</p>`, q === "saldo"));
-
-    el.innerHTML = `
-      ${id ? `<button type="button" class="fechar" id="ao-brasil">← Brasil</button>` : ""}
-      <span class="sub">${id ? "Estado" : "País"} · ${nf0.format(pop)} moradores${nCidades ? ` · ${nf0.format(nCidades)} cidades` : ""} · ${rotuloAno()}</span>
-      <h2>${nome}</h2>
-      ${blocos.join("")}
-      ${id ? `${nCidades ? `<button type="button" class="ver-fluxo" id="ver-cidades">Ver as cidades de ${nome} →</button>` : `<p class="nota">O Distrito Federal não tem prefeituras: o governo de lá faz o papel de estado e de município.</p>`}
-        <p class="nota"><a href="/estados/${sigla.toLowerCase()}">Página completa do governo de ${nome}</a>. Toque num título para abrir ou fechar.</p>`
-        : `<p class="nota">Clique num estado no mapa para ver a conta dele, ou procure sua cidade. Abaixo, os estados em ordem.</p><div id="rk-caixa"></div>`}`;
-    el.querySelector("#ao-brasil")?.addEventListener("click", voltarAoBrasil);
-    el.querySelector("#ver-cidades")?.addEventListener("click", () => entrarNoEstado(id));
-    if (!id) ranking(el.querySelector("#rk-caixa"));
-  }
-
-  /** Cartão de um ente: a "conta" dele em blocos (o que sai, o que volta, onde gasta, como fechou). */
-  function detalhe(id) {
-    const el = document.getElementById("detalhe");
-    const mun = estado.esfera === "mun";
-    if (!mun) { cartaoLugar(el, id); return; }
-    if (!id) { ranking(el); return; }
-    const r = base()[id];
-    const [nm, uf] = nome(id);
-    if (!r) {
-      el.innerHTML = `<button type="button" class="fechar" id="fechar">← ranking</button><span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${rotuloAno()}</span><h2>${nm}</h2><p class="nota">${ehParcial() ? `Sem o relatório de janeiro a ${parcial.ate} de ${parcial.ano} entregue ao Tesouro.` : `Sem prestação de contas ao Tesouro em ${estado.ano}.`} Tente outro ano.</p>`;
-      return;
-    }
-    const pop = r[I.pop], k = fator(), q = estado.medida;
-    const porHab = (v) => `${reais(v / pop)} por morador`;
-    const linhas = (itens) => `<ul class="linhas">${itens.filter((x) => x && x[1] > 0).map(([rot, v, cor, marca]) => `<li><span>${cor ? `<i style="background:var(${cor})"></i>` : ""}${rot}${marca ? ` <small>${marca}</small>` : ""}</span><em>${curto(v)}</em></li>`).join("")}</ul>`;
-    const bloco = (titulo, resumo, corpo, aberto) => `<details class="bloco"${aberto ? " open" : ""}><summary><span>${titulo}</span><b>${resumo}</b></summary><div class="bloco-corpo">${corpo}</div></details>`;
-    const blocos = [];
-    const comReceita = temReceita(r);
-    const fd = mun && estado.ano === federal.ano ? fedDe(id) : null;
-
-    // O que sai daqui (só cidades): impostos à prefeitura (medido), ao estado e à União (estimativas).
-    const sai = mun ? saiDaqui(id) : null;
-    let foraSai = null;
-    if (sai) {
-      foraSai = sai.ipva + sai.icms + (sai.uniao || 0);
-      const total = sai.totalPref + foraSai;
-      blocos.push(bloco("1 · O que se paga aqui", `cerca de ${curto(total)}`, `
-        <p class="bloco-nota">${porHab(total)}, somando o medido e o estimado.</p>
-        <h4>Para a prefeitura <small>medido</small> · ${curto(sai.totalPref)}</h4>${linhas(sai.pref)}
-        <h4>Para o governo do estado <small>estimativa</small> · ${curto(sai.ipva + sai.icms)}</h4>
-        ${linhas([["IPVA dos veículos da cidade", sai.ipva], ["ICMS (imposto embutido nas compras)", sai.icms]])}
-        <h4>Para a União <small>estimativa</small> · ${sai.uniao === null ? "—" : curto(sai.uniao)}</h4>
-        ${linhas([["Imposto de renda, INSS, PIS/Cofins e outros", sai.uniao]])}
-        <p class="nota">Como estimamos: o estado devolve à prefeitura metade do IPVA e um quarto do ICMS, então multiplicamos essas cotas por 2 e por 4. Para a União, repartimos o que a Receita Federal arrecadou no estado pelo peso da cidade no ICMS. O imposto é registrado onde é recolhido (a sede da empresa), não onde mora quem paga: trate como ordem de grandeza.</p>`, q === "imp"));
-    }
-
-    // O que volta (ou, para um estado, o que chega de fora).
-    if (comReceita) {
-      const R = (i) => r[i] * k;
-      const pessoas = fd ? fd[8] + fd[9] : 0;
-      const inss = mun ? inssAno[estado.ano]?.[id] : null;   // [total, aposentadorias, pensões], todos os anos
-      const vInss = inss ? inss[0] * k : 0;
-      const volta = R(I.uniao) + R(I.estado) + R(I.fundeb) + pessoas + vInss;
-      let razao = "";
-      // Sem a conta "de cada R$ 100 voltam tantos": ela dividia um valor medido por um estimado.
-      blocos.push(bloco("2 · O que volta para cá", curto(volta), `
-        <p class="bloco-nota">${porHab(volta)}.</p>${razao}
-        <h4>Para ${mun ? "a prefeitura" : "o governo estadual"} <small>medido</small></h4>
-        ${linhas([["Repasses da União", R(I.uniao), "--c-uniao"], [mun ? "Repasses do estado" : "Repasses de outros estados", R(I.estado), "--c-estado"], ["FUNDEB (fundo da educação)", R(I.fundeb), "--c-fundeb"]])}
-        ${inss ? `<h4>Aposentadorias e pensões do INSS <small>pago aqui</small> · ${curto(vInss)}</h4>${linhas([["Aposentadorias", inss[1] * k, "--c-inss"], ["Pensões por morte", inss[2] * k, "--c-inss"], ["Auxílios e outros", (inss[0] - inss[1] - inss[2]) * k, "--c-inss"]])}` : ""}
-        ${fd ? `<h4>Outros benefícios direto às pessoas <small>${beneficiosParciais ? "estimativa" : "medido"}</small></h4>${linhas([["Bolsa Família", fd[8], "--c-bf"], ["BPC (idosos e pessoas com deficiência)", fd[9], "--c-bpc"]])}` : ""}
-        <p class="nota">${inss ? "O INSS é o valor líquido pago pelas agências bancárias da cidade: quem mora aqui e recebe em outra cidade conta lá, então cidades sem agência aparecem com pouco e cidades-polo, com mais. " : ""}${fd ? (beneficiosParciais ? `Bolsa Família e BPC projetados para o ano a partir de ${mesesBen[8]} mês de dados.` : "") : "Bolsa Família e BPC só estão disponíveis para 2025."}</p>
-        ${q === "dep" || q === "fed" || q === "imp" ? "" : `<button type="button" class="ver-fluxo" id="ver-fluxo">Ver no mapa de onde veio →</button>`}`, q === "imp" || q === "dep" || q === "rec" || q === "fed"));
-    }
-
-    // Detalhe do dinheiro federal por programa (só 2025, só na pergunta federal).
-    if (fd && q === "fed") {
-      const tot = d3.sum(fd), maior = d3.max(fd);
-      blocos.unshift(bloco(`O que o governo federal mandou em ${federal.ano}`, curto(tot), `
-        <p class="bloco-nota">${porHab(tot)}, pelo Portal da Transparência.</p>
-        <ul class="barras">${FED.filter(([, i]) => fd[i] > 0).map(([rot, i, cor]) => `<li><span>${rot}</span><em>${curto(fd[i])}</em><i style="width:${(fd[i] / maior) * 100}%;background:var(${cor})"></i></li>`).join("")}</ul>
-        <p class="nota">Estes valores são o que a União registra ter pago, e não coincidem linha a linha com o que a prefeitura declara: o FPM aparece aqui já sem os 20% retidos para o FUNDEB e, pelo que os números indicam, sem as parcelas extras de julho, setembro e dezembro; o FUNDEB aqui não inclui a parte que vem de impostos estaduais. SUS, royalties e assistência batem com a declaração.${beneficiosParciais ? ` Bolsa Família e BPC são <b>estimativas</b> para o ano, a partir de ${mesesBen[8]} mês de dados.` : ""} O INSS é o valor líquido pago pelas agências da cidade: quem recebe em outra cidade conta lá. Não inclui o gasto direto de órgãos federais.</p>`, true));
-    }
-
-    // Onde gasta: todas as áreas e com o quê (carregados sob demanda).
-    const ct = contasAno[estado.ano]?.[id];
-    const areas = areasAno[estado.ano]?.[estado.esfera]?.[id];
-    if (!areasAno[estado.ano]) carregarAreas(estado.ano).then(() => { if (estado.sel === id) detalhe(id); });
-    let corpoAreas = `<p class="nota">Carregando as áreas…</p>`;
-    if (areas) {
-      const ord = Object.entries(areas).sort((a, b) => b[1] - a[1]);
-      const topo = ord.slice(0, 8), resto = d3.sum(ord.slice(8), (x) => x[1]);
-      const maior = topo[0]?.[1] || 1;
-      const itens = [...topo.map(([cod, v]) => [nomes.areas[cod] || cod, v]), ...(resto > 0 ? [[`Outras ${ord.length - 8} áreas`, resto]] : [])];
-      corpoAreas = `<p class="bloco-nota">${porHab(r[I.desp] * k)}. As maiores áreas:</p>
-        <ul class="barras">${itens.map(([rot, v]) => `<li><span>${rot}</span><em>${curto(v * k)} · ${pct(v / r[I.desp])}</em><i style="width:${(v / maior) * 100}%;background:var(--r3)"></i></li>`).join("")}</ul>
-        <p class="nota">Gasto comprometido no ano, por área.</p>`;
-    }
-    // Com o quê: despesa por natureza. No ano em andamento vem do relatório bimestral, sem as áreas.
-    const andando = ehParcial();
-    if (areas || (andando && areasAno[estado.ano])) {
-      if (andando) corpoAreas = `<p class="bloco-nota">${porHab(r[I.desp] * k)}, de janeiro a ${parcial.ate}.</p>`;
-      if (ct?.n) {
-        const n = ct.n, tot = d3.sum(n.slice(0, 6)) || 1;
-        const tipos = [["Salários e encargos dos servidores", n[0]], [mun ? "Serviços, materiais e outros custeios" : "Serviços, materiais, repasses a municípios e outros custeios", n[2]], ["Obras e equipamentos (investimentos)", n[3]],
-          ["Pagamento de dívida", n[5]], ["Juros da dívida", n[1]], ["Compra de imóveis e participações", n[4]]].filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
-        const maiorTipo = d3.max(tipos, (x) => x[1]) || 1;
-        corpoAreas += `<h4>Com o quê</h4>
-          <ul class="barras">${tipos.map(([rot, v]) => `<li><span>${rot}</span><em>${curto(v * k)} · ${pct(v / tot)}</em><i style="width:${(v / maiorTipo) * 100}%;background:var(--o3)"></i></li>`).join("")}</ul>
-          ${andando ? "" : `<p class="nota">Aqui entram também os pagamentos entre órgãos ${mun ? "da própria prefeitura" : "do próprio governo"} (como a contribuição ao fundo de previdência dos servidores), por isso a soma, ${curto(tot * k)}, é maior que o total por área.</p>`}`;
-      }
-      if (andando) corpoAreas += `<p class="nota">Gasto comprometido de janeiro a ${parcial.ate}. O gasto por área (saúde, educação…) só sai na prestação de contas anual.</p>`;
-    }
-    blocos.push(bloco("3 · Onde a prefeitura gasta", curto(r[I.desp] * k), corpoAreas, q === "desp"));
-
-    // Como fechou a conta do ano.
-    if (comReceita) {
-      const rec = r[I.rec] * k, desp = r[I.desp] * k, saldo = rec - desp;
-      // Restos a pagar declarados; em 2013 (e em quem não os declarou), empenhado menos pago.
-      const restos = ct?.n ? ct.n[6] + ct.n[7] : 0;
-      const semPagar = (restos > 0 ? restos : Math.max(0, r[I.desp] - r[I.pago])) * k, emprestimo = r[I.credito] * k;
-      const b = ct?.b, bAnt = contasAno[estado.ano - 1]?.[id]?.b;
-      // Sem o ativo financeiro declarado não dá para calcular a sobra acumulada.
-      const sobraAcum = b && b[1] > 0 ? (b[1] - b[2]) * k : null;
-      const sobraAntes = sobraAcum !== null && bAnt && bAnt[1] > 0 ? (bAnt[1] - bAnt[2]) * fator(estado.ano - 1) : null;
-      const sinal = (v) => (v < 0 ? `−${curto(-v)}` : curto(v));
-      if (andando) {
-        const prev = ct?.p;   // [receita prevista, orçamento] do ano inteiro
-        blocos.push(bloco(`4 · Como está a conta até ${parcial.ate}`, saldo >= 0 ? `sobram ${curto(saldo)}` : `faltam ${curto(-saldo)}`, `
-          <div class="par">
-            <div><span>Entrou (receita)</span><strong>${curto(rec)}</strong>${prev?.[0] > 0 ? `<small>${pct(r[I.rec] / prev[0])} do previsto para o ano</small>` : ""}</div>
-            <div><span>Gasto comprometido</span><strong>${curto(desp)}</strong>${prev?.[1] > 0 ? `<small>${pct(r[I.desp] / prev[1])} do orçamento do ano</small>` : ""}</div>
-          </div>
-          <p class="saldo">${saldo >= 0 ? `Até ${parcial.ate}, a receita passa do gasto comprometido em <b>${curto(saldo)}</b>.` : `Até ${parcial.ate}, o gasto comprometido passa da receita em <b>${curto(-saldo)}</b>.`}</p>
-          ${linhas([["Gasto comprometido ainda não pago", Math.max(0, r[I.desp] - r[I.pago]) * k], ["Empréstimos tomados no ano (já contados na receita)", emprestimo]])}
-          <p class="nota">Números parciais: ${parcial.meses} de 12 meses, do relatório bimestral, que ainda pode ser corrigido. No meio do ano o gasto comprometido costuma andar à frente, porque contratos do ano inteiro são comprometidos de uma vez. O caixa e as dívidas só saem no balanço do fim do ano.</p>`, q === "saldo"));
-      } else blocos.push(bloco("4 · Sobrou ou faltou", saldo >= 0 ? `sobrou ${curto(saldo)}` : `faltou ${curto(-saldo)}`, `
-        <div class="par">
-          <div><span>Entrou (receita)</span><strong>${curto(rec)}</strong></div>
-          <div><span>Saiu (despesa)</span><strong>${curto(desp)}</strong></div>
-        </div>
-        <p class="saldo">${saldo >= 0 ? `<b>Sobrou ${curto(saldo)}</b>, ${pct1(saldo / rec)} da receita.` : `<b>Faltou ${curto(-saldo)}</b>: gastou ${pct1(saldo / rec)} a mais do que recebeu.`}</p>
-        ${linhas([["Gasto que ficou sem pagar até o fim do ano", semPagar], ["Empréstimos tomados no ano (já contados na receita)", emprestimo]])}
-        ${b ? `<h4>O que ${mun ? "a prefeitura" : "o governo"} tinha e devia em 31/12 <small>balanço</small></h4>
-          <ul class="linhas">
-            <li><span>Dinheiro em caixa</span><em>${curto(b[0] * k)}</em></li>
-            ${sobraAcum !== null ? `<li><span>${sobraAcum >= 0 ? "Sobra acumulada" : "Falta acumulada"} (dinheiro e aplicações menos contas de curto prazo)</span><em>${sinal(sobraAcum)}</em></li>` : ""}
-            ${sobraAntes !== null ? `<li><span>A mesma conta um ano antes</span><em>${sinal(sobraAntes)}</em></li>` : ""}
-            ${b[3] + b[4] > 0 ? `<li><span>Dívida com empréstimos e financiamentos</span><em>${curto((b[3] + b[4]) * k)}</em></li>` : ""}
-            ${b[5] > 0 ? `<li><span>Compromissos de longo prazo (em geral, aposentadorias futuras dos servidores)</span><em>${curto(b[5] * k)}</em></li>` : ""}
-          </ul>` : ""}
-        <p class="nota">${saldo < 0
-          ? `Quem gasta mais do que recebe cobre a diferença com a sobra acumulada de anos anteriores${sobraAntes !== null ? ` (aqui, ${sinal(sobraAntes)} no começo do ano)` : ""} ou deixando contas para o ano seguinte${semPagar > 0 ? ` (${curto(semPagar)} ficaram sem pagar)` : ""}.`
-          : "A sobra do ano é receita menos gasto comprometido. O que estava em caixa e as dívidas aparecem no balanço acima, quando ele foi entregue."}</p>`, q === "saldo"));
-    }
-
-    // Comparação com parecidas e série histórica.
-    const p = parecidas(id);
-    const linhaComp = (rot, medida, v, m) => {
-      if (v === null || v === undefined) return "";
-      let sinal = "";
-      if (m !== null && m !== undefined && medida !== "saldo" && m > 0) {
-        const d = v / m - 1;
-        sinal = Math.abs(d) < 0.1 ? "parecido" : d > 0 ? `${pct(d)} acima` : `${pct(-d)} abaixo`;
-      }
-      return `<tr><th scope="row">${rot}</th><td>${formatar(v, medida)}</td><td>${formatar(m, medida)}</td><td class="sinal">${sinal}</td></tr>`;
-    };
-    const bruta = serie[estado.esfera][id] || [[], []];
-    const sr = bruta.map((linha) => linha.map((x, n) => (x ? x * fator(serie.anos[n]) : x)));
-    const max = d3.max([...sr[0], ...sr[1]], (x) => x || 0) || 1;
-    blocos.push(bloco(`Comparar com ${mun ? "cidades parecidas" : "os outros estados"} e ver outros anos`, "", `
-      <table class="comp">
-        <caption>Mediana de ${nf0.format(p.n)} ${mun ? `cidades ${FAIXAS[faixaDe(pop)][1]}` : "estados"}</caption>
-        <thead><tr><th></th><th>${mun ? "Aqui" : "Este"}</th><th>Parecidas</th><th></th></tr></thead>
-        <tbody>
-          ${mun && !andando ? linhaComp("Impostos à prefeitura por morador", "imp", MEDIDA.imp(r), p.imp) : ""}
-          ${linhaComp("Receita por morador", "rec", MEDIDA.rec(r), p.rec)}
-          ${linhaComp("Gasto por morador", "desp", MEDIDA.desp(r, "total"), p.desp)}
-          ${andando ? "" : linhaComp("· em saúde", "desp", MEDIDA.desp(r, "saude"), p.saude)}
-          ${andando ? "" : linhaComp("· em educação", "desp", MEDIDA.desp(r, "edu"), p.edu)}
-          ${mun || andando ? "" : linhaComp("· em segurança", "desp", MEDIDA.desp(r, "seg"), p.seg)}
-          ${linhaComp("Sobrou ou faltou", "saldo", MEDIDA.saldo(r), p.saldo)}
-          ${linhaComp("Vem de repasses", "dep", MEDIDA.dep(r), p.dep)}
-          ${p.fed !== undefined && p.fed !== null ? linhaComp("Dinheiro federal por morador", "fed", fedPorMorador(id), p.fed) : ""}
-        </tbody>
-      </table>
-      <div class="serie" aria-label="Receita e despesa por ano">${serie.anos.map((a, n) => `<div class="${a === estado.ano ? "atual" : ""}" title="${a}: receita ${sr[1][n] ? curto(sr[1][n]) : "—"}, despesa ${sr[0][n] ? curto(sr[0][n]) : "—"}"><span class="colunas"><span class="b rec" style="height:${((sr[1][n] || 0) / max) * 100}%"></span><span class="b${sr[0][n] ? "" : " falta"}" style="height:${sr[0][n] ? (sr[0][n] / max) * 100 : 30}%"></span></span><em>${String(a).slice(2)}</em></div>`).join("")}</div>
-      <p class="nota"><i class="q rec"></i> receita <i class="q desp"></i> despesa, por ano, ${estado.real ? `em reais de ${ipca.base}` : "em valores da época"}.</p>`, q === "desp" || q === "rec"));
-
-    el.innerHTML = `
-      <button type="button" class="fechar" id="fechar" aria-label="Fechar e voltar ao ranking">← ranking</button>
-      <span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${nf0.format(pop)} moradores · ${rotuloAno()}</span>
-      <h2>${nm}</h2>
-      ${blocos.join("")}
-      <p class="nota">Contas declaradas pelo próprio ${mun ? "município" : "estado"} ao Tesouro Nacional${estado.real ? `, em reais de ${ipca.base}` : ""}. Toque num título para abrir ou fechar.</p>`;
-    document.getElementById("ver-fluxo")?.addEventListener("click", () => definir({ medida: "dep" }, true));
-  }
-
-  /** Sem nada selecionado, o cartão mostra o ranking da pergunta escolhida, com filtros. */
-  /** Dentro de um estado: como voltar ao país e o que o governo estadual gastou (com link para a página dele). */
-  function linhaDoEstado(sigla) {
-    const id = Object.keys(nomes.uf).find((k) => nomes.uf[k][1] === sigla);
-    return `<p class="no-estado"><button type="button" class="fechar" id="ao-brasil">← Brasil</button>
-      <button type="button" class="fechar" id="ao-estado" data-uf="${id}">← ${nomes.uf[id]?.[0] ?? sigla}</button></p>`;
-  }
-  function ranking(el) {
-    const mun = estado.esfera === "mun", rk = estado.rk;
-    const titulos = {
-      desp: ["Quem mais gasta por morador", "Quem menos gasta por morador"], rec: ["Quem mais recebe por morador", "Quem menos recebe por morador"],
-      saldo: ["Onde mais sobrou", "Onde mais faltou"], dep: ["Os mais dependentes de repasses", "Os menos dependentes de repasses"],
-      fed: ["Onde chega mais dinheiro federal por morador", "Onde chega menos dinheiro federal por morador"],
-      imp: ["Onde se paga mais imposto à prefeitura", "Onde se paga menos imposto à prefeitura"],
-    }[estado.medida];
-    const un = { desp: "", rec: "", saldo: " da receita", dep: " da receita", fed: "", imp: "" }[estado.medida];
-    const linhas = Object.entries(base())
-      .filter(([id, r]) => (!mun || ((!rk.uf || nomes.mun[id][1] === rk.uf) && r[I.pop] >= rk.porte)))
-      .map(([id]) => [id, valorDe(id)]).filter(([, v]) => v !== null && Number.isFinite(v))
-      .sort((a, b) => (rk.ordem === "desc" ? b[1] - a[1] : a[1] - b[1]));
-    const ufs = [...new Set(Object.values(nomes.mun).map((x) => x[1]))].sort();
-    el.innerHTML = `
-      <span class="sub">${mun ? (rk.uf ? `Cidades · ${rk.uf}` : "Cidades") : "Estados · prefeituras somadas"} · ${rotuloAno()}</span>
-      ${mun && rk.uf ? linhaDoEstado(rk.uf) : ""}
-      <details class="rk-corpo"${rk.aberto ?? (mun && matchMedia("(min-width: 761px)").matches) ? " open" : ""}>
-      <summary><h2>${titulos[rk.ordem === "desc" ? 0 : 1]}</h2><span class="abrir">ver a lista</span></summary>
-      <div class="rk-filtros">
-        <div class="seg mini" role="group" aria-label="Ordem">
-          <button type="button" data-ordem="desc" aria-pressed="${rk.ordem === "desc"}">Maiores</button>
-          <button type="button" data-ordem="asc" aria-pressed="${rk.ordem === "asc"}">Menores</button>
-        </div>
-        ${mun ? `<select id="rk-uf" aria-label="Estado"><option value="">Brasil inteiro</option>${ufs.map((u) => `<option${u === rk.uf ? " selected" : ""}>${u}</option>`).join("")}</select>
-        <select id="rk-porte" aria-label="Tamanho da cidade">${[[0, "Todas as cidades"], [2e4, "Mais de 20 mil hab."], [1e5, "Mais de 100 mil hab."], [5e5, "Mais de 500 mil hab."]].map(([v, t]) => `<option value="${v}"${v === rk.porte ? " selected" : ""}>${t}</option>`).join("")}</select>` : ""}
-      </div>
-      <ol class="rk">${linhas.slice(0, mun ? 12 : 27).map(([id, v], n) => `<li><button type="button" data-id="${id}"><span class="pos">${n + 1}</span><span class="nm">${nome(id)[0]}${mun ? ` <i>${nome(id)[1]}</i>` : ""}</span><em>${formatar(v)}${un}</em></button></li>`).join("") || `<li class="nada">Nenhum resultado com esses filtros.</li>`}</ol>
-      <p class="nota">${nf0.format(linhas.length)} ${mun ? "prefeituras" : "estados"} na lista. Clique num nome para ver os detalhes, ou clique direto no mapa.${mun && !rk.porte ? " Cidades muito pequenas dominam os extremos: use o filtro de tamanho." : ""}</p>
-      </details>`;
-    el.querySelector(".rk-corpo").addEventListener("toggle", (ev) => { rk.aberto = ev.target.open; });
-    el.querySelector("#ao-brasil")?.addEventListener("click", voltarAoBrasil);
-    el.querySelector("#ao-estado")?.addEventListener("click", (ev) => resumoDoEstado(ev.currentTarget.dataset.uf));
-    el.querySelectorAll("[data-ordem]").forEach((b) => b.addEventListener("click", () => { rk.ordem = b.dataset.ordem; ranking(el); }));
-    el.querySelector("#rk-uf")?.addEventListener("change", (ev) => { rk.uf = ev.target.value; ranking(el); });
-    el.querySelector("#rk-porte")?.addEventListener("change", (ev) => { rk.porte = Number(ev.target.value); ranking(el); });
-    el.querySelectorAll(".rk button").forEach((b) => b.addEventListener("click", () => selecionar(b.dataset.id, true)));
-  }
-
-  document.getElementById("detalhe").addEventListener("click", (ev) => { if (ev.target.closest("#fechar")) selecionar(null); });
-
-  // Interação com o mapa
-  const dica = document.getElementById("dica");
-  for (const sel of [pathsMun, pathsUfFill]) {
-    sel.on("mousemove", (ev, f) => {
-      if (matchMedia("(hover: none)").matches) return;  // no toque não há cursor para acompanhar
-      const id = f.properties.id, r = base()[id];
-      const box = palco.getBoundingClientRect();
-      dica.hidden = false;
-      dica.style.left = `${ev.clientX - box.left}px`;
-      dica.style.top = `${ev.clientY - box.top}px`;
-      const un = { desp: " por morador", rec: " por morador", saldo: " da receita", dep: " da receita vem de repasses", fed: " por morador, do governo federal", imp: " por morador, em impostos à prefeitura" }[estado.medida];
-      dica.innerHTML = r && valorDe(id) !== null ? `<b>${nome(id)[0]}</b> · ${formatar(valorDe(id))}${un}` : `<b>${nome(id)[0]}</b> · sem dados em ${estado.ano}`;
-    })
-      .on("mouseleave", () => { dica.hidden = true; })
-      .on("click", (ev, f) => selecionar(estado.sel === f.properties.id ? null : f.properties.id, estado.esfera === "uf"));
-  }
-  /** Do Brasil para um estado: o mapa passa a mostrar as cidades dele e a lista fica só com elas. */
-  async function entrarNoEstado(id) {
-    estado.rk.uf = nomes.uf[id]?.[1] ?? "";
-    await definir({ esfera: "mun", sel: null });
-    zoomPara(feicao.uf.get(id));
-  }
-  /** De dentro de um estado (lista de cidades) para o cartão do próprio estado. */
-  async function resumoDoEstado(id) {
-    await definir({ esfera: "uf", sel: id });
-    zoomPara(feicao.uf.get(id));
-  }
-  async function voltarAoBrasil() {
-    estado.rk.uf = "";
-    await definir({ esfera: "uf", sel: null });
-    svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity);
-  }
-  function selecionar(id, aproximar) {
-    estado.sel = id;
-    montarFluxo(); textos(); pintar(); detalhe(id); escreverHash();
-    if (id && aproximar) zoomPara(feicao[estado.esfera].get(id));
-  }
-
-  let transformada = d3.zoomIdentity;
-  const zoom = d3.zoom().scaleExtent([1, 60]).on("zoom", (ev) => { g.attr("transform", ev.transform); transformada = ev.transform; });
-  svg.call(zoom);
-  function zoomPara(f) {
-    const { width, height } = palco.getBoundingClientRect();
-    const [[x0, y0], [x1, y1]] = caminho.bounds(f);
-    const ehEstado = f.properties.id.length === 2;   // um estado ocupa a tela; uma cidade fica com vizinhança em volta
-    const ocupa = ehEstado ? 0.8 : 0.18;
-    const k = Math.max(1, Math.min(ehEstado ? 40 : 14, ocupa / Math.max((x1 - x0) / width, (y1 - y0) / height)));
-    // Centraliza na parte do mapa que o cartão não cobre: ele fica à direita em telas largas,
-    // sobre a parte de baixo nas médias e fora do mapa no celular.
-    const largo = matchMedia("(min-width: 1201px)").matches;
-    const cx = largo ? (width - 400) / 2 : width / 2, cy = largo || estreito.matches ? height / 2 : height * 0.29;
-    svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity.translate(cx, cy).scale(k).translate(-(x0 + x1) / 2, -(y0 + y1) / 2));
-  }
-  document.getElementById("zoom-mais").onclick = () => svg.transition().call(zoom.scaleBy, 1.6);
-  document.getElementById("zoom-menos").onclick = () => svg.transition().call(zoom.scaleBy, 1 / 1.6);
-  document.getElementById("zoom-br").onclick = () => voltarAoBrasil();
-
-  function ajustar() {
-    const { width, height } = palco.getBoundingClientRect();
-    svg.attr("viewBox", `0 0 ${width} ${height}`);
-    // Em telas largas o cartão fica à direita: o Brasil é encaixado na área que sobra.
-    const livre = matchMedia("(min-width: 1201px)").matches ? width - 420 : width - 24;
-    projecao.fitExtent([[24, 24], [Math.max(200, livre), height - 24]], geoUf);
-    pathsMun.attr("d", caminho); pathsUfFill.attr("d", caminho); gUf.selectAll("path").attr("d", caminho);
-    const c = document.getElementById("fluxo");
-    const dpr = window.devicePixelRatio || 1;
-    c.width = width * dpr; c.height = height * dpr; c.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
-    // A projeção mudou: se o mapa estava aproximado num lugar escolhido (ao girar o celular,
-    // por exemplo), enquadra esse lugar de novo.
-    const escolhido = estado.sel && feicao[estado.esfera].get(estado.sel);
-    if (escolhido && transformada.k > 1) zoomPara(escolhido);
-  }
-
-  // Fluxo com valores reais. Sem seleção: União -> cada estado (soma). Com seleção: o que chegou naquele lugar.
-  let rotas = [], particulas = [];
-  function montarFluxo() {
-    rotas = [];
-    if (estado.medida === "fed") {
-      const f = estado.sel ? fedDe(estado.sel) : null;
-      if (f) {
-        const tot = d3.sum(f), destino = centroDe(estado.sel);
-        const grupos = [["À prefeitura", d3.sum(f.slice(0, 7)), "--c-uniao", 1], ["Bolsa Família", f[8], "--c-bf", -1], ["BPC", f[9], "--c-bpc", 0.4], ["A outras entidades", f[7], "--c-estado", -0.4], ["INSS", f[10], "--c-inss", 0.7]];
-        for (const [rot, v, cor, lado] of grupos) {
-          if (v > 0) rotas.push({ rot: `${rot}: ${curto(v)} (${pct(v / tot)})`, peso: Math.min(1, (v / tot) * 1.4), origem: centroCapital.DF, destino, cor, lado });
-        }
-      } else if (!estado.sel) {
-        const tot = totaisFluxo(), max = d3.max(Object.values(tot)) || 1;
-        rotas = Object.keys(tot).map((uf) => ({ uf, valor: tot[uf], peso: tot[uf] / max, origem: centroCapital.DF, destino: centroCapital[uf], cor: "--fluxo", lado: 1 }));
-      }
-      semear();
-      return;
-    }
-    if (estado.medida === "imp") {
-      const sai = estado.sel ? saiDaqui(estado.sel) : null;
-      if (sai) {
-        const r = doc.mun[estado.sel], k = fator(), cidade = centroDe(estado.sel), sigla = ufDe(estado.sel), cap = centroCapital[sigla];
-        const naCapital = CAPITAIS[sigla] === estado.sel;
-        const itens = [
-          ["Ao estado (estim.)", sai.ipva + sai.icms, cidade, cap, "--c-sai", 1, true, naCapital],
-          ["À União (estim.)", sai.uniao, cidade, centroCapital.DF, "--c-sai", 1, true, sigla === "DF"],
-          ["Volta do estado e do FUNDEB", (r[I.estado] + r[I.fundeb]) * k, cap, cidade, "--c-estado", 1, false, naCapital],
-          ["Volta da União", r[I.uniao] * k, centroCapital.DF, cidade, "--c-uniao", 1, false, sigla === "DF"],
-        ].filter((x) => x[1] > 0 && !x[7]);
-        const max = d3.max(itens, (x) => x[1]) || 1;
-        for (const [rot, v, origem, destino, cor, lado, tracejada] of itens) {
-          rotas.push({ rot: `${rot}: ${curto(v)}`, peso: v / max, origem, destino, cor, lado, tracejada, tRot: tracejada ? 0.35 : 0.5 });
-        }
-      } else if (!estado.sel) {
-        const tot = totaisFluxo(), max = d3.max(Object.values(tot)) || 1;
-        rotas = Object.keys(tot).filter((uf) => centroCapital[uf]).map((uf) => ({ uf, valor: tot[uf], peso: tot[uf] / max, origem: centroCapital[uf], destino: centroCapital.DF, cor: "--c-sai", lado: 1 }));
-      }
-      semear();
-      return;
-    }
-    const r = estado.sel ? base()[estado.sel] : null;
-    if (estado.sel && temReceita(r)) {
-      const f = feicao[estado.esfera].get(estado.sel);
-      const destino = estado.esfera === "mun" ? d3.geoCentroid(f) : centroCapital[ufDe(estado.sel)];
-      const rec = r[I.rec];
-      const add = (rot, v, origem, cor, lado) => { if (v > 0 && origem) rotas.push({ rot: `${rot}: ${curto(v * fator())} (${pct(v / rec)})`, peso: Math.min(1, (v / rec) * 1.6), origem, destino, cor, lado }); };
-      if (ufDe(estado.sel) !== "DF") add("União", r[I.uniao], centroCapital.DF, "--c-uniao", 1);
-      if (estado.esfera === "mun" && CAPITAIS[ufDe(estado.sel)] !== estado.sel) {
-        add("Estado", r[I.estado], centroCapital[ufDe(estado.sel)], "--c-estado", 1);
-        add("FUNDEB", r[I.fundeb], centroCapital[ufDe(estado.sel)], "--c-fundeb", -1);
-      }
-      if (estado.esfera === "uf") {
-        // O que o governo estadual repassou a cada prefeitura (pelas contas das prefeituras), saindo da capital.
-        const sigla = ufDe(estado.sel), cap = centroCapital[sigla];
-        const lista = Object.entries(doc.mun)
-          .filter(([k, x]) => k.startsWith(estado.sel) && k !== CAPITAIS[sigla] && temReceita(x) && x[I.estado] > 0)
-          .map(([k, x]) => [k, x[I.estado]]).sort((a, b) => b[1] - a[1]);
-        const max = lista[0]?.[1] || 1;
-        lista.forEach(([k, v], n) => rotas.push({
-          rot: n < 3 ? `${nomes.mun[k][0]}: ${curto(v * fator())}` : null, tRot: 1, fina: true, semParticula: n >= 40,
-          peso: v / max, origem: cap, destino: centroDe(k), cor: "--c-estado", lado: n % 2 ? 1 : -1,
-        }));
-      }
-    } else if (!estado.sel) {
-      const tot = totaisUniao();
-      const max = d3.max(Object.values(tot)) || 1;
-      rotas = Object.keys(tot).map((uf) => ({ uf, valor: tot[uf], peso: tot[uf] / max, origem: centroCapital.DF, destino: centroCapital[uf], cor: "--fluxo", lado: 1 }));
-    }
-    semear();
-  }
-  function semear() {
-    // As moedas: poucas por linha (mais quando o valor é maior), espaçadas por igual.
-    particulas = rotas.filter((r) => !r.semParticula).flatMap((r) => {
-      const n = 1 + Math.round(r.peso * (r.fina ? 1 : 4));
-      return d3.range(n).map((i) => ({ r, t: (i + Math.random() * 0.4) / n, v: r.fina ? 0.0016 : 0.0022 }));
-    });
-    for (const r of rotas) r.c = css(r.cor);
-    // No retrato geral são 26 linhas: só as cinco maiores levam etiqueta, perto do estado.
-    const gerais = rotas.filter((r) => r.uf).sort((a, b) => b.valor - a.valor);
-    gerais.forEach((r, n) => {
-      r.lado = 0.45;   // menos curva, para não virar um cata-vento
-      r.rot = n < 5 ? `${r.uf}: ${curto(r.valor)}` : null;
-      r.tRot = r.destino === centroCapital.DF ? 0.2 : 0.8;
-    });
-    document.getElementById("fluxo-legenda").hidden = true;
-  }
-  const centroMun = new Map();
-  function centroDe(id) {
-    if (!centroMun.has(id)) centroMun.set(id, d3.geoCentroid(feicao.mun.get(id)));
-    return centroMun.get(id);
-  }
-  const ctx = document.getElementById("fluxo").getContext("2d");
-  const ponto = (lonlat) => transformada.apply(projecao(lonlat));
-  const curva = (a, b, lado) => [(a[0] + b[0]) / 2 - (b[1] - a[1]) * 0.22 * lado, (a[1] + b[1]) / 2 + (b[0] - a[0]) * 0.22 * lado];
-  function quad(a, c, b, t) {
-    const u = 1 - t;
-    return [u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]];
-  }
-  function desenhar() {
-    const { width, height } = palco.getBoundingClientRect();
-    ctx.clearRect(0, 0, width, height);
-    if (estado.fluxo && COM_FLUXO.has(estado.medida) && rotas.length) {
-      ctx.lineCap = "butt";
-      for (const r of rotas) {
-        const a = ponto(r.origem), b = ponto(r.destino), c = curva(a, b, r.lado);
-        const larg = r.fina ? 0.6 + r.peso * 2.2 : 1.4 + r.peso * (estado.sel ? 5.5 : 4.5);
-        const traco = () => { ctx.beginPath(); ctx.moveTo(...a); ctx.quadraticCurveTo(...c, ...b); ctx.stroke(); };
-        const forca = r.uf ? 0.22 + 0.78 * r.peso : 1;   // no retrato geral, as linhas pequenas recuam para as grandes aparecerem
-        ctx.strokeStyle = r.c; ctx.lineWidth = larg;
-        ctx.setLineDash(r.tracejada ? [5, 5] : []); ctx.globalAlpha = 0.3 * forca; traco();   // o caminho: uma faixa clara (tracejada se for estimativa)
-        if (!r.fina) {                                                                // a seta, na chegada
-          const ang = Math.atan2(b[1] - c[1], b[0] - c[0]), t = 4 + larg * 1.1;
-          ctx.setLineDash([]); ctx.globalAlpha = 0.95 * forca; ctx.fillStyle = r.c;
-          ctx.beginPath(); ctx.moveTo(b[0], b[1]);
-          ctx.lineTo(b[0] - t * Math.cos(ang - 0.45), b[1] - t * Math.sin(ang - 0.45));
-          ctx.lineTo(b[0] - t * Math.cos(ang + 0.45), b[1] - t * Math.sin(ang + 0.45));
-          ctx.closePath(); ctx.fill();
-        }
-      }
-      // O dinheiro: moedas que andam pelo caminho, na cor dele (borda tracejada quando é estimativa).
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      const papel = css("--papel");
-      for (const p of particulas) {
-        p.t += p.v; if (p.t > 1) p.t -= 1;
-        const a = ponto(p.r.origem), b = ponto(p.r.destino), [x, y] = quad(a, curva(a, b, p.r.lado), b, p.t);
-        const raio = p.r.fina ? 5 : 7.5;
-        ctx.globalAlpha = Math.min(1, p.t * 10, (1 - p.t) * 10) * (p.r.uf ? 0.4 + 0.6 * p.r.peso : 1);   // nasce e some nas pontas
-        ctx.beginPath(); ctx.arc(x, y, raio, 0, Math.PI * 2);
-        ctx.fillStyle = papel; ctx.fill();
-        ctx.setLineDash(p.r.tracejada ? [2.5, 2.5] : []); ctx.strokeStyle = p.r.c; ctx.lineWidth = 1.6; ctx.stroke();
-        ctx.setLineDash([]); ctx.fillStyle = p.r.c; ctx.font = `700 ${raio * 1.4}px Inter, system-ui, sans-serif`;
-        ctx.fillText("$", x, y + 0.5);
-      }
-      ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
-      ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
-      ctx.font = "600 11px Inter, system-ui, sans-serif";
-      const bsb = ponto(centroCapital.DF);
-      ctx.fillStyle = css("--papel"); ctx.strokeStyle = css("--tinta"); ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(...bsb, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = css("--tinta"); ctx.fillText("Brasília", bsb[0] + 8, bsb[1] - 6);
-      // As etiquetas ficam junto das linhas, mas num ponto que esteja à vista (com zoom numa cidade,
-      // o meio da linha costuma estar fora da tela ou debaixo do cartão) e sem uma cobrir a outra.
-      const caixa = palco.getBoundingClientRect(), cartao = document.getElementById("detalhe").getBoundingClientRect();
-      const sobOCartao = (x, y) => cartao.width && x + caixa.left > cartao.left - 8 && x + caixa.left < cartao.right && y + caixa.top > cartao.top - 8 && y + caixa.top < cartao.bottom;
-      const postas = [];
-      for (const r of rotas.filter((x) => x.rot)) {
-        const a = ponto(r.origem), b = ponto(r.destino), c = curva(a, b, r.lado);
-        const w = ctx.measureText(r.rot).width + 12;
-        let lugar = null;
-        for (const d of [0, 0.1, -0.1, 0.2, -0.2, 0.3, -0.3, 0.4, -0.4, 0.5, -0.5, 0.6, -0.6, 0.7, -0.7]) {
-          const t = (r.tRot ?? 0.5) + d;
-          if (t < 0.08 || t > 0.92) continue;
-          const [x, y] = quad(a, c, b, t);
-          if (x - w / 2 > 56 && x + w / 2 < width - 8 && y > 18 && y < height - 18 && !sobOCartao(x - w / 2, y) && !sobOCartao(x + w / 2, y)) { lugar = [x, y]; break; }
-        }
-        if (!lugar) continue;
-        let [x, y] = lugar;
-        for (let n = 0; n < 8 && postas.some((o) => Math.abs(o[0] - x) < (o[2] + w) / 2 + 4 && Math.abs(o[1] - y) < 23); n++) y += 23;
-        postas.push([x, y, w]);
-        ctx.fillStyle = css("--papel"); ctx.fillRect(x - w / 2, y - 10, w, 20);
-        ctx.strokeStyle = r.c; ctx.lineWidth = 1.5; ctx.strokeRect(x - w / 2, y - 10, w, 20);
-        ctx.fillStyle = css("--tinta"); ctx.textAlign = "center"; ctx.fillText(r.rot, x, y + 4); ctx.textAlign = "start";
-      }
-    }
-    requestAnimationFrame(desenhar);
-  }
-
-  // Controles
-  function marcar(seletor, attr, v) {
-    document.querySelectorAll(seletor).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset[attr] === v)));
-  }
-  /** Muda esfera, medida, área ou ano. `manter`: preserva a seleção (se ela existir no novo recorte). */
-  async function definir(mudancas, manter = false) {
-    const esferaAntes = estado.esfera;
-    Object.assign(estado, mudancas);
-    // O ano em andamento não tem impostos, áreas nem correção pela inflação: quem pede os
-    // impostos volta ao último ano fechado; quem chega ao ano em andamento vê o gasto total.
-    if (ehParcial() && estado.medida === "imp") { if ("medida" in mudancas) estado.ano = ANO_FECHADO; else estado.medida = "desp"; }
-    if (ehParcial()) { estado.area = "total"; estado.real = false; document.getElementById("real").checked = false; }
-    if (estado.medida === "fed") { estado.ano = federal.ano; estado.real = false; document.getElementById("real").checked = false; await carregarAno(federal.ano); }
-    const trocouEsfera = estado.esfera !== esferaAntes;
-    doc = await carregarAno(estado.ano);
-    if (!manter || trocouEsfera) estado.sel = mudancas.sel ?? null;
-    marcar("[data-esfera]", "esfera", estado.esfera); marcar("[data-medida]", "medida", estado.medida); marcar("[data-area]", "area", estado.area);
-    montarFluxo(); textos(); pintar(); detalhe(estado.sel); escreverHash();
-  }
-  document.querySelectorAll("[data-esfera]").forEach((b) => b.addEventListener("click", () => definir({ esfera: b.dataset.esfera })));
-  document.querySelectorAll("[data-medida]").forEach((b) => b.addEventListener("click", () => definir({ medida: b.dataset.medida }, true)));
-  document.querySelectorAll("[data-area]").forEach((b) => b.addEventListener("click", () => definir({ area: b.dataset.area }, true)));
-  document.getElementById("cam-fluxo").addEventListener("change", (ev) => { estado.fluxo = ev.target.checked; semear(); pintar(); });
-  document.getElementById("real").addEventListener("change", (ev) => definir({ real: ev.target.checked }, true));
-  const campoAno = document.getElementById("ano");
-  campoAno.min = ANO_MIN; campoAno.max = ANO_MAX; campoAno.value = estado.ano;
-  campoAno.addEventListener("input", () => definir({ ano: Number(campoAno.value) }, true));
-  document.getElementById("ano-menos").onclick = () => definir({ ano: Math.max(ANO_MIN, estado.ano - 1) }, true);
-  document.getElementById("ano-mais").onclick = () => definir({ ano: Math.min(ANO_MAX, estado.ano + 1) }, true);
-
-  // Passar os anos sozinho
-  let relogio = null;
-  const botaoTocar = document.getElementById("tocar");
-  function parar() { clearInterval(relogio); relogio = null; botaoTocar.setAttribute("aria-pressed", "false"); botaoTocar.textContent = "▶ Passar os anos sozinho"; }
-  botaoTocar.addEventListener("click", async () => {
-    if (relogio) return parar();
-    const inicio = ANO_MIN;
-    await Promise.all(d3.range(inicio, ANO_FECHADO + 1).map(carregarAno));   // carrega tudo antes, para não engasgar
-    if (estado.ano >= ANO_FECHADO) await definir({ ano: inicio }, true);
-    botaoTocar.setAttribute("aria-pressed", "true"); botaoTocar.textContent = "⏸ Parar";
-    relogio = setInterval(() => { if (estado.ano >= ANO_FECHADO) parar(); else definir({ ano: estado.ano + 1 }, true); }, 1300);   // só os anos fechados
+  const noMapa = (ev) => { const f = d3.select(ev.target).datum(); return f?.properties?.id ?? null; };
+  svg.on("click", (ev) => {
+    const id = noMapa(ev);
+    if (!id) return;
+    if (id.length === 2) definir({ nivel: "estado", uf: id });
+    else definir({ nivel: "cidade", mun: id, uf: id.slice(0, 2) }, { zoom: estado.uf !== id.slice(0, 2) });
   });
-  campoAno.addEventListener("pointerdown", () => relogio && parar());
+  svg.on("pointermove", (ev) => {
+    const id = ev.pointerType === "touch" ? null : noMapa(ev), b = $("balao");
+    b.hidden = !id;
+    if (!id) return;
+    const v = valores[id], nome = id.length === 2 ? nomes.uf[id][0] : `${nomes.mun[id][0]} (${nomes.mun[id][1]})`;
+    const txt = v === null || v === undefined ? "sem dado" : `${chaveAtual.startsWith("saldo") ? (v >= 0 ? "sobrou " : "faltou ") : ""}${reais(Math.abs(v) * fator())} por morador`;
+    b.textContent = `${nome}: ${txt}`;
+    const r = caixa.getBoundingClientRect();
+    b.style.left = `${Math.min(Math.max(ev.clientX - r.left, 90), r.width - 90)}px`; b.style.top = `${Math.max(ev.clientY - r.top, 40)}px`;
+  }).on("pointerleave", () => ($("balao").hidden = true));
+  $("zoom-mais").addEventListener("click", () => svg.transition().duration(250).call(zoom.scaleBy, 1.8));
+  $("zoom-menos").addEventListener("click", () => svg.transition().duration(250).call(zoom.scaleBy, 1 / 1.8));
+  $("zoom-br").addEventListener("click", () => enquadrar(null));
+  new ResizeObserver(() => { if (medir()) enquadrar(alvoDoZoom(), false); }).observe(caixa);
 
-  // Guia de leitura: aparece na primeira visita e pelo botão do cabeçalho.
-  const guia = document.getElementById("guia");
-  const lembrar = { get: () => { try { return localStorage.getItem("mapa-guia-visto"); } catch { return null; } }, set: () => { try { localStorage.setItem("mapa-guia-visto", "1"); } catch {} } };
-  document.getElementById("abrir-guia").addEventListener("click", () => { guia.hidden = false; document.getElementById("fechar-guia").focus(); });
-  document.getElementById("fechar-guia").addEventListener("click", () => { guia.hidden = true; lembrar.set(); });
-  guia.addEventListener("click", (ev) => { if (ev.target === guia) { guia.hidden = true; lembrar.set(); } });
-  if (!lembrar.get()) guia.hidden = false;
+  // ----- menu e detalhe -----
+  function menu(c) {
+    document.querySelectorAll("[data-nivel]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.nivel === estado.nivel)));
+    document.querySelectorAll("[data-unidade]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.unidade === estado.unidade)));
+    const morador = estado.unidade === "morador";
+    document.querySelectorAll("[data-q]").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.q === estado.q));
+      const q = c && !c.semConta ? c[b.dataset.q] : null;
+      b.querySelector("span").textContent = q ? (q.total === null ? "sem dado" : `${fmt(q.total, q.pop, q)}${morador ? " por morador" : " no ano"}`) : c ? "sem as contas deste ano" : "escolha o lugar";
+    });
+    $("unidade-dica").textContent = morador ? "Cada valor dividido pelo número de moradores. Mais fácil de comparar com a sua vida." : "O valor cheio do orçamento, para quem quer analisar a conta inteira.";
+    const onde = $("onde");
+    if (document.activeElement !== onde) onde.value = estado.nivel === "cidade" ? (estado.mun ? nomes.mun[estado.mun][0] : "") : estado.nivel === "estado" ? (estado.uf ? nomes.uf[estado.uf][0] : "") : "";
+    onde.placeholder = estado.nivel === "cidade" ? "Nome da cidade" : estado.nivel === "estado" ? "Nome do estado" : "O país inteiro: não precisa escolher";
+    $("ano-rotulo").textContent = estado.ano; $("ano").value = estado.ano; $("real").checked = estado.real;
+  }
+  const esc = (t) => String(t).replace(/[&<>"]/g, (x) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[x]);
+  function linksDe(c) {
+    return `<div class="links"><span class="rotulo">Ver a página completa</span><div>${c.links.map(([gov, nome, href]) => `<a href="${href}" style="--cor:var(--${gov})"><span>${esc(nome)}</span><span aria-hidden="true">→</span></a>`).join("")}</div></div>`;
+  }
+  function detalhe(c) {
+    const el = $("det"), perg = PERGUNTAS.find((x) => x.id === estado.q);
+    if (!c) {
+      const oQue = estado.nivel === "cidade" ? (estado.uf ? `uma cidade de ${nomes.uf[estado.uf][0]}` : "uma cidade") : "um estado";
+      el.innerHTML = `<span class="sub">Escolha ${oQue}</span><div class="cab"><h2>${perg.longo}</h2></div>
+        <p class="aviso">Clique no mapa ou escreva o nome no campo "Onde", à esquerda. A resposta desta pergunta aparece aqui, dividida por prefeitura, governo do estado e governo federal.</p>`;
+      return;
+    }
+    if (c.semConta) {
+      el.innerHTML = `<span class="sub">${esc(c.sub)}</span><div class="cab"><h2>${perg.longo}</h2></div>
+        <p class="aviso">${c.df ? "O Distrito Federal presta contas como estado. Para ver, escolha \"Estado\" e clique nele." : `A prefeitura de ${esc(c.nome)} não entregou as contas de ${estado.ano} ao Tesouro Nacional.`}</p>${linksDe(c)}`;
+      return;
+    }
+    const q = c[estado.q], morador = estado.unidade === "morador", { chave } = chaveDoMapa(c);
+    const grupos = q.grupos.map((g) => {
+      const ativo = !!g.mapa && g.mapa === chave && (estado.grupo === g.gov || estado.q === "q4");
+      const tag = (g.estim ? "estimativa · " : "") + (g.mapa ? (ativo ? "é o que o mapa mostra agora" : "clique para ver só este no mapa") : g.semMapa);
+      const linhas = g.linhas.length ? g.linhas : [{ r: `Sem dado para ${estado.ano}`, t: "" }];
+      return `<button type="button" class="gr" style="--cor:var(--${g.gov})" data-gov="${g.gov}"${g.mapa ? " data-mapa" : ""} aria-pressed="${ativo}">
+          <span class="n"><b>${esc(g.nome)}</b><small>${tag}</small></span><span class="v">${g.semValor ? "" : fmt(g.total, g.pop, g)}</span></button>
+        ${linhas.map((l) => `<div class="ln"><span>${esc(l.r)}</span><span>${l.t !== undefined ? esc(l.t) : fmt(l.v, l.pop)}</span></div>`).join("")}`;
+    }).join("");
+    const etiqueta = (morador ? `Por morador, em ${estado.ano}` : `Total do ano de ${estado.ano}`) + (estado.real ? `, em reais de ${ipca.base}` : "");
+    el.innerHTML = `<span class="sub">${esc(c.sub)}</span>
+      <div class="cab"><h2>${perg.longo}</h2><b>${fmt(q.total, q.pop, q)}</b></div>
+      <div class="un"><i>${etiqueta}</i><span>${q.extra}</span></div>
+      ${q.barra ? `<div class="barra" aria-hidden="true">${q.barra.map((v, i) => `<span style="flex:${Math.max(v, 0)} 1 0;background:var(--${["pref", "est", "fed"][i]})"></span>`).join("")}</div>` : ""}
+      <div class="grupos">${grupos}</div>
+      ${q.nota ? `<span class="nota">${q.nota}</span>` : ""}
+      ${linksDe(c)}`;
+  }
+  $("det").addEventListener("click", (ev) => {
+    const b = ev.target.closest(".gr[data-mapa]");
+    if (b) definir({ grupo: estado.grupo === b.dataset.gov ? null : b.dataset.gov });
+  });
 
-  // Endereço: "#c3550308-a2025-dep" (cidade) ou "#e29-a2025-dep" (estado), para mandar o link de um lugar.
+  function atualizar() {
+    const c = conta();
+    menu(c); pintar(c); detalhe(c);
+  }
+  /** Muda o estado e redesenha. O zoom só se mexe quando muda o lugar ou o nível. */
+  async function definir(m, { zoom: comZoom = true } = {}) {
+    const antes = `${estado.nivel}|${estado.uf}|${estado.nivel === "cidade" ? estado.mun?.slice(0, 2) : ""}`;
+    if (m.q && m.q !== estado.q && m.grupo === undefined) m.grupo = null;
+    Object.assign(estado, m);
+    if (estado.mun && !estado.uf) estado.uf = estado.mun.slice(0, 2);
+    if (estado.mun && estado.uf && estado.mun.slice(0, 2) !== estado.uf) estado.mun = null;   // trocou de estado: a cidade antiga não vale
+    if (m.ano) doc = await carregar(estado.ano);
+    atualizar();
+    const depois = `${estado.nivel}|${estado.uf}|${estado.nivel === "cidade" ? estado.mun?.slice(0, 2) : ""}`;
+    if (comZoom && antes !== depois) enquadrar(alvoDoZoom());
+    escreverHash();
+  }
+  document.querySelectorAll("[data-nivel]").forEach((b) => b.addEventListener("click", () => definir({ nivel: b.dataset.nivel, grupo: null })));
+  document.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => definir({ q: b.dataset.q })));
+  document.querySelectorAll("[data-unidade]").forEach((b) => b.addEventListener("click", () => definir({ unidade: b.dataset.unidade })));
+  $("ano").min = ANO_MIN; $("ano").max = ANO_MAX; $("ano-min").textContent = ANO_MIN; $("ano-max").textContent = ANO_MAX;
+  $("ano").addEventListener("input", (ev) => { $("ano-rotulo").textContent = ev.target.value; });
+  $("ano").addEventListener("change", (ev) => definir({ ano: +ev.target.value }));
+  $("real").addEventListener("change", (ev) => definir({ real: ev.target.checked }));
+  for (const id of ["abrir-ano", "abrir-opcoes"]) $(id).addEventListener("click", () => {
+    const aberto = $("opcoes").hidden; $("opcoes").hidden = !aberto;
+    $("abrir-ano").setAttribute("aria-expanded", String(aberto)); $("abrir-opcoes").setAttribute("aria-expanded", String(aberto));
+    if (aberto) (id === "abrir-ano" ? $("ano") : $("real")).focus();
+  });
+
+  // ----- busca -----
+  const indice = [...Object.entries(nomes.uf).map(([id, [nm, sg]]) => ({ id, nome: nm, uf: sg, t: semAcento(nm), tipo: "estado" })),
+    ...Object.entries(nomes.mun).map(([id, [nm, sg]]) => ({ id, nome: nm, uf: sg, t: semAcento(nm), tipo: "cidade" }))];
+  const onde = $("onde"), lista = $("onde-lista");
+  function buscar() {
+    const t = semAcento(onde.value);
+    if (t.length < 2) { lista.hidden = true; return; }
+    const ordem = (x) => (x.t === t ? 0 : x.t.startsWith(t) ? 1 : 2) + (x.tipo === (estado.nivel === "estado" ? "estado" : "cidade") ? 0 : 0.5);
+    const achados = indice.filter((x) => x.t.includes(t) || (x.tipo === "estado" && x.uf.toLowerCase() === t)).sort((a, b) => ordem(a) - ordem(b) || a.nome.localeCompare(b.nome, "pt-BR")).slice(0, 8);
+    lista.innerHTML = achados.length ? achados.map((x) => `<li><button type="button" data-id="${x.id}"><span>${esc(x.nome)}</span><small>${x.tipo === "estado" ? "estado" : x.uf}</small></button></li>`).join("")
+      : `<li><button type="button" disabled><span>Nenhum lugar com esse nome</span></button></li>`;
+    lista.hidden = false;
+  }
+  function escolher(id) {
+    lista.hidden = true; onde.blur();
+    if (id.length === 2) definir({ nivel: "estado", uf: id });
+    else definir({ nivel: "cidade", mun: id, uf: id.slice(0, 2) });
+  }
+  onde.addEventListener("input", buscar);
+  onde.addEventListener("focus", () => onde.select());
+  onde.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") { lista.hidden = true; onde.blur(); }
+    if (ev.key === "Enter") { const b = lista.querySelector("button[data-id]"); if (!lista.hidden && b) escolher(b.dataset.id); }
+  });
+  onde.addEventListener("blur", () => setTimeout(() => { if (!lista.contains(document.activeElement)) { lista.hidden = true; menu(conta()); } }, 150));
+  lista.addEventListener("click", (ev) => { const b = ev.target.closest("button[data-id]"); if (b) escolher(b.dataset.id); });
+
+  // ----- endereço: #br-a2025-q1, #e33-a2025-q2-gest, #c3303500-a2025-q1-total -----
   function escreverHash() {
-    const partes = [estado.sel ? (estado.esfera === "mun" ? "c" : "e") + estado.sel : estado.esfera === "mun" ? "prefeituras" : "estados", `a${estado.ano}`, estado.medida];
-    const h = "#" + partes.join("-");
-    if (location.hash !== h) { try { location.replace(h); } catch {} }
+    const lugar = estado.nivel === "brasil" ? "br" : estado.nivel === "estado" ? (estado.uf ? `e${estado.uf}` : "estados") : estado.mun ? `c${estado.mun}` : `cidades${estado.uf || ""}`;
+    const h = [lugar, `a${estado.ano}`, estado.q, estado.grupo ? `g${estado.grupo}` : "", estado.unidade === "total" ? "total" : "", estado.real ? "real" : ""].filter(Boolean).join("-");
+    if (location.hash.slice(1) !== h) history.replaceState(null, "", `#${h}`);
   }
   function lerHash() {
-    const m = location.hash.match(/^#(?:(c|e)(\d+)|(prefeituras|estados))-a(\d{4})-(desp|rec|saldo|dep|fed|imp)$/);
-    if (!m) return null;
-    const esfera = m[1] ? (m[1] === "c" ? "mun" : "uf") : m[3] === "prefeituras" ? "mun" : "uf";
-    const sel = m[2] && nomes[esfera][m[2]] ? m[2] : null;
-    return { esfera, sel, ano: Math.min(ANO_MAX, Math.max(ANO_MIN, Number(m[4]))), medida: m[5] };
+    const partes = location.hash.slice(1).split("-").filter(Boolean), m = { grupo: null, unidade: "morador", real: false };
+    for (const p of partes) {
+      if (p === "br") m.nivel = "brasil";
+      else if (p === "estados") Object.assign(m, { nivel: "estado", uf: null });
+      else if (/^cidades\d{0,2}$/.test(p)) Object.assign(m, { nivel: "cidade", mun: null, uf: nomes.uf[p.slice(7)] ? p.slice(7) : null });
+      else if (/^e\d{2}$/.test(p) && nomes.uf[p.slice(1)]) Object.assign(m, { nivel: "estado", uf: p.slice(1) });
+      else if (/^c\d{7}$/.test(p) && nomes.mun[p.slice(1)]) Object.assign(m, { nivel: "cidade", mun: p.slice(1), uf: p.slice(1, 3) });
+      else if (/^a\d{4}$/.test(p) && +p.slice(1) >= ANO_MIN && +p.slice(1) <= ANO_MAX) m.ano = +p.slice(1);
+      else if (/^q[1-4]$/.test(p)) m.q = p;
+      else if (/^g(pref|est|fed)$/.test(p)) m.grupo = p.slice(1);
+      else if (p === "total") m.unidade = "total";
+      else if (p === "real") m.real = true;
+    }
+    return m;
   }
-  window.addEventListener("hashchange", async () => {
-    const h = lerHash();
-    if (!h || (h.sel === estado.sel && h.ano === estado.ano && h.medida === estado.medida && h.esfera === estado.esfera)) return;
-    await definir(h);
-    if (h.sel) zoomPara(feicao[h.esfera].get(h.sel));
-  });
+  addEventListener("hashchange", () => definir(lerHash()));
 
-  // Busca de cidade
-  const indice = Object.entries(nomes.mun).map(([id, [nm, uf]]) => ({ id, nm, uf, chave: semAcento(`${nm} ${uf}`) }));
-  const campoBusca = document.getElementById("busca"), listaBusca = document.getElementById("busca-lista");
-  function buscar() {
-    const termos = semAcento(campoBusca.value).split(/\s+/).filter(Boolean);
-    if (!termos.length) { listaBusca.hidden = true; return []; }
-    const pop = (id) => doc.mun[id]?.[I.pop] ?? 0;
-    const achados = indice.filter((c) => termos.every((t) => c.chave.includes(t)))
-      .sort((a, b) => Number(!a.chave.startsWith(termos[0])) - Number(!b.chave.startsWith(termos[0])) || pop(b.id) - pop(a.id)).slice(0, 7);
-    listaBusca.hidden = false;
-    listaBusca.innerHTML = achados.length
-      ? achados.map((c) => `<li><button type="button" data-id="${c.id}">${c.nm} <span>${c.uf}</span></button></li>`).join("")
-      : `<li class="nada">Nenhuma cidade com esse nome.</li>`;
-    return achados;
-  }
-  async function irPara(id) {
-    campoBusca.value = `${nomes.mun[id][0]} (${nomes.mun[id][1]})`;
-    listaBusca.hidden = true;
-    await definir({ esfera: "mun", sel: id });
-    zoomPara(feicao.mun.get(id));
-    if (estreito.matches) { campoBusca.blur(); palco.scrollIntoView({ behavior: "smooth", block: "start" }); }
-  }
-  campoBusca.addEventListener("input", buscar);
-  campoBusca.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { const a = buscar(); if (a[0]) irPara(a[0].id); } });
-  listaBusca.addEventListener("click", (ev) => { const b = ev.target.closest("button[data-id]"); if (b) irPara(b.dataset.id); });
-
-  ajustar();
-  const inicial = lerHash();
-  await definir(inicial || {});
-  if (inicial?.sel) zoomPara(feicao[inicial.esfera].get(inicial.sel));
-  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) requestAnimationFrame(desenhar);
-  new ResizeObserver(ajustar).observe(palco);
-  // no celular o mapa fica preso logo abaixo da faixa das perguntas
-  const topo = document.querySelector("aside.topo");
-  new ResizeObserver(() => document.documentElement.style.setProperty("--topo-h", `${topo.offsetHeight}px`)).observe(topo);
-  // as opções fecham ao clicar fora
-  document.addEventListener("click", (ev) => { const o = document.getElementById("opcoes"); if (o.open && estreito.matches && !o.contains(ev.target)) o.open = false; });
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", pintar);
-  new MutationObserver(pintar).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  medir();
+  await definir(lerHash(), { zoom: false });
+  enquadrar(alvoDoZoom(), false);
 })();
 </script>
 </body>
