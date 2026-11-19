@@ -15,7 +15,7 @@
      sempre dividido por prefeitura, governo do estado e governo federal. */
   :root {
     --papel: #f7f4ec; --papel-2: #eee9dc; --cartao: #fffdf7; --tinta: #191919; --texto-2: #4a4740;
-    --regra: #d9d2c0; --regra-2: #b9b19c; --linha: #e6dfcd; --grupo: #f3eee1; --sem-dados: #ddd6c6;
+    --regra: #c9c2b2; --regra-2: #b9b19c; --texto-3: #7a7466; --linha: #e6dfcd; --grupo: #f3eee1; --sem-dados: #ddd6c6;
     --pref: #1f7a47; --est: #8a5d10; --fed: #1d4f91;
     --serifa: "Source Serif 4", Georgia, serif;
     --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
@@ -38,7 +38,7 @@
   .tres { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dois { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bt { min-height: 46px; padding: 4px 6px; border: 1.5px solid var(--regra-2); background: transparent; font-weight: 500; cursor: pointer; }
-  .bt[aria-pressed="true"], .perg[aria-pressed="true"] { border-color: var(--tinta); background: var(--tinta); color: var(--papel); }
+  .bt[aria-pressed="true"] { border-color: var(--tinta); background: var(--tinta); color: var(--papel); }
   .onde { position: relative; }
   .onde input { width: 100%; height: 46px; padding: 0 12px; border: 1.5px solid var(--tinta); background: var(--cartao); font-size: 16px; border-radius: 0; }
   .onde ul { position: absolute; z-index: 5; left: 0; right: 0; top: 100%; margin: 0; padding: 0; list-style: none; background: var(--cartao); border: 1.5px solid var(--tinta); border-top: 0; max-height: 320px; overflow-y: auto; }
@@ -46,10 +46,6 @@
   .onde li button:hover, .onde li button:focus-visible { background: var(--papel-2); }
   .onde li small { color: var(--texto-2); white-space: nowrap; }
   .dica { font-size: 13px; color: var(--texto-2); }
-  .perg { display: flex; flex-direction: column; justify-content: center; gap: 1px; min-height: 60px; padding: 8px 12px; border: 1.5px solid var(--regra-2); background: transparent; text-align: left; cursor: pointer; }
-  .perg strong { font-family: var(--serifa); font-size: 17px; font-weight: 600; line-height: 1.2; }
-  .perg span { font-size: 13px; color: var(--texto-2); }
-  .perg[aria-pressed="true"] span { color: #d9d2c0; }
   .pe { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--regra); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 13px; }
   .pe b { font-family: var(--serifa); font-size: 20px; font-weight: 700; }
   .pe button { padding: 0; border: 0; background: none; color: var(--texto-2); text-decoration: underline; cursor: pointer; min-height: 32px; }
@@ -87,38 +83,60 @@
   .leg .sem { display: flex; align-items: center; gap: 6px; margin-left: 8px; }
   .leg .sem i { width: 14px; background: var(--sem-dados); }
 
-  /* ----- detalhe ----- */
-  .det { flex: 1.4 1 480px; min-width: 0; padding: 22px 24px; background: var(--cartao); border: 1px solid var(--regra); display: flex; flex-direction: column; gap: 12px; }
-  .det .sub { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--texto-2); }
-  .cab { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding-bottom: 12px; border-bottom: 1px solid var(--tinta); }
-  .cab h2 { margin: 0; flex: 1 1 260px; font-family: var(--serifa); font-size: 27px; font-weight: 700; line-height: 1.15; letter-spacing: -.01em; }
-  .cab b { font-family: var(--serifa); font-size: 27px; font-weight: 700; }
-  .un { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14px; color: var(--texto-2); }
-  .un i { font-style: normal; padding: 2px 8px; background: var(--tinta); color: var(--papel); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-  .barra { display: flex; gap: 2px; height: 14px; }
-  .grupos { display: flex; flex-direction: column; }
-  .gr { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 50px; margin-top: 12px; padding: 6px 12px; border: 0; border-top: 4px solid var(--cor); background: var(--grupo); text-align: left; cursor: pointer; }
-  .gr:not([data-mapa]) { cursor: default; }
-  .gr .n { flex: 1 1 auto; display: flex; flex-direction: column; }
-  .gr .n b { font-weight: 600; line-height: 1.2; }
-  .gr .n small { font-size: 12px; color: var(--texto-2); }
-  .gr .v { font-family: var(--serifa); font-size: 18px; font-weight: 700; white-space: nowrap; }
-  .gr[aria-pressed="true"] { background: var(--cor); color: #fff; }
-  .gr[aria-pressed="true"] .n small { color: #fff; }
-  .ln { display: flex; justify-content: space-between; gap: 16px; padding: 6px 12px; border-bottom: 1px solid var(--linha); font-size: 14px; }
-  .ln span:first-child { color: var(--texto-2); }
-  .ln span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .nota { font-size: 12px; color: var(--texto-2); }
-  .aviso { margin: 0; font-size: 15px; color: var(--texto-2); }
-  .links { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding-top: 14px; border-top: 1px solid var(--regra); }
-  .links div { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
-  .links a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; padding: 6px 12px; border: 1.5px solid var(--regra-2); border-top: 4px solid var(--cor); color: var(--tinta); text-decoration: none; font-size: 14px; font-weight: 500; line-height: 1.2; }
-  .links a:hover { background: var(--papel-2); }
+  /* ----- cartão do lugar: o desenho do mapa em produção, com as perguntas que abrem e fecham ----- */
+  .det { flex: 1 1 380px; min-width: 0; padding: 16px 18px; background: var(--papel); border: 1px solid var(--tinta); display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+  .det h2 { margin: 0; font-family: var(--serifa); font-size: 24px; line-height: 1.1; text-wrap: balance; }
+  .det .sub { font-size: 11.5px; color: var(--texto-3); letter-spacing: .04em; text-transform: uppercase; }
+  .blocos { display: flex; flex-direction: column; }
+  .pergunta { border-top: 1px solid var(--tinta); }
+  .pergunta:last-child { border-bottom: 1px solid var(--tinta); }
+  .pergunta > button { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; width: 100%; padding: 9px 0; border: 0; background: none; text-align: left; cursor: pointer; }
+  .pergunta > button span { font-family: var(--serifa); font-size: 16.5px; font-weight: 600; }
+  .pergunta > button span::before { content: "+"; display: inline-block; width: 16px; font-family: var(--sans); font-weight: 400; color: var(--texto-3); }
+  .pergunta > button[aria-expanded="true"] span::before { content: "−"; }
+  .pergunta > button b { font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .bloco-corpo { display: flex; flex-direction: column; gap: 8px; padding: 0 0 12px; }
+  .bloco-nota { margin: 0; font-size: 13px; color: var(--texto-2); }
+  .barra { display: flex; gap: 2px; height: 6px; }
+  .gov { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; margin: 6px 0 0; font-family: var(--sans); font-size: 12.5px; font-weight: 600; }
+  .gov i { flex: none; align-self: center; width: 9px; height: 9px; background: var(--cor); }
+  .gov small { font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--texto-3); border: 1px solid var(--regra); padding: 0 4px; }
+  .gov em { font-style: normal; font-variant-numeric: tabular-nums; }
+  .gov button { margin-left: auto; padding: 3px 0; border: 0; background: none; font-size: 11px; font-weight: 400; color: var(--texto-3); text-decoration: underline; cursor: pointer; }
+  .gov button[aria-pressed="true"] { color: var(--tinta); font-weight: 600; text-decoration: none; }
+  .linhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .linhas li { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid var(--regra); }
+  .linhas li span { color: var(--texto-2); min-width: 0; }
+  .linhas li em { font-style: normal; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .comp { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .comp caption { text-align: left; font-size: 12px; font-weight: 600; color: var(--texto-2); padding-bottom: 4px; }
+  .comp th, .comp td { padding: 3px 0; border-bottom: 1px solid var(--regra); font-variant-numeric: tabular-nums; }
+  .comp thead th { font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--texto-3); text-align: right; }
+  .comp tbody th { text-align: left; font-weight: 400; color: var(--texto-2); }
+  .comp td { text-align: right; padding-left: 8px; white-space: nowrap; }
+  .comp td:nth-child(3) { color: var(--texto-3); }
+  .comp .sinal { font-size: 11px; color: var(--texto-3); }
+  .serie { display: flex; align-items: flex-end; gap: 4px; height: 56px; }
+  .serie button { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; padding: 0; border: 0; background: none; cursor: pointer; }
+  .serie .colunas { flex: 1; width: 100%; display: flex; align-items: flex-end; gap: 1px; }
+  .serie .b { flex: 1; background: var(--pref); opacity: .8; }
+  .serie .b.rec { background: var(--fed); opacity: .5; }
+  .serie .b.falta { background: repeating-linear-gradient(45deg, var(--regra) 0 3px, transparent 3px 6px); opacity: 1; }
+  .serie em { font-style: normal; font-size: 10px; color: var(--texto-3); font-variant-numeric: tabular-nums; }
+  .serie .atual em { color: var(--tinta); font-weight: 700; }
+  .serie .atual .colunas { outline: 1px solid var(--tinta); outline-offset: 1px; }
+  .nota { margin: 0; font-size: 11px; color: var(--texto-3); line-height: 1.45; }
+  .nota .q { display: inline-block; width: 9px; height: 9px; margin: 0 3px 0 2px; background: var(--pref); opacity: .8; }
+  .nota .q.rec { background: var(--fed); opacity: .5; }
+  .aviso { margin: 0; font-size: 13px; color: var(--texto-2); }
+  .links { margin: 0; font-size: 12.5px; color: var(--texto-2); display: flex; flex-wrap: wrap; gap: 2px 12px; }
+  .links a { color: var(--tinta); }
+  .links a i { display: inline-block; width: 9px; height: 9px; margin-right: 5px; background: var(--cor); }
 
   /* Em tela larga a página não rola: o mapa ocupa toda a área ao lado do menu, e a frase, a legenda
      e o detalhe flutuam por cima dele. O Brasil é encaixado na parte que o detalhe não cobre (ver medir). */
   @media (min-width: 1101px) {
-    :root { --painel: clamp(440px, 36vw, 600px); }
+    :root { --painel: 428px; }
     .app { flex-wrap: nowrap; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
     aside { flex: 0 0 290px; overflow-y: auto; }
     main { flex: 1 1 auto; position: relative; display: block; height: 100%; padding: 0; }
@@ -128,21 +146,16 @@
     .mostra { top: 24px; min-height: 0; max-width: min(520px, calc(100% - var(--painel) - 140px)); padding: 12px 16px; }
     .leg { bottom: 24px; padding: 8px 12px; }
     .zoom { left: auto; top: 24px; right: calc(var(--painel) + 48px); }
-    .det { position: absolute; z-index: 3; top: 24px; right: 24px; width: var(--painel); max-height: calc(100% - 48px); overflow-y: auto; box-shadow: 0 10px 30px rgba(25, 25, 25, .14); }
+    .det { position: absolute; z-index: 3; top: 24px; right: 24px; width: var(--painel); max-height: calc(100% - 48px); overflow-y: auto; box-shadow: 0 8px 24px rgba(25, 25, 25, .12); }
   }
   @media (max-width: 760px) {
     aside { padding: 16px; gap: 14px; border-right: 0; border-bottom: 1px solid var(--regra); }
     .marca h1 { font-size: 22px; }
-    .perguntas { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .perguntas .rotulo { grid-column: 1 / -1; }
-    .perg { min-height: 56px; padding: 6px 10px; }
-    .perg strong { font-size: 15px; }
     .pe { margin-top: 0; }
     main { padding: 16px; gap: 18px; }
     .col-mapa { position: static; }
     .mostra { min-height: 0; }
-    .det { padding: 16px; }
-    .cab h2, .cab b { font-size: 23px; }
+    .det { padding: 14px 16px; }
   }
 </style>
 </head>
@@ -169,13 +182,6 @@
         <ul id="onde-lista" hidden></ul>
       </div>
       <span class="dica">Escreva o nome ou clique no mapa.</span>
-    </div>
-    <div class="bloco perguntas" role="group" aria-label="O que você quer saber">
-      <span class="rotulo">3 · O que você quer saber</span>
-      <button type="button" class="perg" data-q="q1" aria-pressed="true"><strong>1 · Quanto se paga aqui</strong><span></span></button>
-      <button type="button" class="perg" data-q="q2" aria-pressed="false"><strong>2 · Como cada governo usa</strong><span></span></button>
-      <button type="button" class="perg" data-q="q3" aria-pressed="false"><strong>3 · O que volta para cá</strong><span></span></button>
-      <button type="button" class="perg" data-q="q4" aria-pressed="false"><strong>4 · As contas fecham?</strong><span></span></button>
     </div>
     <div class="bloco">
       <span class="rotulo">Mostrar os valores</span>
@@ -308,7 +314,8 @@
 
   // nivel: o que se olha (brasil, estado, cidade). uf e mun: o lugar escolhido. q: a pergunta. grupo: o governo
   // que o mapa mostra sozinho (null = a pergunta inteira). unidade: como os números aparecem.
-  const estado = { nivel: "brasil", uf: null, mun: null, q: "q1", grupo: null, unidade: "morador", ano: ANO_MAX, real: false };
+  const estado = { nivel: "brasil", uf: null, mun: null, q: "q1", grupo: null, unidade: "morador", ano: ANO_MAX, real: false,
+    aberto: true, comparar: false };   // no cartão: a pergunta escolhida está aberta? e o bloco de comparação?
   let doc = await carregar(estado.ano);
   const fator = () => (estado.real ? ipca.fatores[estado.ano] ?? 1 : 1);
 
@@ -404,10 +411,10 @@
   }
 
   const PERGUNTAS = [
-    { id: "q1", longo: "1 · Quanto se paga aqui", mapa: "paga_total" },
-    { id: "q2", longo: "2 · Como cada governo usa o dinheiro", mapa: "gasta_total" },
-    { id: "q3", longo: "3 · O que volta para cá", mapa: "volta_total" },
-    { id: "q4", longo: "4 · As contas fecham? Sobras, faltas e dívidas", mapa: "saldo_pref" },
+    { id: "q1", titulo: "1 · Quanto se paga aqui", mapa: "paga_total" },
+    { id: "q2", titulo: "2 · Como cada governo usa o dinheiro", mapa: "gasta_total" },
+    { id: "q3", titulo: "3 · O que volta para cá", mapa: "volta_total" },
+    { id: "q4", titulo: "4 · As contas fecham?", mapa: "saldo_pref" },
   ];
   const FRASE = {
     paga_total: "Quanto cada morador paga aos três governos juntos", paga_pref: "Quanto cada morador paga à prefeitura", paga_est: "Quanto cada morador paga ao governo do estado", paga_fed: "Quanto cada morador paga ao governo federal",
@@ -427,7 +434,6 @@
     const { nivel, ano } = estado, cid = nivel === "cidade";
     const popBR = popBrasil(), fedR = federalDe(ano) || null;
     let p, g, ge, pop, popE, nomeLugar, sub, nP, nE, pagaEst, pagaFed, direto, empP, empG, local, publica = false, links, faltam = "";
-    const milhoes = (n) => (n >= 1e6 ? `${nf1.format(n / 1e6)} milhões de moradores` : n >= 1e3 ? `${nf0.format(n / 1e3)} mil moradores` : `${nf0.format(n)} moradores`);
     const todas = [["pref", "Todas as cidades", "/cidades"], ["est", "Todos os estados", "/estados"], ["fed", "Governo federal", "/"]];
     if (cid) {
       const id = estado.mun;
@@ -435,9 +441,9 @@
       const [nm, sg] = nomes.mun[id], cod = id.slice(0, 2);
       p = doc.mun[id]; ge = doc.uf[cod]; g = null; nomeLugar = nm;
       links = [["pref", `Prefeitura de ${nm}`, sg === "DF" ? "/cidades/df/brasilia" : `/cidades/${sg.toLowerCase()}/${slug(nm)}`], ["est", `Governo do estado (${sg})`, `/estados/${sg.toLowerCase()}`], ["fed", "Governo federal", "/"]];
-      if (!p) return { semConta: true, nome: nm, sub: `${nm} · ${nomes.uf[cod][0]} · ${ano}`, links, df: sg === "DF" };
+      if (!p) return { semConta: true, nome: nm, sub: `${nomes.uf[cod][0]} · ${ano}`, links, df: sg === "DF" };
       pop = p[I.pop]; popE = ge?.[I.pop];
-      sub = `${nm} · ${nomes.uf[cod][0]} · ${milhoes(pop)} · ${ano}`;
+      sub = `${nomes.uf[cod][0]} · ${nf0.format(pop)} moradores · ${ano}`;
       nP = ["Prefeitura", "a prefeitura"]; nE = ["Governo do estado", "o governo do estado"];
       pagaEst = temTributos(p) ? [["IPVA dos veículos da cidade", p[I.cotaIpva] * 2], ["ICMS (imposto embutido nas compras)", p[I.cotaIcms] * 4]] : null;
       pagaFed = federalDaCidade(id); direto = diretoDaCidade(id); empP = emprestimos(id); empG = emprestimos(cod);
@@ -453,7 +459,7 @@
       nP = [`As ${nf0.format(n)} prefeituras`, `as ${nf0.format(n)} prefeituras`];
       nE = nivel === "estado" ? ["Governo do estado", "o governo do estado"] : [`Os ${gs.length} governos estaduais`, `os ${gs.length} governos estaduais`];
       nomeLugar = nivel === "estado" ? nomes.uf[estado.uf][0] : "Brasil";
-      sub = nivel === "estado" ? `${nomeLugar} · ${milhoes(pop)} · ${n ? `${nf0.format(n)} cidades · ` : ""}${ano}` : `Brasil · o país inteiro · ${ano}`;
+      sub = nivel === "estado" ? `Estado · ${nf0.format(pop)} moradores · ${n ? `${nf0.format(n)} cidades · ` : ""}${ano}` : `País · ${nf0.format(pop)} moradores · ${ano}`;
       const estadual = d3.sum(gs, (r) => (r.length > I.outrosTrib ? r[I.taxas] + r[I.outrosTrib] : 0));
       pagaEst = estadual > 0 ? [["ICMS, IPVA e outros impostos estaduais", estadual]] : null;
       const rf = d3.sum(ufs, (u) => rfb.anos[ano]?.[SIGLA[u]] || 0); pagaFed = rf > 0 ? rf : null;
@@ -471,7 +477,7 @@
       nota: cid ? "Estimativas: os impostos estadual e federal só são divulgados por estado; a parte da cidade é calculada pelo peso dela no ICMS."
         : nivel === "estado" ? "O imposto é registrado onde a empresa tem sede, e não onde mora quem paga." : "",
       grupos: [
-        p && { gov: "pref", nome: `Para ${nP[1]}`, total: tp, pop, mapa: "paga_pref", linhas: tp !== null ? TRIBUTOS.map(([n, i]) => L(n, p[i])).filter((x) => x.v > 0) : [] },
+        p && { gov: "pref", nome: `Para ${nP[1]}`, total: tp, pop, mapa: "paga_pref", linhas: tp !== null ? TRIBUTOS.map(([n, i]) => L(n, p[i])).filter((x) => x.v > tp * 0.001) : [] },
         { gov: "est", nome: `Para ${nE[1]}`, estim: cid, total: te, pop, mapa: "paga_est", linhas: (pagaEst || []).map(([n, v]) => L(n, v)) },
         { gov: "fed", nome: "Para o governo federal", estim: cid, total: tf, pop, mapa: "paga_fed", linhas: tf !== null ? [L("Imposto de renda, INSS, PIS/Cofins e outros", tf)] : [] },
       ] };
@@ -521,7 +527,7 @@
   /** Um valor na unidade escolhida: total do ano ou dividido pelos moradores. */
   function fmt(v, pop, o = {}) {
     if (v === null || v === undefined || !Number.isFinite(v)) return "sem dado";
-    const a = Math.abs(v) * fator(), base = estado.unidade === "total" || !pop ? curto(a) : reais(a / pop);
+    const a = Math.abs(v) * fator(), base = (o.unidade || estado.unidade) === "total" || !pop ? curto(a) : reais(a / pop);
     return (o.saldo ? (v >= 0 ? "sobrou " : "faltou ") : "") + (o.estim ? "cerca de " : "") + base;
   }
   /** O que o mapa pinta agora: a pergunta inteira, ou só o governo escolhido no detalhe. */
@@ -620,11 +626,6 @@
     document.querySelectorAll("[data-nivel]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.nivel === estado.nivel)));
     document.querySelectorAll("[data-unidade]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.unidade === estado.unidade)));
     const morador = estado.unidade === "morador";
-    document.querySelectorAll("[data-q]").forEach((b) => {
-      b.setAttribute("aria-pressed", String(b.dataset.q === estado.q));
-      const q = c && !c.semConta ? c[b.dataset.q] : null;
-      b.querySelector("span").textContent = q ? (q.total === null ? "sem dado" : `${fmt(q.total, q.pop, q)}${morador ? " por morador" : " no ano"}`) : c ? "sem as contas deste ano" : "escolha o lugar";
-    });
     $("unidade-dica").textContent = morador ? "Cada valor dividido pelo número de moradores. Mais fácil de comparar com a sua vida." : "O valor cheio do orçamento, para quem quer analisar a conta inteira.";
     const onde = $("onde");
     if (document.activeElement !== onde) onde.value = estado.nivel === "cidade" ? (estado.mun ? nomes.mun[estado.mun][0] : "") : estado.nivel === "estado" ? (estado.uf ? nomes.uf[estado.uf][0] : "") : "";
@@ -633,42 +634,96 @@
   }
   const esc = (t) => String(t).replace(/[&<>"]/g, (x) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[x]);
   function linksDe(c) {
-    return `<div class="links"><span class="rotulo">Ver a página completa</span><div>${c.links.map(([gov, nome, href]) => `<a href="${href}" style="--cor:var(--${gov})"><span>${esc(nome)}</span><span aria-hidden="true">→</span></a>`).join("")}</div></div>`;
+    return `<p class="links"><span>Página completa:</span>${c.links.map(([gov, nome, href]) => `<a href="${href}" style="--cor:var(--${gov})"><i></i>${esc(nome)}</a>`).join("")}</p>`;
+  }
+  const FAIXAS = [[5e3, "até 5 mil moradores"], [1e4, "de 5 a 10 mil moradores"], [2e4, "de 10 a 20 mil moradores"], [5e4, "de 20 a 50 mil moradores"], [1e5, "de 50 a 100 mil moradores"], [5e5, "de 100 a 500 mil moradores"], [Infinity, "mais de 500 mil moradores"]];
+  const faixaDe = (pop) => FAIXAS.findIndex(([ate]) => pop <= ate);
+  /** O bloco que compara o lugar com os parecidos (mediana) e mostra receita e despesa de todos os anos. */
+  function comparacao() {
+    const cid = estado.nivel === "cidade", id = cid ? estado.mun : estado.uf, k = fator();
+    const dinheiro = (v) => reais(v * k), parte = (v) => `${nf0.format(v * 100)}%`;
+    const sobra = (v) => `${v >= 0 ? "sobrou" : "faltou"} ${nf1.format(Math.abs(v) * 100)}%`;
+    const porMorador = (r, i) => (r ? r[i] / r[I.pop] : null);
+    const saldo = (r) => (temReceita(r) ? (r[I.rec] - r[I.desp]) / r[I.rec] : null);
+    let pares, legenda, linhas;
+    if (cid) {
+      const fx = faixaDe(doc.mun[id][I.pop]);
+      pares = Object.keys(doc.mun).filter((x) => faixaDe(doc.mun[x][I.pop]) === fx);
+      legenda = `cidades ${FAIXAS[fx][1]}`;
+      const repasses = (r) => (temReceita(r) ? Math.max(0, Math.min(1, (r[I.uniao] + r[I.estado] + r[I.fundeb]) / r[I.rec])) : null);
+      linhas = [["Paga à prefeitura", (x) => numeros(x).paga_pref, dinheiro], ["Receita da prefeitura", (x) => (temReceita(doc.mun[x]) ? porMorador(doc.mun[x], I.rec) : null), dinheiro],
+        ["Gasto da prefeitura", (x) => porMorador(doc.mun[x], I.desp), dinheiro], ["· em saúde", (x) => porMorador(doc.mun[x], I.saude), dinheiro], ["· em educação", (x) => porMorador(doc.mun[x], I.edu), dinheiro],
+        ["Sobrou ou faltou", (x) => saldo(doc.mun[x]), sobra, true], ["Vem de repasses", (x) => repasses(doc.mun[x]), parte], ["O que volta para cá", (x) => numeros(x).volta_total, dinheiro]];
+    } else {
+      pares = Object.keys(nomes.uf).filter((x) => x !== "53");
+      legenda = "estados";
+      linhas = [["Paga aos três governos", (x) => numeros(x).paga_total, dinheiro], ["Prefeituras e estado gastam", (x) => numeros(x).gasta_total, dinheiro],
+        ["· as prefeituras", (x) => numeros(x).gasta_pref, dinheiro], ["· o governo do estado", (x) => numeros(x).gasta_est, dinheiro],
+        ["Sobrou ou faltou no estado", (x) => saldo(doc.uf[x]), sobra, true], ["O que volta para cá", (x) => numeros(x).volta_total, dinheiro]];
+    }
+    const corpo = linhas.map(([rot, fn, mostrar, semSinal]) => {
+      const v = fn(id), m = d3.median(pares.map(fn).filter((x) => x !== null && x !== undefined && Number.isFinite(x)));
+      if (v === null || v === undefined || !Number.isFinite(v) || m === undefined) return "";
+      const d = m > 0 ? v / m - 1 : 0, sinal = semSinal || !(m > 0) ? "" : Math.abs(d) < 0.1 ? "parecido" : d > 0 ? `${parte(d)} acima` : `${parte(-d)} abaixo`;
+      return `<tr><th scope="row">${rot}</th><td>${mostrar(v)}</td><td>${mostrar(m)}</td><td class="sinal">${sinal}</td></tr>`;
+    }).join("");
+    const bruta = serie[cid ? "mun" : "uf"][id] || [[], []];   // [despesa por ano, receita por ano]
+    const sr = bruta.map((linha) => linha.map((x, n) => (x ? x * (estado.real ? ipca.fatores[serie.anos[n]] ?? 1 : 1) : x)));
+    const max = d3.max([...sr[0], ...sr[1]], (x) => x || 0) || 1, dono = cid ? "da prefeitura" : "do governo do estado";
+    return `<table class="comp"><caption>Mediana de ${nf0.format(pares.length)} ${legenda}, por morador</caption>
+        <thead><tr><th></th><th>${cid ? "Aqui" : "Este"}</th><th>${cid ? "Parecidas" : "Os outros"}</th><th></th></tr></thead><tbody>${corpo}</tbody></table>
+      <div class="serie" role="group" aria-label="Receita e despesa ${dono} por ano">${serie.anos.map((a, n) => `<button type="button" data-ano="${a}" class="${a === estado.ano ? "atual" : ""}" title="${a}: receita ${sr[1][n] ? curto(sr[1][n]) : "sem dado"}, despesa ${sr[0][n] ? curto(sr[0][n]) : "sem dado"}"><span class="colunas"><span class="b rec" style="height:${((sr[1][n] || 0) / max) * 100}%"></span><span class="b${sr[0][n] ? "" : " falta"}" style="height:${sr[0][n] ? (sr[0][n] / max) * 100 : 30}%"></span></span><em>${String(a).slice(2)}</em></button>`).join("")}</div>
+      <p class="nota"><i class="q rec"></i> receita <i class="q"></i> despesa ${dono}, por ano, ${estado.real ? `em reais de ${ipca.base}` : "em valores da época"}. Clique num ano para ver as contas dele.</p>`;
   }
   function detalhe(c) {
-    const el = $("det"), perg = PERGUNTAS.find((x) => x.id === estado.q);
+    const el = $("det"), morador = estado.unidade === "morador";
     if (!c) {
       const oQue = estado.nivel === "cidade" ? (estado.uf ? `uma cidade de ${nomes.uf[estado.uf][0]}` : "uma cidade") : "um estado";
-      el.innerHTML = `<span class="sub">Escolha ${oQue}</span><div class="cab"><h2>${perg.longo}</h2></div>
-        <p class="aviso">Clique no mapa ou escreva o nome no campo "Onde", à esquerda. A resposta desta pergunta aparece aqui, dividida por prefeitura, governo do estado e governo federal.</p>`;
+      el.innerHTML = `<span class="sub">${estado.nivel === "cidade" ? "Cidade" : "Estado"} · ${estado.ano}</span><h2>Escolha ${oQue}</h2>
+        <p class="aviso">Clique no mapa ou escreva o nome no campo "Onde", à esquerda. As quatro perguntas aparecem aqui, cada uma dividida por prefeitura, governo do estado e governo federal.</p>`;
       return;
     }
     if (c.semConta) {
-      el.innerHTML = `<span class="sub">${esc(c.sub)}</span><div class="cab"><h2>${perg.longo}</h2></div>
-        <p class="aviso">${c.df ? "O Distrito Federal presta contas como estado. Para ver, escolha \"Estado\" e clique nele." : `A prefeitura de ${esc(c.nome)} não entregou as contas de ${estado.ano} ao Tesouro Nacional.`}</p>${linksDe(c)}`;
+      el.innerHTML = `<span class="sub">${esc(c.sub)}</span><h2>${esc(c.nome)}</h2>
+        <p class="aviso">${c.df ? "O Distrito Federal presta contas como estado. Para ver, escolha \"Estado\" e clique nele." : `A prefeitura não entregou as contas de ${estado.ano} ao Tesouro Nacional.`}</p>${linksDe(c)}`;
       return;
     }
-    const q = c[estado.q], morador = estado.unidade === "morador", { chave } = chaveDoMapa(c);
-    const grupos = q.grupos.map((g) => {
-      const ativo = !!g.mapa && g.mapa === chave && (estado.grupo === g.gov || estado.q === "q4");
-      const tag = (g.estim ? "estimativa · " : "") + (g.mapa ? (ativo ? "é o que o mapa mostra agora" : "clique para ver só este no mapa") : g.semMapa);
-      const linhas = g.linhas.length ? g.linhas : [{ r: `Sem dado para ${estado.ano}`, t: "" }];
-      return `<button type="button" class="gr" style="--cor:var(--${g.gov})" data-gov="${g.gov}"${g.mapa ? " data-mapa" : ""} aria-pressed="${ativo}">
-          <span class="n"><b>${esc(g.nome)}</b><small>${tag}</small></span><span class="v">${g.semValor ? "" : fmt(g.total, g.pop, g)}</span></button>
-        ${linhas.map((l) => `<div class="ln"><span>${esc(l.r)}</span><span>${l.t !== undefined ? esc(l.t) : fmt(l.v, l.pop)}</span></div>`).join("")}`;
-    }).join("");
-    const etiqueta = (morador ? `Por morador, em ${estado.ano}` : `Total do ano de ${estado.ano}`) + (estado.real ? `, em reais de ${ipca.base}` : "");
-    el.innerHTML = `<span class="sub">${esc(c.sub)}</span>
-      <div class="cab"><h2>${perg.longo}</h2><b>${fmt(q.total, q.pop, q)}</b></div>
-      <div class="un"><i>${etiqueta}</i><span>${q.extra}</span></div>
-      ${q.barra ? `<div class="barra" aria-hidden="true">${q.barra.map((v, i) => `<span style="flex:${Math.max(v, 0)} 1 0;background:var(--${["pref", "est", "fed"][i]})"></span>`).join("")}</div>` : ""}
-      <div class="grupos">${grupos}</div>
-      ${q.nota ? `<span class="nota">${q.nota}</span>` : ""}
+    const { chave } = chaveDoMapa(c);
+    const blocos = PERGUNTAS.map((perg) => {
+      const q = c[perg.id], aberto = estado.aberto && estado.q === perg.id;
+      const cab = `<button type="button" data-q="${perg.id}" aria-expanded="${aberto}"><span>${perg.titulo}</span><b>${fmt(q.total, q.pop, q)}</b></button>`;
+      if (!aberto) return `<div class="pergunta">${cab}</div>`;
+      const outra = q.total === null ? "" : morador ? `No total, ${fmt(q.total, q.pop, { ...q, unidade: "total" })} no ano. ` : `${fmt(q.total, q.pop, { ...q, unidade: "morador" })} por morador. `;
+      const grupos = q.grupos.map((g) => {
+        const ativo = !!g.mapa && g.mapa === chave && (estado.grupo === g.gov || perg.id === "q4");
+        const linhas = g.linhas.length ? g.linhas : [{ r: `Sem dado para ${estado.ano}`, t: "" }];
+        return `<h3 class="gov" style="--cor:var(--${g.gov})"><i></i><span>${esc(g.nome)}</span><small>${g.estim ? "estimativa" : "medido"}</small>${g.semValor ? "" : `<em>· ${fmt(g.total, g.pop, { saldo: g.saldo })}</em>`}${g.mapa ? `<button type="button" data-gov="${g.gov}" aria-pressed="${ativo}">${ativo ? "no mapa agora" : "ver no mapa"}</button>` : ""}</h3>
+          <ul class="linhas">${linhas.map((l) => `<li><span>${esc(l.r)}</span><em>${l.t !== undefined ? esc(l.t) : fmt(l.v, l.pop)}</em></li>`).join("")}</ul>`;
+      }).join("");
+      return `<div class="pergunta">${cab}<div class="bloco-corpo">
+          <p class="bloco-nota">${outra}${q.extra}</p>
+          ${q.barra ? `<div class="barra" aria-hidden="true">${q.barra.map((v, i) => `<span style="flex:${Math.max(v, 0)} 1 0;background:var(--${["pref", "est", "fed"][i]})"></span>`).join("")}</div>` : ""}
+          ${grupos}
+          ${q.nota ? `<p class="nota">${q.nota}</p>` : ""}
+        </div></div>`;
+    });
+    if (estado.nivel !== "brasil") {
+      const titulo = estado.nivel === "cidade" ? "Comparar com cidades parecidas e ver outros anos" : "Comparar com os outros estados e ver outros anos";
+      blocos.push(`<div class="pergunta"><button type="button" data-comparar aria-expanded="${estado.comparar}"><span>${titulo}</span><b></b></button>${estado.comparar ? `<div class="bloco-corpo">${comparacao()}</div>` : ""}</div>`);
+    }
+    el.innerHTML = `<span class="sub">${esc(c.sub)} · ${morador ? "valores por morador" : "valores totais do ano"}</span>
+      <h2>${esc(c.nome)}</h2>
+      <div class="blocos">${blocos.join("")}</div>
+      <p class="nota">Contas declaradas pelas prefeituras e pelos estados ao Tesouro Nacional${estado.real ? `, em reais de ${ipca.base}` : ""}. Toque num título para abrir ou fechar; a pergunta aberta é a que o mapa mostra.</p>
       ${linksDe(c)}`;
   }
   $("det").addEventListener("click", (ev) => {
-    const b = ev.target.closest(".gr[data-mapa]");
-    if (b) definir({ grupo: estado.grupo === b.dataset.gov ? null : b.dataset.gov });
+    const alvo = (sel) => ev.target.closest(sel);
+    let b;
+    if ((b = alvo(".gov button[data-gov]"))) definir({ grupo: estado.grupo === b.dataset.gov ? null : b.dataset.gov });
+    else if ((b = alvo("button[data-q]"))) definir(b.dataset.q === estado.q ? { aberto: !estado.aberto } : { q: b.dataset.q, aberto: true });
+    else if (alvo("button[data-comparar]")) definir({ comparar: !estado.comparar });
+    else if ((b = alvo("button[data-ano]"))) definir({ ano: +b.dataset.ano });
   });
 
   function atualizar() {
@@ -689,7 +744,6 @@
     escreverHash();
   }
   document.querySelectorAll("[data-nivel]").forEach((b) => b.addEventListener("click", () => definir({ nivel: b.dataset.nivel, grupo: null })));
-  document.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => definir({ q: b.dataset.q })));
   document.querySelectorAll("[data-unidade]").forEach((b) => b.addEventListener("click", () => definir({ unidade: b.dataset.unidade })));
   $("ano").min = ANO_MIN; $("ano").max = ANO_MAX; $("ano-min").textContent = ANO_MIN; $("ano-max").textContent = ANO_MAX;
   $("ano").addEventListener("input", (ev) => { $("ano-rotulo").textContent = ev.target.value; });
