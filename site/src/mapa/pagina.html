@@ -62,11 +62,19 @@
   .selo { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--verde); }
 
   aside {
-    border-right: 1px solid var(--regra); overflow-y: auto; display: flex; flex-direction: column; gap: 20px;
-    padding-block: 20px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: 20px;
+    border-right: 1px solid var(--regra); overflow-y: auto; display: flex; flex-direction: column; gap: 30px;
+    padding-block: 24px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: 20px;
   }
-  fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  legend, .rotulo { padding: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--texto-3); }
+  fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  legend, .rotulo { padding: 0 0 8px; font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--texto-2); }
+  /* Ano, inflação e as linhas de dinheiro ficam numa linha só, que abre ao clicar: o menu passa a caber na tela. */
+  .opcoes { border-top: 1px solid var(--regra); border-bottom: 1px solid var(--regra); }
+  .opcoes > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 0; font-size: 13.5px; font-weight: 600; }
+  .opcoes > summary::-webkit-details-marker { display: none; }
+  .opcoes > summary span::before { content: "+"; display: inline-block; width: 16px; font-weight: 400; color: var(--texto-3); }
+  .opcoes[open] > summary span::before { content: "−"; }
+  .opcoes > summary b { font-family: var(--serifa); font-size: 20px; font-variant-numeric: tabular-nums; }
+  .opcoes-caixa { display: flex; flex-direction: column; gap: 18px; padding: 6px 0 18px; }
   .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--tinta); }
   .seg button { font: inherit; font-size: 13px; padding: 8px 6px; background: none; color: var(--tinta); border: 0; cursor: pointer; border-right: 1px solid var(--tinta); }
   .seg button:last-child { border-right: 0; }
@@ -95,7 +103,7 @@
   .guia-ok { align-self: flex-start; font: inherit; font-size: 14px; font-weight: 600; padding: 9px 20px; background: var(--tinta); color: var(--papel); border: 0; cursor: pointer; }
   .perguntas { display: flex; flex-direction: column; }
   .perguntas button {
-    font: inherit; text-align: left; padding: 10px 0; background: none; border: 0; border-bottom: 1px solid var(--regra);
+    font: inherit; text-align: left; padding: 12px 0; background: none; border: 0; border-bottom: 1px solid var(--regra);
     cursor: pointer; color: var(--texto-2); display: flex; flex-direction: column; gap: 3px;
   }
   .perguntas button strong { font-family: var(--serifa); font-size: 17px; font-weight: 600; color: var(--tinta); }
@@ -253,7 +261,7 @@
     header .busca { flex: 1 0 100%; }
     .palco { order: 1; position: sticky; top: 0; z-index: 3; flex: none; height: 46vh; height: 46svh; min-height: 260px; overflow: hidden; background: var(--papel-2); border-bottom: 2px solid var(--tinta); }
     .detalhe { order: 2; position: static; width: auto; max-height: none; overflow: visible; box-shadow: none; border: 0; border-bottom: 2px solid var(--tinta); padding: 14px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
-    aside { order: 3; border-right: 0; overflow: visible; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: max(24px, env(safe-area-inset-bottom, 0px)); gap: 16px; }
+    aside { order: 3; border-right: 0; overflow: visible; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: max(24px, env(safe-area-inset-bottom, 0px)); gap: 24px; }
     .zoom { left: 12px; top: 12px; }
     .guia { position: fixed; z-index: 9; }
     .serie { display: none; }
@@ -292,6 +300,9 @@
       </div>
     </fieldset>
 
+    <details class="opcoes" id="opcoes">
+      <summary><span>Ano e opções</span><b id="ano-topo">2025</b></summary>
+      <div class="opcoes-caixa">
     <fieldset>
       <legend>Em que ano</legend>
       <div class="ano">
@@ -306,6 +317,13 @@
       <label class="camada"><input type="checkbox" id="real">
         <span>Corrigir pela inflação<small>Mostra os valores de todos os anos em reais de 2025 (IPCA), para comparar anos diferentes.</small></span></label>
     </fieldset>
+    <fieldset id="bloco-fluxo" hidden>
+      <label class="camada"><input type="checkbox" id="cam-fluxo" checked>
+        <span>Mostrar os repasses da União<small id="fluxo-explica"></small></span></label>
+      <ul class="maiores" id="maiores"></ul>
+    </fieldset>
+      </div>
+    </details>
 
     <fieldset>
       <legend>O que você quer saber</legend>
@@ -329,12 +347,6 @@
         <button type="button" id="area-edu" data-area="edu" aria-pressed="false">Educação</button>
         <button type="button" id="area-seg" data-area="seg" aria-pressed="false">Segurança</button>
       </div>
-    </fieldset>
-
-    <fieldset id="bloco-fluxo" hidden>
-      <label class="camada"><input type="checkbox" id="cam-fluxo" checked>
-        <span>Mostrar os repasses da União<small id="fluxo-explica"></small></span></label>
-      <ul class="maiores" id="maiores"></ul>
     </fieldset>
 
     <div class="legenda" aria-live="polite">
@@ -625,6 +637,7 @@
     document.getElementById("so-2025").hidden = !fed;
     document.querySelector("#bloco-fluxo .camada span").firstChild.textContent = fed ? "Mostrar o dinheiro saindo de Brasília" : imp ? "Mostrar o dinheiro indo e voltando" : "Mostrar os repasses da União";
     document.getElementById("ano-rotulo").textContent = estado.ano;
+    document.getElementById("ano-topo").textContent = rotuloAno();
     document.getElementById("ano").value = estado.ano;
     const n = Object.keys(base()).length;
     document.getElementById("rodape").innerHTML = ehParcial()
@@ -1050,9 +1063,21 @@
         ctx.beginPath(); ctx.arc(x, y, 1 + p.r.peso * 1.6, 0, Math.PI * 2); ctx.fill();
       }
       ctx.font = "600 11px Inter, system-ui, sans-serif";
-      const bsb = ponto(centroCapital.DF);
-      ctx.fillStyle = css("--fluxo"); ctx.beginPath(); ctx.arc(...bsb, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = css("--tinta"); ctx.fillText("Brasília", bsb[0] + 8, bsb[1] - 6);
+      // De onde o dinheiro sai e para onde vai: Brasília é o governo federal e a capital é o governo do estado.
+      const sede = (lonlat, cor, texto) => {
+        const [x, y] = ponto(lonlat);
+        ctx.globalAlpha = 1; ctx.fillStyle = css(cor); ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+        const w = ctx.measureText(texto).width + 12;   // etiqueta com fundo, para se ler sobre qualquer cor do mapa
+        const ex = Math.max(4, Math.min(x + 9, width - w - 4));   // sem sair da tela
+        ctx.fillStyle = css("--papel"); ctx.fillRect(ex, y - 24, w, 20);
+        ctx.strokeStyle = css(cor); ctx.lineWidth = 1.5; ctx.strokeRect(ex, y - 24, w, 20);
+        ctx.fillStyle = css("--tinta"); ctx.fillText(texto, ex + 6, y - 10);
+      };
+      sede(centroCapital.DF, "--fluxo", "Brasília · governo federal");
+      const siglaSel = estado.sel ? ufDe(estado.sel) : null, capSel = siglaSel ? centroCapital[siglaSel] : null;
+      if (capSel && siglaSel !== "DF" && CAPITAIS[siglaSel] !== estado.sel && rotas.some((r) => r.origem === capSel || r.destino === capSel)) {
+        sede(capSel, "--c-estado", `${nomes.mun[CAPITAIS[siglaSel]][0]} · governo do estado`);
+      }
       for (const r of rotas.filter((x) => x.rot)) {   // etiquetas no meio de cada linha da seleção
         const a = ponto(r.origem), b = ponto(r.destino);
         const [x, y] = quad(a, curva(a, b, r.lado), b, r.tRot ?? 0.5);
@@ -1061,6 +1086,20 @@
         ctx.strokeStyle = css(r.cor); ctx.lineWidth = 1.5; ctx.globalAlpha = 1; ctx.strokeRect(x - w / 2, y - 10, w, 20);
         ctx.fillStyle = css("--tinta"); ctx.textAlign = "center"; ctx.fillText(r.rot, x, y + 4); ctx.textAlign = "start";
       }
+    }
+    // A cidade escolhida: uma bolinha no lugar dela e o nome ao lado, com ou sem as linhas de dinheiro.
+    if (estado.sel && estado.esfera === "mun" && feicao.mun.has(estado.sel)) {
+      const [x, y] = ponto(centroDe(estado.sel)), nomeSel = nomes.mun[estado.sel][0];
+      // O nome vai para o lado oposto ao da capital do estado, por onde passam as linhas e as etiquetas delas.
+      const cap = ponto(centroCapital[ufDe(estado.sel)] || centroCapital.DF);
+      const dx = cap[0] >= x ? -1 : 1, dy = cap[1] >= y ? -1 : 1;
+      ctx.font = "600 12px Inter, system-ui, sans-serif";
+      const w = ctx.measureText(nomeSel).width + 16, bx = Math.max(4, Math.min(dx > 0 ? x + 14 : x - 14 - w, width - w - 4)), by = dy > 0 ? y + 22 : y - 46;
+      ctx.globalAlpha = 1; ctx.setLineDash([]);
+      ctx.strokeStyle = css("--tinta"); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * 20, y + dy * 22); ctx.stroke();
+      ctx.fillStyle = css("--papel"); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = css("--tinta"); ctx.fillRect(bx, by, w, 24);
+      ctx.fillStyle = css("--papel"); ctx.fillText(nomeSel, bx + 8, by + 16);
     }
     requestAnimationFrame(desenhar);
   }
