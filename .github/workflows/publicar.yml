@@ -138,6 +138,10 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline saude
 
+      - name: Pipeline da população de cada ano (IBGE)
+        continue-on-error: true
+        run: uv run --project pipeline populacao
+
       - name: Pipeline da segurança (homicídios)
         continue-on-error: true
         run: uv run --project pipeline seguranca

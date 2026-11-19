@@ -279,12 +279,37 @@ export interface Homicidios {
   taxaIndeterminadas: number;
   mediana: number | null;
   brasil: number | null;
-  /** Homicídios (número de mortes) ano a ano. */
+  /** Homicídios ano a ano: por 100 mil habitantes quando há a população do ano, senão o número de mortes. */
   serie: PontoSerie[];
+  serieEmTaxa: boolean;
+  /** A taxa do Brasil ano a ano (vazia sem a população). */
+  serieBrasil: PontoSerie[];
 }
+
+// População de cada ano (IBGE, pipeline/…/populacao.py): ano → código do estado ou ibge → pessoas.
+const arquivosPopulacao = import.meta.glob<{ fonte: string; anos: Record<string, Record<string, number>> }>("../../public/data/indicadores/populacao.json", { eager: true, import: "default" });
+const docPopulacao = Object.values(arquivosPopulacao)[0] ?? null;
 
 /** A seção de homicídios aparece nas cidades a partir deste tamanho (os números menores oscilam demais). */
 export const POP_HOMICIDIOS = 100_000;
+
+/** A série de um ente, em taxa quando todo ano tem população, e a do Brasil. */
+function serieHomicidios(porAno: Record<string, Record<string, [number, number, number]>>, id: string) {
+  const anos = Object.keys(porAno).sort();
+  const pops = docPopulacao?.anos ?? {};
+  const emTaxa = anos.every((a) => pops[a]?.[id]);
+  const serie = anos.map((a) => {
+    const y = porAno[a][id];
+    const n = y ? y[0] + y[1] : 0;
+    return { ano: Number(a), valor: emTaxa ? (n / pops[a][id]) * 1e5 : n, preliminar: false };
+  });
+  const serieBrasil = !emTaxa ? [] : anos.flatMap((a) => {
+    let n = 0, p = 0;
+    for (const [uf, y] of Object.entries(docSeguranca!.anos[a] ?? {})) if (pops[a]?.[uf]) { n += y[0] + y[1]; p += pops[a][uf]; }
+    return p ? [{ ano: Number(a), valor: (n / p) * 1e5, preliminar: false }] : [];
+  });
+  return { serie, serieEmTaxa: emTaxa, serieBrasil };
+}
 
 /** Os números do último ano fechado; a população é a do ente na base do site. */
 export function homicidiosDe(e: Cidade, esfera: "uf" | "mun" = "uf"): Homicidios | null {
@@ -300,17 +325,16 @@ export function homicidiosDe(e: Cidade, esfera: "uf" | "mun" = "uf"): Homicidios
   const comparaveis = esfera === "uf"
     ? docEstados.cidades.filter((x) => x.ibge !== 53)
     : (docCidades?.cidades ?? []).filter((x) => x.faixa === e.faixa && x.pop >= POP_HOMICIDIOS);
-  const taxas = comparaveis.map((x) => { const y = doAno[String(x.ibge)]; return por100mil(y ? y[0] + y[1] : 0, x.pop); });
+  // A população do mesmo ano dos homicídios, quando o IBGE tem; senão, a da base do site.
+  const popDoAno = (x: Cidade) => docPopulacao?.anos[ano]?.[String(x.ibge)] ?? x.pop;
+  const taxas = comparaveis.map((x) => { const y = doAno[String(x.ibge)]; return por100mil(y ? y[0] + y[1] : 0, popDoAno(x)); });
   let n = 0, p = 0;
-  for (const x of docEstados.cidades) { const y = docSeguranca.anos[ano]?.[String(x.ibge)]; if (y) { n += y[0] + y[1]; p += x.pop; } }
+  for (const x of docEstados.cidades) { const y = docSeguranca.anos[ano]?.[String(x.ibge)]; if (y) { n += y[0] + y[1]; p += popDoAno(x); } }
   return {
     fonte: docSeguranca.fonte, ano: Number(ano), homicidios: v[0] + v[1], policia: v[1], indeterminadas: v[2],
-    taxa: por100mil(v[0] + v[1], e.pop), taxaIndeterminadas: por100mil(v[2], e.pop),
+    taxa: por100mil(v[0] + v[1], popDoAno(e)), taxaIndeterminadas: por100mil(v[2], popDoAno(e)),
     mediana: mediana(taxas), brasil: p ? por100mil(n, p) : null,
-    serie: Object.keys(porAno).sort().map((a) => {
-      const y = porAno[a][String(e.ibge)];
-      return { ano: Number(a), valor: y ? y[0] + y[1] : 0, preliminar: false };
-    }),
+    ...serieHomicidios(porAno, String(e.ibge)),
   };
 }
 
