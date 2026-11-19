@@ -65,6 +65,7 @@ cd ../site && npm install && npm run dev
 | Receita Federal | [Arrecadação por estado](https://www.gov.br/receitafederal/dados/arrecadacao-estado.csv) | Mapa: impostos federais arrecadados em cada estado, base da estimativa do que cada cidade manda para a União |
 | Tesouro Nacional | [Municípios do SIAFI](https://www.tesourotransparente.gov.br/ckan/dataset/lista-de-municipios-do-siafi) | Código SIAFI → código IBGE (o Portal da Transparência usa o SIAFI) |
 | SICONFI (Tesouro Nacional) | [API de dados abertos](https://apidatalake.tesouro.gov.br/docs/siconfi/), RREO Anexo 01 | O ano em andamento nas páginas de estado e cidade: receita arrecadada e despesa empenhada e paga até o último bimestre com prazo de entrega vencido, frente ao previsto para o ano e ao mesmo período do ano anterior. No mapa, é o último ano do seletor, marcado como parcial ("2026 (até agosto)"), com gasto total, tipo de gasto, receita, saldo e origem do dinheiro |
+| Governo da Paraíba | [Portal de Dados Abertos](https://api.dados.pb.gov.br/swagger/), despesas orçamentárias | Páginas das cidades paraibanas: o que o governo do estado gastou em cada município (obras, serviços e compras), por área e com as maiores despesas. É o único estado que publica o município em cada empenho. `uv run estado-pb 2025` |
 | IBGE | [Malhas territoriais](https://servicodados.ibge.gov.br/api/docs/malhas) | Contornos de municípios e estados do mapa |
 
 Saídas do pipeline:

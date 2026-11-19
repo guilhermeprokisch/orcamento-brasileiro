@@ -2,6 +2,7 @@
 import Base from "../../../layouts/Base.astro";
 import GastoPorArea from "../../../components/gasto/GastoPorArea.astro";
 import ReceitaESaldo from "../../../components/gasto/ReceitaESaldo.astro";
+import GastoEstadualAqui from "../../../components/gasto/GastoEstadualAqui.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../../lib/formato";
 import {
   caminhoCidade, caminhoEstado, docCidades, habitantes, medianaDa, NOMES_UF, porPessoa, type Cidade,
@@ -87,6 +88,8 @@ const descricao = temDados
     )}
 
     {temDados && <ReceitaESaldo ente={c} esfera="mun" quem={quem} onde={ehDF ? "no Distrito Federal" : `em ${c.nome}`} />}
+
+    {!ehDF && <GastoEstadualAqui cidade={c} />}
 
     <section class="unidade">
       <h2>E a escola ou o posto de saúde do meu bairro?</h2>
