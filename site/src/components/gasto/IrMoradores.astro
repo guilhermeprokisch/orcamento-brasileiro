@@ -1,0 +1,73 @@
+---
+/**
+ * O imposto de renda devido por quem mora na cidade (declarações, pela cidade de residência).
+ * Complementa a arrecadação federal "recolhida aqui" do mapa, que conta o imposto na sede da
+ * empresa e deixa as cidades-dormitório baixas.
+ */
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { porPessoa, type Cidade } from "../../lib/cidades";
+import { irMoradoresDe } from "../../lib/indicadores";
+
+interface Props {
+  cidade: Cidade;
+  /** "de Fortaleza", "do Distrito Federal" */
+  deOnde: string;
+  /** "das cidades de 100 a 500 mil habitantes"; null sem comparação */
+  grupo: string | null;
+}
+const { cidade: c, deOnde, grupo } = Astro.props;
+const ir = irMoradoresDe(c);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const frente = ir && ir.mediana ? ir.porHab / ir.mediana - 1 : null;
+---
+
+{ir && (
+  <section class="ir-moradores">
+    <div class="texto">
+      <span class="sobretitulo">O que sai daqui</span>
+      <h2>O imposto de renda de quem mora aqui</h2>
+      <p>
+        Em {ir.ano}, as {nf0.format(ir.declarantes)} pessoas {deOnde} que declararam imposto de renda pagaram{" "}
+        <strong>{moedaExtenso(ir.valor)}</strong> à União, ou <strong>{porPessoa(ir.porHab)} por habitante</strong>.
+        {ir.mediana !== null && grupo && <> A mediana {grupo} é {porPessoa(ir.mediana)}{frente !== null && Math.abs(frente) >= 0.1 && <> ({nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"})</>}.</>}
+      </p>
+      <p class="menor">
+        É o imposto descontado do salário mais o pago na declaração, menos o que voltou na restituição, contado pela cidade
+        onde a pessoa mora, onde quer que ela trabalhe. A arrecadação federal que a Receita registra em cada cidade conta o
+        imposto onde fica a empresa que o recolheu. Por isso, numa cidade onde muita gente trabalha fora, este número é bem
+        maior que o imposto de renda registrado nela. Não inclui INSS nem impostos embutidos nas compras.
+      </p>
+    </div>
+    <div class="numeros-ir">
+      <p class="unidade">Imposto de renda dos moradores, {ir.ano}</p>
+      <div><span>Total</span><strong class="num">{moedaCurta(ir.valor)}</strong></div>
+      <div><span>Por habitante</span><strong class="num">{porPessoa(ir.porHab)}</strong></div>
+      {ir.mediana !== null && grupo && <div><span>Cidades parecidas</span><strong class="num muted">{porPessoa(ir.mediana)}</strong></div>}
+    </div>
+    <p class="fonte">Fonte: {ir.fonte}, ano-calendário {ir.ano}.</p>
+  </section>
+)}
+
+<style>
+  .ir-moradores { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .numeros-ir { grid-column: span 6; align-self: center; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--regra); }
+  .numeros-ir div { padding: 12px 16px 16px 0; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
+  .numeros-ir span { font-size: 13px; line-height: 1.3; color: var(--texto-3); }
+  .numeros-ir strong { font-family: var(--serifa); font-size: 28px; font-weight: 700; }
+  .numeros-ir strong { white-space: nowrap; }
+  .unidade { grid-column: 1 / -1; margin: 0; padding: 12px 0 0; font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .ir-moradores { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+    .numeros-ir { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros-ir div:first-of-type { grid-column: 1 / -1; }
+    .numeros-ir strong { font-size: 24px; }
+  }
+</style>

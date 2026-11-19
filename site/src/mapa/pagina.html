@@ -424,6 +424,16 @@
   const porAno = {};
   const inssAno = {};   // benefícios do INSS pagos em cada município: {ibge: [total, aposentadorias, pensões]}
   const rfbMun = {};    // arrecadação federal em cada município (Receita Federal): {ibge: [total, IR de pessoas físicas | null]}
+  // Imposto de renda pela cidade onde a pessoa mora (Grandes Números do IRPF): {anos: {ano: {ibge: [declarantes, imposto devido]}}}
+  const irRes = await json("irpf-res.json").catch(() => ({ anos: {} }));
+  /** O imposto de renda dos moradores no ano do mapa, ou no ano mais perto (até um de distância); null sem dado. */
+  function irMoradores(id) {
+    const anos = Object.keys(irRes.anos).map(Number);
+    const ano = anos.filter((a) => a <= estado.ano).at(-1) ?? anos[0];
+    if (ano === undefined || Math.abs(ano - estado.ano) > 1) return null;
+    const v = irRes.anos[ano][id];
+    return v ? { ano, valor: v[1] * fator(ano), declarantes: v[0] } : null;
+  }
   async function carregarAno(ano) {
     if (!porAno[ano]) {
       const [d, inss, rfbAno] = await Promise.all([json(`anos/${ano}.json`), json(`inss/${ano}.json`).catch(() => ({})), json(`rfb-mun/${ano}.json`).catch(() => ({}))]);
@@ -527,9 +537,9 @@
       ...uniaoDe(id, medido, k) };
   }
   function uniaoDe(id, medido, k) {
-    if (medido) return { uniao: medido[0] * k, irpf: medido[1] === null ? null : medido[1] * k, uniaoMedida: true };
+    if (medido) return { uniao: medido[0] * k, uniaoMedida: true };
     const peso = pesoNoEstado(id), fedUf = rfb.anos[estado.ano]?.[nomes.mun[id][1]];
-    return { uniao: peso !== null && fedUf ? fedUf * peso * k : null, irpf: null, uniaoMedida: false };
+    return { uniao: peso !== null && fedUf ? fedUf * peso * k : null, uniaoMedida: false };
   }
 
   // Dinheiro federal por município (só 2025, Portal da Transparência): repasses à prefeitura por programa,
@@ -713,6 +723,7 @@
     // O que sai daqui (só cidades): impostos à prefeitura (medido), ao estado e à União (estimativas).
     const sai = mun ? saiDaqui(id) : null;
     let foraSai = null;
+    const irMor = sai ? irMoradores(id) : null;
     if (sai) {
       foraSai = sai.ipva + sai.icms + (sai.uniao || 0);
       const total = sai.totalPref + foraSai;
@@ -722,12 +733,13 @@
         <h4>Para o governo do estado <small>estimativa</small> · ${curto(sai.ipva + sai.icms)}</h4>
         ${linhas([["IPVA dos veículos da cidade", sai.ipva], ["ICMS (imposto embutido nas compras)", sai.icms]])}
         <h4>Para a União <small>${sai.uniaoMedida ? "medido" : "estimativa"}</small> · ${sai.uniao === null ? "—" : curto(sai.uniao)}</h4>
-        ${sai.uniaoMedida && sai.irpf !== null
-          ? linhas([["Imposto de renda pago pelos moradores (declaração, carnê-leão)", sai.irpf], ["Impostos e contribuições recolhidos por empresas e outros", sai.uniao - sai.irpf]])
-          : linhas([["Imposto de renda, INSS, PIS/Cofins e outros", sai.uniao]])}
+        ${linhas([[sai.uniaoMedida ? "Recolhido nesta cidade (empresas e moradores)" : "Imposto de renda, INSS, PIS/Cofins e outros", sai.uniao],
+          ...(irMor ? [[`Imposto de renda de quem mora aqui, em ${irMor.ano}`, irMor.valor]] : [])])}
         <p class="nota">Para o estado é estimativa: o estado devolve à prefeitura metade do IPVA e um quarto do ICMS, então multiplicamos essas cotas por 2 e por 4. ${sai.uniaoMedida
           ? "Para a União é o que a Receita Federal registra como recolhido na cidade. A empresa recolhe onde fica a sede, inclusive o imposto descontado do salário de quem mora em outra cidade: cidades com sedes de empresas aparecem altas e cidades-dormitório, baixas."
-          : "Para a União, sem o dado da Receita para esta cidade, repartimos o que ela arrecadou no estado pelo peso da cidade no ICMS: trate como ordem de grandeza."}</p>`, q === "imp"));
+          : "Para a União, sem o dado da Receita para esta cidade, repartimos o que ela arrecadou no estado pelo peso da cidade no ICMS: trate como ordem de grandeza."}${irMor
+          ? ` As duas linhas da União não se somam. O imposto de renda de quem mora aqui vem das declarações, pela cidade onde a pessoa mora, onde quer que ela trabalhe: é o descontado do salário mais o pago na declaração, menos o que volta na restituição (${irMor.declarantes.toLocaleString("pt-BR")} declarações).`
+          : ""}</p>`, q === "imp"));
     }
 
     // O que volta (ou, para um estado, o que chega de fora).
