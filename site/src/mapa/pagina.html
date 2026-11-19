@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="O que cada cidade paga em impostos, o que volta, onde a prefeitura gasta e como fechou a conta, de 2013 a 2025.">
+<meta name="description" content="O que cada cidade paga em impostos, o que volta, onde a prefeitura gasta e como fechou a conta, de 2013 até o ano em andamento.">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <title>Mapa · Orçamento Brasileiro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -301,6 +301,7 @@
         <strong id="ano-rotulo">2025</strong>
       </div>
       <button type="button" class="tocar" id="tocar" aria-pressed="false">▶ Passar os anos sozinho</button>
+      <p class="so-2025" id="so-parcial" hidden></p>
       <p class="so-2025" id="so-2025" hidden>O dinheiro federal por cidade está disponível só para 2025 e só para prefeituras, por enquanto.</p>
       <label class="camada"><input type="checkbox" id="real">
         <span>Corrigir pela inflação<small>Mostra os valores de todos os anos em reais de 2025 (IPCA), para comparar anos diferentes.</small></span></label>
@@ -403,10 +404,16 @@
   // O arquivo federal depende de downloads que o Portal da Transparência às vezes bloqueia: sem ele,
   // o mapa funciona e só a pergunta "O que vem do governo federal" some.
   const SEM_FEDERAL = { ano: 0, mun: {}, meses_beneficios: { "novo-bolsa-familia": [], bpc: [] } };
-  const [geoMun, geoUf, nomes, serie, ipca, rfb, federal] = await Promise.all([
+  const [geoMun, geoUf, nomes, serie, ipca, rfb, federal, andamento] = await Promise.all([
     ...["municipios.geojson", "estados.geojson", "nomes.json", "serie.json", "ipca.json", "rfb.json"].map(json),
     json("federal-2025.json").catch(() => SEM_FEDERAL),
+    json("andamento.json").catch(() => null),
   ]);
+  // Anos com prestação de contas anual e, depois deles, o ano em andamento (relatório bimestral):
+  // números de janeiro até um mês, só com gasto total, receita e origem do dinheiro.
+  const ANO_MIN = serie.anos[0], ANO_FECHADO = serie.anos.at(-1);
+  const parcial = andamento && andamento.ano > ANO_FECHADO ? andamento : null;
+  const ANO_MAX = parcial ? parcial.ano : ANO_FECHADO;
   if (!federal.ano) document.getElementById("q-fed").remove();
   const porAno = {};
   const inssAno = {};   // benefícios do INSS pagos em cada município: {ibge: [total, aposentadorias, pensões]}
@@ -425,7 +432,7 @@
   async function carregarAreas(ano) {
     if (!areasAno[ano]) {
       const vazio = () => ({});
-      const [a, c, anterior] = await Promise.all([json(`areas/${ano}.json`), json(`contas/${ano}.json`).catch(vazio), json(`contas/${ano - 1}.json`).catch(vazio)]);
+      const [a, c, anterior] = await Promise.all([json(`areas/${ano}.json`).catch(vazio), json(`contas/${ano}.json`).catch(vazio), json(`contas/${ano - 1}.json`).catch(vazio)]);
       contasAno[ano] = c; contasAno[ano - 1] ??= anterior; areasAno[ano] = a;
     }
     return areasAno[ano];
@@ -444,9 +451,11 @@
   }
   const feicao = { mun: new Map(geoMun.features.map((f) => [f.properties.id, f])), uf: new Map(geoUf.features.map((f) => [f.properties.id, f])) };
 
-  const estado = { esfera: "mun", medida: "desp", area: "total", ano: 2025, sel: null, fluxo: true, real: false, rk: { uf: "", porte: 0, ordem: "desc" } };
+  const estado = { esfera: "mun", medida: "desp", area: "total", ano: ANO_FECHADO, sel: null, fluxo: true, real: false, rk: { uf: "", porte: 0, ordem: "desc" } };
   /** Fator que leva reais de um ano a reais de hoje (IPCA); 1 quando a correção está desligada. */
-  const fator = (ano = estado.ano) => (estado.real ? ipca.fatores[ano] : 1);
+  const fator = (ano = estado.ano) => (estado.real ? ipca.fatores[ano] ?? 1 : 1);
+  const ehParcial = (ano = estado.ano) => !!parcial && ano === parcial.ano;
+  const rotuloAno = (ano = estado.ano) => (ehParcial(ano) ? `${ano} (até ${parcial.ate})` : `${ano}`);
   let doc = await carregarAno(estado.ano);
   const svg = d3.select("#mapa");
   const g = svg.append("g");
@@ -512,7 +521,7 @@
 
   // Dinheiro federal por município (só 2025, Portal da Transparência): repasses à prefeitura por programa,
   // a outras entidades da cidade e benefícios pagos direto às pessoas. Colunas na ordem de federal.colunas.
-  const FED = [["FPM (fundo de participação)", 0, "--c-uniao"], ["SUS (saúde)", 1, "--c-uniao"], ["FUNDEB (educação básica)", 2, "--c-fundeb"],
+  const FED = [["FPM (já sem a parte retida para o FUNDEB)", 0, "--c-uniao"], ["SUS (saúde)", 1, "--c-uniao"], ["FUNDEB (complemento da União e parte federal do fundo)", 2, "--c-fundeb"],
     ["Royalties e compensações", 3, "--c-uniao"], ["Educação (merenda, transporte…)", 4, "--c-uniao"], ["Assistência social", 5, "--c-uniao"],
     ["Outros repasses à prefeitura", 6, "--c-uniao"], ["A outras entidades na cidade", 7, "--c-estado"],
     ["Bolsa Família (direto às pessoas)", 8, "--c-bf"], ["BPC (direto às pessoas)", 9, "--c-bpc"],
@@ -567,7 +576,7 @@
       dep: "Parte da receita que vem de repasses",
       fed: "Dinheiro do governo federal por morador (R$)",
       imp: "Impostos pagos à prefeitura por morador (R$)",
-    }[estado.medida] + ` · ${estado.ano}` + (estado.real && (estado.medida === "desp" || estado.medida === "rec") ? `, em reais de ${ipca.base}` : "");
+    }[estado.medida] + ` · ${rotuloAno()}` + (estado.real && (estado.medida === "desp" || estado.medida === "rec") ? `, em reais de ${ipca.base}` : "");
     // No fluxo, destaca a borda de onde o dinheiro sai (o DF) e do estado envolvido na seleção.
     const noFluxo = COM_FLUXO.has(estado.medida) && estado.fluxo;
     const ufSel = estado.sel ? (estado.esfera === "mun" ? estado.sel.slice(0, 2) : estado.sel) : null;
@@ -604,17 +613,23 @@
     document.querySelectorAll("[data-quem]").forEach((e) => (e.textContent = mun ? "a prefeitura" : "o governo estadual"));
     document.querySelectorAll("[data-dela]").forEach((e) => (e.textContent = mun ? "da prefeitura" : "do governo estadual"));
     document.querySelectorAll("[data-doestado]").forEach((e) => (e.textContent = mun ? "do estado" : "de outras esferas"));
-    document.getElementById("areas").hidden = estado.medida !== "desp";
+    document.getElementById("areas").hidden = estado.medida !== "desp" || ehParcial();
     const fed = estado.medida === "fed", imp = estado.medida === "imp";
     document.getElementById("bloco-fluxo").hidden = !COM_FLUXO.has(estado.medida);
     for (const idc of ["ano", "ano-menos", "ano-mais", "tocar", "real"]) document.getElementById(idc).disabled = fed;
+    if (ehParcial()) document.getElementById("real").disabled = true;
+    const avisoParcial = document.getElementById("so-parcial");
+    avisoParcial.hidden = !ehParcial();
+    if (ehParcial()) avisoParcial.textContent = `${parcial.ano} ainda está em andamento: os números vão de janeiro a ${parcial.ate} e vêm do relatório que ${mun ? "as prefeituras entregam" : "os governos entregam"} a cada dois meses. Há gasto total, receita, saldo e origem do dinheiro; o gasto por área e os impostos só saem na prestação de contas anual.`;
     document.getElementById("esf-uf").disabled = SO_PREFEITURAS.has(estado.medida);
     document.getElementById("so-2025").hidden = !fed;
     document.querySelector("#bloco-fluxo .camada span").firstChild.textContent = fed ? "Mostrar o dinheiro saindo de Brasília" : imp ? "Mostrar o dinheiro indo e voltando" : "Mostrar os repasses da União";
     document.getElementById("ano-rotulo").textContent = estado.ano;
     document.getElementById("ano").value = estado.ano;
     const n = Object.keys(base()).length;
-    document.getElementById("rodape").innerHTML = mun
+    document.getElementById("rodape").innerHTML = ehParcial()
+      ? `<strong>${nf0.format(n)} ${mun ? "prefeituras" : "governos estaduais"}</strong> com o relatório de janeiro a ${parcial.ate} de ${parcial.ano} entregue ao Tesouro Nacional. Valores acumulados no ano, que ainda podem ser corrigidos.`
+      : mun
       ? `<strong>${nf0.format(n)} prefeituras</strong> com contas de ${estado.ano} declaradas ao Tesouro Nacional. ${estado.real ? `Valores corrigidos pela inflação, em reais de ${ipca.base}.` : "Valores da época, sem correção pela inflação."}`
       : `<strong>${n} governos estaduais</strong> com contas de ${estado.ano} declaradas ao Tesouro Nacional. ${estado.real ? `Valores corrigidos pela inflação, em reais de ${ipca.base}.` : "Valores da época, sem correção pela inflação."} O gasto do governo federal em cada lugar ainda não está no mapa.`;
     const maiores = Object.entries(totaisFluxo()).sort((a, b) => b[1] - a[1]).slice(0, 4);
@@ -664,7 +679,7 @@
     const r = base()[id];
     const [nm, uf] = nome(id);
     if (!r) {
-      el.innerHTML = `<button type="button" class="fechar" id="fechar">← ranking</button><span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${estado.ano}</span><h2>${nm}</h2><p class="nota">Sem prestação de contas ao Tesouro em ${estado.ano}. Tente outro ano.</p>`;
+      el.innerHTML = `<button type="button" class="fechar" id="fechar">← ranking</button><span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${rotuloAno()}</span><h2>${nm}</h2><p class="nota">${ehParcial() ? `Sem o relatório de janeiro a ${parcial.ate} de ${parcial.ano} entregue ao Tesouro.` : `Sem prestação de contas ao Tesouro em ${estado.ano}.`} Tente outro ano.</p>`;
       return;
     }
     const pop = r[I.pop], k = fator(), q = estado.medida;
@@ -716,7 +731,7 @@
       blocos.unshift(bloco(`O que o governo federal mandou em ${federal.ano}`, curto(tot), `
         <p class="bloco-nota">${porHab(tot)}, pelo Portal da Transparência.</p>
         <ul class="barras">${FED.filter(([, i]) => fd[i] > 0).map(([rot, i, cor]) => `<li><span>${rot}</span><em>${curto(fd[i])}</em><i style="width:${(fd[i] / maior) * 100}%;background:var(${cor})"></i></li>`).join("")}</ul>
-        <p class="nota">O FUNDEB inclui dinheiro de estados e municípios redistribuído pelo fundo.${beneficiosParciais ? ` Bolsa Família e BPC são <b>estimativas</b> para o ano, a partir de ${mesesBen[8]} mês de dados.` : ""} O INSS é o valor líquido pago pelas agências da cidade: quem recebe em outra cidade conta lá. Não inclui o gasto direto de órgãos federais.</p>`, true));
+        <p class="nota">Estes valores são o que a União registra ter pago, e não coincidem linha a linha com o que a prefeitura declara: o FPM aparece aqui já sem os 20% retidos para o FUNDEB e, pelo que os números indicam, sem as parcelas extras de julho, setembro e dezembro; o FUNDEB aqui não inclui a parte que vem de impostos estaduais. SUS, royalties e assistência batem com a declaração.${beneficiosParciais ? ` Bolsa Família e BPC são <b>estimativas</b> para o ano, a partir de ${mesesBen[8]} mês de dados.` : ""} O INSS é o valor líquido pago pelas agências da cidade: quem recebe em outra cidade conta lá. Não inclui o gasto direto de órgãos federais.</p>`, true));
     }
 
     // Onde gasta: todas as áreas e com o quê (carregados sob demanda).
@@ -732,6 +747,11 @@
       corpoAreas = `<p class="bloco-nota">${porHab(r[I.desp] * k)}. As maiores áreas:</p>
         <ul class="barras">${itens.map(([rot, v]) => `<li><span>${rot}</span><em>${curto(v * k)} · ${pct(v / r[I.desp])}</em><i style="width:${(v / maior) * 100}%;background:var(--r3)"></i></li>`).join("")}</ul>
         <p class="nota">Gasto comprometido no ano, por área.</p>`;
+    }
+    // Com o quê: despesa por natureza. No ano em andamento vem do relatório bimestral, sem as áreas.
+    const andando = ehParcial();
+    if (areas || (andando && areasAno[estado.ano])) {
+      if (andando) corpoAreas = `<p class="bloco-nota">${porHab(r[I.desp] * k)}, de janeiro a ${parcial.ate}.</p>`;
       if (ct?.n) {
         const n = ct.n, tot = d3.sum(n.slice(0, 6)) || 1;
         const tipos = [["Salários e encargos dos servidores", n[0]], [mun ? "Serviços, materiais e outros custeios" : "Serviços, materiais, repasses a municípios e outros custeios", n[2]], ["Obras e equipamentos (investimentos)", n[3]],
@@ -739,8 +759,9 @@
         const maiorTipo = d3.max(tipos, (x) => x[1]) || 1;
         corpoAreas += `<h4>Com o quê</h4>
           <ul class="barras">${tipos.map(([rot, v]) => `<li><span>${rot}</span><em>${curto(v * k)} · ${pct(v / tot)}</em><i style="width:${(v / maiorTipo) * 100}%;background:var(--o3)"></i></li>`).join("")}</ul>
-          <p class="nota">Aqui entram também os pagamentos entre órgãos ${mun ? "da própria prefeitura" : "do próprio governo"} (como a contribuição ao fundo de previdência dos servidores), por isso a soma, ${curto(tot * k)}, é maior que o total por área.</p>`;
+          ${andando ? "" : `<p class="nota">Aqui entram também os pagamentos entre órgãos ${mun ? "da própria prefeitura" : "do próprio governo"} (como a contribuição ao fundo de previdência dos servidores), por isso a soma, ${curto(tot * k)}, é maior que o total por área.</p>`}`;
       }
+      if (andando) corpoAreas += `<p class="nota">Gasto comprometido de janeiro a ${parcial.ate}. O gasto por área (saúde, educação…) só sai na prestação de contas anual.</p>`;
     }
     blocos.push(bloco(mun ? "Onde a prefeitura gasta" : "Onde o governo estadual gasta", curto(r[I.desp] * k), corpoAreas, q === "desp"));
 
@@ -755,7 +776,17 @@
       const sobraAcum = b && b[1] > 0 ? (b[1] - b[2]) * k : null;
       const sobraAntes = sobraAcum !== null && bAnt && bAnt[1] > 0 ? (bAnt[1] - bAnt[2]) * fator(estado.ano - 1) : null;
       const sinal = (v) => (v < 0 ? `−${curto(-v)}` : curto(v));
-      blocos.push(bloco("Como fechou a conta", saldo >= 0 ? `sobrou ${curto(saldo)}` : `faltou ${curto(-saldo)}`, `
+      if (andando) {
+        const prev = ct?.p;   // [receita prevista, orçamento] do ano inteiro
+        blocos.push(bloco(`Como está a conta até ${parcial.ate}`, saldo >= 0 ? `sobram ${curto(saldo)}` : `faltam ${curto(-saldo)}`, `
+          <div class="par">
+            <div><span>Entrou (receita)</span><strong>${curto(rec)}</strong>${prev?.[0] > 0 ? `<small>${pct(r[I.rec] / prev[0])} do previsto para o ano</small>` : ""}</div>
+            <div><span>Gasto comprometido</span><strong>${curto(desp)}</strong>${prev?.[1] > 0 ? `<small>${pct(r[I.desp] / prev[1])} do orçamento do ano</small>` : ""}</div>
+          </div>
+          <p class="saldo">${saldo >= 0 ? `Até ${parcial.ate}, a receita passa do gasto comprometido em <b>${curto(saldo)}</b>.` : `Até ${parcial.ate}, o gasto comprometido passa da receita em <b>${curto(-saldo)}</b>.`}</p>
+          ${linhas([["Gasto comprometido ainda não pago", Math.max(0, r[I.desp] - r[I.pago]) * k], ["Empréstimos tomados no ano (já contados na receita)", emprestimo]])}
+          <p class="nota">Números parciais: ${parcial.meses} de 12 meses, do relatório bimestral, que ainda pode ser corrigido. No meio do ano o gasto comprometido costuma andar à frente, porque contratos do ano inteiro são comprometidos de uma vez. O caixa e as dívidas só saem no balanço do fim do ano.</p>`, q === "saldo"));
+      } else blocos.push(bloco("Como fechou a conta", saldo >= 0 ? `sobrou ${curto(saldo)}` : `faltou ${curto(-saldo)}`, `
         <div class="par">
           <div><span>Entrou (receita)</span><strong>${curto(rec)}</strong></div>
           <div><span>Saiu (despesa)</span><strong>${curto(desp)}</strong></div>
@@ -794,12 +825,12 @@
         <caption>Mediana de ${nf0.format(p.n)} ${mun ? `cidades ${FAIXAS[faixaDe(pop)][1]}` : "estados"}</caption>
         <thead><tr><th></th><th>${mun ? "Aqui" : "Este"}</th><th>Parecidas</th><th></th></tr></thead>
         <tbody>
-          ${mun ? linhaComp("Impostos à prefeitura por morador", "imp", MEDIDA.imp(r), p.imp) : ""}
+          ${mun && !andando ? linhaComp("Impostos à prefeitura por morador", "imp", MEDIDA.imp(r), p.imp) : ""}
           ${linhaComp("Receita por morador", "rec", MEDIDA.rec(r), p.rec)}
           ${linhaComp("Gasto por morador", "desp", MEDIDA.desp(r, "total"), p.desp)}
-          ${linhaComp("· em saúde", "desp", MEDIDA.desp(r, "saude"), p.saude)}
-          ${linhaComp("· em educação", "desp", MEDIDA.desp(r, "edu"), p.edu)}
-          ${mun ? "" : linhaComp("· em segurança", "desp", MEDIDA.desp(r, "seg"), p.seg)}
+          ${andando ? "" : linhaComp("· em saúde", "desp", MEDIDA.desp(r, "saude"), p.saude)}
+          ${andando ? "" : linhaComp("· em educação", "desp", MEDIDA.desp(r, "edu"), p.edu)}
+          ${mun || andando ? "" : linhaComp("· em segurança", "desp", MEDIDA.desp(r, "seg"), p.seg)}
           ${linhaComp("Sobrou ou faltou", "saldo", MEDIDA.saldo(r), p.saldo)}
           ${linhaComp("Vem de repasses", "dep", MEDIDA.dep(r), p.dep)}
           ${p.fed !== undefined && p.fed !== null ? linhaComp("Dinheiro federal por morador", "fed", fedPorMorador(id), p.fed) : ""}
@@ -810,7 +841,7 @@
 
     el.innerHTML = `
       <button type="button" class="fechar" id="fechar" aria-label="Fechar e voltar ao ranking">← ranking</button>
-      <span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${nf0.format(pop)} moradores · ${estado.ano}</span>
+      <span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${nf0.format(pop)} moradores · ${rotuloAno()}</span>
       <h2>${nm}</h2>
       ${blocos.join("")}
       <p class="nota">Contas declaradas pelo próprio ${mun ? "município" : "estado"} ao Tesouro Nacional${estado.real ? `, em reais de ${ipca.base}` : ""}. Toque num título para abrir ou fechar.</p>`;
@@ -833,7 +864,7 @@
       .sort((a, b) => (rk.ordem === "desc" ? b[1] - a[1] : a[1] - b[1]));
     const ufs = [...new Set(Object.values(nomes.mun).map((x) => x[1]))].sort();
     el.innerHTML = `
-      <span class="sub">Ranking · ${mun ? "prefeituras" : "governos estaduais"} · ${estado.ano}</span>
+      <span class="sub">Ranking · ${mun ? "prefeituras" : "governos estaduais"} · ${rotuloAno()}</span>
       <details class="rk-corpo"${rk.aberto ?? matchMedia("(min-width: 761px)").matches ? " open" : ""}>
       <summary><h2>${titulos[rk.ordem === "desc" ? 0 : 1]}</h2><span class="abrir">ver a lista</span></summary>
       <div class="rk-filtros">
@@ -1043,6 +1074,10 @@
     const esferaAntes = estado.esfera;
     Object.assign(estado, mudancas);
     if (SO_PREFEITURAS.has(estado.medida)) estado.esfera = "mun";
+    // O ano em andamento não tem impostos, áreas nem correção pela inflação: quem pede os
+    // impostos volta ao último ano fechado; quem chega ao ano em andamento vê o gasto total.
+    if (ehParcial() && estado.medida === "imp") { if ("medida" in mudancas) estado.ano = ANO_FECHADO; else estado.medida = "desp"; }
+    if (ehParcial()) { estado.area = "total"; estado.real = false; document.getElementById("real").checked = false; }
     if (estado.medida === "fed") { estado.ano = federal.ano; estado.real = false; document.getElementById("real").checked = false; await carregarAno(federal.ano); }
     const trocouEsfera = estado.esfera !== esferaAntes;
     if (estado.esfera === "uf" && estado.ano < 2014) estado.ano = 2014;
@@ -1057,9 +1092,10 @@
   document.getElementById("cam-fluxo").addEventListener("change", (ev) => { estado.fluxo = ev.target.checked; pintar(); });
   document.getElementById("real").addEventListener("change", (ev) => definir({ real: ev.target.checked }, true));
   const campoAno = document.getElementById("ano");
+  campoAno.min = ANO_MIN; campoAno.max = ANO_MAX; campoAno.value = estado.ano;
   campoAno.addEventListener("input", () => definir({ ano: Number(campoAno.value) }, true));
-  document.getElementById("ano-menos").onclick = () => definir({ ano: Math.max(2013, estado.ano - 1) }, true);
-  document.getElementById("ano-mais").onclick = () => definir({ ano: Math.min(2025, estado.ano + 1) }, true);
+  document.getElementById("ano-menos").onclick = () => definir({ ano: Math.max(ANO_MIN, estado.ano - 1) }, true);
+  document.getElementById("ano-mais").onclick = () => definir({ ano: Math.min(ANO_MAX, estado.ano + 1) }, true);
 
   // Passar os anos sozinho
   let relogio = null;
@@ -1068,10 +1104,10 @@
   botaoTocar.addEventListener("click", async () => {
     if (relogio) return parar();
     const inicio = estado.esfera === "uf" ? 2014 : 2013;
-    await Promise.all(d3.range(inicio, 2026).map(carregarAno));   // carrega tudo antes, para não engasgar
-    if (estado.ano >= 2025) await definir({ ano: inicio }, true);
+    await Promise.all(d3.range(inicio, ANO_FECHADO + 1).map(carregarAno));   // carrega tudo antes, para não engasgar
+    if (estado.ano >= ANO_FECHADO) await definir({ ano: inicio }, true);
     botaoTocar.setAttribute("aria-pressed", "true"); botaoTocar.textContent = "⏸ Parar";
-    relogio = setInterval(() => { if (estado.ano >= 2025) parar(); else definir({ ano: estado.ano + 1 }, true); }, 1300);
+    relogio = setInterval(() => { if (estado.ano >= ANO_FECHADO) parar(); else definir({ ano: estado.ano + 1 }, true); }, 1300);   // só os anos fechados
   });
   campoAno.addEventListener("pointerdown", () => relogio && parar());
 
@@ -1094,7 +1130,7 @@
     if (!m) return null;
     const esfera = m[1] ? (m[1] === "c" ? "mun" : "uf") : m[3] === "prefeituras" ? "mun" : "uf";
     const sel = m[2] && nomes[esfera][m[2]] ? m[2] : null;
-    return { esfera, sel, ano: Math.min(2025, Math.max(2013, Number(m[4]))), medida: m[5] };
+    return { esfera, sel, ano: Math.min(ANO_MAX, Math.max(ANO_MIN, Number(m[4]))), medida: m[5] };
   }
   window.addEventListener("hashchange", async () => {
     const h = lerHash();
