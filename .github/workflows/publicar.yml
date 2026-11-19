@@ -70,6 +70,12 @@ jobs:
       - name: Pipeline do mapa
         run: uv run --project pipeline mapa --max-chamadas 300
 
+      # Arrecadação federal em cada município (planilhas da Receita Federal). Se falhar, o mapa
+      # volta a estimar o imposto federal de cada cidade pelo peso dela no ICMS do estado.
+      - name: Pipeline da arrecadação federal por município
+        continue-on-error: true
+        run: uv run --project pipeline rfb
+
       # Dinheiro federal por município. O Portal da Transparência às vezes responde com
       # CAPTCHA a downloads automáticos: se falhar, o site é publicado sem essa camada.
       - name: Pipeline do dinheiro federal

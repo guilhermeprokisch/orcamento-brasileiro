@@ -423,10 +423,11 @@
   if (!federal.ano) document.getElementById("q-fed").remove();
   const porAno = {};
   const inssAno = {};   // benefícios do INSS pagos em cada município: {ibge: [total, aposentadorias, pensões]}
+  const rfbMun = {};    // arrecadação federal em cada município (Receita Federal): {ibge: [total, IR de pessoas físicas | null]}
   async function carregarAno(ano) {
     if (!porAno[ano]) {
-      const [d, inss] = await Promise.all([json(`anos/${ano}.json`), json(`inss/${ano}.json`).catch(() => ({}))]);
-      inssAno[ano] = inss; porAno[ano] = d;
+      const [d, inss, rfbAno] = await Promise.all([json(`anos/${ano}.json`), json(`inss/${ano}.json`).catch(() => ({})), json(`rfb-mun/${ano}.json`).catch(() => ({}))]);
+      inssAno[ano] = inss; rfbMun[ano] = rfbAno; porAno[ano] = d;
     }
     return porAno[ano];
   }
@@ -503,8 +504,9 @@
   const COM_FLUXO = new Set(["dep", "fed", "imp"]);   // perguntas em que as linhas de dinheiro aparecem   // perguntas que só existem para cidades
   const valor = (r) => (r ? MEDIDA[estado.medida](r) : null);
 
-  // O que sai de uma cidade em impostos. À prefeitura: medido. Ao estado e à União: estimativas
-  // a partir das cotas que o estado devolve (IPVA: metade; ICMS: um quarto) e do peso da cidade no estado.
+  // O que sai de uma cidade em impostos. À prefeitura e à União: medido (a União pela Receita Federal,
+  // no município de quem recolhe). Ao estado: estimativa a partir das cotas que o estado devolve
+  // (IPVA: metade; ICMS: um quarto). Sem o dado da Receita, a União volta a ser estimada pelo peso da cidade no ICMS.
   const somaIcms = {};
   function pesoNoEstado(id) {
     const ano = estado.ano;
@@ -518,11 +520,16 @@
   function saiDaqui(id) {
     const r = doc.mun[id];
     if (!temReceita(r) || r.length <= I.cotaIpva) return null;
-    const k = fator(), peso = pesoNoEstado(id), fedUf = rfb.anos[estado.ano]?.[nomes.mun[id][1]];
+    const k = fator(), medido = rfbMun[estado.ano]?.[id];
     const pref = [["IPTU", r[I.iptu]], ["ISS (imposto sobre serviços)", r[I.iss]], ["ITBI (compra de imóveis)", r[I.itbi]], ["Taxas", r[I.taxas]],
       ["Iluminação pública", r[I.cosip]], ["Outros tributos", r[I.outrosTrib]]].map(([n, v]) => [n, v * k]).filter((x) => x[1] > 0);
     return { pref, totalPref: d3.sum(pref, (x) => x[1]), ipva: r[I.cotaIpva] * 2 * k, icms: r[I.cotaIcms] * 4 * k,
-      uniao: peso !== null && fedUf ? fedUf * peso * k : null };
+      ...uniaoDe(id, medido, k) };
+  }
+  function uniaoDe(id, medido, k) {
+    if (medido) return { uniao: medido[0] * k, irpf: medido[1] === null ? null : medido[1] * k, uniaoMedida: true };
+    const peso = pesoNoEstado(id), fedUf = rfb.anos[estado.ano]?.[nomes.mun[id][1]];
+    return { uniao: peso !== null && fedUf ? fedUf * peso * k : null, irpf: null, uniaoMedida: false };
   }
 
   // Dinheiro federal por município (só 2025, Portal da Transparência): repasses à prefeitura por programa,
@@ -643,7 +650,7 @@
     const maiores = Object.entries(totaisFluxo()).sort((a, b) => b[1] - a[1]).slice(0, 4);
     if (imp) {
       document.getElementById("fluxo-explica").textContent = estado.sel
-        ? "Linhas tracejadas: o que sai da cidade em impostos, para o estado e para a União (estimativas). Linhas cheias: o que volta em repasses para a prefeitura."
+        ? "Linhas tracejadas: o que sai da cidade em impostos, para o estado (estimativa) e para a União (medido pela Receita Federal). Linhas cheias: o que volta em repasses para a prefeitura."
         : `Cada linha vai de um estado até Brasília. A espessura é tudo o que a Receita Federal arrecadou naquele estado em ${estado.ano}. Clique numa cidade para ver o que sai dela e o que volta.`;
       document.getElementById("maiores").innerHTML = estado.sel ? "" : maiores.map(([uf, v]) => `<li>${uf}: ${curto(v)}</li>`).join("");
       return;
@@ -714,9 +721,13 @@
         <h4>Para a prefeitura <small>medido</small> · ${curto(sai.totalPref)}</h4>${linhas(sai.pref)}
         <h4>Para o governo do estado <small>estimativa</small> · ${curto(sai.ipva + sai.icms)}</h4>
         ${linhas([["IPVA dos veículos da cidade", sai.ipva], ["ICMS (imposto embutido nas compras)", sai.icms]])}
-        <h4>Para a União <small>estimativa</small> · ${sai.uniao === null ? "—" : curto(sai.uniao)}</h4>
-        ${linhas([["Imposto de renda, INSS, PIS/Cofins e outros", sai.uniao]])}
-        <p class="nota">Como estimamos: o estado devolve à prefeitura metade do IPVA e um quarto do ICMS, então multiplicamos essas cotas por 2 e por 4. Para a União, repartimos o que a Receita Federal arrecadou no estado pelo peso da cidade no ICMS. O imposto é registrado onde é recolhido (a sede da empresa), não onde mora quem paga: trate como ordem de grandeza.</p>`, q === "imp"));
+        <h4>Para a União <small>${sai.uniaoMedida ? "medido" : "estimativa"}</small> · ${sai.uniao === null ? "—" : curto(sai.uniao)}</h4>
+        ${sai.uniaoMedida && sai.irpf !== null
+          ? linhas([["Imposto de renda pago pelos moradores (declaração, carnê-leão)", sai.irpf], ["Impostos e contribuições recolhidos por empresas e outros", sai.uniao - sai.irpf]])
+          : linhas([["Imposto de renda, INSS, PIS/Cofins e outros", sai.uniao]])}
+        <p class="nota">Para o estado é estimativa: o estado devolve à prefeitura metade do IPVA e um quarto do ICMS, então multiplicamos essas cotas por 2 e por 4. ${sai.uniaoMedida
+          ? "Para a União é o que a Receita Federal registra como recolhido na cidade. A empresa recolhe onde fica a sede, inclusive o imposto descontado do salário de quem mora em outra cidade: cidades com sedes de empresas aparecem altas e cidades-dormitório, baixas."
+          : "Para a União, sem o dado da Receita para esta cidade, repartimos o que ela arrecadou no estado pelo peso da cidade no ICMS: trate como ordem de grandeza."}</p>`, q === "imp"));
     }
 
     // O que volta (ou, para um estado, o que chega de fora).
@@ -727,7 +738,7 @@
       const vInss = inss ? inss[0] * k : 0;
       const volta = R(I.uniao) + R(I.estado) + R(I.fundeb) + pessoas + vInss;
       let razao = "";
-      if (foraSai) razao = `<p class="destaque">De cada R$ 100 que a cidade manda para o estado e para a União (estimativa), voltam cerca de <b>R$ ${nf0.format((volta / foraSai) * 100)}</b>${fd ? " em repasses, aposentadorias e benefícios" : inss ? " em repasses e aposentadorias" : " em repasses à prefeitura"}. Isso não conta o que o estado e a União gastam direto aqui: escolas estaduais, polícia, hospitais e universidades.</p>`;
+      if (foraSai) razao = `<p class="destaque">De cada R$ 100 recolhidos aqui para o estado e para a União, voltam cerca de <b>R$ ${nf0.format((volta / foraSai) * 100)}</b>${fd ? " em repasses, aposentadorias e benefícios" : inss ? " em repasses e aposentadorias" : " em repasses à prefeitura"}${volta > foraSai ? ": chega mais do que sai" : ""}. Isso não conta o que o estado e a União gastam direto aqui, como escolas estaduais, polícia, hospitais e universidades.</p>`;
       blocos.push(bloco(mun ? "O que volta para cá" : "O que chega de fora", curto(volta), `
         <p class="bloco-nota">${porHab(volta)}.</p>${razao}
         <h4>Para ${mun ? "a prefeitura" : "o governo estadual"} <small>medido</small></h4>
@@ -946,7 +957,7 @@
         const naCapital = CAPITAIS[sigla] === estado.sel;
         const itens = [
           ["Ao estado (estim.)", sai.ipva + sai.icms, cidade, cap, "--c-sai", 1, true, naCapital],
-          ["À União (estim.)", sai.uniao, cidade, centroCapital.DF, "--c-sai", 1, true, sigla === "DF"],
+          [sai.uniaoMedida ? "À União" : "À União (estim.)", sai.uniao, cidade, centroCapital.DF, "--c-sai", 1, true, sigla === "DF"],
           ["Volta do estado e do FUNDEB", (r[I.estado] + r[I.fundeb]) * k, cap, cidade, "--c-estado", 1, false, naCapital],
           ["Volta da União", r[I.uniao] * k, centroCapital.DF, cidade, "--c-uniao", 1, false, sigla === "DF"],
         ].filter((x) => x[1] > 0 && !x[7]);

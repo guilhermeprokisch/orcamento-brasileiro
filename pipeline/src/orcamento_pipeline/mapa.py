@@ -16,7 +16,8 @@ Saídas em site/public/data/mapa/:
 - nomes.json        nomes de municípios, estados e áreas
 - serie.json        despesa e receita de cada ente em todos os anos
 - ipca.json         fatores para corrigir pela inflação
-- rfb.json          arrecadação federal por estado e ano (Receita Federal)
+- rfb.json          arrecadação federal por estado e ano (Receita Federal); a de cada município
+                    sai de `uv run rfb`, em rfb-mun/{ano}.json
 - municipios.geojson, estados.geojson  malhas do IBGE, simplificadas
 
 Cada registro é uma lista: população, despesa, saúde, educação, segurança, pago e, quando há
@@ -77,18 +78,23 @@ def arrecadacao_federal(anos: list[int]) -> dict:
     total: dict[int, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     with ARQ_RFB.open(encoding="latin-1", newline="") as arq:
         linhas = csv.reader(arq, delimiter=";")
-        next(linhas)
+        cabecalho = next(linhas)
+        # "Administradas por outros órgãos" são sobretudo royalties do petróleo (ANP), não impostos
+        # pagos por pessoas e empresas; ficam de fora, como na arrecadação por município (rfb.py).
+        fora = {i for i, nome in enumerate(cabecalho) if "OUTROS" in nome.upper()}
         for l in linhas:
             if len(l) < 4 or not l[0].strip().isdigit():
                 continue
             ano, uf = int(l[0]), l[2].strip()
-            for v in l[3:]:
+            for i, v in enumerate(l[3:], start=3):
+                if i in fora:
+                    continue
                 v = v.strip().replace(".", "").replace(",", ".")
                 try:
                     total[ano][uf] += float(v)
                 except ValueError:
                     pass
-    return {"fonte": "Receita Federal, arrecadação por estado",
+    return {"fonte": "Receita Federal, arrecadação por estado (sem as receitas administradas por outros órgãos)",
             "anos": {str(a): {u: round(v) for u, v in total[a].items()} for a in anos if a in total}}
 
 
