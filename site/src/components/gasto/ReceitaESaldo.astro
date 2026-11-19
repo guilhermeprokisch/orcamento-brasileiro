@@ -1,0 +1,184 @@
+---
+/**
+ * Seções comuns das páginas de cidade e de estado sobre o outro lado da conta:
+ * de onde veio a receita, se sobrou ou faltou no ano e o que o INSS paga direto
+ * às pessoas. Os dados são os da página /mapa; sem eles, a seção não aparece.
+ */
+import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
+import { porPessoa, type Cidade } from "../../lib/cidades";
+import { caminhoNoMapa, contasDe, inssDe, type Esfera } from "../../lib/contas";
+
+interface Props {
+  ente: Cidade;
+  esfera: Esfera;
+  /** "a prefeitura de Fortaleza", "o governo do Ceará" */
+  quem: string;
+  /** "em Fortaleza", "no estado" */
+  onde: string;
+}
+const { ente, esfera, quem, onde } = Astro.props;
+const ehDF = ente.ibge === 53;
+const municipal = esfera === "mun" && !ehDF;
+const deQuem = ehDF ? "do governo do Distrito Federal" : municipal ? "da prefeitura" : "do governo estadual";
+
+const contas = await contasDe(ente, esfera);
+const inss = await inssDe(ente, esfera);
+const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
+
+// De onde veio a receita. Partes abaixo de 0,05% ficam de fora (resíduos de classificação).
+const origens = contas
+  ? [
+      { rotulo: "Arrecadação própria", dica: municipal ? "ISS, IPTU, taxas e outras receitas da prefeitura" : ehDF ? "ICMS, IPVA, ISS, IPTU e outras receitas do DF" : "ICMS, IPVA e outras receitas do estado", v: contas.propria },
+      { rotulo: "Repasses da União", dica: municipal ? "FPM, SUS e outros" : "FPE, SUS e outros", v: contas.uniao },
+      { rotulo: municipal ? "Repasses do governo estadual" : "Repasses de outros estados", dica: municipal ? "parte do ICMS e do IPVA, entre outros" : "", v: contas.estado },
+      { rotulo: "FUNDEB", dica: "fundo da educação básica, com dinheiro de estados, municípios e União", v: contas.fundeb },
+      { rotulo: "Empréstimos", dica: "dinheiro que terá de ser devolvido", v: contas.credito },
+    ].filter((o) => o.v > contas.receita * 0.0005).sort((a, b) => b.v - a.v)
+  : [];
+const maiorOrigem = Math.max(1, ...origens.map((o) => o.v));
+const emCem = contas ? Math.round((contas.propria / contas.receita) * 100) : 0;
+
+// O que moradores e empresas pagam direto à prefeitura.
+const tributos = contas && municipal
+  ? [
+      ["ISS (imposto sobre serviços)", contas.iss], ["IPTU", contas.iptu], ["ITBI (compra de imóveis)", contas.itbi],
+      ["taxas", contas.taxas], ["contribuição de iluminação pública", contas.cosip],
+    ].filter((t): t is [string, number] => (t[1] as number) > 0).sort((a, b) => b[1] - a[1])
+  : [];
+
+const sobrou = contas ? contas.saldo >= 0 : true;
+const parteDaReceita = contas ? Math.abs(contas.saldo) / contas.receita : 0;
+const maiorLado = contas ? Math.max(contas.receita, contas.despesa) : 1;
+
+const partesInss = inss
+  ? [
+      ["Aposentadorias", inss.aposentadorias], ["Pensões por morte", inss.pensoes],
+      ["Auxílios e outros benefícios", inss.total - inss.aposentadorias - inss.pensoes],
+    ].filter((p): p is [string, number] => (p[1] as number) > 0)
+  : [];
+const frenteAoGasto = inss && ente.total ? inss.total / ente.total[0] : null;
+---
+
+{contas && (
+  <section class="bloco">
+    <div class="texto">
+      <h2>De onde vem o dinheiro</h2>
+      <p>
+        Em {contas.ano}, {quem} recebeu <strong>{moedaExtenso(contas.receita)}</strong>,
+        ou {porPessoa(contas.receita / ente.pop)} por habitante. De cada R$ 100,{" "}
+        <strong>R$ {emCem}</strong> {emCem === 1 ? "foi arrecadado" : "foram arrecadados"} por {municipal ? "ela mesma" : "ele mesmo"};
+        o resto veio de fora.
+      </p>
+      {tributos.length > 0 && (
+        <p class="menor">
+          Direto à prefeitura, moradores e empresas pagaram {lista.format(tributos.map(([nome, v]) => `${moedaCurta(v)} de ${nome}`))}.
+        </p>
+      )}
+    </div>
+    <ul class="barras">
+      {origens.map((o, k) => (
+        <li>
+          <span class="lb-linha">
+            <span>{o.rotulo}{o.dica && <small class="so-largo"> · {o.dica}</small>}</span>
+            <strong class="num" title={moedaCompleta(o.v)}>{moedaCurta(o.v)} · {pct(o.v / contas.receita)}</strong>
+          </span>
+          <span class="lb-barra" style={`width:${(o.v / maiorOrigem) * 100}%;background:${corDaRampa(Math.min(1, k / 4))}`}></span>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+{contas && (
+  <section class="bloco">
+    <div class="texto">
+      <h2>{sobrou ? "Sobrou" : "Faltou"} dinheiro no ano</h2>
+      <p>
+        Entraram {moedaExtenso(contas.receita)} e os gastos comprometidos somaram {moedaExtenso(contas.despesa)}:{" "}
+        uma {sobrou ? "sobra" : "falta"} de <strong class="marca">{moedaExtenso(Math.abs(contas.saldo))}</strong>,{" "}
+        {pct(parteDaReceita)} da receita.
+      </p>
+      <p class="menor">
+        {sobrou
+          ? "É a conta simples do ano, não o resultado fiscal oficial: não considera dívidas antigas nem o dinheiro que já estava em caixa."
+          : "Quem gasta mais do que recebe cobre a diferença com dinheiro guardado de anos anteriores ou deixando contas para o ano seguinte."}
+        {parteDaReceita > 0.3 && " Uma diferença tão grande costuma indicar erro na declaração enviada ao Tesouro."}
+      </p>
+    </div>
+    <ul class="barras">
+      <li>
+        <span class="lb-linha"><span>Receita</span><strong class="num" title={moedaCompleta(contas.receita)}>{moedaCurta(contas.receita)}</strong></span>
+        <span class="lb-barra" style={`width:${(contas.receita / maiorLado) * 100}%;background:${corDaRampa(0)}`}></span>
+      </li>
+      <li>
+        <span class="lb-linha"><span>Despesa <small class="so-largo">· gasto comprometido (empenhado)</small></span><strong class="num" title={moedaCompleta(contas.despesa)}>{moedaCurta(contas.despesa)}</strong></span>
+        <span class="lb-barra" style={`width:${(contas.despesa / maiorLado) * 100}%;background:${corDaRampa(0.6)}`}></span>
+      </li>
+      <li class="saldo">
+        <span class="lb-linha"><span>{sobrou ? "Sobrou" : "Faltou"}</span><strong class="num" title={moedaCompleta(contas.saldo)}>{moedaCurta(Math.abs(contas.saldo))}</strong></span>
+      </li>
+    </ul>
+  </section>
+)}
+
+{inss && (
+  <section class="bloco">
+    <div class="texto">
+      <h2>O que chega direto às pessoas</h2>
+      <p>
+        Além do que {quem} gasta, o governo federal paga aposentadorias, pensões e auxílios do INSS direto a quem tem direito.
+        Em {inss.ano}, foram <strong>{moedaExtenso(inss.total)}</strong> {onde}, ou {porPessoa(inss.total / ente.pop)} por habitante.
+        {frenteAoGasto !== null && (
+          frenteAoGasto >= 1
+            ? <> É mais do que todo o gasto {deQuem} no ano.</>
+            : <> Equivale a {pct(frenteAoGasto)} de todo o gasto {deQuem} no ano.</>
+        )}
+      </p>
+      <p class="menor">
+        Valor líquido pago pelas agências do INSS {municipal ? "da cidade" : ehDF ? "do Distrito Federal" : "do estado"}; quem recebe numa agência de outro lugar
+        conta lá. Não inclui BPC nem Bolsa Família.
+      </p>
+    </div>
+    <ul class="barras">
+      {partesInss.map(([nome, v], k) => (
+        <li>
+          <span class="lb-linha"><span>{nome}</span><strong class="num" title={moedaCompleta(v)}>{moedaCurta(v)} · {pct(v / inss.total)}</strong></span>
+          <span class="lb-barra" style={`width:${(v / partesInss[0][1]) * 100}%;background:${corDaRampa(Math.min(1, k / 3))}`}></span>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+{(contas || inss) && (
+  <p class="fonte">
+    <a href={caminhoNoMapa(ente, esfera)}>Ver no mapa</a>: impostos pagos, repasses federais, comparação com {municipal ? "cidades parecidas" : "outros estados"} e outros anos.
+    Fontes: {contas && <>receita declarada ao Tesouro Nacional (DCA, Anexo I-C){inss && "; "}</>}
+    {inss && <>INSS pelo Ministério da Previdência Social (Estatísticas Municipais)</>}.
+  </p>
+)}
+
+<style>
+  .bloco { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .barras { grid-column: span 7; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; align-self: center; }
+  .barras li { display: flex; flex-direction: column; gap: 4px; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .lb-linha > span { min-width: 0; font-weight: 600; }
+  .lb-linha small { font-size: 13px; font-weight: 400; color: var(--texto-3); }
+  .lb-linha strong { white-space: nowrap; font-weight: 600; }
+  .lb-barra { display: block; height: 10px; min-width: 2px; }
+  .saldo { border-top: 1px solid var(--tinta); padding-top: 10px; }
+  .fonte { margin: 0 0 28px; font-size: 13px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
+
+  @media (max-width: 900px) {
+    .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; line-height: 1.1; }
+    .barras { align-self: stretch; }
+  }
+</style>

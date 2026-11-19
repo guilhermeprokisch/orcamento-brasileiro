@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import GastoPorArea from "../../components/gasto/GastoPorArea.astro";
+import ReceitaESaldo from "../../components/gasto/ReceitaESaldo.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import { fatorIpca, resumo } from "../../lib/perfis";
 import {
@@ -85,6 +86,8 @@ const descricao = temDados
         destaques={[{ cod: "10", titulo: "Saúde" }, { cod: "12", titulo: "Educação" }, { cod: "06", titulo: "Segurança" }]}
       />
     )}
+
+    {temDados && <ReceitaESaldo ente={e} esfera="uf" quem={quem} onde={ehDF ? "no Distrito Federal" : "no estado"} />}
 
     {serie.length > 2 && (
       <section class="evolucao">
