@@ -1,13 +1,14 @@
 ---
 /**
- * Seções comuns das páginas de cidade e de estado sobre o outro lado da conta:
- * de onde veio a receita, se sobrou ou faltou no ano e o que o INSS paga direto
- * às pessoas. Os dados são os da página /mapa; sem eles, a seção não aparece.
+ * Seções comuns das páginas de cidade e de estado além do gasto por área: com o
+ * quê se gasta, de onde veio a receita, se sobrou ou faltou no ano, o que havia em
+ * caixa e em dívidas e o que o INSS paga direto às pessoas. Os dados são os da
+ * página /mapa; cada seção só aparece se o dado existe.
  */
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import { corDaRampa } from "../../lib/cores";
 import { porPessoa, type Cidade } from "../../lib/cidades";
-import { caminhoNoMapa, contasDe, inssDe, type Esfera } from "../../lib/contas";
+import { balancoDe, caminhoNoMapa, contasDe, inssDe, naturezaDe, type Esfera } from "../../lib/contas";
 
 interface Props {
   ente: Cidade;
@@ -24,6 +25,35 @@ const deQuem = ehDF ? "do governo do Distrito Federal" : municipal ? "da prefeit
 
 const contas = await contasDe(ente, esfera);
 const inss = await inssDe(ente, esfera);
+const natureza = await naturezaDe(ente, esfera);
+const balanco = await balancoDe(ente, esfera);
+
+// Com o quê gasta. Nos estados, o custeio inclui os repasses aos municípios.
+const tipos = natureza
+  ? [
+      { rotulo: "Salários e encargos dos servidores", v: natureza.pessoal },
+      { rotulo: municipal ? "Serviços, materiais e outros custeios" : "Serviços, materiais, repasses a municípios e outros custeios", v: natureza.custeio },
+      { rotulo: "Obras e equipamentos", v: natureza.investimentos },
+      { rotulo: "Pagamento de dívida", v: natureza.amortizacao },
+      { rotulo: "Juros da dívida", v: natureza.juros },
+      { rotulo: "Compra de imóveis e participações", v: natureza.inversoes },
+    ].filter((t) => t.v > 0).sort((a, b) => b.v - a.v)
+  : [];
+const emCemDe = (v: number) => (natureza ? Math.round((v / natureza.total) * 100) : 0);
+
+// O que tinha e o que devia em 31/12.
+const sinal = (v: number) => (v < 0 ? `−${moedaCurta(-v)}` : moedaCurta(v));
+const semPagar = natureza && natureza.restos > 0 ? natureza.restos : ente.total ? Math.max(0, ente.total[0] - ente.total[1]) : 0;
+const linhasBalanco = balanco
+  ? [
+      { rotulo: "Dinheiro em caixa", v: moedaCurta(balanco.caixa), mostra: true },
+      { rotulo: `${(balanco.sobra ?? 0) >= 0 ? "Sobra" : "Falta"} acumulada`, dica: "dinheiro e aplicações menos contas de curto prazo", v: sinal(balanco.sobra ?? 0), mostra: balanco.sobra !== null },
+      { rotulo: "A mesma conta um ano antes", v: sinal(balanco.sobraAntes ?? 0), mostra: balanco.sobraAntes !== null },
+      { rotulo: "Gasto do ano que ficou sem pagar", v: moedaCurta(semPagar), mostra: semPagar > 0 },
+      { rotulo: "Dívida com empréstimos e financiamentos", v: moedaCurta(balanco.emprestimos), mostra: balanco.emprestimos > 0 },
+      { rotulo: "Compromissos de longo prazo", dica: "em geral, aposentadorias futuras dos servidores", v: moedaCurta(balanco.provisoes), mostra: balanco.provisoes > 0 },
+    ].filter((l) => l.mostra)
+  : [];
 const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
 
 // De onde veio a receita. Partes abaixo de 0,05% ficam de fora (resíduos de classificação).
@@ -59,6 +89,33 @@ const partesInss = inss
   : [];
 const frenteAoGasto = inss && ente.total ? inss.total / ente.total[0] : null;
 ---
+
+{natureza && (
+  <section class="bloco">
+    <div class="texto">
+      <h2>Com o quê gasta</h2>
+      <p>
+        De cada R$ 100 que {quem} gastou em {natureza.ano}, <strong>R$ {emCemDe(natureza.pessoal)}</strong> foram para
+        salários e encargos dos servidores e <strong>R$ {emCemDe(natureza.investimentos)}</strong> para obras e equipamentos.
+      </p>
+      <p class="menor">
+        A soma, {moedaCurta(natureza.total)}, é maior que o total por área porque aqui entram também os pagamentos entre
+        órgãos {municipal ? "da própria prefeitura" : "do próprio governo"}, como a contribuição ao fundo de previdência dos servidores.
+      </p>
+    </div>
+    <ul class="barras">
+      {tipos.map((t, k) => (
+        <li>
+          <span class="lb-linha">
+            <span>{t.rotulo}</span>
+            <strong class="num" title={moedaCompleta(t.v)}>{moedaCurta(t.v)} · {pct(t.v / natureza.total)}</strong>
+          </span>
+          <span class="lb-barra" style={`width:${(t.v / tipos[0].v) * 100}%;background:${corDaRampa(Math.min(1, k / 4))}`}></span>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
 
 {contas && (
   <section class="bloco">
@@ -122,6 +179,32 @@ const frenteAoGasto = inss && ente.total ? inss.total / ente.total[0] : null;
   </section>
 )}
 
+{balanco && (
+  <section class="bloco">
+    <div class="texto">
+      <h2>O que tinha e o que devia</h2>
+      <p>
+        Em 31 de dezembro de {balanco.ano}, {quem} tinha <strong>{moedaExtenso(balanco.caixa)}</strong> em caixa
+        {balanco.emprestimos > 0
+          ? <> e devia <strong>{moedaExtenso(balanco.emprestimos)}</strong> em empréstimos e financiamentos.</>
+          : <> e não declarou dívida com empréstimos.</>}
+      </p>
+      <p class="menor">
+        Números do balanço patrimonial, o retrato do fim do ano. A sobra acumulada é o que explica como
+        um governo consegue gastar mais do que recebe num ano: ele usa o que guardou nos anteriores.
+      </p>
+    </div>
+    <ul class="linhas">
+      {linhasBalanco.map((l) => (
+        <li>
+          <span>{l.rotulo}{l.dica && <small class="so-largo"> · {l.dica}</small>}</span>
+          <strong class="num">{l.v}</strong>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
 {inss && (
   <section class="bloco">
     <div class="texto">
@@ -151,10 +234,10 @@ const frenteAoGasto = inss && ente.total ? inss.total / ente.total[0] : null;
   </section>
 )}
 
-{(contas || inss) && (
+{(contas || inss || natureza || balanco) && (
   <p class="fonte">
     <a href={caminhoNoMapa(ente, esfera)}>Ver no mapa</a>: impostos pagos, repasses federais, comparação com {municipal ? "cidades parecidas" : "outros estados"} e outros anos.
-    Fontes: {contas && <>receita declarada ao Tesouro Nacional (DCA, Anexo I-C){inss && "; "}</>}
+    Fontes: {(contas || natureza || balanco) && <>contas declaradas ao Tesouro Nacional (DCA, Anexos I-C, I-D e I-AB){inss && "; "}</>}
     {inss && <>INSS pelo Ministério da Previdência Social (Estatísticas Municipais)</>}.
   </p>
 )}
@@ -174,11 +257,16 @@ const frenteAoGasto = inss && ente.total ? inss.total / ente.total[0] : null;
   .lb-linha strong { white-space: nowrap; font-weight: 600; }
   .lb-barra { display: block; height: 10px; min-width: 2px; }
   .saldo { border-top: 1px solid var(--tinta); padding-top: 10px; }
+  .linhas { grid-column: span 7; list-style: none; margin: 0; padding: 0; align-self: center; border-top: 1px solid var(--tinta); }
+  .linhas li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; }
+  .linhas li > span { min-width: 0; font-weight: 600; }
+  .linhas small { font-size: 13px; font-weight: 400; color: var(--texto-3); }
+  .linhas strong { white-space: nowrap; font-weight: 600; }
   .fonte { margin: 0 0 28px; font-size: 13px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
 
   @media (max-width: 900px) {
     .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
     .texto h2 { font-size: 28px; line-height: 1.1; }
-    .barras { align-self: stretch; }
+    .barras, .linhas { align-self: stretch; }
   }
 </style>

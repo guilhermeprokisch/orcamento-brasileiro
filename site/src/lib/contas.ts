@@ -1,6 +1,6 @@
 /**
- * Receita, saldo e benefícios do INSS de cada município e estado, lidos no build
- * dos arquivos da página /mapa (pipeline/…/mapa.py e inss.py). Cada ano só é
+ * Receita, saldo, tipo de gasto, balanço e benefícios do INSS de cada município e estado,
+ * lidos no build dos arquivos da página /mapa (pipeline/…/mapa.py, contas.py e inss.py). Cada ano só é
  * carregado se alguma página precisar dele; sem os arquivos, tudo vem null.
  */
 import type { Cidade } from "./cidades";
@@ -16,9 +16,12 @@ interface DocAno {
   uf: Record<string, number[]>;
 }
 type DocInss = Record<string, [number, number, number]>;
+/** n e b na ordem de contas.NATUREZA e contas.BALANCO (pipeline). */
+type DocContas = Record<string, { n?: number[]; b?: number[] }>;
 
 const arquivosAno = import.meta.glob<DocAno>("../../public/data/mapa/anos/*.json", { import: "default" });
 const arquivosInss = import.meta.glob<DocInss>("../../public/data/mapa/inss/*.json", { import: "default" });
+const arquivosContas = import.meta.glob<DocContas>("../../public/data/mapa/contas/*.json", { import: "default" });
 
 function leitor<T>(arquivos: Record<string, () => Promise<T>>) {
   const cache = new Map<number, Promise<T | null>>();
@@ -32,6 +35,7 @@ function leitor<T>(arquivos: Record<string, () => Promise<T>>) {
 }
 const docAno = leitor(arquivosAno);
 const docInss = leitor(arquivosInss);
+const docContas = leitor(arquivosContas);
 
 export type Esfera = "mun" | "uf";
 
@@ -69,6 +73,59 @@ export async function contasDe(e: Cidade, esfera: Esfera): Promise<Contas | null
     ano: e.ano, receita: v("receita"), despesa: v("desp"), saldo: v("receita") - v("desp"),
     propria: v("propria"), uniao: v("uniao"), estado: v("estado"), fundeb: v("fundeb"), credito: v("credito"),
     iptu: v("iptu"), iss: v("iss"), itbi: v("itbi"), taxas: v("taxas"), cosip: v("cosip"),
+  };
+}
+
+export interface Natureza {
+  ano: number;
+  /** Soma dos seis grupos. Inclui pagamentos entre órgãos do próprio ente, então passa do total por área. */
+  total: number;
+  pessoal: number;
+  juros: number;
+  custeio: number;
+  investimentos: number;
+  inversoes: number;
+  amortizacao: number;
+  /** Restos a pagar inscritos no ano (gasto comprometido e não pago). */
+  restos: number;
+}
+
+/** Despesa por natureza (com o quê gasta) no ano da DCA do ente. */
+export async function naturezaDe(e: Cidade, esfera: Esfera): Promise<Natureza | null> {
+  if (e.ano === null) return null;
+  const n = (await docContas(e.ano))?.[chave(e, esfera)[1]]?.n;
+  if (!n) return null;
+  const [pessoal, juros, custeio, investimentos, inversoes, amortizacao, rpProcessados = 0, rpNaoProcessados = 0] = n;
+  const total = pessoal + juros + custeio + investimentos + inversoes + amortizacao;
+  return total > 0
+    ? { ano: e.ano, total, pessoal, juros, custeio, investimentos, inversoes, amortizacao, restos: rpProcessados + rpNaoProcessados }
+    : null;
+}
+
+export interface Balanco {
+  ano: number;
+  caixa: number;
+  /** Ativo financeiro menos passivo financeiro; null se o ente não declarou o ativo financeiro. */
+  sobra: number | null;
+  /** A mesma conta no balanço do ano anterior (valores da época). */
+  sobraAntes: number | null;
+  emprestimos: number;
+  /** Provisões de longo prazo (em geral, aposentadorias futuras dos servidores). */
+  provisoes: number;
+}
+
+/** Balanço patrimonial em 31/12 do ano da DCA do ente. */
+export async function balancoDe(e: Cidade, esfera: Esfera): Promise<Balanco | null> {
+  if (e.ano === null) return null;
+  const id = chave(e, esfera)[1];
+  const b = (await docContas(e.ano))?.[id]?.b;
+  if (!b) return null;
+  const sobraDe = (x?: number[]) => (x && x[1] > 0 ? x[1] - x[2] : null);
+  const sobra = sobraDe(b);
+  return {
+    ano: e.ano, caixa: b[0], sobra,
+    sobraAntes: sobra === null ? null : sobraDe((await docContas(e.ano - 1))?.[id]?.b),
+    emprestimos: b[3] + b[4], provisoes: b[5],
   };
 }
 

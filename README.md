@@ -65,7 +65,7 @@ Saídas do pipeline:
 - `site/public/data/explorer/anos.json`: totais por ano.
 - `site/public/data/cidades/municipios.json`: um registro por município (e o DF) com o gasto por função e subfunção do último ano entregue, a série histórica e a mediana per capita por faixa de população. Gera `/cidades` e `/cidades/{uf}/{cidade}`.
 - `site/public/data/cidades/estados.json`: o mesmo para os 26 estados e o DF, com a mediana dos estados. Gera `/estados` e `/estados/{uf}`.
-- `site/public/data/mapa/`: dados da página `/mapa` (ver `pipeline/src/orcamento_pipeline/mapa.py` e `federal.py`): um arquivo por ano com despesa, receita, origem da receita e tributos de cada município e estado; áreas de gasto; série histórica; fatores do IPCA; arrecadação federal por estado; dinheiro federal por município; malhas. As páginas de cidade e de estado leem daqui, no build, a receita, o saldo do ano e os benefícios do INSS (`site/src/lib/contas.ts`); sem esses arquivos, essas seções não aparecem.
+- `site/public/data/mapa/`: dados da página `/mapa` (ver `pipeline/src/orcamento_pipeline/mapa.py` e `federal.py`): um arquivo por ano com despesa, receita, origem da receita e tributos de cada município e estado; áreas de gasto; série histórica; fatores do IPCA; arrecadação federal por estado; dinheiro federal por município; malhas. As páginas de cidade e de estado leem daqui, no build, a receita, o saldo do ano, o tipo de gasto, o balanço e os benefícios do INSS (`site/src/lib/contas.ts`); sem esses arquivos, essas seções não aparecem.
 
 ## Mapa (protótipo)
 
