@@ -137,7 +137,21 @@ projeto; o envio depende de cadastro pessoal. Os primeiros enviados: ICMS por mu
 
 Calculadora: a pessoa informa salário e cidade e vê uma estimativa do que vai em imposto para
 a prefeitura, o estado e a União. É estimativa e precisa ser apresentada assim: boa parte do
-imposto está embutida nos preços.
+imposto está embutida nos preços. Combinado em 20/11/2026: fica no plano, sem data para começar.
+
+O que dá para mostrar com o que o site já tem:
+
+- Imposto de renda e INSS descontados do salário: calculados pelas tabelas oficiais do ano.
+  É a parte exata.
+- Impostos nas compras (ICMS, PIS/Cofins, IPI, ISS): estimados pela parte da renda que costuma
+  ir para consumo, por faixa de renda (POF do IBGE), e pelo peso desses impostos nos preços. É a
+  parte que precisa ser apresentada como estimativa, com a conta à vista.
+- Para quem vai cada parte (União, estado, prefeitura) e o que cada um faz com esse dinheiro,
+  usando as áreas de gasto e o "Com o quê gasta" da cidade e do estado da pessoa.
+- O que volta: repasses, benefícios do INSS e serviços, por morador, para a pessoa comparar.
+
+Como é uma página nova e lida com a renda da pessoa, começa por um rascunho visual. A renda
+digitada fica só no navegador: não é enviada nem guardada.
 
 ### J. Quem recebe o dinheiro das prefeituras
 
