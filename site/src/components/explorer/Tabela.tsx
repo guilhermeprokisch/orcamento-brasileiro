@@ -1,6 +1,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { ROTULO_METRICA, type Item, type Metrica } from "../../lib/dados";
-import { moedaCompleta, pct } from "../../lib/formato";
+import { taxaRealizacao, type Item, type Metrica } from "../../lib/dados";
+import { moedaCurta, pct } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
 
 interface Props {
   itens: Item[];
@@ -11,63 +12,57 @@ interface Props {
   onEscolher: (item: Item) => void;
 }
 
-type Coluna = "nome" | "valor" | "parcela";
+const LIMITE = 12;
 
+/** Lista editorial: nome, barra proporcional, valor, parcela e % pago. */
 export default function Tabela(props: Props) {
-  const [ordem, setOrdem] = createSignal<{ col: Coluna; desc: boolean }>({ col: "valor", desc: true });
-
-  const linhas = createMemo(() => {
-    const { col, desc } = ordem();
-    const m = props.metrica;
-    const s = [...props.itens].sort((a, b) =>
-      col === "nome" ? a.nome.localeCompare(b.nome, "pt-BR") : a.valores[m] - b.valores[m],
-    );
-    return desc ? s.reverse() : s;
-  });
-
-  const ordenar = (col: Coluna) =>
-    setOrdem((o) => ({ col, desc: o.col === col ? !o.desc : col !== "nome" }));
-
-  const Cabecalho = (p: { col: Coluna; rotulo: string; classe?: string }) => {
-    const ativo = () => ordem().col === p.col || (p.col === "parcela" && ordem().col === "valor");
-    return (
-      <th scope="col" class={p.classe}
-        aria-sort={ativo() ? (ordem().desc ? "descending" : "ascending") : "none"}>
-        <button type="button" onClick={() => ordenar(p.col)}>
-          {p.rotulo}
-          <span class="seta" classList={{ ativo: ativo(), desc: ordem().desc }} aria-hidden="true" />
-        </button>
-      </th>
-    );
-  };
+  const [todos, setTodos] = createSignal(false);
+  const ordenados = createMemo(() => [...props.itens].sort((a, b) => b.valores[props.metrica] - a.valores[props.metrica]));
+  const max = createMemo(() => Math.max(1, ...ordenados().map((i) => i.valores[props.metrica])));
+  const visiveis = () => (todos() ? ordenados() : ordenados().slice(0, LIMITE));
+  const resto = () => ordenados().slice(LIMITE);
 
   return (
-    <div class="ex-tabela-wrap">
-      <table class="ex-tabela">
-        <thead>
-          <tr>
-            <Cabecalho col="nome" rotulo={props.rotuloNome} />
-            <Cabecalho col="valor" rotulo={ROTULO_METRICA[props.metrica]} classe="n" />
-            <Cabecalho col="parcela" rotulo="Percentual do total" classe="n" />
-          </tr>
-        </thead>
-        <tbody>
-          <For each={linhas()}>
-            {(it) => (
-              <tr>
-                <th scope="row">
-                  <Show when={props.podeDescer} fallback={<span>{it.nome}</span>}>
-                    <button type="button" class="link" onClick={() => props.onEscolher(it)}>{it.nome}</button>
-                  </Show>
-                  <span class="cod">{it.codigo}</span>
-                </th>
-                <td class="n num">{moedaCompleta(it.valores[props.metrica])}</td>
-                <td class="n num">{pct(it.valores[props.metrica] / props.total)}</td>
-              </tr>
-            )}
-          </For>
-        </tbody>
-      </table>
+    <div class="lista" role="table" aria-label={`${props.rotuloNome}s`}>
+      <div class="lista-linha lista-cab" role="row">
+        <span role="columnheader">{props.rotuloNome}</span>
+        <span role="columnheader" class="so-largo">Dotação</span>
+        <span role="columnheader" class="d">Valor</span>
+        <span role="columnheader" class="d so-largo">Parcela</span>
+        <span role="columnheader" class="d">Pago</span>
+      </div>
+      <For each={visiveis()}>
+        {(it, i) => {
+          const v = () => it.valores[props.metrica];
+          const taxa = taxaRealizacao(it.valores);
+          return (
+            <div class="lista-linha" role="row">
+              <span role="cell" class="lista-nome">
+                <Show when={props.podeDescer} fallback={<span>{it.nome}</span>}>
+                  <button type="button" onClick={() => props.onEscolher(it)}>{it.nome}</button>
+                </Show>
+                <span class="lista-cod">{it.codigo}</span>
+              </span>
+              <span role="cell" class="so-largo lista-trilho">
+                <span style={{ width: `${(Math.max(0, v()) / max()) * 100}%`, background: corDaRampa(Math.min(1, i() / 5)) }} />
+              </span>
+              <span role="cell" class="d num">{moedaCurta(v())}</span>
+              <span role="cell" class="d num so-largo">{pct(v() / props.total)}</span>
+              <span role="cell" class="d num">{taxa === null ? "—" : `${Math.round(taxa * 100)}%`}</span>
+            </div>
+          );
+        }}
+      </For>
+      <Show when={resto().length > 0}>
+        <button type="button" class="lista-mais" onClick={() => setTodos(!todos())}>
+          <span>
+            {todos()
+              ? "Mostrar só os maiores"
+              : `+ ${resto().length} itens menores (${moedaCurta(resto().reduce((s, x) => s + x.valores[props.metrica], 0))}, ${pct(resto().reduce((s, x) => s + x.valores[props.metrica], 0) / props.total)})`}
+          </span>
+          <span>{todos() ? "recolher" : "mostrar todos"}</span>
+        </button>
+      </Show>
     </div>
   );
 }

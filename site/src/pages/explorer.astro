@@ -3,19 +3,8 @@ import Base from "../layouts/Base.astro";
 import Explorer from "../components/explorer/Explorer";
 ---
 
-<Base title="Explorer · Orçamento Brasileiro" description="Navegue pelo orçamento federal por órgão, função, programa ou natureza da despesa.">
-  <div class="faixa-titulo"><h1>Explorer do orçamento</h1></div>
-  <Explorer client:only="solid-js" />
-  <p class="nota">
-    Valores em reais correntes, sem correção pela inflação. Por padrão, os totais incluem o refinanciamento
-    da dívida pública (subfunções 841 e 842, dentro do Ministério da Fazenda): é a troca de títulos que vencem
-    por títulos novos, e sozinha soma cerca de um quarto do orçamento.
-  </p>
+<Base title="Explorer · Orçamento Brasileiro" description="Navegue pelo orçamento federal por órgão, área, programa, ação ou tipo de gasto.">
+  <div class="wrap">
+    <Explorer client:only="solid-js" />
+  </div>
 </Base>
-
-<style>
-  .nota {
-    margin: 0; padding: 20px 16px; font-size: 0.875rem; color: var(--text-2);
-    border-top: 1px solid var(--border); max-width: none;
-  }
-</style>
