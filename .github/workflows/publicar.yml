@@ -54,6 +54,17 @@ jobs:
       - name: Pipeline de estados e cidades (SICONFI)
         run: uv run --project pipeline cidades --max-chamadas 2000
 
+      # Dados da página /mapa: receita, tributos e áreas de gasto por ano, a partir dos
+      # caches do SICONFI (os anos importados do FINBRA só existem onde o cache foi levado).
+      - name: Pipeline do mapa
+        run: uv run --project pipeline mapa --max-chamadas 400
+
+      # Dinheiro federal por município. O Portal da Transparência às vezes responde com
+      # CAPTCHA a downloads automáticos: se falhar, o site é publicado sem essa camada.
+      - name: Pipeline do dinheiro federal
+        continue-on-error: true
+        run: uv run --project pipeline federal 2025
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

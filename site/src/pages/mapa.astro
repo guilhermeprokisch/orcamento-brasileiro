@@ -1,0 +1,10 @@
+---
+/**
+ * Mapa do Orçamento (protótipo). A página é um documento HTML completo e
+ * independente do layout do site: mapa em tela cheia, com estilos e script
+ * próprios, em src/mapa/pagina.html. Os dados vêm de /data/mapa/, gerados por
+ * `uv run mapa` e `uv run federal <ano>` no pipeline.
+ */
+import pagina from "../mapa/pagina.html?raw";
+---
+<Fragment set:html={pagina} />

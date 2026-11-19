@@ -27,6 +27,10 @@ uv run cidades
 #     (baixados à mão; ver pipeline/src/orcamento_pipeline/finbra.py)
 uv run finbra ~/Downloads/finbra
 
+# 1d. dados da página /mapa (receita, tributos, áreas de gasto, malhas do IBGE)
+uv run mapa
+uv run federal 2025    # repasses e benefícios federais por município
+
 # 2. site
 cd ../site && npm install && npm run dev
 ```
@@ -43,6 +47,11 @@ cd ../site && npm install && npm run dev
 | SICONFI (Tesouro Nacional) | [API de dados abertos](https://apidatalake.tesouro.gov.br/docs/siconfi/), DCA Anexo I-E | Páginas de estados e cidades: gasto de cada governo estadual e município por função e subfunção (empenhado e pago). Estados: 2014 em diante pela API. Municípios: os dois últimos exercícios pela API (uma consulta por ente; a API bloqueia rajadas com HTTP 429 a partir de ~100 por minuto, então o pipeline segue 2 consultas/s). Cache em `data/raw/siconfi/`, um arquivo compactado por ano |
 | SICONFI (Tesouro Nacional) | [FINBRA](https://siconfi.tesouro.gov.br/siconfi/pages/public/consulta_finbra/finbra_list.jsf), Anexos I-E e I-C | Histórico dos municípios (2013+) e receitas, um arquivo por ano com todos os municípios. O download tem captcha: os arquivos são baixados à mão e importados com `uv run finbra` |
 
+| Portal da Transparência (CGU) | [Transferências](https://portaldatransparencia.gov.br/download-de-dados/transferencias), [Bolsa Família](https://portaldatransparencia.gov.br/download-de-dados/novo-bolsa-familia), [BPC](https://portaldatransparencia.gov.br/download-de-dados/bpc) | Mapa: dinheiro federal que chega a cada município. Os repasses são baixados pelo pipeline. Bolsa Família e BPC têm uma linha por beneficiário (~6,5 GB por ano) e o servidor bloqueia downloads em série com CAPTCHA: os zips são baixados à mão e somados com `uv run federal <ano> --beneficios <pasta>`; só a soma por município é guardada, em `pipeline/referencia/beneficios/` |
+| Receita Federal | [Arrecadação por estado](https://www.gov.br/receitafederal/dados/arrecadacao-estado.csv) | Mapa: impostos federais arrecadados em cada estado, base da estimativa do que cada cidade manda para a União |
+| Tesouro Nacional | [Municípios do SIAFI](https://www.tesourotransparente.gov.br/ckan/dataset/lista-de-municipios-do-siafi) | Código SIAFI → código IBGE (o Portal da Transparência usa o SIAFI) |
+| IBGE | [Malhas territoriais](https://servicodados.ibge.gov.br/api/docs/malhas) | Contornos de municípios e estados do mapa |
+
 Saídas do pipeline:
 
 - `data/out/orcamento_despesa.parquet`: todos os anos, nível de elemento de despesa (para o DuckDB-WASM no futuro).
@@ -50,3 +59,10 @@ Saídas do pipeline:
 - `site/public/data/explorer/anos.json`: totais por ano.
 - `site/public/data/cidades/municipios.json`: um registro por município (e o DF) com o gasto por função e subfunção do último ano entregue, a série histórica e a mediana per capita por faixa de população. Gera `/cidades` e `/cidades/{uf}/{cidade}`.
 - `site/public/data/cidades/estados.json`: o mesmo para os 26 estados e o DF, com a mediana dos estados. Gera `/estados` e `/estados/{uf}`.
+- `site/public/data/mapa/`: dados da página `/mapa` (ver `pipeline/src/orcamento_pipeline/mapa.py` e `federal.py`): um arquivo por ano com despesa, receita, origem da receita e tributos de cada município e estado; áreas de gasto; série histórica; fatores do IPCA; arrecadação federal por estado; dinheiro federal por município; malhas.
+
+## Mapa (protótipo)
+
+`/mapa` responde, para cada cidade e estado e por ano: o que se paga de imposto à prefeitura, quanto ela recebe e gasta, se sobrou ou faltou, de onde vem o dinheiro e o que chega do governo federal. A página é um documento independente do layout do site (`site/src/mapa/pagina.html`, servido por `site/src/pages/mapa.astro`).
+
+Três coisas são **estimativas** e aparecem marcadas como tal: o IPVA pago na cidade (o dobro da cota que o estado devolve à prefeitura), o ICMS atribuído a ela (quatro vezes a cota-parte) e os impostos federais (o total arrecadado no estado, repartido pelo peso da cidade no ICMS). O imposto é registrado onde é recolhido, não onde mora quem paga.

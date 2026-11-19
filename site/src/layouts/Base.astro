@@ -39,6 +39,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
         <nav class="nav so-largo" aria-label="Principal">
           <a href="/explorer" aria-current={ativo("/explorer")}>Explorer</a>
           <a href="/orgaos" aria-current={ativo("/orgaos")}>Órgãos</a>
+          <a href="/mapa/">Mapa</a>
           <a href="/aprenda" aria-current={ativo("/aprenda")}>Aprenda</a>
           <a href="/glossario" aria-current={ativo("/glossario")}>Glossário</a>
           <Busca client:idle />
@@ -53,6 +54,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
               <a href="/">Início</a>
               <a href="/explorer">Explorer</a>
               <a href="/orgaos">Órgãos</a>
+              <a href="/mapa/">Mapa</a>
               <a href="/aprenda">Aprenda</a>
               <a href="/glossario">Glossário</a>
             </nav>

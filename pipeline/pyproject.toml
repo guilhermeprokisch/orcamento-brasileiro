@@ -12,6 +12,8 @@ dependencies = [
 orcamento = "orcamento_pipeline.cli:main"
 cidades = "orcamento_pipeline.cidades:main"
 finbra = "orcamento_pipeline.finbra:main"
+mapa = "orcamento_pipeline.mapa:main"
+federal = "orcamento_pipeline.federal:main"
 
 [build-system]
 requires = ["hatchling"]
