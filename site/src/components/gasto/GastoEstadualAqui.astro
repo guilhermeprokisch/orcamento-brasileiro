@@ -1,0 +1,89 @@
+---
+/**
+ * O que o governo do estado gastou neste município, empenho a empenho. Só aparece nos
+ * estados que publicam o município de cada despesa (ver lib/estadual.ts).
+ */
+import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
+import { deUf, porPessoa, type Cidade } from "../../lib/cidades";
+import { gastoEstadualEm } from "../../lib/estadual";
+
+interface Props {
+  cidade: Cidade;
+}
+const { cidade } = Astro.props;
+const g = await gastoEstadualEm(cidade);
+const areas = g ? g.areas.slice(0, 6) : [];
+const outras = g ? g.areas.slice(6).reduce((s, a) => s + a.valor, 0) : 0;
+const gastoDaPrefeitura = cidade.total?.[0] ?? 0;
+---
+
+{g && (
+  <section class="estadual">
+    <div class="texto">
+      <h2>O que o governo do estado gastou aqui</h2>
+      <p>
+        Em {g.ano}, o governo {deUf(cidade.uf)} comprometeu <strong>{moedaExtenso(g.local)}</strong> em obras, serviços e
+        compras registrados em {cidade.nome}, ou {porPessoa(g.local / cidade.pop)} por habitante.
+        {gastoDaPrefeitura > 0 && <> A prefeitura gastou {moedaExtenso(gastoDaPrefeitura)} no mesmo ano.</>}
+      </p>
+      <p class="menor">
+        Soma dos empenhos do estado que indicam este município. Não inclui salários: a folha é registrada na sede de cada
+        órgão{g.folha > 0 && <> ({moedaCurta(g.folha)} aparecem aqui por esse motivo)</>}. Uma obra que atende várias cidades
+        pode estar registrada inteira em uma delas, e compras centralizadas ficam na capital.
+      </p>
+    </div>
+    <div class="dados">
+      <ul class="barras">
+        {areas.map((a, k) => (
+          <li>
+            <span class="lb-linha"><span>{a.nome}</span><strong class="num" title={moedaCompleta(a.valor)}>{moedaCurta(a.valor)} · {pct(a.valor / g.local)}</strong></span>
+            <span class="lb-barra" style={`width:${(a.valor / areas[0].valor) * 100}%;background:${corDaRampa(Math.min(1, k / 5))}`}></span>
+          </li>
+        ))}
+        {outras > 0 && (
+          <li><span class="lb-linha"><span>Outras áreas</span><strong class="num">{moedaCurta(outras)} · {pct(outras / g.local)}</strong></span></li>
+        )}
+      </ul>
+      <h3>As maiores despesas</h3>
+      <ol class="maiores">
+        {g.maiores.map((m) => (
+          <li>
+            <span><strong>{m.acao}</strong><small>{m.credor} · {m.orgao}</small></span>
+            <span class="num" title={moedaCompleta(m.valor)}>{moedaCurta(m.valor)}</span>
+          </li>
+        ))}
+      </ol>
+      <p class="fonte">Fonte: {g.fonte}, despesas orçamentárias de {g.ano}. Pessoas físicas aparecem somadas, sem nome.</p>
+    </div>
+  </section>
+)}
+
+<style>
+  .estadual { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .barras li { display: flex; flex-direction: column; gap: 4px; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .lb-linha > span { min-width: 0; font-weight: 600; }
+  .lb-linha strong { white-space: nowrap; font-weight: 600; }
+  .lb-barra { display: block; height: 10px; min-width: 2px; }
+  h3 { margin: 6px 0 0; font-family: var(--sans, inherit); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .maiores { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .maiores li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; }
+  .maiores li > span:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .maiores strong { font-weight: 600; }
+  .maiores small { font-size: 13px; color: var(--texto-3); }
+  .maiores .num { white-space: nowrap; font-weight: 600; }
+  .fonte { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .estadual { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; line-height: 1.1; }
+  }
+</style>

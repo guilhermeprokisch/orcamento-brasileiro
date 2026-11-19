@@ -87,6 +87,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline rreo --max-chamadas 200
 
+      # Gasto do governo da Paraíba por município, empenho a empenho (API aberta do estado,
+      # ~50 consultas). Se a API falhar, as cidades paraibanas saem sem essa seção.
+      - name: Pipeline do gasto estadual localizado (PB)
+        continue-on-error: true
+        run: uv run --project pipeline estado-pb 2025
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
