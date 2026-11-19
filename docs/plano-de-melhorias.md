@@ -18,7 +18,7 @@ Atualizado em 19/11/2026.
 | 2 | Dívida oficial e limites fiscais (RGF do SICONFI) | Não começou; usa a mesma API do item 1, que aceita uma consulta por segundo |
 | 3 | Conciliar o dinheiro federal: Portal da Transparência x prefeituras | Feito ([conciliacao-federal.md](conciliacao-federal.md)) |
 | 4 | Bolsa Família e BPC de outros anos | Depende de download manual (o Portal pede captcha); hoje só 2025 |
-| 5 | Gasto do estado em cada cidade | Feito para a Paraíba. Espírito Santo não começou |
+| 5 | Gasto do estado em cada cidade | Feito para a Paraíba e para Minas Gerais. Demais estados: ver o item H |
 
 ## Próximas, na ordem sugerida
 
@@ -80,9 +80,27 @@ problema da folha de pagamento na Paraíba.
 
 ### H. Gasto do estado em cada cidade, para mais estados
 
-Além da Paraíba. Pelo [levantamento dos portais](levantamento-portais-estaduais.md), ES, CE, BA,
-AL e DF trazem alguma geografia (microrregião ou município em parte das despesas), com menos
-detalhe. Um extrator por estado.
+Paraíba e Minas Gerais já estão no site. A pesquisa em
+[gasto-estadual-por-municipio.md](gasto-estadual-por-municipio.md) mostrou que mais nove estados
+publicam a folha de pagamento com cidade ou unidade e outros nove, obras ou convênios com
+município. Ordem sugerida:
+
+1. PR e SC: folha com cidade, sem cruzamento.
+2. GO, AM e MT: obras com município (AM e MT usam a mesma API).
+3. SE, ES, RJ, BA e SP: folha por unidade, casando escola e hospital com o Censo Escolar e o CNES.
+4. Estimativa nacional de educação e saúde para os demais, validada na Paraíba e em Minas.
+
+### H2. Página "quem publica onde gasta"
+
+Os 27 estados em quatro faixas: gasto inteiro por município, folha com cidade, só obras e
+convênios, quase nada. Os dados já estão no documento da pesquisa.
+
+### H3. Pedidos pela Lei de Acesso à Informação
+
+Para o que não existe em lugar nenhum: despesa por município de aplicação nos estados das
+faixas de baixo, tabela de unidades com município (SP, RJ, BA, AM, GO), efetivo policial por
+município (Ministério da Justiça) e remuneração por escola (FNDE). Os pedidos são redigidos no
+projeto; o envio depende de cadastro pessoal.
 
 ### I. "Quanto eu pago?"
 
