@@ -1,0 +1,62 @@
+---
+/**
+ * Uma série ano a ano em barras horizontais, com o mesmo desenho da dívida: uma linha por ano.
+ * Anos preliminares ficam mais claros, com um asterisco.
+ */
+import type { PontoSerie } from "../../lib/indicadores";
+
+interface Props {
+  titulo: string;
+  serie: PontoSerie[];
+  /** Uma linha de referência (o Brasil), ano a ano, desenhada como um traço em cada barra. */
+  referencia?: PontoSerie[];
+  rotuloReferencia?: string;
+  casas?: number;
+}
+const { titulo, serie, referencia = [], rotuloReferencia = "Brasil", casas = 0 } = Astro.props;
+const nf = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
+const ref = new Map(referencia.map((p) => [p.ano, p.valor]));
+const escala = Math.max(...serie.map((p) => p.valor), ...referencia.map((p) => p.valor)) * 1.05 || 1;
+const temPreliminar = serie.some((p) => p.preliminar);
+const linhas = serie.map((p) => {
+  const r = ref.get(p.ano);
+  return { ...p, largura: (p.valor / escala) * 100, ref: r === undefined ? null : { left: (r / escala) * 100, titulo: `${rotuloReferencia}: ${nf.format(r)}` } };
+});
+---
+
+{serie.length > 1 && (
+  <figure class="serie">
+    <figcaption>{titulo}</figcaption>
+    <ol>
+      {linhas.map((p) => (
+        <li class:list={{ preliminar: p.preliminar }}>
+          <span class="num ano">{p.ano}{p.preliminar && "*"}</span>
+          <span class="trilho">
+            <span class="barra" style={`width:${p.largura}%`}></span>
+            {p.ref && <span class="ref" style={`left:${p.ref.left}%`} title={p.ref.titulo}></span>}
+          </span>
+          <strong class="num">{nf.format(p.valor)}</strong>
+        </li>
+      ))}
+    </ol>
+    <p class="nota">
+      {ref.size > 0 && <><span class="traco" aria-hidden="true"></span> {rotuloReferencia}. </>}
+      {temPreliminar && <>* Dados preliminares.</>}
+    </p>
+  </figure>
+)}
+
+<style>
+  .serie { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  figcaption { font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  li { display: grid; grid-template-columns: 48px minmax(0, 1fr) 64px; gap: 12px; align-items: center; font-size: 14px; }
+  .ano { color: var(--texto-3); }
+  strong { text-align: right; font-weight: 600; }
+  .trilho { position: relative; display: block; height: 12px; }
+  .barra { display: block; height: 100%; background: var(--verde); }
+  .preliminar .barra { opacity: 0.45; }
+  .ref { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--tinta); }
+  .nota { margin: 0; font-size: 12px; color: var(--texto-3); display: flex; align-items: center; gap: 6px; }
+  .traco { display: inline-block; width: 2px; height: 12px; background: var(--tinta); }
+</style>
