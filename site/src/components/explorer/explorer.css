@@ -31,21 +31,20 @@
 .ex-refin input { width: 18px; height: 18px; margin: 0 5px; accent-color: var(--ponto); }
 
 .ex-trilha { list-style: none; margin: 0; padding: 30px 24px 40px 32px; }
-.ex-trilha li { position: relative; display: grid; grid-template-columns: 30px 1fr; column-gap: 20px; }
-.ex-trilha .trilho {
-  grid-column: 1; height: 80px; margin: 6px auto;
-  width: 6px;
-  background: radial-gradient(circle, #c2c2c2 2.6px, transparent 3px) center top / 6px 12px repeat-y;
+.ex-trilha li { position: relative; padding: 0 0 56px 50px; min-height: 30px; }
+.ex-trilha li:last-child { padding-bottom: 0; }
+/* pontilhado do centro de um círculo até o próximo, acompanhando a altura do texto */
+.ex-trilha li:not(:last-child)::before {
+  content: ""; position: absolute; left: 12px; top: 32px; bottom: 2px; width: 6px;
+  background: radial-gradient(circle, #c2c2c2 2.6px, transparent 3px) center top / 6px 11px repeat-y;
 }
-.ex-trilha .trilho + .ponto { grid-row: 2; }
-.ex-trilha li .trilho ~ button { grid-row: 2; }
 .ex-trilha .ponto {
-  grid-column: 1; align-self: start;
+  position: absolute; left: 0; top: 0;
   width: 30px; height: 30px; border-radius: 50%;
   background: var(--ponto); border: 4px solid #d8d8d8;
 }
 .ex-trilha button {
-  grid-column: 2; display: grid; gap: 2px; text-align: left;
+  display: grid; gap: 2px; text-align: left;
   font: inherit; color: #ffffff; background: none; border: 0; padding: 4px 0 0; cursor: pointer;
 }
 .ex-trilha li.atual button { cursor: default; }
@@ -128,7 +127,7 @@
   .ex-recomecar { padding: 16px; font-size: 1.0625rem; }
   .ex-lado-bloco { padding: 16px; }
   .ex-trilha { padding: 16px 16px 20px; }
-  .ex-trilha .trilho { height: 28px; }
+  .ex-trilha li { padding-bottom: 28px; }
   .ex-principal { padding: 24px 16px 40px; }
   .ex-titulo h2 { font-size: 1.375rem; }
   .ex-total { text-align: left; margin-left: 0; }
@@ -140,3 +139,24 @@
   .ex-tabela tbody th { min-width: 11rem; }
   .ex-tabela tbody th, .ex-tabela td, .ex-tabela thead th button { padding: 12px; }
 }
+
+/* ---------- evolução ---------- */
+.ex-mini { width: 260px; margin: 12px 0 0 auto; }
+.ex-mini-rodape { display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px; font-size: 0.8125rem; color: var(--text-2); }
+.ex-mini-rodape .link { font-size: 0.875rem; font-weight: 600; }
+.ex-cartao-ev { margin-bottom: 28px; }
+.ex-ev-titulo { margin: 0; font-size: 1.125rem; font-weight: 600; color: var(--text); }
+.ex-fechar {
+  margin-left: auto; width: 34px; height: 34px; font-size: 1.5rem; line-height: 1; color: var(--text-2);
+  background: none; border: 1px solid var(--border-forte); border-radius: 4px; cursor: pointer;
+}
+.ex-ev-corpo { padding: 16px 24px 18px; }
+.ex-ev-nota { margin: 8px 0 0; font-size: 0.8125rem; color: var(--text-2); }
+.ex-total-real { font-size: 0.875rem; color: var(--text-2); }
+@media (max-width: 900px) {
+  .ex-mini { margin-left: 0; width: min(260px, 100%); }
+  .ex-ev-corpo { padding: 12px 8px 14px; }
+}
+.ex-cartao-ev .ex-barra { flex-wrap: nowrap; }
+.ex-cartao-ev .ex-ev-titulo { min-width: 0; }
+.ex-fechar { flex: none; }

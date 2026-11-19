@@ -1,8 +1,9 @@
 import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import Treemap from "./Treemap";
 import Tabela from "./Tabela";
+import Evolucao, { type Ponto } from "./Evolucao";
 import {
-  agrupar, ARTIGO_DIM, carregarAno, carregarResumo, DIMS, dimsDisponiveis, METRICAS, proximaSugerida,
+  agrupar, ARTIGO_DIM, carregarAno, carregarResumo, DIMS, dimsDisponiveis, escalar, METRICAS, proximaSugerida,
   ROTULO_DIM, ROTULO_METRICA, totaisDaTrilha, type Dim, type Filtro, type Item, type Metrica,
 } from "../../lib/dados";
 import { moedaCompleta, moedaExtenso } from "../../lib/formato";
@@ -17,6 +18,8 @@ interface Estado {
   por: Dim | null;
   semRefin: boolean;
   vista: Vista;
+  real: boolean;
+  evolucao: boolean;
 }
 
 const ehDim = (s: string | null): s is Dim => !!s && (DIMS as string[]).includes(s);
@@ -38,6 +41,8 @@ function lerUrl(): Estado {
     por: ehDim(por) && !filtros.some((f) => f.dim === por) ? por : proximaSugerida(filtros),
     semRefin: p.get("refin") === "0",
     vista: p.get("vista") === "tabela" ? "tabela" : "mapa",
+    real: p.get("ipca") === "1",
+    evolucao: p.get("evolucao") === "1",
   };
 }
 
@@ -49,6 +54,8 @@ function escreverUrl(e: Estado, push: boolean) {
   if (e.por) p.set("por", e.por);
   if (e.semRefin) p.set("refin", "0");
   if (e.vista === "tabela") p.set("vista", "tabela");
+  if (e.real) p.set("ipca", "1");
+  if (e.evolucao) p.set("evolucao", "1");
   const url = `${location.pathname}?${p.toString().replaceAll("%3A", ":").replaceAll("%2C", ",")}`;
   if (push) history.pushState(null, "", url);
   else history.replaceState(null, "", url);
@@ -83,11 +90,44 @@ export default function Explorer() {
     onCleanup(() => removeEventListener("popstate", voltar));
   });
 
+  // Correção pela inflação: multiplica tudo pelo fator do ano (reais do ano-base do IPCA).
+  const ipca = () => resumo()?.ipca ?? null;
+  const fator = () => {
+    const i = ipca();
+    const a = ano();
+    return estado().real && i && a ? i.fatores[String(a)] ?? 1 : 1;
+  };
+
+  // Série histórica: todos os anos, carregados uma vez (ficam em cache em carregarAno).
+  const anosLista = () => resumo()?.anos.map((a) => a.ano) ?? [];
+  const [todos] = createResource(
+    () => (anosLista().length ? anosLista().join(",") : false),
+    (chave: string) => Promise.all(chave.split(",").map(Number).map(carregarAno)),
+  );
+  const serie = createMemo<Ponto[] | null>(() => {
+    const ds = todos();
+    if (!ds) return null;
+    const e = estado();
+    const i = ipca();
+    return ds
+      .map((d) => ({
+        ano: d.ano,
+        valores: escalar(
+          agrupar(d, e.filtros, null, e.semRefin).total,
+          e.real && i ? i.fatores[String(d.ano)] ?? 1 : 1,
+        ),
+      }))
+      .sort((a, b) => a.ano - b.ano);
+  });
+  const anoCorrente = new Date().getFullYear();
+
   const grupo = createMemo(() => {
     const d = doc();
     if (!d) return null;
     const e = estado();
-    return agrupar(d, e.filtros, e.por, e.semRefin);
+    const g = agrupar(d, e.filtros, e.por, e.semRefin);
+    const f = fator();
+    return { total: escalar(g.total, f), itens: g.itens.map((i) => ({ ...i, valores: escalar(i.valores, f) })) };
   });
   const itens = createMemo(() => {
     const m = estado().metrica;
@@ -103,14 +143,14 @@ export default function Explorer() {
     return e.filtros.map((f, i) => ({
       ...f,
       nome: d.dims[f.dim][f.cod] ?? f.cod,
-      total: totais[i],
+      total: totais[i] * fator(),
       filtros: e.filtros.slice(0, i + 1),
     }));
   });
   const totalGeral = createMemo(() => {
     const d = doc();
     if (!d) return 0;
-    return agrupar(d, [], null, estado().semRefin).total[estado().metrica];
+    return agrupar(d, [], null, estado().semRefin).total[estado().metrica] * fator();
   });
 
   const descer = (item: Item) => {
@@ -152,6 +192,11 @@ export default function Explorer() {
               onChange={(e) => mudar({ semRefin: e.currentTarget.checked })} />
             <span>Excluir refinanciamento da dívida</span>
           </label>
+          <label class="ex-refin">
+            <input type="checkbox" checked={estado().real} disabled={!ipca()}
+              onChange={(e) => mudar({ real: e.currentTarget.checked })} />
+            <span>Corrigir pela inflação{ipca() ? ` (reais de ${ipca()!.base})` : ""}</span>
+          </label>
         </div>
 
         <ol class="ex-trilha">
@@ -165,7 +210,6 @@ export default function Explorer() {
           <For each={trilha()}>
             {(passo, i) => (
               <li classList={{ atual: i() === trilha().length - 1 }}>
-                <span class="trilho" aria-hidden="true" />
                 <span class="ponto" aria-hidden="true" />
                 <button type="button" onClick={() => irPara(passo.filtros)}>
                   <span class="rotulo">{ROTULO_DIM[passo.dim]}</span>
@@ -202,12 +246,50 @@ export default function Explorer() {
           </div>
           <div class="ex-total">
             <div class="ex-total-rotulo">{ROTULO_METRICA[estado().metrica]} {ano() ?? ""}</div>
+            <Show when={estado().real && ipca()}>
+              <div class="ex-total-real">em reais de {ipca()!.base}, corrigidos pelo IPCA</div>
+            </Show>
             <div class="ex-total-valor num" title={moedaCompleta(total())}>{doc() ? moedaExtenso(total()) : "…"}</div>
             <Show when={doc()}>
               <div class="ex-total-data">Dados baixados em {dataCurta(doc()!.gerado_em)}</div>
             </Show>
+            <div class="ex-mini">
+              <Evolucao serie={serie()} metrica={estado().metrica} anoSelecionado={ano()}
+                anoCorrente={anoCorrente} onAno={(a) => mudar({ ano: a }, true)} compacto />
+              <div class="ex-mini-rodape">
+                <span>{anosLista()[0] ?? ""}–{anosLista().at(-1) ?? ""}</span>
+                <button type="button" class="link" aria-expanded={estado().evolucao}
+                  onClick={() => mudar({ evolucao: !estado().evolucao })}>
+                  {estado().evolucao ? "Fechar evolução" : "Ver evolução completa"}
+                </button>
+              </div>
+            </div>
           </div>
         </header>
+
+        <Show when={estado().evolucao}>
+          <div class="ex-cartao ex-cartao-ev">
+            <div class="ex-barra">
+              <h3 class="ex-ev-titulo">
+                {ROTULO_METRICA[estado().metrica]} de {anosLista()[0]} a {anosLista().at(-1)}
+                {ultimo() ? ` · ${ultimo()!.nome}` : ""}
+              </h3>
+              <button type="button" class="ex-fechar" aria-label="Fechar evolução"
+                onClick={() => mudar({ evolucao: false })}>×</button>
+            </div>
+            <div class="ex-ev-corpo">
+              <Evolucao serie={serie()} metrica={estado().metrica} anoSelecionado={ano()}
+                anoCorrente={anoCorrente} onAno={(a) => mudar({ ano: a }, true)} />
+              <p class="ex-ev-nota">
+                {estado().real && ipca()
+                  ? `Valores em reais de ${ipca()!.base}, corrigidos pela média anual do IPCA (IBGE).`
+                  : "Valores nominais, sem correção pela inflação. Marque “Corrigir pela inflação” na lateral para comparar anos."}{" "}
+                * {anoCorrente} ainda em execução. Órgãos e programas mudam de código com reorganizações do governo;
+                um ano sem barra pode ser só uma mudança de código.
+              </p>
+            </div>
+          </div>
+        </Show>
 
         <div class="ex-cartao">
           <div class="ex-barra">

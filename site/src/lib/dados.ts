@@ -71,9 +71,18 @@ export interface DocAno {
   linhas: (string | number)[][];
 }
 
+export interface Ipca {
+  base: number;
+  metodo: string;
+  fonte: string;
+  ultimo_mes: string;
+  fatores: Record<string, number>;
+}
+
 export interface ResumoAnos {
   gerado_em: string;
   anos: ({ ano: number; linhas: number } & Record<Metrica, number>)[];
+  ipca?: Ipca | null;
 }
 
 export type Valores = Record<Metrica, number>;
@@ -158,6 +167,16 @@ export function agrupar(doc: DocAno, filtros: Filtro[], por: Dim | null, semRefi
 /** Total de cada passo da trilha (filtros[0..i]). */
 export function totaisDaTrilha(doc: DocAno, filtros: Filtro[], m: Metrica, semRefin: boolean): number[] {
   return filtros.map((_, i) => agrupar(doc, filtros.slice(0, i + 1), null, semRefin).total[m]);
+}
+
+export function escalar(v: Valores, fator: number): Valores {
+  if (fator === 1) return v;
+  return {
+    inicial: v.inicial * fator,
+    atualizado: v.atualizado * fator,
+    empenhado: v.empenhado * fator,
+    realizado: v.realizado * fator,
+  };
 }
 
 export function taxaRealizacao(v: Valores): number | null {

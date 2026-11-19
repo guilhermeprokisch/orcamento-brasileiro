@@ -1,0 +1,30 @@
+.ev-grafico { position: relative; }
+.ev-carregando { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-2); text-align: center; font-size: 0.875rem; }
+
+.ev-grade { stroke: var(--border); stroke-width: 1; }
+.ev-base { stroke: var(--border-forte); stroke-width: 1; }
+.ev-eixo, .ev-ano { font-size: 12px; fill: var(--text-2); font-variant-numeric: tabular-nums; }
+.ev-ano.sel { fill: var(--text); font-weight: 700; }
+.ev-valor { font-size: 13px; font-weight: 700; fill: var(--text); font-variant-numeric: tabular-nums; }
+
+.ev-coluna { cursor: pointer; }
+.ev-alvo { fill: transparent; }
+.ev-barra { fill: var(--ev-barra); transition: fill 120ms ease; }
+.ev-barra.parcial { stroke: var(--ev-barra); stroke-width: 1.5; }
+.ev-barra.foco { fill: var(--ev-barra-foco); }
+.ev-barra.sel { fill: var(--destaque); stroke: none; }
+.ev-hachura-fundo { fill: var(--surface); }
+.ev-hachura-traco { fill: var(--ev-barra); }
+
+.ev-tip {
+  position: absolute; z-index: 20; pointer-events: none; text-align: left;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; box-shadow: 0 2px 12px rgb(0 0 0 / 0.22); padding: 10px 12px;
+}
+.ev-tip-ano { font-weight: 700; margin-bottom: 6px; }
+.ev-tip-linha { font-size: 0.875rem; color: var(--text-2); }
+.ev-tip-linha strong { color: var(--text); }
+.ev-tip dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: 0.875rem; }
+.ev-tip dt { color: var(--text-2); white-space: nowrap; }
+.ev-tip dd { margin: 0; text-align: right; white-space: nowrap; }
+.ev-tip-dica { margin-top: 6px; font-size: 0.8125rem; color: var(--text-2); }

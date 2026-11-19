@@ -78,7 +78,33 @@ def exportar_parquet(con: duckdb.DuckDBPyConnection, destino: Path) -> None:
     )
 
 
-def exportar_explorer(con: duckdb.DuckDBPyConnection, pasta: Path) -> list[dict]:
+def fatores_ipca(indice: dict[str, float], anos: list[int]) -> dict:
+    """Fatores para levar valores de cada ano a reais do último ano completo.
+
+    Usa a média anual do número-índice (média dos meses disponíveis, no caso
+    do ano corrente). valor_real = valor_nominal × fator[ano].
+    """
+    medias, meses = {}, {}
+    for ano in anos:
+        vs = [v for k, v in indice.items() if k.startswith(str(ano))]
+        if vs:
+            medias[ano] = sum(vs) / len(vs)
+            meses[ano] = len(vs)
+    completos = [a for a, n in meses.items() if n == 12]
+    if not completos:
+        raise RuntimeError("IPCA sem nenhum ano completo")
+    base = max(completos)
+    ultimo_mes = max(indice)
+    return {
+        "base": base,
+        "metodo": "média anual do IPCA (número-índice); ano corrente: média dos meses disponíveis",
+        "fonte": "IBGE, SIDRA tabela 1737",
+        "ultimo_mes": f"{ultimo_mes[:4]}-{ultimo_mes[4:]}",
+        "fatores": {str(a): round(medias[base] / m, 6) for a, m in medias.items()},
+    }
+
+
+def exportar_explorer(con: duckdb.DuckDBPyConnection, pasta: Path, ipca: dict | None = None) -> list[dict]:
     """Um JSON compacto por ano, agregado até o nível de ação × GND (sem elemento).
 
     Formato: dicionários código→nome por dimensão, e linhas como listas na
@@ -126,7 +152,7 @@ def exportar_explorer(con: duckdb.DuckDBPyConnection, pasta: Path) -> list[dict]
         resumo.append({"ano": ano, "linhas": len(linhas), **totais})
 
     (pasta / "anos.json").write_text(
-        json.dumps({"gerado_em": gerado_em, "anos": resumo}, ensure_ascii=False, indent=1),
+        json.dumps({"gerado_em": gerado_em, "anos": resumo, "ipca": ipca}, ensure_ascii=False, indent=1),
         encoding="utf-8",
     )
     return resumo

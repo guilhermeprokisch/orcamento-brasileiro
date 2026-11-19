@@ -16,6 +16,30 @@ URL_ORCAMENTO_DESPESA = (
 
 USER_AGENT = "orcamento-br-pipeline/0.1"
 
+# IPCA, número-índice mensal (base dez/1993 = 100), tabela 1737 do SIDRA/IBGE.
+URL_IPCA = "https://apisidra.ibge.gov.br/values/t/1737/n1/all/v/2266/p/all/d/v2266%2013"
+
+
+def baixar_ipca(destino: Path) -> dict[str, float]:
+    """Baixa o IPCA (número-índice) e devolve {"AAAAMM": índice}. Sempre baixa de novo."""
+    import json
+
+    destino.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(URL_IPCA, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        linhas = json.load(resp)
+    (destino / "ipca_1737.json").write_text(json.dumps(linhas), encoding="utf-8")
+    # A primeira linha é o cabeçalho; meses sem valor vêm como "..." ou "-".
+    indice = {}
+    for l in linhas[1:]:
+        try:
+            indice[l["D3C"]] = float(l["V"])
+        except ValueError:
+            continue
+    if not indice:
+        raise RuntimeError("IPCA veio vazio do SIDRA")
+    return indice
+
 
 def baixar_orcamento_despesa(ano: int, destino: Path, forcar: bool = False) -> Path:
     """Baixa e extrai o CSV do orçamento da despesa de um exercício.
