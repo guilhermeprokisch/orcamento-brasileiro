@@ -4,6 +4,8 @@ import AnoEmAndamento from "../../../components/gasto/AnoEmAndamento.astro";
 import CapagNota from "../../../components/gasto/CapagNota.astro";
 import GastoEstadualAqui from "../../../components/gasto/GastoEstadualAqui.astro";
 import EducacaoResultado from "../../../components/gasto/EducacaoResultado.astro";
+import SaudeResultado from "../../../components/gasto/SaudeResultado.astro";
+import SimuladorPrototipo from "../../../components/prototipo/SimuladorPrototipo"; // PROTÓTIPO (?variant=A|B|C)
 import { moedaExtenso } from "../../../lib/formato";
 import { caminhoCidade, caminhoEstado, docCidades, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../../lib/cidades";
 import { anosDe, fichaDe, pacoteDe } from "../../../lib/ficha";
@@ -41,6 +43,20 @@ const anos = anosDe(c);
 const base: BaseDaPagina | null = ctx
   ? { ibge: c.ibge, nome: c.nome, uf: c.uf, esfera: "mun", quem, onde, destaques, anos, padrao: c.ano!, grupo: c.uf.toLowerCase() }
   : null;
+// PROTÓTIPO — simulador de orçamento participativo. Descartável; sai daqui quando a variante for escolhida.
+const dadosSim = ctx && ficha?.natureza
+  ? {
+      nome: c.nome, uf: c.uf, pop: c.pop, ano: ficha.ano,
+      despesa: ficha.total[0],
+      receita: ficha.contas?.receita ?? null,
+      natureza: {
+        pessoal: ficha.natureza.pessoal, juros: ficha.natureza.juros, custeio: ficha.natureza.custeio,
+        investimentos: ficha.natureza.investimentos, inversoes: ficha.natureza.inversoes,
+        amortizacao: ficha.natureza.amortizacao, restos: ficha.natureza.restos,
+      },
+      areas: Object.entries(ficha.f).map(([cod, v]) => ({ cod, nome: pacote!.funcoes[cod] ?? cod, valor: v[0] })),
+    }
+  : null;
 const descricao = temDados
   ? `Quanto ${quem} gastou em ${c.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por habitante, por área (saúde, educação…).`
   : `Gastos de ${c.nome} (${c.uf}).`;
@@ -77,12 +93,15 @@ const descricao = temDados
     {ctx && <div class="ficha" data-parte="areas" set:html={areasHtml(ctx)} />}
 
     {temDados && !ehDF && <div data-so-padrao="a nota das escolas (Ideb)"><EducacaoResultado cidade={c} faixa={faixa} /></div>}
+    {temDados && !ehDF && <div data-so-padrao="a mortalidade infantil"><SaudeResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? `das cidades ${faixa}` : null} onde={onde} /></div>}
 
     {ctx && <div class="ficha" data-parte="contas" set:html={contasHtml(ctx)} />}
     {temDados && <AnoEmAndamento ente={c} esfera="mun" quem={quem} />}
     {!ehDF && <CapagNota ente={c} esfera="mun" quem={quem} grupo={faixa ? `das cidades ${faixa}` : null} />}
 
     {!ehDF && <div data-so-padrao="o gasto do governo do estado aqui"><GastoEstadualAqui cidade={c} /></div>}
+
+    {dadosSim && <SimuladorPrototipo dados={dadosSim} dev={import.meta.env.DEV} client:only="solid-js" />}
 
     <section class="unidade">
       <h2>E a escola ou o posto de saúde do meu bairro?</h2>

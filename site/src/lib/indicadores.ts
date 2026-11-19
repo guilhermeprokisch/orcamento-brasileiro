@@ -170,3 +170,51 @@ export function porAlunoEstado(e: Cidade, estados: Cidade[]): PorAlunoEstado | n
     posicao: ordem.findIndex((v) => v.ibge === e.ibge) + 1, de: ordem.length,
   };
 }
+
+// ----- Mortalidade infantil (DATASUS, pipeline/…/saude.py) -----
+
+interface DocSaude {
+  fonte: string;
+  anos: number[];
+  /** ibge (ou código do estado) → [nascidos vivos, óbitos infantis], somados nos anos */
+  mun: Record<string, [number, number]>;
+  uf: Record<string, [number, number]>;
+}
+const arquivosSaude = import.meta.glob<DocSaude>("../../public/data/indicadores/saude.json", { eager: true, import: "default" });
+const docSaude: DocSaude | null = Object.values(arquivosSaude)[0] ?? null;
+
+/** Abaixo disso, a taxa oscila demais de um ano para outro e não é comparada. */
+export const NASCIDOS_MINIMO = 100;
+
+export interface Mortalidade {
+  fonte: string;
+  anos: number[];
+  nascidos: number;
+  obitos: number;
+  /** Óbitos antes de 1 ano por mil nascidos vivos; null com poucos nascimentos. */
+  taxa: number | null;
+  /** Mediana dos comparáveis (cidades do mesmo porte ou estados) e a taxa do Brasil. */
+  mediana: number | null;
+  brasil: number | null;
+}
+
+const taxa = (v?: [number, number]) => (v && v[0] >= NASCIDOS_MINIMO ? (v[1] / v[0]) * 1000 : null);
+const medianasSaude = new Map<string, number | null>();
+
+export function mortalidadeDe(c: Cidade, esfera: "mun" | "uf"): Mortalidade | null {
+  if (!docSaude) return null;
+  const v = docSaude[esfera][String(c.ibge)];
+  if (!v || !v[0]) return null;
+  const chave = esfera === "uf" ? "uf" : `mun-${c.faixa}`;
+  if (!medianasSaude.has(chave)) {
+    const taxas = esfera === "uf"
+      ? Object.entries(docSaude.uf).filter(([k]) => k !== "53").map(([, x]) => taxa(x))
+      : (docCidades?.cidades ?? []).filter((x) => x.faixa === c.faixa && x.ibge !== 53).map((x) => taxa(docSaude.mun[String(x.ibge)]));
+    medianasSaude.set(chave, mediana(taxas.filter((t): t is number => t !== null)));
+  }
+  const total = Object.values(docSaude.uf).reduce((s, x) => [s[0] + x[0], s[1] + x[1]], [0, 0]);
+  return {
+    fonte: docSaude.fonte, anos: docSaude.anos, nascidos: v[0], obitos: v[1], taxa: taxa(v),
+    mediana: medianasSaude.get(chave)!, brasil: total[0] ? (total[1] / total[0]) * 1000 : null,
+  };
+}
