@@ -1,0 +1,61 @@
+---
+trilha: dados
+ordem: 6
+titulo: "Exercícios: investigue você mesmo"
+resumo: "Quatro perguntas reais para responder com o Explorer. Cada uma usa uma habilidade das lições anteriores. Tente antes de abrir a resposta."
+minutos: 7
+palavras: [programa, gnd, funcao, refinanciamento]
+fontes: ["dados: Portal da Transparência", "inflação: IBGE (IPCA)"]
+---
+import Exercicio from "../../../components/aprenda/Exercicio.astro";
+import { ANO, federalSemRefin, bolsaFamilia, previdencia, previdenciaBasica, gnd, federal, fazenda, fazendaSemRefin, bi, pctInt, pct1, de, pagoDe, link } from "../../../lib/aprenda";
+
+Cada exercício abre o Explorer em outra aba. Siga os passos e compare com a resposta. Os números são de {ANO}, o último ano completo.
+
+## 1. O tamanho do Bolsa Família
+
+<Exercicio pergunta={`Quanto foi autorizado para o programa Bolsa Família em ${ANO}?`} href={link([], { por: "programa", refin: 0 })}>
+  <p slot="contexto">Habilidade: dividir por programa e usar a busca.</p>
+  <ol>
+    <li><span>Divida o orçamento por **Programa**.</span></li>
+    <li><span>Troque para a **Lista** e procure o programa Bolsa Família, ou use a **Busca** no topo do site.</span></li>
+    <li><span>Compare o valor com o total sem refinanciamento.</span></li>
+  </ol>
+  <p slot="resposta">**{bi(bolsaFamilia.atualizado)}**, {pct1(de(bolsaFamilia.atualizado, federalSemRefin.atualizado))} do orçamento sem refinanciamento. Quase tudo numa única ação: a transferência de renda às famílias.</p>
+</Exercicio>
+
+## 2. A maior área do orçamento
+
+<Exercicio pergunta="Sem contar a dívida, qual área de governo tem mais dinheiro?" href={link([], { por: "funcao", refin: 0 })}>
+  <p slot="contexto">Habilidade: tirar o refinanciamento e dividir por área.</p>
+  <ol>
+    <li><span>Ligue **Sem refinanciamento**.</span></li>
+    <li><span>Divida por **Área**. Ignore “Encargos especiais”, onde ficam a dívida e as transferências.</span></li>
+    <li><span>Clique na maior área e divida por **Subárea**.</span></li>
+  </ol>
+  <p slot="resposta">**Previdência social**, com {bi(previdencia.atualizado)} ({pctInt(de(previdencia.atualizado, federalSemRefin.atualizado))}). Dentro dela, a previdência básica, o INSS, soma {bi(previdenciaBasica.atualizado)}.</p>
+</Exercicio>
+
+## 3. Quanto do investimento virou pagamento
+
+<Exercicio pergunta={`Que parte dos investimentos autorizados em ${ANO} foi paga no próprio ano?`} href={link([["gnd", "4"]], { refin: 0 })}>
+  <p slot="contexto">Habilidade: ler a frase-resumo e o % pago.</p>
+  <ol>
+    <li><span>Divida por **Tipo de gasto** e clique em **Investimentos**.</span></li>
+    <li><span>Leia a frase no topo: autorizado, empenhado e pago.</span></li>
+    <li><span>Divida por **Órgão** e veja quais órgãos pagaram menos.</span></li>
+  </ol>
+  <p slot="resposta">De {bi(gnd.investimentos.atualizado)} autorizados, **{bi(gnd.investimentos.realizado)}** foram pagos: {pctInt(pagoDe(gnd.investimentos))}. Investimentos dependem de etapas de obra entregues, e boa parte vira restos a pagar.</p>
+</Exercicio>
+
+## 4. A dívida no mapa
+
+<Exercicio pergunta="Quanto o Ministério da Fazenda “encolhe” quando você tira o refinanciamento?" href={link([["orgao", "25000"]])}>
+  <p slot="contexto">Habilidade: entender o refinanciamento.</p>
+  <ol>
+    <li><span>Filtre o órgão **Ministério da Fazenda**, com o refinanciamento ligado.</span></li>
+    <li><span>Anote o valor autorizado e a parcela do orçamento.</span></li>
+    <li><span>Agora ligue **Sem refinanciamento** e compare.</span></li>
+  </ol>
+  <p slot="resposta">Com refinanciamento, a Fazenda tem **{bi(fazenda.atualizado)}** ({pctInt(de(fazenda.atualizado, federal.atualizado))} do total). Sem ele, fica com {bi(fazendaSemRefin.atualizado)}: a diferença, {bi(fazenda.atualizado - fazendaSemRefin.atualizado)}, é a rolagem da dívida, que passa toda por esse ministério.</p>
+</Exercicio>

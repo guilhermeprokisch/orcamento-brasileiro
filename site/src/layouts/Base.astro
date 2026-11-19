@@ -25,7 +25,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Inter:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Inter:wght@400;500;600&display=swap"
     />
     <title>{title}</title>
   </head>
@@ -39,6 +39,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
         <nav class="nav so-largo" aria-label="Principal">
           <a href="/explorer" aria-current={ativo("/explorer")}>Explorer</a>
           <a href="/orgaos" aria-current={ativo("/orgaos")}>Órgãos</a>
+          <a href="/aprenda" aria-current={ativo("/aprenda")}>Aprenda</a>
           <a href="/glossario" aria-current={ativo("/glossario")}>Glossário</a>
           <Busca client:idle />
         </nav>
@@ -52,6 +53,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
               <a href="/">Início</a>
               <a href="/explorer">Explorer</a>
               <a href="/orgaos">Órgãos</a>
+              <a href="/aprenda">Aprenda</a>
               <a href="/glossario">Glossário</a>
             </nav>
           </details>

@@ -1,0 +1,56 @@
+---
+trilha: dados
+ordem: 5
+titulo: "Cinco armadilhas comuns"
+resumo: "Os erros que mais aparecem em notícias, redes sociais e trabalhos escolares sobre o orçamento. Todos podem ser evitados com um clique no Explorer."
+minutos: 6
+palavras: [refinanciamento, ipca, funcao, restos-a-pagar]
+fontes: ["dados: Portal da Transparência", "inflação: IBGE (IPCA)"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, ANO_CORRENTE, PRIMEIRO_ANO, federal, federalSemRefin, parcelaRefin, educacao, saude, funcaoSaude, gnd, bi, pctInt, pagoDe } from "../../../lib/aprenda";
+
+## 1. Somar o refinanciamento
+
+“O orçamento federal é de {bi(federal.atualizado)}.” Verdade, mas {pctInt(parcelaRefin)} disso é rolagem da dívida. Para falar do que o governo gasta com políticas públicas, a base é {bi(federalSemRefin.atualizado)}.
+
+<Quadro titulo="Como evitar" tom="armadilha">
+  <p>Ligue “Sem refinanciamento” antes de calcular parcelas ou comparar órgãos.</p>
+</Quadro>
+
+## 2. Comparar anos sem corrigir a inflação
+
+A Educação parece ter crescido {pctInt(educacao.base / educacao.inicioNominal - 1)} entre {PRIMEIRO_ANO} e {ANO}. Corrigida pela inflação, a diferença é de {pctInt(educacao.base / educacao.inicioReal - 1)}.
+
+<Quadro titulo="Como evitar" tom="armadilha">
+  <p>Ligue “Corrigir inflação” sempre que houver mais de um ano na conversa.</p>
+</Quadro>
+
+## 3. Confundir órgão com área
+
+O Ministério da Saúde teve {bi(saude.atualizado)}; a função Saúde, {bi(funcaoSaude.atualizado)}. Um conta quem gasta; o outro, em que área. Nenhum dos dois está errado, mas são perguntas diferentes.
+
+<Quadro titulo="Como evitar" tom="armadilha">
+  <p>Para “quanto o governo gasta com X”, divida por área. Para “quanto o ministério X tem”, divida por órgão.</p>
+</Quadro>
+
+## 4. Tratar dotação como gasto
+
+A dotação é uma autorização. Em investimentos, por exemplo, só {pctInt(pagoDe(gnd.investimentos))} do autorizado foi pago em {ANO}. Dizer que “o governo investiu” o valor da dotação exagera bastante.
+
+<Quadro titulo="Como evitar" tom="armadilha">
+  <p>Use “autorizado” para a dotação e “pago” para o dinheiro que saiu. A frase no topo do Explorer traz os dois.</p>
+</Quadro>
+
+## 5. Julgar o ano que ainda não acabou
+
+Em {ANO_CORRENTE}, o ano está em execução. Comparar o pago de {ANO_CORRENTE} com o pago de um ano encerrado sempre vai mostrar uma “queda”, porque ainda faltam meses de pagamentos.
+
+<Quadro titulo="Como evitar" tom="armadilha">
+  <p>Para o ano corrente, compare dotações. Ou compare o mesmo mês de anos diferentes, nas fontes oficiais.</p>
+</Quadro>
+
+<Quiz pergunta={`Uma postagem diz: “o governo gasta só ${pctInt(saude.atualizado / federal.atualizado)} do orçamento com saúde”. O que ela deixou de considerar?`} opcoes={["Que o total inclui o refinanciamento da dívida", "Que os valores deveriam estar corrigidos pela inflação", "Que o pago é maior que a dotação"]} correta={0}>
+  <p>{pctInt(saude.atualizado / federal.atualizado)} é o Ministério da Saúde dividido pelo orçamento total, com a rolagem da dívida. Sem o refinanciamento, a função Saúde é {pctInt(funcaoSaude.atualizado / federalSemRefin.atualizado)} do orçamento, e isso sem contar o que estados e municípios gastam com saúde.</p>
+</Quiz>

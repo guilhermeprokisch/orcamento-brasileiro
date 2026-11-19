@@ -1,0 +1,155 @@
+---
+/**
+ * Miniatura do Explorer com marcadores numerados e a legenda ao lado.
+ * Usa os dados reais do órgão (padrão: Ministério da Saúde no ano-base).
+ */
+import { maiores, serieHistorica, anoBase, anoCorrente, docs } from "../../lib/perfis";
+import { agrupar } from "../../lib/dados";
+import { RAMPA } from "../../lib/cores";
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+
+interface Props {
+  orgao?: string;
+}
+const { orgao = "36000" } = Astro.props;
+const ano = anoBase!;
+const filtros = [{ dim: "orgao" as const, cod: orgao }];
+const doc = docs.find((d) => d.ano === ano)!;
+const { total } = agrupar(doc, filtros, null);
+const federal = agrupar(doc, [], null).total;
+const nome = maiores([], "orgao").find((i) => i.codigo === orgao)?.nome ?? "Órgão";
+const programas = maiores(filtros, "programa");
+const soma = programas.reduce((s, i) => s + i.valores.atualizado, 0) || 1;
+const parte = (v: number) => v / soma;
+const pctInt = (v: number) => `${Math.round(v * 100)}%`;
+const pctDe = (a: number, b: number) => (b ? `${(a / b * 100).toFixed(1).replace(".", ",")}%` : "–");
+const pago = (i: (typeof programas)[number]) => i.valores.atualizado ? `${Math.round(i.valores.realizado / i.valores.atualizado * 100)}% pago` : "";
+
+const [p1, p2, p3, p4, ...resto] = programas;
+const resto3 = resto.slice(0, 3);
+const fracResto = resto.reduce((s, i) => s + parte(i.valores.atualizado), 0);
+const col3 = 1 - parte(p1?.valores.atualizado ?? 0) - parte(p2?.valores.atualizado ?? 0);
+
+const serie = serieHistorica(filtros);
+const maxSerie = Math.max(...serie.map((s) => s.real.atualizado), 1);
+
+const LEGENDA: [string, string][] = [
+  ["Caminho.", "Onde você está. Clique em um nível para voltar."],
+  ["Ano.", "O exercício mostrado. O ano corrente aparece como “em execução”: os valores ainda mudam."],
+  ["Inflação e refinanciamento.", "Ligue a correção para comparar anos. Tire o refinanciamento para ver o gasto “de verdade”."],
+  ["A frase-resumo.", "Autorizado, parcela do orçamento federal, quanto foi empenhado e quanto foi pago."],
+  ["Evolução.", "Um ano por barra; o verde é o ano escolhido. Clique numa barra para trocar de ano."],
+  ["Dividir por.", "Escolhe como quebrar o valor: por programa, unidade, ação ou tipo de gasto."],
+  ["Mapa, lista e CSV.", "A mesma informação em blocos, em tabela ou para baixar."],
+  ["O mapa de blocos.", "Cada área é proporcional ao valor. O % grande é a parcela; embaixo, quanto já foi pago."],
+];
+---
+
+<section class="anotado">
+  <figure class="mini so-largo" aria-label="Miniatura do Explorer com marcadores numerados">
+    <div class="barra-topo">
+      <span><span class="link">Orçamento {ano}</span> / <strong>{nome}</strong></span>
+      <span class="controles"><span class="ano">{ano}</span><span class="pill on">✓ Corrigir inflação</span><span class="pill">Sem refinanciamento</span></span>
+      <span class="n" style="left:-32px;top:-6px">1</span>
+      <span class="n" style="right:196px;top:-30px">2</span>
+      <span class="n" style="right:70px;top:-30px">3</span>
+    </div>
+    <div class="titulo">
+      <div>
+        <div class="eyebrow">ÓRGÃO · {orgao}</div>
+        <div class="nome">{nome}</div>
+        <div class="lede">Teve <strong class="marca">{moedaExtenso(total.atualizado)}</strong> autorizados em {ano}, {pctDe(total.atualizado, federal.atualizado)} do orçamento federal. Empenhou {pctDe(total.empenhado, total.atualizado)} e pagou {pctDe(total.realizado, total.atualizado)}.</div>
+      </div>
+      <div class="serie">
+        {serie.map((s) => (
+          <span
+            class:list={{ atual: s.ano === anoCorrente }}
+            style={`height:${(s.real.atualizado / maxSerie) * 100}%;${s.ano === ano ? "background:var(--verde)" : ""}`}
+          ></span>
+        ))}
+      </div>
+      <span class="n" style="left:-32px;top:18px">4</span>
+      <span class="n" style="right:-34px;top:6px">5</span>
+    </div>
+    <div class="abas">
+      <span class="dims">Dividir por <strong>Programa</strong> · Unidade · Ação · Tipo de gasto</span>
+      <span><strong class="sub">Mapa</strong> | Lista | Baixar CSV</span>
+      <span class="n" style="left:-32px;top:2px">6</span>
+      <span class="n" style="right:-34px;top:2px">7</span>
+    </div>
+    <div class="mapa">
+      {p1 && (
+        <div class="bloco escuro" style={`flex:${parte(p1.valores.atualizado)} 1 0;background:${RAMPA[0]}`}>
+          <span class="pct g">{pctInt(parte(p1.valores.atualizado))}</span>
+          <span class="rot">{p1.nome} · {moedaCurta(p1.valores.atualizado)} · {pago(p1)}</span>
+        </div>
+      )}
+      {p2 && (
+        <div class="bloco escuro" style={`flex:${parte(p2.valores.atualizado)} 1 0;background:${RAMPA[1]}`}>
+          <span class="pct m">{pctInt(parte(p2.valores.atualizado))}</span>
+          <span class="rot">{p2.nome}</span>
+        </div>
+      )}
+      <div class="coluna" style={`flex:${col3} 1 0`}>
+        {p3 && <div class="bloco destaque" style={`flex:${parte(p3.valores.atualizado)}`}><span class="pct p">{pctInt(parte(p3.valores.atualizado))}</span></div>}
+        {p4 && <div class="bloco" style={`flex:${parte(p4.valores.atualizado)};background:${RAMPA[2]}`}><span class="pct pp">{pctInt(parte(p4.valores.atualizado))}</span></div>}
+        {fracResto > 0 && (
+          <div class="linha-resto" style={`flex:${fracResto}`}>
+            {resto3.map((r, i) => <span style={`flex:${r.valores.atualizado};background:${RAMPA[3 + i]}`}></span>)}
+          </div>
+        )}
+      </div>
+      <span class="n" style="right:-34px;top:70px">8</span>
+    </div>
+  </figure>
+
+  <ol class="legenda">
+    {LEGENDA.map(([t, d], i) => (
+      <li><span class="n estatico">{i + 1}</span><span><strong>{t}</strong> {d}</span></li>
+    ))}
+  </ol>
+</section>
+
+<style>
+  .anotado { display: grid; grid-template-columns: 7fr 5fr; gap: 40px; border-top: 2px solid var(--tinta); padding-top: 28px; margin: 8px 0; font-family: var(--sans); }
+  .mini {
+    margin: 0 0 8px 36px; position: relative; background: var(--papel); border: 2px solid var(--tinta); box-shadow: 8px 8px 0 var(--tinta);
+    padding: 16px 20px 18px; display: flex; flex-direction: column; gap: 12px; align-self: start;
+  }
+  .barra-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; border-bottom: 1px solid var(--regra); padding-bottom: 8px; position: relative; }
+  .link { color: var(--verde); text-decoration: underline; }
+  .controles { display: flex; gap: 6px; white-space: nowrap; }
+  .ano { border: 1px solid var(--tinta); padding: 2px 6px; font-weight: 600; }
+  .pill { border: 1px solid var(--tinta); padding: 2px 6px; }
+  .pill.on { background: var(--tinta); color: var(--papel); }
+  .titulo { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; align-items: end; position: relative; }
+  .eyebrow { font-size: 9px; color: var(--texto-3); letter-spacing: 0.08em; }
+  .nome { font-family: var(--serifa); font-size: 28px; font-weight: 700; line-height: 1; }
+  .lede { font-size: 11px; color: var(--texto-2); margin-top: 4px; line-height: 1.45; }
+  .serie { display: flex; align-items: flex-end; gap: 3px; height: 54px; border-bottom: 1px solid var(--tinta); }
+  .serie span { flex: 1; background: var(--areia); }
+  .serie span.atual { background: repeating-linear-gradient(135deg, var(--areia) 0 2px, transparent 2px 4px); }
+  .abas { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; border-top: 2px solid var(--tinta); padding-top: 8px; position: relative; }
+  .dims { color: var(--texto-3); }
+  .dims strong, .sub { color: var(--tinta); border-bottom: 2px solid var(--verde); }
+  .mapa { display: flex; gap: 2px; height: 200px; position: relative; }
+  .bloco { padding: 8px; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; overflow: hidden; }
+  .bloco.escuro { color: #ffffff; }
+  .bloco.destaque { background: var(--marca-texto); outline: 2px solid var(--tinta); outline-offset: -2px; padding: 6px; }
+  .coluna { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .linha-resto { display: flex; gap: 2px; }
+  .linha-resto span { display: block; }
+  .pct { font-family: var(--serifa); font-weight: 700; }
+  .pct.g { font-size: 26px; } .pct.m { font-size: 20px; } .pct.p { font-size: 15px; } .pct.pp { font-size: 13px; }
+  .rot { font-size: 10px; line-height: 1.3; }
+  .n {
+    position: absolute; width: 26px; height: 26px; border-radius: 50%; background: var(--marca-texto); border: 2px solid var(--tinta);
+    display: grid; place-items: center; font-weight: 700; font-size: 13px; color: var(--tinta); box-sizing: border-box;
+  }
+  .n.estatico { position: static; }
+  .legenda { margin: 0 !important; padding: 0 !important; list-style: none; display: flex; flex-direction: column; }
+  .legenda li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--regra); font-family: var(--sans) !important; font-size: 15px !important; line-height: 1.5 !important; }
+  .legenda li:last-child { border-bottom: 0; }
+  @media (max-width: 1100px) { .anotado { grid-template-columns: 1fr; } .mini { margin-right: 36px; } }
+  @media (max-width: 640px) { .anotado { padding-top: 12px; } }
+</style>

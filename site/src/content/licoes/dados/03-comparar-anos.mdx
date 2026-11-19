@@ -1,0 +1,48 @@
+---
+trilha: dados
+ordem: 3
+titulo: "Comparar anos: nominal ou corrigido"
+resumo: "R$ 1 de dez anos atrás comprava bem mais do que hoje. Comparar valores de anos diferentes sem corrigir a inflação é o erro mais comum com dados de orçamento."
+minutos: 5
+palavras: [ipca, dotacao]
+fontes: ["IBGE, IPCA (tabela SIDRA 1737)", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import Comparacao from "../../../components/aprenda/Comparacao.astro";
+import { ANO, ANO_CORRENTE, PRIMEIRO_ANO, educacao, fatorInicio, bi, pctInt, link } from "../../../lib/aprenda";
+
+## Nominal e real
+
+Um valor **nominal** é o que estava escrito no orçamento daquele ano, em reais daquela época. Um valor **real**, ou corrigido, é o mesmo valor convertido para reais de hoje, descontando a inflação.
+
+Este site usa o **IPCA**, a inflação oficial medida pelo IBGE, e converte tudo para reais de {ANO}, o último ano completo. Pelo IPCA, R$ 1,00 de {PRIMEIRO_ANO} equivale a cerca de **R$ {fatorInicio.toFixed(2).replace(".", ",")}** de {ANO}.
+
+## O exemplo da Educação
+
+Olhando os números nominais, a função Educação foi de {bi(educacao.inicioNominal)} em {PRIMEIRO_ANO} para {bi(educacao.base)} em {ANO}: um aumento de {pctInt(educacao.base / educacao.inicioNominal - 1)}.
+
+Corrigindo a inflação, o orçamento de {PRIMEIRO_ANO} vale {bi(educacao.inicioReal)} em reais de {ANO}. <mark>A diferença real é de {pctInt(educacao.base / educacao.inicioReal - 1)}.</mark>
+
+<Comparacao anoA={PRIMEIRO_ANO} anoB={ANO} nominalA={educacao.inicioNominal} realA={educacao.inicioReal} valorB={educacao.base} baseIpca={ANO} />
+
+## Como ligar a correção
+
+No Explorer, o botão **Corrigir inflação** converte todos os valores, inclusive o gráfico de barras dos anos, para reais de {ANO}. Ele fica ligado na URL, então um link compartilhado mostra os mesmos números.
+
+<Quadro titulo={`E o ano de ${ANO_CORRENTE}?`}>
+  <p>O ano em andamento aparece com barra listrada e o rótulo “em execução”. A dotação já está definida, mas o empenhado e o pago crescem até dezembro. Compare o ano corrente pela dotação, não pelo pago.</p>
+</Quadro>
+
+## Além da inflação
+
+Mesmo corrigido, um aumento pode ter outras explicações: a população cresceu, uma despesa mudou de órgão ou de função, um programa foi criado ou extinto. Antes de concluir que “o governo gastou mais com X”, confira se a classificação continuou a mesma ao longo dos anos.
+
+<NaPratica titulo="Compare a Educação ao longo dos anos" href={link([["funcao", "12"]], { ipca: 1 })} botao="Abrir com inflação corrigida →">
+  Clique nas barras dos anos para trocar de ano e veja os valores já corrigidos.
+</NaPratica>
+
+<Quiz pergunta="Um órgão tinha R$ 10 bilhões em 2015 e R$ 14 bilhões em 2025. Dá para dizer que o orçamento dele cresceu 40%?" opcoes={["Sim, a conta é simples", "Só em valores nominais; corrigido pela inflação o crescimento é bem menor, ou até uma queda", "Não, valores de anos diferentes não podem ser comparados"]} correta={1}>
+  <p>Entre 2015 e 2025 a inflação acumulada foi alta. Ligue “Corrigir inflação” no Explorer para comparar em reais do mesmo ano.</p>
+</Quiz>

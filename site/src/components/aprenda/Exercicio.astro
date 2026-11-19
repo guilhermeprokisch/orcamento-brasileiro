@@ -1,0 +1,50 @@
+---
+/** Exercício guiado: pergunta, passos no Explorer e a resposta escondida. */
+interface Props {
+  pergunta: string;
+  href: string;
+}
+const { pergunta, href } = Astro.props;
+---
+
+<section class="exercicio">
+  <div class="enunciado">
+    <span class="rotulo">Exercício guiado</span>
+    <h3>{pergunta}</h3>
+    <slot name="contexto" />
+    <a class="botao" href={href} target="_blank" rel="noopener">Abrir o Explorer em outra aba ↗</a>
+  </div>
+  <div class="passos">
+    <slot />
+    <details>
+      <summary>Ver a resposta</summary>
+      <div class="resposta"><slot name="resposta" /></div>
+    </details>
+  </div>
+</section>
+
+<style>
+  .exercicio {
+    border: 2px solid var(--tinta); box-shadow: 8px 8px 0 var(--tinta); background: #ffffff;
+    padding: 28px 32px; display: grid; grid-template-columns: 5fr 7fr; gap: 32px; margin: 24px 0 16px; font-family: var(--sans);
+  }
+  .enunciado { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+  .enunciado :global(p) { margin: 0 !important; font-family: var(--sans) !important; font-size: 15px !important; line-height: 1.55 !important; color: var(--texto-2) !important; }
+  .rotulo { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--verde); }
+  h3 { font-size: 30px; line-height: 1.15; }
+  .botao { height: 46px; padding: 0 20px; font-size: 15px; }
+  .passos :global(ol) { margin: 0 !important; padding: 0 !important; list-style: none; counter-reset: passo; display: flex; flex-direction: column; }
+  .passos :global(li) {
+    counter-increment: passo; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--regra-leve); font-family: var(--sans) !important; font-size: 15px !important; line-height: 1.5 !important;
+  }
+  .passos :global(li::before) { content: counter(passo); font-family: var(--serifa); font-size: 22px; font-weight: 700; color: var(--verde); line-height: 1.1; }
+  details { margin-top: 14px; border: 1px solid var(--tinta); background: var(--marca-texto-fundo); }
+  summary { padding: 12px 14px; font-weight: 600; cursor: pointer; }
+  .resposta { padding: 0 14px 14px; }
+  .resposta :global(p) { margin: 0 !important; font-size: 19px !important; line-height: 1.55 !important; }
+  @media (max-width: 900px) {
+    .exercicio { grid-template-columns: 1fr; padding: 18px; gap: 18px; box-shadow: 5px 5px 0 var(--tinta); }
+    h3 { font-size: 24px; }
+  }
+</style>

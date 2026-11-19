@@ -1,0 +1,71 @@
+---
+trilha: orcamento
+ordem: 5
+titulo: "Como o gasto é classificado"
+resumo: "Cada real do orçamento tem vários “endereços” ao mesmo tempo. Quem gasta, em que área, em qual programa e em que tipo de despesa. Saber ler esses endereços é o que permite filtrar os dados."
+minutos: 6
+palavras: [unidade-orcamentaria, funcao, programa, acao, gnd]
+fontes: ["Portaria MOG nº 42/1999 (funções e subfunções)", "Manual Técnico de Orçamento (SOF)", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, saude, funcaoSaude, saudeNaPrevidencia, fundoSaude, atencaoPrimaria, gnd, federalSemRefin, bi, pctInt, de, link } from "../../../lib/aprenda";
+
+## Quatro perguntas, quatro classificações
+
+Toda despesa do orçamento responde a quatro perguntas:
+
+<table>
+  <thead><tr><th>Pergunta</th><th>Classificação</th><th>Exemplo</th></tr></thead>
+  <tbody>
+    <tr><td>Quem gasta?</td><td><strong>Institucional:</strong> órgão e unidade orçamentária</td><td>Ministério da Saúde › Fundo Nacional de Saúde</td></tr>
+    <tr><td>Em que área?</td><td><strong>Funcional:</strong> função e subfunção</td><td>Saúde › Atenção básica</td></tr>
+    <tr><td>Para quê?</td><td><strong>Programática:</strong> programa e ação</td><td>Atenção Primária à Saúde › uma ação do programa</td></tr>
+    <tr><td>Em quê?</td><td><strong>Natureza:</strong> grupo de despesa</td><td>Outras despesas correntes</td></tr>
+  </tbody>
+</table>
+
+Essas classificações não são alternativas: **cada linha do orçamento tem todas ao mesmo tempo**. É isso que permite ao Explorer “dividir por” qualquer uma delas.
+
+## Quem gasta: órgão e unidade
+
+O **órgão** é o ministério ou poder. Dentro dele, cada **unidade orçamentária** recebe sua própria dotação. No Ministério da Saúde, quase tudo passa pelo Fundo Nacional de Saúde: {bi(fundoSaude.atualizado)} dos {bi(saude.atualizado)} do ministério em {ANO}.
+
+## Em que área: função e subfunção
+
+A **função** é a área de governo: saúde, educação, defesa, previdência. Ela é padronizada para União, estados e municípios, o que permite comparar governos diferentes. A **subfunção** detalha, como “atenção básica” dentro de saúde.
+
+<Quadro titulo="Ministério da Saúde não é o mesmo que função Saúde">
+  <p>Em {ANO}, o Ministério da Saúde teve {bi(saude.atualizado)} autorizados, mas a função Saúde somou {bi(funcaoSaude.atualizado)}. Parte do dinheiro do ministério, {bi(saudeNaPrevidencia.atualizado)}, está na função Previdência: são aposentadorias e pensões dos seus servidores.</p>
+</Quadro>
+
+## Para quê: programa e ação
+
+O **programa** junta as ações que perseguem um mesmo objetivo, e vem do PPA. A **ação** é o nível mais concreto: um benefício, uma obra, a manutenção de um hospital. O programa Atenção Primária à Saúde, por exemplo, teve {bi(atencaoPrimaria.atualizado)} em {ANO}.
+
+## Em quê: o grupo de despesa
+
+O **grupo de natureza da despesa** (GND) diz que tipo de gasto é. Sem contar o refinanciamento da dívida, o orçamento de {ANO} ficou assim:
+
+<table>
+  <thead><tr><th>Grupo</th><th class="num">Autorizado</th><th class="num">Parcela</th></tr></thead>
+  <tbody>
+    <tr><td>Outras despesas correntes (benefícios, custeio, transferências)</td><td class="num">{bi(gnd.custeio.atualizado)}</td><td class="num">{pctInt(de(gnd.custeio.atualizado, federalSemRefin.atualizado))}</td></tr>
+    <tr><td>Juros e encargos da dívida</td><td class="num">{bi(gnd.juros.atualizado)}</td><td class="num">{pctInt(de(gnd.juros.atualizado, federalSemRefin.atualizado))}</td></tr>
+    <tr><td>Amortização da dívida</td><td class="num">{bi(gnd.amortizacao.atualizado)}</td><td class="num">{pctInt(de(gnd.amortizacao.atualizado, federalSemRefin.atualizado))}</td></tr>
+    <tr><td>Pessoal e encargos sociais</td><td class="num">{bi(gnd.pessoal.atualizado)}</td><td class="num">{pctInt(de(gnd.pessoal.atualizado, federalSemRefin.atualizado))}</td></tr>
+    <tr><td>Inversões financeiras (empréstimos, participação em empresas)</td><td class="num">{bi(gnd.inversoes.atualizado)}</td><td class="num">{pctInt(de(gnd.inversoes.atualizado, federalSemRefin.atualizado))}</td></tr>
+    <tr><td>Investimentos (obras, equipamentos)</td><td class="num">{bi(gnd.investimentos.atualizado)}</td><td class="num">{pctInt(de(gnd.investimentos.atualizado, federalSemRefin.atualizado))}</td></tr>
+  </tbody>
+</table>
+
+Repare que as aposentadorias do INSS ficam em “outras despesas correntes”, não em “pessoal”: elas são benefícios, não salários de servidores.
+
+<NaPratica titulo="Divida o orçamento por tipo de gasto" href={link([], { por: "gnd", refin: 0 })} botao="Abrir por grupo de despesa →">
+  Troque a divisão para órgão, área ou programa e veja o mesmo dinheiro de outro ângulo.
+</NaPratica>
+
+<Quiz pergunta="Você quer saber quanto o governo federal gasta com saúde, em todos os órgãos. Qual classificação usar?" opcoes={["O órgão Ministério da Saúde", "A função Saúde", "O grupo de despesa “Outras despesas correntes”"]} correta={1}>
+  <p>A função mostra a área de governo, não importa qual órgão gasta. O Ministério da Saúde inclui despesas que não são de saúde, como aposentadorias de servidores.</p>
+</Quiz>

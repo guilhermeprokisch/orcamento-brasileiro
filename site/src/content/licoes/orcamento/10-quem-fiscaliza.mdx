@@ -1,0 +1,47 @@
+---
+trilha: orcamento
+ordem: 10
+titulo: "Quem fiscaliza e como pedir dados"
+resumo: "O Congresso, o Tribunal de Contas, a Controladoria e qualquer cidadão. E, quando um dado não está publicado, a Lei de Acesso à Informação garante o direito de pedir."
+minutos: 5
+palavras: [tcu, lai]
+fontes: ["Constituição Federal, arts. 70 a 74", "Lei nº 12.527/2011 (Lei de Acesso à Informação)", "Lei Complementar nº 131/2009 (transparência)"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+
+## Três tipos de controle
+
+A Constituição organiza a fiscalização do dinheiro público em camadas:
+
+- **Controle externo**: é feito pelo **Congresso Nacional**, com a ajuda do **Tribunal de Contas da União** (TCU). O TCU audita órgãos, julga as contas de quem administra dinheiro público e dá um parecer sobre as contas anuais do presidente, que o Congresso então julga.
+- **Controle interno**: cada poder tem o seu. No Executivo, é a **Controladoria-Geral da União** (CGU), que faz auditorias, apura irregularidades e mantém o Portal da Transparência.
+- **Controle social**: é o que qualquer pessoa, jornalista ou organização pode fazer com os dados públicos. Este site existe para isso.
+
+## Onde estão os dados
+
+- **Portal da Transparência** (CGU): despesas, receitas, contratos, convênios, servidores, emendas. É a fonte dos dados do Explorer.
+- **SIOP** (Ministério do Planejamento): o sistema onde o orçamento é elaborado, com os nomes oficiais de programas e ações.
+- **Tesouro Transparente** (Tesouro Nacional): dívida pública, resultado primário, transferências.
+- **Câmara e Senado**: os projetos de lei, as emendas e os painéis do orçamento.
+
+Desde 2009, a lei obriga os governos a publicar a execução da despesa na internet em tempo real.
+
+## Quando o dado não está publicado
+
+A **Lei de Acesso à Informação** (LAI), de 2011, garante a qualquer pessoa o direito de pedir informações a órgãos públicos, sem precisar dizer por quê. No governo federal, os pedidos são feitos pela plataforma **Fala.BR**.
+
+O órgão tem **20 dias** para responder, prorrogáveis por mais 10, com justificativa. Se a resposta for negada ou incompleta, cabe recurso.
+
+<Quadro titulo="Dica para um bom pedido">
+  <p>Seja específico: diga o órgão, o período e o formato que você quer, de preferência uma planilha. “Lista dos contratos da ação X em 2025, com valor e empresa, em formato aberto” funciona muito melhor que “quero saber dos gastos”.</p>
+</Quadro>
+
+<NaPratica titulo="Comece pelos dados abertos" href="https://portaldatransparencia.gov.br/download-de-dados/orcamento-despesa" botao="Portal da Transparência ↗">
+  Os mesmos arquivos que alimentam este site, para baixar e analisar.
+</NaPratica>
+
+<Quiz pergunta="Você pediu uma informação pela LAI e o órgão não respondeu em 20 dias, nem pediu prorrogação. O que fazer?" opcoes={["Nada: o órgão não é obrigado a responder", "Registrar uma reclamação e, se preciso, recorrer", "Pagar uma taxa para acelerar"]} correta={1}>
+  <p>A LAI fixa prazos e prevê reclamação e recursos. O pedido é gratuito, e a falta de resposta no prazo é uma irregularidade.</p>
+</Quiz>

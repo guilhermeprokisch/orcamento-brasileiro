@@ -1,0 +1,49 @@
+---
+trilha: orcamento
+ordem: 6
+titulo: "Gastos obrigatórios e discricionários"
+resumo: "A maior parte do orçamento já chega comprometida por leis e pela Constituição. O que o governo de fato escolhe é uma fatia bem menor, e é nela que caem os cortes."
+minutos: 5
+palavras: [despesa-obrigatoria, despesa-discricionaria, contingenciamento]
+fontes: ["Constituição Federal, arts. 198 e 212 (mínimos de saúde e educação)", "Lei Complementar nº 101/2000 (LRF), art. 9º", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, previdencia, gnd, federalSemRefin, transferencias, bi, pctInt, pct1, de, link } from "../../../lib/aprenda";
+
+## O que o governo é obrigado a pagar
+
+Uma **despesa obrigatória** é aquela que a Constituição ou uma lei manda pagar. O governo não pode simplesmente decidir cortá-la. Os maiores exemplos:
+
+- **Aposentadorias e pensões.** A função Previdência teve {bi(previdencia.atualizado)} autorizados em {ANO}, {pctInt(de(previdencia.atualizado, federalSemRefin.atualizado))} do orçamento sem refinanciamento.
+- **Salários dos servidores**: {bi(gnd.pessoal.atualizado)} em pessoal e encargos.
+- **Transferências constitucionais** a estados e municípios, como FPM e FPE: {bi(transferencias.atualizado)}.
+- **Benefícios assistenciais** definidos em lei, como o Benefício de Prestação Continuada (BPC).
+- **Pisos de saúde e educação**: a Constituição fixa valores mínimos para essas áreas.
+
+## O que o governo escolhe
+
+O resto é **despesa discricionária**: o governo decide se faz e quanto gasta. É aqui que ficam boa parte das obras, a compra de equipamentos, bolsas de pesquisa e o custeio do dia a dia dos órgãos.
+
+Um bom termômetro é o grupo **Investimentos**, quase todo discricionário: {bi(gnd.investimentos.atualizado)} em {ANO}, apenas {pct1(de(gnd.investimentos.atualizado, federalSemRefin.atualizado))} do orçamento sem refinanciamento.
+
+<Quadro titulo="Por que isso importa?">
+  <p>Quando a arrecadação decepciona, o governo precisa cortar para cumprir as metas fiscais. Como não pode mexer no obrigatório, o corte, chamado **contingenciamento**, cai sobre o discricionário. Por isso obras e programas param no meio do ano.</p>
+</Quadro>
+
+## A parte que cresce sozinha
+
+Muitas despesas obrigatórias crescem por conta própria: as aposentadorias aumentam com o envelhecimento da população e com o reajuste do salário mínimo; os pisos de saúde e educação sobem com a receita. Se o total do orçamento tem um limite, cada real a mais no obrigatório é um real a menos para escolher. Esse aperto é um dos grandes debates do orçamento brasileiro.
+
+<Quadro titulo="Um limite dos dados" tom="armadilha">
+  <p>Os dados do Explorer não trazem a marcação oficial de “obrigatória” ou “discricionária” de cada despesa. Por isso usamos os grupos de despesa e as funções como aproximação.</p>
+</Quadro>
+
+<NaPratica titulo="Compare pessoal, benefícios e investimentos" href={link([], { por: "gnd", refin: 0 })} botao="Abrir por grupo de despesa →">
+  Clique em “Investimentos” e veja quais órgãos mais investem.
+</NaPratica>
+
+<Quiz pergunta="A arrecadação ficou abaixo do previsto e o governo precisa cortar R$ 20 bilhões. Onde o corte provavelmente vai cair?" opcoes={["Nas aposentadorias do INSS", "Nos salários dos servidores", "Em obras e outras despesas discricionárias"]} correta={2}>
+  <p>Aposentadorias e salários são obrigatórios. O contingenciamento atinge as despesas que o governo pode adiar ou deixar de fazer.</p>
+</Quiz>

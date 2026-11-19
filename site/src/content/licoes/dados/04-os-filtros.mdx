@@ -1,0 +1,68 @@
+---
+trilha: dados
+ordem: 4
+titulo: "Os filtros: dividir por órgão, área, programa…"
+resumo: "O mesmo dinheiro pode ser dividido de sete jeitos diferentes. Escolher a divisão certa é escolher a pergunta certa."
+minutos: 6
+palavras: [unidade-orcamentaria, funcao, programa, acao, gnd]
+fontes: ["Manual Técnico de Orçamento (SOF)", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import Exercicio from "../../../components/aprenda/Exercicio.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, contagem, saude, saudeNaPrevidencia, fundoSaude, bi, pctInt, de, link } from "../../../lib/aprenda";
+
+## Sete formas de dividir
+
+Cada linha do orçamento tem sete classificações ao mesmo tempo. No Explorer, “Dividir por” escolhe qual delas vira os blocos do mapa:
+
+<table>
+  <thead><tr><th>Dividir por</th><th>Pergunta que responde</th><th class="num">Quantos em {ANO}</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Órgão</strong></td><td>Qual ministério ou poder gasta?</td><td class="num">{contagem.orgaos}</td></tr>
+    <tr><td><strong>Unidade</strong></td><td>Qual parte do órgão: um fundo, uma universidade, uma agência?</td><td class="num">{contagem.uos}</td></tr>
+    <tr><td><strong>Área (função)</strong></td><td>Em que área de governo, qualquer que seja o órgão?</td><td class="num">{contagem.funcoes}</td></tr>
+    <tr><td><strong>Subárea (subfunção)</strong></td><td>Em que parte da área, como ensino superior ou atenção básica?</td><td class="num">{contagem.subfuncoes}</td></tr>
+    <tr><td><strong>Programa</strong></td><td>Para que objetivo de governo?</td><td class="num">{contagem.programas}</td></tr>
+    <tr><td><strong>Ação</strong></td><td>Em que atividade concreta: um benefício, uma obra?</td><td class="num">{contagem.acoes}</td></tr>
+    <tr><td><strong>Tipo de gasto (GND)</strong></td><td>Pessoal, custeio, investimento, dívida?</td><td class="num">{contagem.gnds}</td></tr>
+  </tbody>
+</table>
+
+## Filtrar é clicar
+
+Clicar em um bloco **filtra**: o Explorer passa a mostrar só aquele pedaço, e o caminho no topo registra onde você está. Depois você escolhe outra divisão para abrir esse pedaço. Por exemplo:
+
+1. Divida por **Órgão** e clique em **Ministério da Saúde**.
+2. Divida por **Unidade**: o Fundo Nacional de Saúde aparece com {bi(fundoSaude.atualizado)}, {pctInt(de(fundoSaude.atualizado, saude.atualizado))} do ministério.
+3. Clique nele e divida por **Programa** para ver em que o fundo gasta.
+
+Para voltar, clique em qualquer nível do caminho.
+
+<Quadro titulo="A ordem dos filtros não muda o resultado">
+  <p>“Saúde › Programa Atenção Primária” e “Programa Atenção Primária › Saúde” chegam ao mesmo valor. Os filtros se somam: cada um corta o que sobrou do anterior.</p>
+</Quadro>
+
+## Sem refinanciamento
+
+O botão **Sem refinanciamento** tira das contas a rolagem da dívida (lição 9 da trilha 1). Ligue sempre que quiser comparar o tamanho de áreas e órgãos: com ele desligado, o Ministério da Fazenda ocupa mais da metade do mapa.
+
+## Mapa, lista e CSV
+
+- O **mapa** é bom para ver proporções de relance.
+- A **lista** mostra os valores exatos, a parcela e o % pago, e inclui os itens pequenos que não cabem no mapa.
+- O **CSV** baixa exatamente o que está na tela, para abrir numa planilha.
+
+<Exercicio pergunta="Quanto do Ministério da Saúde não é gasto em saúde?" href={link([["orgao", "36000"]], { por: "funcao", vista: "lista" })}>
+  <p slot="contexto">Use o filtro de órgão e depois divida por área.</p>
+  <ol>
+    <li><span>Filtre o órgão **Ministério da Saúde**.</span></li>
+    <li><span>Em “Dividir por”, escolha **Área**.</span></li>
+    <li><span>Veja quais funções aparecem além de Saúde.</span></li>
+  </ol>
+  <p slot="resposta">A função **Previdência social** aparece com **{bi(saudeNaPrevidencia.atualizado)}**: aposentadorias e pensões dos servidores do ministério. Por isso “Ministério da Saúde” e “função Saúde” dão números diferentes.</p>
+</Exercicio>
+
+<Quiz pergunta="Você quer saber quanto as universidades federais gastam com pessoal. Qual combinação usar?" opcoes={["Órgão: Ministério da Educação, dividir por tipo de gasto e depois por unidade", "Função Educação, dividir por programa", "Tipo de gasto: Investimentos"]} correta={0}>
+  <p>As universidades são unidades do Ministério da Educação. Filtrar pelo órgão, depois por “Pessoal e encargos” e dividir por unidade mostra cada universidade.</p>
+</Quiz>

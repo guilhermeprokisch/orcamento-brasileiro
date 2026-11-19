@@ -1,0 +1,46 @@
+---
+trilha: orcamento
+ordem: 8
+titulo: "Emendas parlamentares"
+resumo: "Deputados e senadores mudam o orçamento por meio de emendas. Hoje uma parte delas é de execução obrigatória, e o tema virou um dos mais disputados de Brasília."
+minutos: 5
+palavras: [emenda-parlamentar, loa, despesa-obrigatoria]
+fontes: ["Constituição Federal, art. 166", "Emendas Constitucionais nº 86/2015, 100/2019, 105/2019 e 126/2022", "STF, ADPFs 850, 851 e 854 (emendas de relator)", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, transferenciasEspeciais, bi, link } from "../../../lib/aprenda";
+
+## O que é uma emenda
+
+Quando o projeto da LOA chega ao Congresso, deputados e senadores podem propor mudanças: as **emendas**. A mais comum destina dinheiro a uma obra ou serviço em um estado ou município, como uma unidade de saúde, máquinas agrícolas ou o asfalto de uma estrada.
+
+Uma regra importante: para criar uma despesa nova, a emenda precisa dizer de onde tira o dinheiro, cancelando outra despesa do projeto.
+
+## Os tipos de emenda
+
+- **Individuais**: cada parlamentar tem uma cota. Por regra constitucional, metade dela vai para a saúde.
+- **De bancada**: apresentadas em conjunto pelos parlamentares de cada estado.
+- **De comissão**: apresentadas pelas comissões da Câmara e do Senado.
+- **De relator**: usadas em grande volume a partir de 2020, foram consideradas inconstitucionais pelo Supremo Tribunal Federal no fim de 2022, por falta de transparência sobre quem indicava o dinheiro.
+
+## Emendas impositivas
+
+Até 2015, o governo podia simplesmente não pagar as emendas. Desde então, a Constituição tornou **obrigatória** a execução das emendas individuais e, depois, das de bancada, dentro de limites ligados à receita. Isso aumentou o peso do Congresso sobre o orçamento e reduziu a parte que o Executivo escolhe livremente.
+
+<Quadro titulo="As “emendas Pix”">
+  <p>Desde 2019, uma emenda individual pode ser enviada direto ao caixa do estado ou município, sem um convênio dizendo em que será gasta: são as **transferências especiais**. Em {ANO}, essa ação somou {bi(transferenciasEspeciais.atualizado)}. Decisões recentes do STF passaram a exigir mais transparência sobre o uso desse dinheiro.</p>
+</Quadro>
+
+## Como encontrar as emendas
+
+O conjunto de dados usado pelo Explorer não separa o que veio de emenda do que veio do projeto do governo. Para isso, o Portal da Transparência tem uma consulta específica de emendas parlamentares, por autor, local e órgão. A Câmara e o Senado também publicam os painéis do orçamento.
+
+<NaPratica titulo="Veja as transferências especiais" href={link([["acao", "0EC2"]])} botao="Abrir no Explorer →">
+  A ação “Transferências especiais” mostra para quais áreas esse dinheiro foi classificado.
+</NaPratica>
+
+<Quiz pergunta="Uma deputada apresenta uma emenda individual de R$ 2 milhões para um hospital do seu estado. O governo pode deixar de pagar?" opcoes={["Sim, emendas são só sugestões", "Em regra não: emendas individuais são de execução obrigatória", "Só o Tribunal de Contas pode decidir"]} correta={1}>
+  <p>Desde 2015, as emendas individuais são impositivas. Só deixam de ser executadas em casos previstos, como impedimentos técnicos no projeto.</p>
+</Quiz>

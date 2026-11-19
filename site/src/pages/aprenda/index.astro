@@ -1,0 +1,158 @@
+---
+import Base from "../../layouts/Base.astro";
+import { TRILHAS, ANO, PRIMEIRO_ANO, parcelaRefin, educacao, pctInt, duracao, type Trilha } from "../../lib/aprenda";
+import { todasAsLicoes, urlLicao, chaveLicao } from "../../lib/licoes";
+
+const licoes = await todasAsLicoes();
+const total = licoes.reduce((s, l) => s + l.data.minutos, 0);
+const trilhas = (Object.keys(TRILHAS) as Trilha[]).map((id, i) => {
+  const lista = licoes.filter((l) => l.data.trilha === id);
+  return { id, n: i + 1, ...TRILHAS[id], lista, minutos: lista.reduce((s, l) => s + l.data.minutos, 0) };
+});
+const achar = (trilha: Trilha, ordem: number) => licoes.find((l) => l.data.trilha === trilha && l.data.ordem === ordem);
+const licaoDivida = achar("orcamento", 9);
+const licaoInflacao = achar("dados", 3);
+const licaoExercicios = achar("dados", 6);
+const crescNominal = educacao.inicioNominal ? educacao.base / educacao.inicioNominal : 0;
+const crescReal = educacao.inicioReal ? educacao.base / educacao.inicioReal - 1 : 0;
+const fraseEducacao =
+  crescNominal > 1.6 && Math.abs(crescReal) < 0.05
+    ? `A Educação parece ter quase dobrado desde ${PRIMEIRO_ANO}. Corrigida pela inflação, ficou igual.`
+    : `A Educação cresceu ${pctInt(crescNominal - 1)} desde ${PRIMEIRO_ANO} em valores nominais; corrigida pela inflação, ${pctInt(crescReal)}.`;
+---
+
+<Base title="Aprenda · Orçamento Brasileiro" description="Lições curtas sobre como funciona o orçamento federal e como ler os dados: dotação, empenho, inflação, filtros e armadilhas.">
+  <div class="wrap">
+    <section class="hero">
+      <div class="texto">
+        <span class="sobretitulo verde">Aprenda</span>
+        <h1>Entenda o orçamento e <span class="marca">aprenda a ler os números</span>.</h1>
+        <p>Duas trilhas curtas, em linguagem simples: como o governo decide e gasta o dinheiro público, e como usar os dados deste site sem cair nas armadilhas mais comuns.</p>
+      </div>
+      <aside class="numeros">
+        <div class="so-largo"><span>Lições</span><strong>{licoes.length}</strong></div>
+        <div class="so-largo"><span>Tempo total</span><strong>{duracao(total)}</strong></div>
+        <p class="so-celular resumo-celular">{licoes.length} lições · {duracao(total)}</p>
+        {licoes[0] && <a class="botao" href={urlLicao(licoes[0])} data-comecar>Começar pela lição 1 →</a>}
+      </aside>
+    </section>
+
+    {trilhas.map((t) => (
+      <section class="trilha" id={t.id} aria-labelledby={`t-${t.id}`}>
+        <div class="intro">
+          <span class="numero">{t.n}</span>
+          <h2 id={`t-${t.id}`}>{t.nome}</h2>
+          <p>{t.resumo}</p>
+          <span class="meta">{t.lista.length} lições · {duracao(t.minutos)}</span>
+        </div>
+        <ol class="lista">
+          {t.lista.map((l) => (
+            <li data-licao={chaveLicao(l)}>
+              <a href={urlLicao(l)}>
+                <span class="ordem" data-ordem={l.data.ordem}>{l.data.ordem}</span>
+                <span class="nome">{l.data.titulo} <span class="continue">Continue aqui</span></span>
+                <span class="min">{l.data.minutos} min</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </section>
+    ))}
+
+    <section class="cartoes">
+      <div>
+        <span class="sobretitulo verde">Você sabia?</span>
+        <strong>{pctInt(parcelaRefin)} do orçamento de {ANO} é refinanciamento da dívida: troca de títulos velhos por novos.</strong>
+        {licaoDivida && <a class="link-forte" href={urlLicao(licaoDivida)}>Lição {licaoDivida.data.ordem} →</a>}
+      </div>
+      <div>
+        <span class="sobretitulo verde">Armadilha</span>
+        <strong>{fraseEducacao}</strong>
+        {licaoInflacao && <a class="link-forte" href={urlLicao(licaoInflacao)}>Trilha 2, lição {licaoInflacao.data.ordem} →</a>}
+      </div>
+      <div>
+        <span class="sobretitulo verde">Para professores</span>
+        <strong>Use as lições em sala: cada uma termina com perguntas e um exercício.</strong>
+        {licaoExercicios && <a class="link-forte" href={urlLicao(licaoExercicios)}>Ver os exercícios →</a>}
+      </div>
+    </section>
+  </div>
+</Base>
+
+<script>
+  // ✓ nas lições lidas e "continue aqui" na primeira que falta
+  let lidas = new Set<string>();
+  try { lidas = new Set(JSON.parse(localStorage.getItem("aprenda:lidas") ?? "[]")); } catch { /* sem armazenamento */ }
+  if (lidas.size) {
+    const itens = [...document.querySelectorAll<HTMLElement>("li[data-licao]")];
+    for (const li of itens) {
+      if (!lidas.has(li.dataset.licao!)) continue;
+      li.classList.add("lida");
+      const ordem = li.querySelector(".ordem")!;
+      ordem.textContent = "✓";
+      ordem.setAttribute("aria-label", "lida");
+    }
+    const proxima = itens.find((li) => !lidas.has(li.dataset.licao!));
+    if (proxima) {
+      proxima.classList.add("proxima");
+      const comecar = document.querySelector<HTMLAnchorElement>("[data-comecar]");
+      const link = proxima.querySelector("a")!;
+      if (comecar) {
+        comecar.href = link.href;
+        comecar.textContent = "Continuar de onde parei →";
+      }
+    }
+  }
+</script>
+
+<style>
+  .hero { padding: 56px 0 40px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; align-items: end; }
+  .texto { grid-column: span 8; display: flex; flex-direction: column; gap: 18px; }
+  .texto h1 { font-size: 72px; line-height: 1; letter-spacing: -0.025em; }
+  .texto p { margin: 0; font-size: 20px; line-height: 1.6; color: var(--texto-2); max-width: 680px; }
+  .numeros { grid-column: span 4; border-left: 1px solid var(--regra); padding-left: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { display: block; font-family: var(--serifa); font-size: 40px; line-height: 1.15; }
+  .numeros .botao { justify-content: center; }
+
+  .trilha { border-top: 2px solid var(--tinta); padding: 28px 0 36px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; scroll-margin-top: 12px; }
+  .intro { grid-column: span 4; display: flex; flex-direction: column; gap: 10px; }
+  .numero { font-family: var(--serifa); font-size: 64px; font-weight: 700; color: var(--verde); line-height: 1; }
+  .intro h2 { font-size: 34px; }
+  .intro p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .meta { font-size: 13px; color: var(--texto-3); }
+  .lista { grid-column: span 8; margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; align-content: start; }
+  .lista li { border-bottom: 1px solid var(--regra); }
+  .lista a { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; padding: 14px 0; color: var(--tinta); text-decoration: none; align-items: baseline; }
+  .lista a:hover .nome { color: var(--verde); }
+  .ordem { font-family: var(--serifa); color: var(--texto-4); }
+  .min { font-size: 13px; color: var(--texto-3); }
+  .continue { display: none; font-size: 12px; font-weight: 600; color: var(--verde); margin-left: 6px; text-transform: uppercase; }
+  .lista li.lida .nome { font-weight: 600; }
+  .lista li.lida .ordem { font-family: var(--sans); color: var(--verde); font-weight: 600; }
+  .lista li.proxima { background: var(--marca-texto-fundo); }
+  .lista li.proxima a { padding-right: 8px; }
+  .lista li.proxima .ordem { color: var(--tinta); font-weight: 700; padding-left: 8px; }
+  .lista li.proxima .nome { font-weight: 600; }
+  .lista li.proxima .continue { display: inline; }
+
+  .cartoes { border-top: 1px solid var(--regra); padding: 28px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+  .cartoes div { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .cartoes .sobretitulo { font-size: 12px; letter-spacing: 0.08em; }
+  .cartoes strong { font-family: var(--serifa); font-size: 24px; line-height: 1.2; }
+  .cartoes a { font-size: 14px; }
+
+  @media (max-width: 900px) {
+    .hero { display: flex; flex-direction: column; align-items: stretch; gap: 20px; padding: 28px 0 24px; }
+    .texto h1 { font-size: 40px; line-height: 1.02; letter-spacing: -0.02em; }
+    .texto p { font-size: 17px; }
+    .numeros { border-left: 0; padding-left: 0; gap: 10px; }
+    .resumo-celular { margin: 0; font-size: 14px; color: var(--texto-3); }
+    .trilha { display: flex; flex-direction: column; gap: 14px; padding: 20px 0 24px; }
+    .numero { font-size: 44px; }
+    .intro h2 { font-size: 28px; }
+    .lista { display: flex; flex-direction: column; }
+    .cartoes { grid-template-columns: 1fr; gap: 24px; }
+    .cartoes strong { font-size: 21px; }
+  }
+</style>

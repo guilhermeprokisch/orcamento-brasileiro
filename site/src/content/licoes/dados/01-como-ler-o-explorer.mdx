@@ -1,0 +1,33 @@
+---
+trilha: dados
+ordem: 1
+titulo: "Como ler o Explorer, peça por peça"
+resumo: "O Explorer mostra qualquer parte do orçamento em uma tela. Aqui está o que cada pedaço dela quer dizer, usando o Ministério da Saúde como exemplo."
+minutos: 6
+larga: true
+palavras: [dotacao, empenho, pagamento, refinanciamento]
+fontes: ["dados: Portal da Transparência (CGU)", "nomes oficiais: SIOP", "inflação: IBGE (IPCA)"]
+---
+import ExplorerAnotado from "../../../components/aprenda/ExplorerAnotado.astro";
+import Armadilha from "../../../components/aprenda/Armadilha.astro";
+import Comparacao from "../../../components/aprenda/Comparacao.astro";
+import Exercicio from "../../../components/aprenda/Exercicio.astro";
+import { ANO, educacao, saude, atencaoPrimaria, bi, pctInt, de, link } from "../../../lib/aprenda";
+
+<ExplorerAnotado orgao="36000" />
+
+<Armadilha titulo={`A Educação quase dobrou desde ${educacao.anoInicio}?`}>
+  <p>Em valores nominais, sim: de {bi(educacao.inicioNominal)} para {bi(educacao.base)}. Mas R$ 1 de {educacao.anoInicio} compra muito mais do que R$ 1 hoje. <mark>**Corrigido pela inflação, o orçamento de {educacao.anoInicio} vale {bi(educacao.inicioReal)}**</mark>: praticamente o mesmo de {ANO}.</p>
+  <p>Regra de ouro: para comparar anos diferentes, ligue “Corrigir inflação”.</p>
+  <Comparacao slot="grafico" anoA={educacao.anoInicio} anoB={ANO} nominalA={educacao.inicioNominal} realA={educacao.inicioReal} valorB={educacao.base} baseIpca={ANO} />
+</Armadilha>
+
+<Exercicio pergunta={`Quanto o governo pagou em Atenção Primária à Saúde em ${ANO}?`} href={link()}>
+  <p slot="contexto">A atenção primária são os postos de saúde e as equipes de Saúde da Família. Siga os passos no Explorer.</p>
+  <ol>
+    <li><span>Em “Dividir por”, escolha **Órgão** e clique em **Ministério da Saúde**.</span></li>
+    <li><span>Divida por **Programa** e troque para a **Lista**.</span></li>
+    <li><span>Encontre **Atenção Primária à Saúde**. A coluna “Pago” mostra a porcentagem; clique no nome para ver o valor.</span></li>
+  </ol>
+  <p slot="resposta">**{bi(atencaoPrimaria.realizado)}** pagos, de {bi(atencaoPrimaria.atualizado)} autorizados: {pctInt(de(atencaoPrimaria.realizado, atencaoPrimaria.atualizado))}. É {pctInt(de(atencaoPrimaria.atualizado, saude.atualizado))} de todo o orçamento do Ministério da Saúde.</p>
+</Exercicio>

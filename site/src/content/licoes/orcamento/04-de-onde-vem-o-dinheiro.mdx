@@ -1,0 +1,53 @@
+---
+trilha: orcamento
+ordem: 4
+titulo: "De onde vem o dinheiro"
+resumo: "Impostos, contribuições, outras receitas e empréstimos. E uma parte do que a União arrecada nem fica com ela: vai direto para estados e municípios."
+minutos: 6
+palavras: [loa, refinanciamento]
+fontes: ["Constituição Federal, arts. 145 a 162", "Lei nº 4.320/1964 (classificação da receita)", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, fpm, fpe, transferencias, refinanciamento, bi, link } from "../../../lib/aprenda";
+
+## Quatro fontes principais
+
+A LOA estima quanto o governo vai arrecadar. Esse dinheiro vem, principalmente, de quatro lugares:
+
+- **Impostos**, como o Imposto de Renda, o IPI e o imposto de importação. São cobrados sem uma contrapartida direta e vão, em regra, para o caixa geral.
+- **Contribuições**, como as que incidem sobre a folha de salários (o INSS), sobre o faturamento e sobre o lucro das empresas. Boa parte delas é vinculada à seguridade social: saúde, previdência e assistência.
+- **Outras receitas**, como royalties de petróleo e mineração, dividendos de empresas estatais e concessões.
+- **Operações de crédito**: quando a arrecadação não basta, o governo vende títulos da dívida pública. Esse dinheiro também entra no orçamento como receita.
+
+## Dinheiro carimbado
+
+Nem toda receita pode ir para qualquer despesa. Muitas são **vinculadas**: a lei diz para onde elas vão. As contribuições sociais, por exemplo, financiam a seguridade. A Constituição também obriga a União a aplicar valores mínimos em saúde e educação.
+
+Isso tem consequência prática: mesmo quando o governo arrecada mais, uma parte grande do aumento já tem destino.
+
+## Uma parte vai direto para estados e municípios
+
+A Constituição manda a União repartir parte do que arrecada com o Imposto de Renda e o IPI. No orçamento, essa repartição aparece como despesa. Em {ANO}:
+
+- o **Fundo de Participação dos Municípios** (FPM) recebeu {bi(fpm.atualizado)};
+- o **Fundo de Participação dos Estados** (FPE) recebeu {bi(fpe.atualizado)}.
+
+Somando essas e outras transferências obrigatórias, como as de royalties, foram {bi(transferencias.atualizado)} que saíram do orçamento federal para outros governos.
+
+<Quadro titulo="Este site mostra o lado da despesa">
+  <p>Os dados do Explorer são da despesa: quanto foi autorizado, empenhado e pago. Para a arrecadação, as fontes oficiais são o Portal da Transparência (página de receitas) e o Tesouro Nacional.</p>
+</Quadro>
+
+## E quando a conta não fecha?
+
+Se o governo gasta mais do que arrecada, cobre a diferença com dívida. E a dívida que vence precisa ser paga, quase sempre com mais dívida. É por isso que o orçamento de {ANO} tem {bi(refinanciamento)} em refinanciamento: o assunto da lição 9.
+
+<NaPratica titulo="Veja as transferências a estados e municípios" href={link([["funcao", "28"]], { por: "subfuncao" })} botao="Abrir Encargos especiais →">
+  Ficam na função “Encargos especiais”, junto com a dívida.
+</NaPratica>
+
+<Quiz pergunta="O FPM aparece no orçamento federal como:" opcoes={["Uma receita dos municípios que não passa pela União", "Uma despesa da União, transferida aos municípios", "Um empréstimo aos municípios"]} correta={1}>
+  <p>A União arrecada o imposto e repassa a parte que a Constituição reserva aos municípios. No orçamento federal, esse repasse é uma despesa.</p>
+</Quiz>
