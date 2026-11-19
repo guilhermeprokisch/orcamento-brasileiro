@@ -1,6 +1,7 @@
 /**
- * Gasto do governo estadual localizado em cada município, para os estados que publicam o
- * município em cada empenho (por enquanto, só a Paraíba: pipeline/…/estado_pb.py).
+ * Gasto do governo estadual localizado em cada município, para os estados que publicam esse
+ * dado: a Paraíba, empenho a empenho (pipeline/…/estado_pb.py), e Minas Gerais, pela execução
+ * do plano plurianual distribuída por município (estado_mg.py).
  * Lido no build; sem os arquivos, tudo vem null.
  */
 import { docCidades, type Cidade } from "./cidades";
@@ -9,12 +10,16 @@ interface DocEstadual {
   ano: number;
   ate_mes: number;
   fonte: string;
+  /** Como dizer o que o número é, quando difere do padrão (ver GastoEstadualAqui.astro). */
+  texto?: { resumo: string; onde: string; nota: string };
   estado: { empenhado: number; pago: number; folha: number; sem_municipio: number };
   areas: Record<string, string>;
   mun: Record<string, {
     local: number;
     pago: number;
     folha: number;
+    /** Repasses obrigatórios à prefeitura, dívida e aposentadorias atribuídos ao município (só MG). */
+    operacoes?: number;
     areas: Record<string, number>;
     /** [credor, ação, órgão, valor] */
     maiores: [string, string, string, number][];
@@ -30,6 +35,8 @@ export interface GastoEstadual {
   local: number;
   /** Folha de órgãos estaduais com sede no município (não é gasto "na cidade"). */
   folha: number;
+  /** Texto próprio do estado, quando o número não é "empenhos sem a folha". */
+  texto: { resumo: string; onde: string; nota: string } | null;
   areas: { nome: string; valor: number }[];
   maiores: { credor: string; acao: string; orgao: string; valor: number }[];
   /** Parte de todo o gasto localizado do estado que caiu neste município. */
@@ -64,13 +71,13 @@ export async function gastoEstadualEm(c: Cidade): Promise<GastoEstadual | null> 
   if (!doc || !m || m.local <= 0) return null;
   const localizado = Object.values(doc.mun).reduce((s, x) => s + x.local, 0);
   return {
-    ano: doc.ano, fonte: doc.fonte, local: m.local, folha: m.folha,
+    ano: doc.ano, fonte: doc.fonte, local: m.local, folha: m.folha, texto: doc.texto ?? null,
     // Os nomes das áreas são os do resto do site (com acento); a ordem é a do valor, porque
     // um objeto com chaves numéricas ("10", "12") não preserva a ordem do arquivo.
     areas: Object.entries(m.areas)
       .map(([cod, valor]) => ({ nome: docCidades?.funcoes[cod] ?? nomeProprio(doc.areas[cod] ?? cod), valor }))
       .sort((a, b) => b.valor - a.valor),
-    maiores: m.maiores.map(([credor, acao, orgao, valor]) => ({ credor: nomeProprio(credor), acao, orgao: nomeProprio(orgao), valor })),
+    maiores: m.maiores.map(([credor, acao, orgao, valor]) => ({ credor: nomeProprio(credor), acao: nomeProprio(acao), orgao: nomeProprio(orgao), valor })),
     parteDoEstado: m.local / localizado,
   };
 }
