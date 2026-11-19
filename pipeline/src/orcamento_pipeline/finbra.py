@@ -14,6 +14,7 @@ Destino, no mesmo formato do cache da API (ver cidades.CacheAno):
 - despesa por função (Anexo I-E) -> data/raw/siconfi/dca-ie/{ano}.json.gz
 - receitas orçamentárias (Anexo I-C) -> data/raw/siconfi/dca-ic/{ano}.json.gz
 - despesa por natureza (Anexo I-D) -> data/raw/siconfi/dca-id/{ano}.json.gz
+- balanço patrimonial (Anexo I-AB) -> data/raw/siconfi/dca-iab/{ano}.json.gz
 
 Por padrão só preenche entes que ainda não estão no cache (a API, mais nova,
 tem prioridade); `--substituir` sobrescreve.
@@ -68,7 +69,7 @@ def _numero(v: str) -> float:
 
 
 # Anexo da DCA (linha "Tabela: ... (Anexo I-X)" do arquivo) -> pasta do cache.
-ANEXOS = {"I-E": "dca-ie", "I-C": "dca-ic", "I-D": "dca-id"}
+ANEXOS = {"I-E": "dca-ie", "I-C": "dca-ic", "I-D": "dca-id", "I-AB": "dca-iab"}
 
 
 def ler_tabela(texto: str, nome: str) -> tuple[int | None, str | None, list[dict]]:
@@ -99,14 +100,17 @@ def ler_tabela(texto: str, nome: str) -> tuple[int | None, str | None, list[dict
 
 
 def arquivos(pasta: Path):
-    """(nome, texto) de cada CSV da pasta, inclusive dentro de .zip."""
+    """(nome, texto) de cada arquivo do FINBRA na pasta: zips que contêm finbra.csv e CSVs soltos.
+
+    A pasta pode ser a de Downloads: zips de outras coisas são ignorados.
+    """
     for p in sorted(pasta.iterdir()):
-        if p.suffix.lower() == ".zip":
+        if p.suffix.lower() == ".zip" and zipfile.is_zipfile(p):
             with zipfile.ZipFile(p) as z:
                 for m in z.namelist():
-                    if m.lower().endswith(".csv"):
+                    if m.lower() == "finbra.csv":
                         yield f"{p.name}/{m}", _texto(z.read(m))
-        elif p.suffix.lower() == ".csv":
+        elif p.suffix.lower() == ".csv" and p.name.lower().startswith("finbra"):
             yield p.name, _texto(p.read_bytes())
 
 
