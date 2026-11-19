@@ -82,3 +82,7 @@ Saídas do pipeline:
 `/mapa` responde, para cada cidade e estado e por ano: o que se paga de imposto à prefeitura, quanto ela recebe e gasta, se sobrou ou faltou, de onde vem o dinheiro e o que chega do governo federal. A página é um documento independente do layout do site (`site/src/mapa/pagina.html`, servido por `site/src/pages/mapa.astro`).
 
 Três coisas são **estimativas** e aparecem marcadas como tal: o IPVA pago na cidade (o dobro da cota que o estado devolve à prefeitura), o ICMS atribuído a ela (quatro vezes a cota-parte) e os impostos federais (o total arrecadado no estado, repartido pelo peso da cidade no ICMS). O imposto é registrado onde é recolhido, não onde mora quem paga.
+
+## Plano de melhorias
+
+O que está em andamento e o que vem depois: [docs/plano-de-melhorias.md](docs/plano-de-melhorias.md).
