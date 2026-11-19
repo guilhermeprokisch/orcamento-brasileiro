@@ -20,7 +20,7 @@ Requer [uv](https://docs.astral.sh/uv/) e Node 22+.
 # 1. dados: baixa 2014 até o ano corrente e gera site/public/data/explorer/*.json
 cd pipeline && uv run orcamento
 
-# 1b. estados e cidades (SICONFI): ~1h30 na primeira vez, depois usa o cache
+# 1b. estados e cidades (SICONFI): ~3h na primeira vez (1 consulta/s), depois usa o cache
 uv run cidades
 
 # 1c. opcional: histórico dos municípios e receitas a partir dos arquivos do FINBRA
@@ -40,7 +40,7 @@ cd ../site && npm install && npm run dev
 | Portal da Transparência (CGU) | [Orçamento da Despesa](https://portaldatransparencia.gov.br/download-de-dados/orcamento-despesa) | Explorer: dotação inicial e atualizada, empenhado e realizado por órgão, UO, função, subfunção, programa, ação e natureza da despesa, 2014+ |
 | SIOP (Ministério do Planejamento) | [Endpoint SPARQL](https://www1.siop.planejamento.gov.br/sparql/) | Nomes oficiais (com acentos e completos) de UOs, programas e ações, por ano. Cache em `data/raw/siop/`; se o SIOP falhar, ficam os nomes do Portal |
 | IBGE | [SIDRA, tabela 1737](https://sidra.ibge.gov.br/tabela/1737) | IPCA (número-índice) para corrigir valores pela inflação |
-| SICONFI (Tesouro Nacional) | [API de dados abertos](https://apidatalake.tesouro.gov.br/docs/siconfi/), DCA Anexo I-E | Páginas de estados e cidades: gasto de cada governo estadual e município por função e subfunção (empenhado e pago). Estados: 2014 em diante pela API. Municípios: os dois últimos exercícios pela API (uma consulta por ente; a API bloqueia rajadas com HTTP 429 a partir de ~100 por minuto, então o pipeline segue 2 consultas/s). Cache em `data/raw/siconfi/`, um arquivo compactado por ano |
+| SICONFI (Tesouro Nacional) | [API de dados abertos](https://apidatalake.tesouro.gov.br/docs/siconfi/), DCA Anexo I-E | Páginas de estados e cidades: gasto de cada governo estadual e município por função e subfunção (empenhado e pago). Estados: 2014 em diante pela API. Municípios: os dois últimos exercícios pela API (uma consulta por ente; a API tem limite documentado de 1 requisição por segundo e responde HTTP 429 acima disso, então o pipeline segue esse ritmo). Cache em `data/raw/siconfi/`, um arquivo compactado por ano |
 | SICONFI (Tesouro Nacional) | [FINBRA](https://siconfi.tesouro.gov.br/siconfi/pages/public/consulta_finbra/finbra_list.jsf), Anexos I-E e I-C | Histórico dos municípios (2013+) e receitas, um arquivo por ano com todos os municípios. O download tem captcha: os arquivos são baixados à mão e importados com `uv run finbra` |
 
 Saídas do pipeline:
