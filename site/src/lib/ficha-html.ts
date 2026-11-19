@@ -150,18 +150,27 @@ export function contasHtml(ctx: Contexto): string {
   if (natureza) {
     const tipos = [
       { rotulo: "Salários e encargos dos servidores", v: natureza.pessoal },
-      { rotulo: municipal ? "Serviços, materiais e outros custeios" : "Serviços, materiais, repasses a municípios e outros custeios", v: natureza.custeio },
+      { rotulo: municipal ? "Serviços, materiais e contas do dia a dia" : "Serviços, materiais, repasses às prefeituras e contas do dia a dia", v: natureza.custeio },
       { rotulo: "Obras e equipamentos", v: natureza.investimentos },
       { rotulo: "Pagamento de dívida", v: natureza.amortizacao },
       { rotulo: "Juros da dívida", v: natureza.juros },
       { rotulo: "Compra de imóveis e participações", v: natureza.inversoes },
     ].filter((t) => t.v > 0).sort((a, b) => b.v - a.v);
     const emCem = (v: number) => Math.round((v / natureza.total) * 100);
+    // A frase: as duas fatias do dia a dia (salários e custeio), da maior para a menor, e as obras.
+    const principais = [
+      { frase: "salários e encargos dos servidores", v: natureza.pessoal },
+      { frase: municipal || ehDF ? "serviços, materiais e contas do dia a dia" : "serviços, materiais, repasses às prefeituras e contas do dia a dia", v: natureza.custeio },
+    ].sort((a, b) => b.v - a.v).concat([{ frase: "obras e equipamentos", v: natureza.investimentos }]).filter((t) => t.v > 0);
     partes.push(`<section class="bloco">
       <div class="texto">
         <h2>Com o quê gasta</h2>
-        <p>De cada R$ 100 que ${quem} gastou em ${natureza.ano}, <strong>R$ ${emCem(natureza.pessoal)}</strong> foram para
-          salários e encargos dos servidores e <strong>R$ ${emCem(natureza.investimentos)}</strong> para obras e equipamentos.</p>
+        <p>De cada R$ 100 que ${quem} gastou em ${natureza.ano}, ${principais.map((t, k) => `<strong>R$ ${emCem(t.v)}</strong> ${k === 0 ? "foram " : ""}para ${t.frase}`).join(", ").replace(/, ([^,]*)$/, " e $1")}.</p>
+        <p class="menor"><strong>Serviços, materiais e contas do dia a dia</strong> é tudo o que ${municipal ? "a prefeitura" : "o governo"} gasta para funcionar
+          e que não é salário de servidor: ${municipal
+            ? "empresas contratadas (coleta de lixo, limpeza, vigilância, transporte escolar), organizações que administram hospitais e postos de saúde"
+            : "empresas contratadas (limpeza, vigilância, transporte escolar, manutenção de estradas), organizações que administram hospitais"}, remédios, merenda, combustível, luz, água e aluguéis${municipal || ehDF ? "" : `.
+          Na maioria dos estados, entra aqui também a parte do ICMS e do IPVA que a Constituição manda repassar às prefeituras`}.</p>
         <p class="menor">A soma, ${moedaCurta(natureza.total)}, é maior que o total por área porque aqui entram também os pagamentos entre
           órgãos ${municipal ? "da própria prefeitura" : "do próprio governo"}, como a contribuição ao fundo de previdência dos servidores.</p>
       </div>
