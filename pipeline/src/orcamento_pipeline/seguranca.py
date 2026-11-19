@@ -15,7 +15,8 @@ ano retrasado. Os anos já na cópia versionada só são contados de novo com --
 
 Saída em site/public/data/indicadores/seguranca.json, com cópia versionada em
 pipeline/referencia/seguranca.json (usada se o download falhar):
-    {"fonte": …, "anos": {"2024": {"33": [agressões, intervenções legais, indeterminadas]}}}
+    {"fonte": …, "anos": {"2024": {"33": [agressões, intervenções legais, indeterminadas]}},
+     "mun": {"2024": {ibge: [mesmo formato]}}}   # só cidades com mais de 50 mil habitantes
 """
 
 from __future__ import annotations
@@ -32,8 +33,11 @@ from .saude import arquivo_sim, linhas
 
 SAIDA = c.RAIZ / "site" / "public" / "data" / "indicadores" / "seguranca.json"
 REFERENCIA = c.RAIZ / "pipeline" / "referencia" / "seguranca.json"
-FONTE = "Ministério da Saúde, DATASUS: Sistema de Informações sobre Mortalidade (SIM), por estado de residência"
+FONTE = "Ministério da Saúde, DATASUS: Sistema de Informações sobre Mortalidade (SIM), por local de residência"
 PRIMEIRO_ANO = 2015
+NOMES = c.RAIZ / "site" / "public" / "data" / "mapa" / "nomes.json"
+POPULACAO = c.RAIZ / "site" / "public" / "data" / "cidades" / "municipios.json"
+POP_MINIMA = 50_000   # as cidades guardadas; a página mostra a partir de 100 mil
 
 
 def tipo(cid: str) -> int | None:
@@ -57,27 +61,36 @@ def main() -> None:
     p.add_argument("--forcar", action="store_true", help="conta de novo também os anos já na cópia versionada")
     args = p.parse_args()
 
-    anterior = json.loads(REFERENCIA.read_text(encoding="utf-8")).get("anos", {}) if REFERENCIA.exists() else {}
-    anos: dict[str, dict[str, list[int]]] = dict(anterior)
+    anterior = json.loads(REFERENCIA.read_text(encoding="utf-8")) if REFERENCIA.exists() else {}
+    anos: dict[str, dict[str, list[int]]] = dict(anterior.get("anos", {}))
+    por_mun: dict[str, dict[str, list[int]]] = dict(anterior.get("mun", {}))
+    # O DATASUS usa o código do município com 6 dígitos; só ficam as cidades com mais de POP_MINIMA habitantes.
+    pop = {str(x["ibge"]): x["pop"] for x in json.loads(POPULACAO.read_text(encoding="utf-8"))["cidades"]}
+    seis = {ibge[:6]: ibge for ibge in json.loads(NOMES.read_text(encoding="utf-8"))["mun"] if pop.get(ibge, 0) >= POP_MINIMA}
     try:
         for ano in sorted(args.anos):
-            if str(ano) in anos and not args.forcar:
+            if str(ano) in anos and str(ano) in por_mun and not args.forcar:
                 continue
             uf: dict[str, list[int]] = {}
+            mun: dict[str, list[int]] = {}
             for l in linhas(arquivo_sim(ano)):
                 t = tipo(l.get("CAUSABAS") or "")
-                codigo = (l.get("CODMUNRES") or "").strip()[:2]
+                residencia = (l.get("CODMUNRES") or "").strip()
+                codigo = residencia[:2]
                 if t is None or not codigo.isdigit() or int(codigo) not in c.SIGLAS:
                     continue
                 uf.setdefault(codigo, [0, 0, 0])[t] += 1
+                if ibge := seis.get(residencia[:6]):
+                    mun.setdefault(ibge, [0, 0, 0])[t] += 1
             anos[str(ano)] = dict(sorted(uf.items()))
+            por_mun[str(ano)] = dict(sorted(mun.items()))
             soma = [sum(v[i] for v in uf.values()) for i in range(3)]
             print(f"{ano}: {soma[0] + soma[1]:,} homicídios ({soma[1]:,} em ações da polícia); {soma[2]:,} mortes violentas sem causa definida".replace(",", "."), flush=True)
     except (urllib.error.URLError, OSError, zipfile.BadZipFile) as erro:
         print(f"  aviso: DATASUS inacessível ({erro}); fica a cópia versionada", flush=True)
     if not anos:
         raise SystemExit("sem dados")
-    texto = json.dumps({"fonte": FONTE, "anos": dict(sorted(anos.items()))}, separators=(",", ":"))
+    texto = json.dumps({"fonte": FONTE, "anos": dict(sorted(anos.items())), "mun": dict(sorted(por_mun.items()))}, separators=(",", ":"))
     for destino in (SAIDA, REFERENCIA):
         destino.parent.mkdir(parents=True, exist_ok=True)
         destino.write_text(texto, encoding="utf-8")

@@ -6,6 +6,7 @@ import GastoEstadualAqui from "../../../components/gasto/GastoEstadualAqui.astro
 import EducacaoResultado from "../../../components/gasto/EducacaoResultado.astro";
 import SaudeResultado from "../../../components/gasto/SaudeResultado.astro";
 import SaneamentoResultado from "../../../components/gasto/SaneamentoResultado.astro";
+import SegurancaEstado from "../../../components/gasto/SegurancaEstado.astro";
 import IrMoradores from "../../../components/gasto/IrMoradores.astro";
 import { moedaExtenso } from "../../../lib/formato";
 import { caminhoCidade, caminhoEstado, deUf, docCidades, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../../lib/cidades";
@@ -81,6 +82,7 @@ const descricao = temDados
 
     {temDados && !ehDF && <div data-so-padrao="a nota das escolas (Ideb)"><EducacaoResultado cidade={c} faixa={faixa} /></div>}
     {temDados && !ehDF && <div data-so-padrao="a mortalidade infantil"><SaudeResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? `das cidades ${faixa}` : null} onde={onde} /></div>}
+    {temDados && !ehDF && <div data-so-padrao="os homicídios"><SegurancaEstado estado={c} esfera="mun" quem={quem} onde={onde} grupo={faixa ? `das cidades ${faixa}` : "das cidades"} /></div>}
     {temDados && !ehDF && <div data-so-padrao="a água e o esgoto"><SaneamentoResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? `das cidades ${faixa}` : null} onde={onde} /></div>}
 
     {ctx && <div class="ficha" data-parte="contas" set:html={contasHtml(ctx)} />}
