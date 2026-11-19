@@ -117,7 +117,8 @@
   .camada input { margin-top: 3px; accent-color: var(--fluxo); }
   .camada small { display: block; color: var(--texto-3); font-size: 12px; margin-top: 2px; }
   .maiores { margin: 0; padding: 0 0 0 26px; list-style: none; font-size: 12px; color: var(--texto-2); display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
-  .legenda { display: flex; flex-direction: column; gap: 6px; }
+  /* A legenda fica sobre o mapa, no canto de baixo, sempre à vista. */
+  .legenda { position: absolute; left: 16px; bottom: 16px; z-index: 2; width: 250px; display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--papel); border: 1px solid var(--tinta); }
   .legenda .faixas { display: grid; grid-template-columns: repeat(6, 1fr); height: 12px; }
   .legenda .rotulos { display: flex; justify-content: space-between; font-size: 11px; color: var(--texto-3); font-variant-numeric: tabular-nums; }
   .legenda .sem { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--texto-3); }
@@ -246,6 +247,7 @@
   @media (max-width: 1200px) {
     /* sem espaço para o cartão ao lado: ele vira uma faixa baixa, com rolagem, e o mapa fica visível em cima */
     .detalhe { top: auto; right: auto; left: 16px; bottom: 16px; width: min(598px, calc(100% - 32px)); max-height: 42%; }
+    .legenda { left: auto; right: 16px; top: 16px; bottom: auto; }   /* o cartão ocupa o canto de baixo: a legenda sobe */
   }
   @media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
     /* Celular (em pé ou deitado): a página rola inteira. O mapa fica preso no alto e, embaixo dele, vêm o cartão
@@ -263,6 +265,7 @@
     .detalhe { order: 2; position: static; width: auto; max-height: none; overflow: visible; box-shadow: none; border: 0; border-bottom: 2px solid var(--tinta); padding: 14px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
     aside { order: 3; border-right: 0; overflow: visible; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: max(24px, env(safe-area-inset-bottom, 0px)); gap: 24px; }
     .zoom { left: 12px; top: 12px; }
+    .legenda { left: 8px; right: auto; top: auto; bottom: 8px; width: 210px; padding: 6px 8px; gap: 4px; }
     .guia { position: fixed; z-index: 9; }
     .serie { display: none; }
   }
@@ -349,13 +352,6 @@
       </div>
     </fieldset>
 
-    <div class="legenda" aria-live="polite">
-      <span class="rotulo" id="leg-titulo" style="padding:0"></span>
-      <div class="faixas" id="faixas"></div>
-      <div class="rotulos" id="rotulos"></div>
-      <div class="sem"><i></i> sem prestação de contas</div>
-    </div>
-
     <p class="rodape" id="rodape"></p>
   </aside>
 
@@ -370,6 +366,12 @@
       <button type="button" id="zoom-br" aria-label="Ver o Brasil inteiro">⌂</button>
     </div>
     <div class="dica" id="dica" hidden></div>
+    <div class="legenda" aria-live="polite">
+      <span class="rotulo" id="leg-titulo" style="padding:0"></span>
+      <div class="faixas" id="faixas"></div>
+      <div class="rotulos" id="rotulos"></div>
+      <div class="sem"><i></i> sem prestação de contas</div>
+    </div>
     </div>
     <div class="detalhe" id="detalhe" aria-live="polite"></div>
     <div class="guia" id="guia" role="dialog" aria-labelledby="guia-titulo" hidden>
