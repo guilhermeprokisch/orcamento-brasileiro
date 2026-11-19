@@ -521,7 +521,7 @@
 
   // Dinheiro federal por município (só 2025, Portal da Transparência): repasses à prefeitura por programa,
   // a outras entidades da cidade e benefícios pagos direto às pessoas. Colunas na ordem de federal.colunas.
-  const FED = [["FPM (fundo de participação)", 0, "--c-uniao"], ["SUS (saúde)", 1, "--c-uniao"], ["FUNDEB (educação básica)", 2, "--c-fundeb"],
+  const FED = [["FPM (já sem a parte retida para o FUNDEB)", 0, "--c-uniao"], ["SUS (saúde)", 1, "--c-uniao"], ["FUNDEB (complemento da União e parte federal do fundo)", 2, "--c-fundeb"],
     ["Royalties e compensações", 3, "--c-uniao"], ["Educação (merenda, transporte…)", 4, "--c-uniao"], ["Assistência social", 5, "--c-uniao"],
     ["Outros repasses à prefeitura", 6, "--c-uniao"], ["A outras entidades na cidade", 7, "--c-estado"],
     ["Bolsa Família (direto às pessoas)", 8, "--c-bf"], ["BPC (direto às pessoas)", 9, "--c-bpc"],
@@ -731,7 +731,7 @@
       blocos.unshift(bloco(`O que o governo federal mandou em ${federal.ano}`, curto(tot), `
         <p class="bloco-nota">${porHab(tot)}, pelo Portal da Transparência.</p>
         <ul class="barras">${FED.filter(([, i]) => fd[i] > 0).map(([rot, i, cor]) => `<li><span>${rot}</span><em>${curto(fd[i])}</em><i style="width:${(fd[i] / maior) * 100}%;background:var(${cor})"></i></li>`).join("")}</ul>
-        <p class="nota">O FUNDEB inclui dinheiro de estados e municípios redistribuído pelo fundo.${beneficiosParciais ? ` Bolsa Família e BPC são <b>estimativas</b> para o ano, a partir de ${mesesBen[8]} mês de dados.` : ""} O INSS é o valor líquido pago pelas agências da cidade: quem recebe em outra cidade conta lá. Não inclui o gasto direto de órgãos federais.</p>`, true));
+        <p class="nota">Estes valores são o que a União registra ter pago, e não coincidem linha a linha com o que a prefeitura declara: o FPM aparece aqui já sem os 20% retidos para o FUNDEB e, pelo que os números indicam, sem as parcelas extras de julho, setembro e dezembro; o FUNDEB aqui não inclui a parte que vem de impostos estaduais. SUS, royalties e assistência batem com a declaração.${beneficiosParciais ? ` Bolsa Família e BPC são <b>estimativas</b> para o ano, a partir de ${mesesBen[8]} mês de dados.` : ""} O INSS é o valor líquido pago pelas agências da cidade: quem recebe em outra cidade conta lá. Não inclui o gasto direto de órgãos federais.</p>`, true));
     }
 
     // Onde gasta: todas as áreas e com o quê (carregados sob demanda).

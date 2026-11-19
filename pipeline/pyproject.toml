@@ -18,6 +18,7 @@ federal = "orcamento_pipeline.federal:main"
 inss = "orcamento_pipeline.inss:main"
 semente = "orcamento_pipeline.semente:main"
 rreo = "orcamento_pipeline.rreo:main"
+conciliar = "orcamento_pipeline.conciliar:main"
 
 [build-system]
 requires = ["hatchling"]

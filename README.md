@@ -34,6 +34,10 @@ uv run semente publicar
 # 1d. dados da página /mapa (receita, tributos, áreas de gasto, malhas do IBGE)
 uv run mapa
 
+# opcional: confere o dinheiro federal do Portal com o que as prefeituras declaram
+#     (resultado e explicação em docs/conciliacao-federal.md)
+uv run conciliar 2025
+
 # 1e. o ano em andamento, pelo relatório bimestral (RREO): estados; com --municipios, todos (~1h40).
 #     Rodar depois do mapa: acrescenta o ano em andamento aos arquivos dele.
 uv run rreo
