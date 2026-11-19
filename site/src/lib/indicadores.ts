@@ -2,7 +2,7 @@
  * Indicadores de resultado para pôr ao lado do gasto. Por enquanto, o Ideb por município e
  * rede (pipeline/…/ideb.py). Lido no build; sem o arquivo, tudo vem null.
  */
-import { docCidades, type Cidade } from "./cidades";
+import { docCidades, docEstados, type Cidade } from "./cidades";
 
 interface DocIdeb {
   edicao: number;
@@ -216,5 +216,50 @@ export function mortalidadeDe(c: Cidade, esfera: "mun" | "uf"): Mortalidade | nu
   return {
     fonte: docSaude.fonte, anos: docSaude.anos, nascidos: v[0], obitos: v[1], taxa: taxa(v),
     mediana: medianasSaude.get(chave)!, brasil: total[0] ? (total[1] / total[0]) * 1000 : null,
+  };
+}
+
+// ----- Homicídios por estado (DATASUS, pipeline/…/seguranca.py) -----
+
+interface DocSeguranca {
+  fonte: string;
+  /** ano → código do estado → [agressões, intervenções legais, intenção indeterminada] */
+  anos: Record<string, Record<string, [number, number, number]>>;
+}
+const arquivosSeguranca = import.meta.glob<DocSeguranca>("../../public/data/indicadores/seguranca.json", { eager: true, import: "default" });
+const docSeguranca: DocSeguranca | null = Object.values(arquivosSeguranca)[0] ?? null;
+
+export interface Homicidios {
+  fonte: string;
+  ano: number;
+  homicidios: number;
+  policia: number;
+  indeterminadas: number;
+  /** Por 100 mil habitantes: o estado, a mediana dos estados e o Brasil. */
+  taxa: number;
+  taxaIndeterminadas: number;
+  mediana: number | null;
+  brasil: number | null;
+}
+
+/** Os números do último ano fechado; a população é a do estado na base do site. */
+export function homicidiosDe(e: Cidade): Homicidios | null {
+  if (!docSeguranca || !docEstados) return null;
+  const ano = Object.keys(docSeguranca.anos).sort().at(-1);
+  if (!ano) return null;
+  const doAno = docSeguranca.anos[ano];
+  const pop = new Map(docEstados.cidades.map((x) => [String(x.ibge), x.pop]));
+  const v = doAno[String(e.ibge)];
+  if (!v || !e.pop) return null;
+  const por100mil = (n: number, p: number) => (n / p) * 1e5;
+  const taxas = Object.entries(doAno)
+    .filter(([k]) => k !== "53" && pop.get(k))
+    .map(([k, x]) => por100mil(x[0] + x[1], pop.get(k)!));
+  let n = 0, p = 0;
+  for (const [k, x] of Object.entries(doAno)) if (pop.get(k)) { n += x[0] + x[1]; p += pop.get(k)!; }
+  return {
+    fonte: docSeguranca.fonte, ano: Number(ano), homicidios: v[0] + v[1], policia: v[1], indeterminadas: v[2],
+    taxa: por100mil(v[0] + v[1], e.pop), taxaIndeterminadas: por100mil(v[2], e.pop),
+    mediana: mediana(taxas), brasil: p ? por100mil(n, p) : null,
   };
 }
