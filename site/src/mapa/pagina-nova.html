@@ -1120,13 +1120,7 @@
   }
 
   let transformada = d3.zoomIdentity;
-  const zoom = d3.zoom().scaleExtent([1, 60]).on("zoom", (ev) => { g.attr("transform", ev.transform); transformada = ev.transform; })
-    // Aproximar com a mão mostra as cidades; afastar até o país inteiro volta aos estados.
-    .on("end", (ev) => {
-      if (!ev.sourceEvent) return;
-      if (estado.esfera === "uf" && ev.transform.k >= 2.4) { if (estado.sel) estado.rk.uf = nomes.uf[estado.sel]?.[1] ?? ""; definir({ esfera: "mun" }, true); }
-      else if (estado.esfera === "mun" && ev.transform.k <= 1.05 && !estado.sel) { estado.rk.uf = ""; definir({ esfera: "uf" }); }
-    });
+  const zoom = d3.zoom().scaleExtent([1, 60]).on("zoom", (ev) => { g.attr("transform", ev.transform); transformada = ev.transform; });
   svg.call(zoom);
   function zoomPara(f) {
     const { width, height } = palco.getBoundingClientRect();
@@ -1174,7 +1168,7 @@
         }
       } else if (!estado.sel) {
         const tot = totaisFluxo(), max = d3.max(Object.values(tot)) || 1;
-        rotas = Object.keys(tot).map((uf) => ({ peso: tot[uf] / max, origem: centroCapital.DF, destino: centroCapital[uf], cor: "--fluxo", lado: 1 }));
+        rotas = Object.keys(tot).map((uf) => ({ uf, valor: tot[uf], peso: tot[uf] / max, origem: centroCapital.DF, destino: centroCapital[uf], cor: "--fluxo", lado: 1 }));
       }
       semear();
       return;
@@ -1196,7 +1190,7 @@
         }
       } else if (!estado.sel) {
         const tot = totaisFluxo(), max = d3.max(Object.values(tot)) || 1;
-        rotas = Object.keys(tot).filter((uf) => centroCapital[uf]).map((uf) => ({ peso: tot[uf] / max, origem: centroCapital[uf], destino: centroCapital.DF, cor: "--c-sai", lado: 1 }));
+        rotas = Object.keys(tot).filter((uf) => centroCapital[uf]).map((uf) => ({ uf, valor: tot[uf], peso: tot[uf] / max, origem: centroCapital[uf], destino: centroCapital.DF, cor: "--c-sai", lado: 1 }));
       }
       semear();
       return;
@@ -1227,17 +1221,21 @@
     } else if (!estado.sel) {
       const tot = totaisUniao();
       const max = d3.max(Object.values(tot)) || 1;
-      rotas = Object.keys(tot).map((uf) => ({ peso: tot[uf] / max, origem: centroCapital.DF, destino: centroCapital[uf], cor: "--fluxo", lado: 1 }));
+      rotas = Object.keys(tot).map((uf) => ({ uf, valor: tot[uf], peso: tot[uf] / max, origem: centroCapital.DF, destino: centroCapital[uf], cor: "--fluxo", lado: 1 }));
     }
     semear();
   }
   function semear() {
-    particulas = rotas.filter((r) => !r.semParticula).flatMap((r) => d3.range(3 + Math.round(r.peso * (r.fina ? 6 : 22))).map(() => ({ r, t: Math.random(), v: 0.0016 + Math.random() * 0.0016 })));
+    particulas = [];
     for (const r of rotas) r.c = css(r.cor);
-    // os valores de cada caminho ficam numa legenda no canto, não em cima do mapa
-    const leg = document.getElementById("fluxo-legenda"), itens = rotas.filter((r) => r.rot);
-    leg.hidden = !(estado.fluxo && COM_FLUXO.has(estado.medida) && itens.length);
-    leg.innerHTML = itens.map((r) => `<li><i class="${r.tracejada ? "estim" : ""}" style="background:${r.c};border-color:${r.c}"></i>${r.rot}</li>`).join("");
+    // No retrato geral são 26 linhas: só as cinco maiores levam etiqueta, perto do estado.
+    const gerais = rotas.filter((r) => r.uf).sort((a, b) => b.valor - a.valor);
+    gerais.forEach((r, n) => {
+      r.lado = 0.45;   // menos curva, para não virar um cata-vento
+      r.rot = n < 5 ? `${r.uf}: ${curto(r.valor)}` : null;
+      r.tRot = r.destino === centroCapital.DF ? 0.2 : 0.8;
+    });
+    document.getElementById("fluxo-legenda").hidden = true;
   }
   const centroMun = new Map();
   function centroDe(id) {
@@ -1255,31 +1253,55 @@
     const { width, height } = palco.getBoundingClientRect();
     ctx.clearRect(0, 0, width, height);
     if (estado.fluxo && COM_FLUXO.has(estado.medida) && rotas.length) {
-      for (const r of rotas) {   // o caminho: uma linha fina, só para o olho acompanhar
+      const agora = performance.now() / 1000;
+      ctx.lineCap = "butt";
+      for (const r of rotas) {
         const a = ponto(r.origem), b = ponto(r.destino), c = curva(a, b, r.lado);
-        ctx.strokeStyle = r.c; ctx.globalAlpha = r.fina ? 0.16 : 0.3; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(...a); ctx.quadraticCurveTo(...c, ...b); ctx.stroke();
-      }
-      for (const p of particulas) {   // o dinheiro: pontos que andam; mais pontos quanto maior o valor
-        p.t += p.v; if (p.t > 1) p.t -= 1;
-        const a = ponto(p.r.origem), b = ponto(p.r.destino), c = curva(a, b, p.r.lado);
-        const raio = (p.r.fina ? 1.5 : 2.3) + p.r.peso * 1.5;
-        for (let n = 0; n < 4; n++) {   // um rastro curto dá a direção
-          const t = p.t - n * 0.012;
-          if (t < 0) break;
-          const [x, y] = quad(a, c, b, t);
-          ctx.globalAlpha = (1 - n / 4) * Math.min(1, t * 12, (1 - t) * 12);   // nasce e some nas pontas
-          ctx.beginPath(); ctx.arc(x, y, raio * (1 - n * 0.16), 0, Math.PI * 2);
-          if (p.r.tracejada && n === 0) { ctx.strokeStyle = p.r.c; ctx.lineWidth = 1.5; ctx.stroke(); }   // estimativa: ponto vazado
-          else { ctx.fillStyle = p.r.c; ctx.fill(); }
+        const larg = r.fina ? 0.6 + r.peso * 2.2 : 1.4 + r.peso * (estado.sel ? 5.5 : 4.5);
+        const traco = () => { ctx.beginPath(); ctx.moveTo(...a); ctx.quadraticCurveTo(...c, ...b); ctx.stroke(); };
+        const forca = r.uf ? 0.22 + 0.78 * r.peso : 1;   // no retrato geral, as linhas pequenas recuam para as grandes aparecerem
+        ctx.strokeStyle = r.c; ctx.lineWidth = larg;
+        ctx.setLineDash([]); ctx.globalAlpha = 0.16 * forca; traco();               // o leito: uma faixa clara
+        ctx.setLineDash(r.tracejada ? [3, 8] : [11, 9]); ctx.lineDashOffset = -agora * (r.fina ? 14 : 22);
+        ctx.globalAlpha = (r.tracejada ? 0.6 : 0.9) * forca; traco();                 // a corrente: traços andando para o destino
+        if (!r.fina) {                                                                // a seta, na chegada
+          const ang = Math.atan2(b[1] - c[1], b[0] - c[0]), t = 4 + larg * 1.1;
+          ctx.setLineDash([]); ctx.globalAlpha = 0.95 * forca; ctx.fillStyle = r.c;
+          ctx.beginPath(); ctx.moveTo(b[0], b[1]);
+          ctx.lineTo(b[0] - t * Math.cos(ang - 0.45), b[1] - t * Math.sin(ang - 0.45));
+          ctx.lineTo(b[0] - t * Math.cos(ang + 0.45), b[1] - t * Math.sin(ang + 0.45));
+          ctx.closePath(); ctx.fill();
         }
       }
-      ctx.globalAlpha = 1;
+      ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
       ctx.font = "600 11px Inter, system-ui, sans-serif";
       const bsb = ponto(centroCapital.DF);
       ctx.fillStyle = css("--papel"); ctx.strokeStyle = css("--tinta"); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(...bsb, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.fillStyle = css("--tinta"); ctx.fillText("Brasília", bsb[0] + 8, bsb[1] - 6);
+      // As etiquetas ficam junto das linhas, mas num ponto que esteja à vista (com zoom numa cidade,
+      // o meio da linha costuma estar fora da tela ou debaixo do cartão) e sem uma cobrir a outra.
+      const caixa = palco.getBoundingClientRect(), cartao = document.getElementById("detalhe").getBoundingClientRect();
+      const sobOCartao = (x, y) => cartao.width && x + caixa.left > cartao.left - 8 && x + caixa.left < cartao.right && y + caixa.top > cartao.top - 8 && y + caixa.top < cartao.bottom;
+      const postas = [];
+      for (const r of rotas.filter((x) => x.rot)) {
+        const a = ponto(r.origem), b = ponto(r.destino), c = curva(a, b, r.lado);
+        const w = ctx.measureText(r.rot).width + 12;
+        let lugar = null;
+        for (const d of [0, 0.1, -0.1, 0.2, -0.2, 0.3, -0.3, 0.4, -0.4, 0.5, -0.5, 0.6, -0.6, 0.7, -0.7]) {
+          const t = (r.tRot ?? 0.5) + d;
+          if (t < 0.08 || t > 0.92) continue;
+          const [x, y] = quad(a, c, b, t);
+          if (x - w / 2 > 56 && x + w / 2 < width - 8 && y > 18 && y < height - 18 && !sobOCartao(x - w / 2, y) && !sobOCartao(x + w / 2, y)) { lugar = [x, y]; break; }
+        }
+        if (!lugar) continue;
+        let [x, y] = lugar;
+        for (let n = 0; n < 8 && postas.some((o) => Math.abs(o[0] - x) < (o[2] + w) / 2 + 4 && Math.abs(o[1] - y) < 23); n++) y += 23;
+        postas.push([x, y, w]);
+        ctx.fillStyle = css("--papel"); ctx.fillRect(x - w / 2, y - 10, w, 20);
+        ctx.strokeStyle = r.c; ctx.lineWidth = 1.5; ctx.strokeRect(x - w / 2, y - 10, w, 20);
+        ctx.fillStyle = css("--tinta"); ctx.textAlign = "center"; ctx.fillText(r.rot, x, y + 4); ctx.textAlign = "start";
+      }
     }
     requestAnimationFrame(desenhar);
   }
