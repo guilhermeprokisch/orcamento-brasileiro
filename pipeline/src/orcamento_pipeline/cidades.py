@@ -40,6 +40,9 @@ RAIZ = Path(__file__).resolve().parents[3]
 PASTA_BRUTO = RAIZ / "data" / "raw" / "siconfi"
 SAIDA = RAIZ / "site" / "public" / "data" / "cidades" / "municipios.json"
 SAIDA_ESTADOS = RAIZ / "site" / "public" / "data" / "cidades" / "estados.json"
+# O detalhe de todos os anos (cada ente, cada ano) para as páginas de cidade e de estado mostrarem
+# o ano que a pessoa escolher. Só o build do site lê: fica fora de public/ e não é publicado.
+PASTA_ANOS = RAIZ / "site" / "src" / "gerado" / "gasto"
 
 URL_API = "https://apidatalake.tesouro.gov.br/ords/siconfi/tt/"
 ANEXO = "DCA-Anexo I-E"
@@ -403,6 +406,32 @@ def montar(entes: list[dict], anos: list[int], resumos: dict[int, dict[int, dict
     }
 
 
+def por_ano(resumos: dict[int, dict[int, dict]], anos: list[int], faixa: Callable[[int], int],
+            pop_padrao: dict[int, int]) -> dict[int, dict[str, dict]]:
+    """{ano: {ibge: {pop, faixa, total, f, s}}}: o mesmo registro do documento principal, para cada ano."""
+    saida: dict[int, dict[str, dict]] = {}
+    for ano in anos:
+        saida[ano] = {}
+        for ibge, r in resumos[ano].items():
+            pop = r["pop"] or pop_padrao.get(ibge)
+            if not pop:
+                continue
+            saida[ano][str(ibge)] = {
+                "pop": pop, "faixa": faixa(pop),
+                "total": [round(r["total"]["emp"]), round(r["total"]["pago"])],
+                "f": {c: [round(v[0]), round(v[1])] for c, v in r["funcoes"].items() if v[0] or v[1]},
+                "s": {c: round(v) for c, v in r["subfuncoes"].items() if v},
+            }
+    return saida
+
+
+def _gravar_anos(dados: dict[int, dict[str, dict]], pasta: Path) -> None:
+    pasta.mkdir(parents=True, exist_ok=True)
+    for ano, entes in dados.items():
+        (pasta / f"{ano}.json").write_text(json.dumps(entes, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"  detalhe de {len(dados)} anos -> {pasta.relative_to(RAIZ)}")
+
+
 def _gravar(doc: dict, saida: Path) -> None:
     saida.parent.mkdir(parents=True, exist_ok=True)
     saida.write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -439,6 +468,8 @@ def main() -> None:
     doc = montar(estados, anos_estados, resumos, pendentes, lambda _pop: 0, ["estados"],
                  lambda e: {"nome": e["ente"], "uf": SIGLAS[e["cod_ibge"]], "capital": False})
     _gravar(doc, SAIDA_ESTADOS)
+    pops = {e["cod_ibge"]: e["populacao"] for e in todos}
+    _gravar_anos(por_ano(resumos, anos_estados, lambda _pop: 0, pops), PASTA_ANOS / "estados")
 
     if not args.so_estados:
         municipios = [e for e in todos if e["esfera"] in ("M", "D")]
@@ -459,6 +490,7 @@ def main() -> None:
 
         doc = montar(municipios, anos_mun, resumos, p_mun, faixa_de, [r for _, r in FAIXAS], identificar)
         _gravar(doc, SAIDA)
+        _gravar_anos(por_ano(resumos, anos_mun, faixa_de, pops), PASTA_ANOS / "municipios")
 
     print(f"{len(pendentes)} entes com consultas que falharam ou ficaram para a próxima execução")
 

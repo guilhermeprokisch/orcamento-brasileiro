@@ -1,0 +1,92 @@
+---
+/**
+ * O ano em andamento (relatório bimestral, RREO): quanto do previsto para o ano inteiro já
+ * aconteceu. Só faz sentido ao lado do ano mais recente, por isso a página o esconde quando
+ * outro ano é escolhido.
+ */
+import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
+import type { Cidade } from "../../lib/cidades";
+import { parcialDe, type Esfera } from "../../lib/contas";
+
+interface Props {
+  ente: Cidade;
+  esfera: Esfera;
+  /** "a prefeitura de Fortaleza", "o governo do Ceará" */
+  quem: string;
+}
+const { ente, esfera, quem } = Astro.props;
+const parcial = await parcialDe(ente, esfera);
+
+const NUMEROS = ["", "", "dois", "", "quatro", "", "seis", "", "oito", "", "dez", "", "doze"];
+const andamento = parcial
+  ? [
+      { rotulo: "Receita arrecadada", de: "do previsto para o ano", v: parcial.receita, total: parcial.receitaPrevista },
+      { rotulo: "Gasto comprometido", de: "do orçamento do ano", v: parcial.empenhado, total: parcial.dotacao },
+      { rotulo: "Gasto já pago", de: "do orçamento do ano", v: parcial.pago, total: parcial.dotacao },
+    ]
+  : [];
+const variacao = (agora: number, antes: number) => {
+  const d = agora / antes - 1;
+  return `${pct(Math.abs(d))} ${d >= 0 ? "maior" : "menor"}`;
+};
+---
+
+{parcial && (
+  <section class="bloco" data-so-padrao={`o andamento de ${parcial.ano}`}>
+    <div class="texto">
+      <h2>E em {parcial.ano}, até {parcial.ate}</h2>
+      <p>
+        Nos {NUMEROS[parcial.meses]} primeiros meses de {parcial.ano}, {quem} arrecadou{" "}
+        <strong>{moedaExtenso(parcial.receita)}</strong>, {pct(parcial.receita / parcial.receitaPrevista)} do previsto para o
+        ano, e comprometeu <strong>{moedaExtenso(parcial.empenhado)}</strong> em gastos, {pct(parcial.empenhado / parcial.dotacao)} do orçamento.
+        {parcial.receitaAntes > 0 && parcial.empenhadoAntes > 0 && (
+          <> Frente ao mesmo período de {parcial.ano - 1}, a receita foi {variacao(parcial.receita, parcial.receitaAntes)} e
+          o gasto comprometido, {variacao(parcial.empenhado, parcial.empenhadoAntes)}, sem descontar a inflação.</>
+        )}
+      </p>
+      <p class="menor">
+        Números parciais do relatório bimestral (RREO), que ainda podem ser corrigidos. O traço marca quanto do ano já passou.
+        O gasto comprometido costuma andar à frente porque contratos do ano inteiro são comprometidos de uma vez.
+      </p>
+    </div>
+    <ul class="barras">
+      {andamento.map((a, k) => (
+        <li>
+          <span class="lb-linha">
+            <span>{a.rotulo}<small class="so-largo"> · {pct(a.v / a.total)} {a.de}</small></span>
+            <strong class="num" title={moedaCompleta(a.v)}>{moedaCurta(a.v)} de {moedaCurta(a.total)}</strong>
+          </span>
+          <span class="trilho">
+            <span class="lb-barra" style={`width:${Math.min(100, (a.v / a.total) * 100)}%;background:${corDaRampa(k / 3)}`}></span>
+            <span class="marca-ano" style={`left:${(parcial.meses / 12) * 100}%`} title={`${parcial.meses} de 12 meses`}></span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  </section>
+)}
+
+<style>
+  .bloco { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .barras { grid-column: span 7; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; align-self: center; }
+  .barras li { display: flex; flex-direction: column; gap: 4px; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .lb-linha > span { min-width: 0; font-weight: 600; }
+  .lb-linha small { font-size: 13px; font-weight: 400; color: var(--texto-3); }
+  .lb-linha strong { white-space: nowrap; font-weight: 600; }
+  .trilho { position: relative; display: block; height: 10px; background: var(--regra-leve); }
+  .lb-barra { display: block; height: 100%; min-width: 2px; }
+  .marca-ano { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tinta); }
+
+  @media (max-width: 900px) {
+    .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; line-height: 1.1; }
+    .barras { align-self: stretch; }
+  }
+</style>
