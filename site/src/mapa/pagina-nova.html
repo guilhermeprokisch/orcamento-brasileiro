@@ -264,46 +264,56 @@
   }
   @media (prefers-reduced-motion: reduce) { #fluxo { display: none; } }
 
-  /* ===== Nova arrumação: perguntas em cima, opções recolhidas, legenda sobre o mapa ===== */
+  /* ===== Nova arrumação: menu à esquerda em três grupos separados (procurar, perguntar, opções);
+     legenda sobre o mapa; sem escolha de nível de governo ===== */
   .so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  header.topo {
-    display: grid; grid-template-columns: auto minmax(180px, 340px) auto; align-items: center; justify-content: space-between;
-    grid-template-areas: "marca busca opcoes" "perguntas perguntas perguntas" "sob sob sob"; gap: 10px 20px; padding-block: 10px 12px;
-  }
-  header.topo .marca { grid-area: marca; }
-  header.topo h1 { font-size: 22px; }
-  header.topo .busca { grid-area: busca; }
-  header.topo .busca input { border: 1px solid var(--tinta); padding: 0 12px; background: #fff; height: 38px; }
-  .opcoes { grid-area: opcoes; position: relative; justify-self: end; }
-  .opcoes > summary { list-style: none; cursor: pointer; border: 1px solid var(--regra); padding: 8px 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .app { grid-template-columns: 330px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  aside.topo { display: flex; flex-direction: column; gap: 0; padding: 18px 0 0; border-right: 1px solid var(--regra); overflow-y: auto; }
+  aside.topo > * { margin-inline: 20px; }
+  aside.topo .marca h1 { margin: 2px 0 0; font-family: var(--serifa); font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+  aside.topo .busca { margin-top: 16px; }
+  aside.topo .busca input { border: 1px solid var(--tinta); padding: 0 12px; background: #fff; height: 40px; }
+  .titulo-grupo { display: block; margin-top: 26px; padding: 0 0 8px; border-bottom: 2px solid var(--tinta); }
+  aside.topo .perguntas { margin-inline: 0; }
+  aside.topo .perguntas button { padding: 11px 20px 11px 17px; border: 0; border-left: 3px solid transparent; border-bottom: 1px solid var(--regra); margin-inline: 0; }
+  aside.topo .perguntas button:hover { background: var(--papel-2); }
+  aside.topo .perguntas button[aria-pressed="true"] { border-left-color: var(--verde); padding-left: 17px; background: var(--papel-2); }
+  aside.topo .perguntas button[aria-pressed="true"] strong { color: var(--verde); }
+  .sob { margin-top: 10px; }
+  #q-explica { display: none; }
+  .opcoes { margin: auto 0 0 !important; border-top: 1px solid var(--regra); }
+  .opcoes > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 14px 20px; font-size: 13px; font-weight: 600; }
   .opcoes > summary::-webkit-details-marker { display: none; }
-  .opcoes[open] > summary { border-color: var(--tinta); background: var(--tinta); color: var(--papel); }
-  .opcoes-caixa {
-    position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 330px; max-height: 72vh; overflow-y: auto;
-    background: var(--papel); border: 1px solid var(--tinta); box-shadow: 0 8px 24px var(--sombra); padding: 16px; display: flex; flex-direction: column; gap: 16px;
-  }
+  .opcoes > summary span::before { content: "+ "; color: var(--texto-3); }
+  .opcoes[open] > summary span::before { content: "− "; }
+  .opcoes > summary b { font-family: var(--serifa); font-size: 18px; }
+  .opcoes-caixa { padding: 4px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
   .opcoes-caixa .como-ler { margin: 0; align-self: flex-start; }
-  header.topo .perguntas { grid-area: perguntas; flex-direction: row; flex-wrap: wrap; gap: 6px; }
-  header.topo .perguntas button { flex-direction: row; padding: 8px 13px; border: 1px solid var(--regra); }
-  header.topo .perguntas button strong { font-family: var(--sans); font-size: 14px; font-weight: 500; }
-  header.topo .perguntas button span { display: none !important; }
-  header.topo .perguntas button[aria-pressed="true"] { border: 1px solid var(--tinta); background: var(--tinta); padding-left: 13px; }
-  header.topo .perguntas button[aria-pressed="true"] strong { color: var(--papel); font-weight: 600; }
-  .sob { grid-area: sob; display: flex; gap: 8px 18px; align-items: center; flex-wrap: wrap; min-height: 20px; }
-  #q-explica { margin: 0; font-size: 13px; line-height: 1.45; color: var(--texto-2); flex: 1 1 420px; max-width: 980px; }
-  #q-explica b { color: var(--tinta); font-weight: 600; }
   .palco .legenda { position: absolute; left: 16px; bottom: 16px; z-index: 2; width: 250px; background: var(--papel); border: 1px solid var(--tinta); padding: 10px 12px; }
   .fluxo-legenda { position: absolute; left: 62px; top: 16px; z-index: 2; margin: 0; padding: 8px 10px; list-style: none; background: var(--papel); border: 1px solid var(--regra); font-size: 12px; display: flex; flex-direction: column; gap: 4px; max-width: min(340px, calc(100% - 78px)); }
   .fluxo-legenda li { display: flex; gap: 7px; align-items: center; }
   .fluxo-legenda i { flex: none; width: 9px; height: 9px; border-radius: 50%; }
   .fluxo-legenda i.estim { background: none !important; border: 2px solid; }
+  /* No celular não cabe coluna: o mesmo menu vira uma faixa presa no alto, com as perguntas em fila. */
   @media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
-    header.topo { position: sticky; top: 0; z-index: 6; background: var(--papel); grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "busca opcoes" "perguntas perguntas"; gap: 8px 10px; padding-block: 8px; }
-    header.topo .marca, header.topo .sob { display: none; }
-    header.topo .perguntas { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
-    header.topo .perguntas button { white-space: nowrap; flex: none; }
-    .opcoes-caixa { position: fixed; left: 8px; right: 8px; top: auto; width: auto; }
+    aside.topo { order: 0; position: sticky; top: 0; z-index: 6; background: var(--papel); border-right: 0; border-bottom: 1px solid var(--tinta); overflow: visible; max-height: none;
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "busca opcoes" "perguntas perguntas"; gap: 8px 10px; padding: 8px 16px; }
+    aside.topo > * { margin-inline: 0; }
+    aside.topo .marca, aside.topo .sob, .titulo-grupo { display: none; }
+    aside.topo .busca { grid-area: busca; margin-top: 0; }
+    aside.topo .busca input { height: 38px; }
+    aside.topo .perguntas { grid-area: perguntas; flex-direction: row; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
+    aside.topo .perguntas button, aside.topo .perguntas button[aria-pressed="true"] { flex: none; flex-direction: row; white-space: nowrap; padding: 8px 13px; border: 1px solid var(--regra); background: none; }
+    aside.topo .perguntas button strong { font-family: var(--sans); font-size: 14px; font-weight: 500; }
+    aside.topo .perguntas button span { display: none !important; }
+    aside.topo .perguntas button[aria-pressed="true"] { border-color: var(--tinta); background: var(--tinta); }
+    aside.topo .perguntas button[aria-pressed="true"] strong { color: var(--papel); font-weight: 600; }
+    .opcoes { grid-area: opcoes; margin: 0 !important; border: 0; position: relative; }
+    .opcoes > summary { border: 1px solid var(--regra); padding: 8px 10px; gap: 6px; }
+    .opcoes > summary span { display: none; }
+    .opcoes > summary b { font-family: var(--sans); font-size: 13px; }
+    .opcoes > summary b::after { content: " · opções"; font-weight: 600; }
+    .opcoes-caixa { position: fixed; left: 8px; right: 8px; z-index: 20; background: var(--papel); border: 1px solid var(--tinta); box-shadow: 0 8px 24px var(--sombra); padding: 16px; max-height: 70vh; overflow-y: auto; }
     .palco { top: var(--topo-h, 96px); height: 42vh; height: 42svh; }
     .palco .legenda { left: 8px; bottom: 8px; width: 200px; padding: 6px 8px; }
     .fluxo-legenda { left: 54px; top: 8px; }
@@ -316,7 +326,7 @@
 <body>
 
 <div class="app">
-  <header class="topo">
+  <aside class="topo" aria-label="Menu do mapa">
     <div class="marca">
       <span class="selo"><a href="/">← Orçamento Brasileiro</a></span>
       <h1>Mapa do Orçamento</h1>
@@ -326,8 +336,32 @@
       <input type="search" id="busca" placeholder="Procure sua cidade" autocomplete="off">
       <ul id="busca-lista" hidden></ul>
     </div>
+    <span class="rotulo titulo-grupo">O que você quer saber</span>
+    <div class="perguntas" role="group" aria-label="Pergunta">
+        <button type="button" id="q-imp" data-medida="imp" aria-pressed="false"><strong>O que a cidade paga</strong>
+          <span>Os impostos que moradores e empresas pagam à prefeitura (IPTU, ISS, ITBI, taxas), por morador. Clique numa cidade para ver também o que ela manda para o estado e para a União, e o que volta.</span></button>
+        <button type="button" id="q-desp" data-medida="desp" aria-pressed="true"><strong>Quanto gasta</strong>
+          <span>Tudo o que <b data-quem>a prefeitura</b> gastou no ano, dividido pelo número de moradores. É só o gasto <b data-dela>da prefeitura</b>: não inclui o que o governo federal ou outra esfera gasta no mesmo lugar.</span></button>
+        <button type="button" id="q-rec" data-medida="rec" aria-pressed="false"><strong>Quanto recebe</strong>
+          <span>Tudo o que entrou no caixa <b data-dela>da prefeitura</b> no ano, por morador: impostos próprios mais os repasses de outras esferas.</span></button>
+        <button type="button" id="q-saldo" data-medida="saldo" aria-pressed="false"><strong>Sobrou ou faltou</strong>
+          <span>Receita menos despesa do ano, como parte da receita. Verde: entrou mais do que saiu. Ocre: gastou mais do que recebeu.</span></button>
+        <button type="button" id="q-dep" data-medida="dep" aria-pressed="false"><strong>De onde vem o dinheiro</strong>
+          <span>Que parte da receita chega por repasse (da União, <b data-doestado>do estado</b> e do FUNDEB) e não por impostos cobrados ali mesmo. Mais escuro: mais dependente de repasses.</span></button>
+        <button type="button" id="q-fed" data-medida="fed" aria-pressed="false"><strong>O que vem do governo federal</strong>
+          <span>Tudo o que o governo federal mandou para cada cidade em 2025, por morador: repasses à prefeitura e a outras entidades, e benefícios pagos direto às pessoas (aposentadorias e pensões do INSS, Bolsa Família e BPC). Não inclui o gasto direto de órgãos federais, como universidades e salários de servidores.</span></button>
+      </div>
+    <div class="sob">
+      <p id="q-explica"></p>
+      <div class="areas" id="areas" role="group" aria-label="Área do gasto">
+        <button type="button" id="area-total" data-area="total" aria-pressed="true">Tudo</button>
+        <button type="button" id="area-saude" data-area="saude" aria-pressed="false">Saúde</button>
+        <button type="button" id="area-edu" data-area="edu" aria-pressed="false">Educação</button>
+        <button type="button" id="area-seg" data-area="seg" aria-pressed="false">Segurança</button>
+      </div>
+    </div>
     <details class="opcoes" id="opcoes">
-      <summary><span id="ano-topo">2025</span> · opções</summary>
+      <summary><span>Ano e opções</span><b id="ano-topo">2025</b></summary>
       <div class="opcoes-caixa">
         <fieldset>
           <legend>Em que ano</legend>
@@ -352,31 +386,8 @@
         <button type="button" class="como-ler" id="abrir-guia">Como ler este mapa</button>
       </div>
     </details>
-    <div class="perguntas" role="group" aria-label="Pergunta">
-        <button type="button" id="q-imp" data-medida="imp" aria-pressed="false"><strong>O que a cidade paga</strong>
-          <span>Os impostos que moradores e empresas pagam à prefeitura (IPTU, ISS, ITBI, taxas), por morador. Clique numa cidade para ver também o que ela manda para o estado e para a União, e o que volta.</span></button>
-        <button type="button" id="q-desp" data-medida="desp" aria-pressed="true"><strong>Quanto gasta</strong>
-          <span>Tudo o que <b data-quem>a prefeitura</b> gastou no ano, dividido pelo número de moradores. É só o gasto <b data-dela>da prefeitura</b>: não inclui o que o governo federal ou outra esfera gasta no mesmo lugar.</span></button>
-        <button type="button" id="q-rec" data-medida="rec" aria-pressed="false"><strong>Quanto recebe</strong>
-          <span>Tudo o que entrou no caixa <b data-dela>da prefeitura</b> no ano, por morador: impostos próprios mais os repasses de outras esferas.</span></button>
-        <button type="button" id="q-saldo" data-medida="saldo" aria-pressed="false"><strong>Sobrou ou faltou</strong>
-          <span>Receita menos despesa do ano, como parte da receita. Verde: entrou mais do que saiu. Ocre: gastou mais do que recebeu.</span></button>
-        <button type="button" id="q-dep" data-medida="dep" aria-pressed="false"><strong>De onde vem o dinheiro</strong>
-          <span>Que parte da receita chega por repasse (da União, <b data-doestado>do estado</b> e do FUNDEB) e não por impostos cobrados ali mesmo. Mais escuro: mais dependente de repasses.</span></button>
-        <button type="button" id="q-fed" data-medida="fed" aria-pressed="false"><strong>O que vem do governo federal</strong>
-          <span>Tudo o que o governo federal mandou para cada cidade em 2025, por morador: repasses à prefeitura e a outras entidades, e benefícios pagos direto às pessoas (aposentadorias e pensões do INSS, Bolsa Família e BPC). Não inclui o gasto direto de órgãos federais, como universidades e salários de servidores.</span></button>
-      </div>
-    <div class="sob">
-      <p id="q-explica"></p>
-      <div class="areas" id="areas" role="group" aria-label="Área do gasto">
-        <button type="button" id="area-total" data-area="total" aria-pressed="true">Tudo</button>
-        <button type="button" id="area-saude" data-area="saude" aria-pressed="false">Saúde</button>
-        <button type="button" id="area-edu" data-area="edu" aria-pressed="false">Educação</button>
-        <button type="button" id="area-seg" data-area="seg" aria-pressed="false">Segurança</button>
-      </div>
-    </div>
     <div hidden><button type="button" id="esf-mun" data-esfera="mun"></button><button type="button" id="esf-uf" data-esfera="uf"></button></div>
-  </header>
+  </aside>
 
   <main>
     <div class="palco" id="palco">
@@ -1270,10 +1281,10 @@
   if (!matchMedia("(prefers-reduced-motion: reduce)").matches) requestAnimationFrame(desenhar);
   new ResizeObserver(ajustar).observe(palco);
   // no celular o mapa fica preso logo abaixo da faixa das perguntas
-  const topo = document.querySelector("header.topo");
+  const topo = document.querySelector("aside.topo");
   new ResizeObserver(() => document.documentElement.style.setProperty("--topo-h", `${topo.offsetHeight}px`)).observe(topo);
   // as opções fecham ao clicar fora
-  document.addEventListener("click", (ev) => { const o = document.getElementById("opcoes"); if (o.open && !o.contains(ev.target)) o.open = false; });
+  document.addEventListener("click", (ev) => { const o = document.getElementById("opcoes"); if (o.open && estreito.matches && !o.contains(ev.target)) o.open = false; });
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", pintar);
   new MutationObserver(pintar).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 })();
