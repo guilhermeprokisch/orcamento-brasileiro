@@ -138,6 +138,10 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline seguranca
 
+      - name: Pipeline do saneamento (Censo 2022)
+        continue-on-error: true
+        run: uv run --project pipeline saneamento
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
