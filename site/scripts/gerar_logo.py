@@ -1,7 +1,7 @@
 """Gera a marca do Orçamento Brasileiro: a bandeira desenhada como gráfico.
 
-Barras verdes verticais (como colunas de um gráfico) formam o retângulo;
-por cima, o losango amarelo sólido e, no centro, um gráfico de pizza azul
+Barras verdes verticais de alturas crescentes (um gráfico de colunas, sem
+fechar o retângulo da bandeira); por cima, o losango amarelo sólido e, no centro, um gráfico de pizza azul
 com uma fatia branca.
 Uso: python3 scripts/gerar_logo.py  (escreve em public/ e src/assets/)
 """
@@ -12,7 +12,9 @@ VERDE, AMARELO, AZUL, BRANCO = "#009C3B", "#FFDF00", "#002776", "#FFFFFF"
 
 BARRAS, LARG_BARRA, VAO = 8, 12, 4          # barras verdes verticais
 L = BARRAS * LARG_BARRA + (BARRAS - 1) * VAO  # largura total = 124
-A = 86                                       # altura (proporção ~10:7)
+A = 86                                       # altura máxima (proporção ~10:7)
+ALTURAS = [0.48, 0.56, 0.64, 0.72, 0.8, 0.87, 0.94, 1.0]  # fração de A, da esquerda à direita
+RAIO_BARRA = 2.5
 CX, CY = L / 2, A / 2
 MARGEM_X, MARGEM_Y = 10, 9                   # distância do losango às bordas
 R = 20                                       # raio da pizza
@@ -21,8 +23,9 @@ FATIA = 0.35                                 # fração da fatia branca
 
 def barras() -> list[str]:
     return [
-        f'<rect x="{i * (LARG_BARRA + VAO)}" y="0" width="{LARG_BARRA}" height="{A}" fill="{VERDE}"/>'
-        for i in range(BARRAS)
+        f'<rect x="{i * (LARG_BARRA + VAO)}" y="{A - h * A:g}" width="{LARG_BARRA}" height="{h * A:g}" '
+        f'rx="{RAIO_BARRA}" fill="{VERDE}"/>'
+        for i, h in enumerate(ALTURAS)
     ]
 
 
