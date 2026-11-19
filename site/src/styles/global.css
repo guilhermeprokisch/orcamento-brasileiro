@@ -16,6 +16,8 @@
   --total: #2b6f80;
   --botao: #0a8dc2;
   --destaque: #fdb81e;
+  --hero: #eef4f6;
+  --hero-palavra: #6a8b96;
 
   /* barra do topo e lateral do Explorer: escuras nos dois temas */
   --barra: #112f4e;
@@ -47,6 +49,8 @@
     --total: #5fc3db;
     --barra: #0c2239;
     --lado: #262d36;
+    --hero: #1b252c;
+    --hero-palavra: #8fb1bb;
   }
 }
 :root[data-theme="dark"] {
@@ -66,6 +70,8 @@
   --total: #5fc3db;
   --barra: #0c2239;
   --lado: #262d36;
+  --hero: #1b252c;
+  --hero-palavra: #8fb1bb;
 }
 
 *, *::before, *::after { box-sizing: border-box; }

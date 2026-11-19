@@ -1,19 +1,99 @@
 ---
+import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
+import { scaleLinear } from "d3-scale";
 import Base from "../layouts/Base.astro";
-import { moedaCurta, pct } from "../lib/formato";
-import type { ResumoAnos } from "../lib/dados";
+import { moedaExtenso } from "../lib/formato";
+import { agrupar, type DocAno, type ResumoAnos } from "../lib/dados";
 
-// Gerado pelo pipeline; o glob devolve {} se ele ainda não rodou.
-const arquivos = import.meta.glob<ResumoAnos>("../../public/data/explorer/anos.json", {
-  eager: true,
-  import: "default",
-});
-const resumo: ResumoAnos | null = Object.values(arquivos)[0] ?? null;
+// Gerados pelo pipeline; os globs devolvem {} se ele ainda não rodou.
+const resumos = import.meta.glob<ResumoAnos>("../../public/data/explorer/anos.json", { eager: true, import: "default" });
+const docs = import.meta.glob<DocAno>("../../public/data/explorer/[0-9]*.json", { eager: true, import: "default" });
+
+const resumo = Object.values(resumos)[0] ?? null;
 const corrente = new Date().getFullYear();
-const ultimo = resumo?.anos.filter((a) => a.ano < corrente).at(-1) ?? resumo?.anos.at(-1);
+const ultimo = resumo?.anos.filter((a) => a.ano < corrente).at(-1) ?? resumo?.anos.at(-1) ?? null;
+const doc = ultimo ? Object.values(docs).find((d) => d.ano === ultimo.ano) ?? null : null;
+const ano = ultimo?.ano;
+
+// Totais por função, sem o refinanciamento da dívida (que sozinho ocupa ~1/4).
+const porFuncao = doc ? agrupar(doc, [], "funcao", true) : null;
+const valorFuncao = (cod: string) => porFuncao?.itens.find((i) => i.codigo === cod)?.valores.atualizado ?? 0;
+
+// Mini mapa de blocos (calculado no build, sem JavaScript no navegador).
+// Dois layouts: um largo para desktop e um mais alto para celular.
+type Bloco = { cod?: string; nome?: string; v?: number; children?: Bloco[] };
+const layoutBlocos = (W: number, H: number) => {
+  if (!porFuncao) return [];
+  const raiz = hierarchy<Bloco>({
+    children: porFuncao.itens.map((i) => ({ cod: i.codigo, nome: i.nome, v: Math.max(0, i.valores.atualizado) })),
+  })
+    .sum((d) => d.v ?? 0)
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+  const layout = treemap<Bloco>().tile(treemapSquarify.ratio(1.2)).size([W, H]).paddingInner(3).round(true)(raiz);
+  const folhas = layout.leaves().filter((n) => n.x1 - n.x0 >= 1 && n.y1 - n.y0 >= 1);
+  const vs = folhas.map((n) => n.value ?? 0);
+  const esc = scaleLinear<string>().domain([Math.min(...vs), Math.max(...vs)]).range(["#46b9d7", "#1c4956"]);
+  const t = scaleLinear().domain([Math.min(...vs), Math.max(...vs)]).range([0, 1]);
+  const total = layout.value ?? 1;
+  return folhas.map((n) => ({
+    cod: n.data.cod!, nome: n.data.nome!,
+    x: (n.x0 / W) * 100, y: (n.y0 / H) * 100, w: ((n.x1 - n.x0) / W) * 100, h: ((n.y1 - n.y0) / H) * 100,
+    pw: n.x1 - n.x0, ph: n.y1 - n.y0,
+    cor: esc(n.value ?? 0), escuro: t(n.value ?? 0) > 0.45,
+    pct: ((n.value ?? 0) / total) * 100,
+  }));
+};
+const mapas = [
+  { classe: "mini-largo", blocos: layoutBlocos(1100, 320) },
+  { classe: "mini-alto", blocos: layoutBlocos(343, 420) },
+];
+
+const explorer = (q: string) => `/explorer?${ano ? `ano=${ano}&` : ""}${q}`;
+
+const icones: Record<string, string> = {
+  saude: "M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z",
+  educacao: "M3 5c3-1 6-1 9 1 3-2 6-2 9-1v14c-3-1-6-1-9 1-3-2-6-2-9-1z",
+  previdencia: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5v5.4l4 2.4-1 1.7-5-3V7z",
+  assistencia: "M12 21s-8-5.2-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.8-8 11-8 11z",
+  defesa: "M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5z",
+  seguranca: "M12 2l2.9 6.3 6.9.7-5.2 4.6 1.5 6.8L12 17l-6.1 3.4 1.5-6.8L2.2 9l6.9-.7z",
+  ciencia: "M9 2h6v2h-1v5l6 10a2 2 0 0 1-1.7 3H5.7A2 2 0 0 1 4 19l6-10V4H9z",
+  agricultura: "M5 21c0-9 5-16 16-17-1 11-8 16-15 16 2-4 5-7 9-9-4 1-7 4-10 10z",
+  transporte: "M3 6h11v9h2l2-4h3v6h-2a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0H3z",
+  divida: "M12 2 2 7v2h20V7zM4 10h3v8H4zm6.5 0h3v8h-3zM17 10h3v8h-3zM2 19h20v3H2z",
+};
+
+const atalhos = [
+  { cod: "10", titulo: "Saúde", texto: "para o SUS e a saúde pública", icone: "saude" },
+  { cod: "12", titulo: "Educação", texto: "para escolas, universidades e institutos", icone: "educacao" },
+  { cod: "09", titulo: "Previdência", texto: "em aposentadorias e pensões", icone: "previdencia" },
+  { cod: "08", titulo: "Assistência social", texto: "em programas como o Bolsa Família", icone: "assistencia" },
+  { cod: "05", titulo: "Defesa nacional", texto: "para as Forças Armadas", icone: "defesa" },
+  { cod: "06", titulo: "Segurança pública", texto: "para polícias federais e segurança", icone: "seguranca" },
+  { cod: "19", titulo: "Ciência e tecnologia", texto: "para pesquisa e inovação", icone: "ciencia" },
+  { cod: "20", titulo: "Agricultura", texto: "para o campo e a produção rural", icone: "agricultura" },
+  { cod: "26", titulo: "Transporte", texto: "para rodovias, ferrovias e portos", icone: "transporte" },
+  { cod: "28", titulo: "Encargos especiais", texto: "em juros da dívida e transferências", icone: "divida" },
+];
+
+const glossario = [
+  ["Dotação", "Valor autorizado na Lei Orçamentária para uma despesa. A dotação inicial é a aprovada pelo Congresso; a atualizada inclui os créditos e cortes feitos ao longo do ano."],
+  ["Empenho", "Primeira fase da despesa: o governo reserva parte da dotação para um gasto específico, como um contrato ou convênio. Garante que o dinheiro existe antes de contratar."],
+  ["Liquidação", "Fase em que o governo confere que o bem foi entregue ou o serviço foi prestado, conforme o empenho. Só depois disso a despesa pode ser paga."],
+  ["Restos a pagar", "Despesas empenhadas e não pagas até 31 de dezembro, que passam para o ano seguinte. São processados quando já foram liquidadas e não processados quando ainda não."],
+  ["LOA", "Lei Orçamentária Anual. Aprovada pelo Congresso, estima as receitas e fixa as despesas da União para o ano: nenhum gasto pode ser feito sem estar previsto nela."],
+  ["Crédito adicional", "Autorização para gastar além do previsto na LOA. Pode ser suplementar (reforça uma dotação), especial (cria uma nova) ou extraordinário (urgências, como calamidades)."],
+  ["Contingenciamento", "Bloqueio temporário de parte das despesas não obrigatórias, feito quando a arrecadação fica abaixo do previsto, para cumprir as metas fiscais."],
+  ["Grupo de natureza da despesa", "Classificação que diz em que tipo de gasto o dinheiro vai: pessoal, juros da dívida, outras despesas correntes, investimentos, inversões financeiras ou amortização."],
+  ["Unidade orçamentária", "Parte de um órgão que recebe dotações próprias no orçamento. O Fundo Nacional de Saúde, por exemplo, é uma unidade do Ministério da Saúde."],
+  ["Função e subfunção", "Classificam a despesa pela área de governo. A função é o nível mais amplo (saúde, educação); a subfunção detalha (atenção básica, ensino superior)."],
+  ["Refinanciamento da dívida", "Emissão de títulos novos para pagar títulos que estão vencendo. Aparece como despesa no orçamento, mas é a rolagem da dívida, não um gasto novo."],
+  ["Reserva de contingência", "Dotação sem destino específico, guardada para cobrir riscos fiscais e despesas imprevistas ao longo do ano."],
+  ["Emenda parlamentar", "Mudança proposta por deputados e senadores no projeto da LOA, em geral para destinar recursos a obras e serviços em estados e municípios."],
+];
 
 const fases = [
-  ["Dotação", "O valor autorizado na Lei Orçamentária Anual (LOA), ajustado por créditos ao longo do ano."],
+  ["Dotação", "O valor autorizado na Lei Orçamentária Anual, ajustado por créditos ao longo do ano."],
   ["Empenho", "O governo reserva o dinheiro para uma despesa específica, como um contrato."],
   ["Liquidação", "Confere que o serviço foi prestado ou o bem foi entregue."],
   ["Pagamento", "O dinheiro sai do caixa do Tesouro para quem prestou o serviço."],
@@ -21,60 +101,342 @@ const fases = [
 ---
 
 <Base title="Orçamento BR · O orçamento federal, explicado">
+  <!-- 1. Topo -->
   <section class="hero">
-    <div class="wrap">
-      {ultimo ? (
-        <>
-          <p class="eyebrow">Orçamento federal de {ultimo.ano}</p>
-          <h1>
-            <span class="num">{moedaCurta(ultimo.atualizado)}</span>
-            <span class="sub">autorizados para gastar</span>
-          </h1>
-          <div class="tiles">
-            <div class="tile"><div class="small muted">Empenhado</div><div class="v num">{moedaCurta(ultimo.empenhado)}</div></div>
-            <div class="tile"><div class="small muted">Realizado</div><div class="v num">{moedaCurta(ultimo.realizado)}</div></div>
-            <div class="tile"><div class="small muted">Realizado / dotação</div><div class="v num">{pct(ultimo.realizado / ultimo.atualizado)}</div></div>
-          </div>
-        </>
-      ) : (
-        <h1>O orçamento federal, explicado</h1>
+    <div class="wrap hero-inner">
+      <h1 class="hero-titulo" aria-live="off">
+        <span class="rot rot-a" data-palavras="Explore|Acompanhe|Compare|Entenda">Explore</span>{" "}
+        <span>o orçamento federal</span>{" "}
+        <span class="rot rot-b" data-palavras="por órgão|por área|ao longo dos anos|por programa">por órgão</span>
+      </h1>
+      <div class="hero-botoes">
+        <a class="btn btn-cheio" href={explorer("")}>Explorar o orçamento</a>
+        <a class="btn btn-contorno" href="#como-funciona">Como funciona o orçamento</a>
+      </div>
+      <p class="hero-sub">
+        O Orçamento BR mostra, a partir de dados abertos, quanto o governo federal autorizou, reservou e
+        realmente gastou, área por área, desde 2014.
+      </p>
+      <button type="button" class="pausar" data-pausar>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h3v10H4zM9 3h3v10H9z" /></svg>
+        <span>Pausar animação do texto</span>
+      </button>
+
+      {ultimo && (
+        <div class="hero-numeros">
+          <div><span class="rot-num">Autorizado em {ano}</span><strong class="num">{moedaExtenso(ultimo.atualizado)}</strong></div>
+          <div><span class="rot-num">Empenhado</span><strong class="num">{moedaExtenso(ultimo.empenhado)}</strong></div>
+          <div><span class="rot-num">Realizado</span><strong class="num">{moedaExtenso(ultimo.realizado)}</strong></div>
+        </div>
       )}
-      <a class="cta" href={`/explorer${ultimo ? `?ano=${ultimo.ano}` : ""}`}>Explorar o orçamento →</a>
+    </div>
+
+    {mapas[0].blocos.length > 0 && (
+      <div class="wrap">
+        <figure class="mini">
+          {mapas.map((m) => (
+            <div class:list={["mini-mapa", m.classe]}>
+              {m.blocos.map((b) => (
+                <a
+                  class:list={["mini-bloco", { claro: !b.escuro }]}
+                  href={explorer(`f=funcao:${b.cod}&por=subfuncao&refin=0`)}
+                  style={`left:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%;background:${b.cor}`}
+                  aria-label={`${b.nome}: ${b.pct.toFixed(1).replace(".", ",")}%`}
+                >
+                  {b.pw >= 80 && b.ph >= 40 && (
+                    <>
+                      <span class="mini-nome">{b.nome}</span>
+                      <span class="mini-pct num">{b.pct.toFixed(1).replace(".", ",")}%</span>
+                    </>
+                  )}
+                </a>
+              ))}
+            </div>
+          ))}
+          <figcaption>
+            Dotação atualizada de {ano} por função, sem o refinanciamento da dívida. Clique numa área para detalhar.
+          </figcaption>
+        </figure>
+      </div>
+    )}
+  </section>
+
+  <!-- 2. Atalhos -->
+  {porFuncao && (
+    <section class="faixa-atalhos">
+      <div class="wrap">
+        <h2>Onde o dinheiro vai</h2>
+        <p>Comece pelas áreas que mais aparecem no debate público.</p>
+        <ul class="atalhos">
+          {atalhos.map((a) => (
+            <li>
+              <a href={explorer(`f=funcao:${a.cod}&por=subfuncao`)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icones[a.icone]} /></svg>
+                <span>
+                  <strong>{a.titulo}</strong>
+                  <span class="atalho-texto"><b class="num">{moedaExtenso(valorFuncao(a.cod))}</b> {a.texto}</span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )}
+
+  <!-- 3. Como funciona + palavra do dia -->
+  <section class="wrap destaque" id="como-funciona">
+    <div class="destaque-fases">
+      <h2 class="rotulo-secao">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v2H2zM2 7h8v2H2zM2 11h10v2H2z" /></svg>
+        Como o dinheiro anda
+      </h2>
+      <ol class="fases">
+        {fases.map(([t, d], i) => (
+          <li>
+            <span class="passo num">{i + 1}</span>
+            <div><h3>{t}</h3><p>{d}</p></div>
+          </li>
+        ))}
+      </ol>
+      <p class="fases-nota">
+        No Explorer, “dotação atualizada”, “empenhado” e “realizado” mostram em que ponto desse caminho está cada real.
+      </p>
+    </div>
+    <div class="destaque-palavra">
+      <h2 class="rotulo-secao">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1a5 5 0 0 0-3 9v2h6v-2a5 5 0 0 0-3-9zM6 13h4v2H6z" /></svg>
+        Palavra do dia
+      </h2>
+      <div class="palavra" data-glossario={JSON.stringify(glossario)}>
+        <h3 data-termo>{glossario[0][0]}</h3>
+        <span class="palavra-linha" aria-hidden="true"></span>
+        <p data-definicao>{glossario[0][1]}</p>
+        <button type="button" class="palavra-outra" data-outra>Outra palavra</button>
+      </div>
     </div>
   </section>
 
-  <section class="wrap fases">
-    <h2>Como o dinheiro anda</h2>
-    <ol>
-      {fases.map(([t, d], i) => (
+  <!-- 4. Explorar -->
+  <section class="explorar">
+    <div class="wrap">
+      <p class="rotulo-secao">Explorar os dados</p>
+      <h2>Ferramentas para entender o orçamento</h2>
+      <ul class="cartoes">
         <li>
-          <span class="passo num">{i + 1}</span>
-          <div><strong>{t}</strong><p class="muted">{d}</p></div>
+          <h3>Por órgão</h3>
+          <p>De cada ministério até as unidades, os programas e as ações que recebem o dinheiro.</p>
+          <a href={explorer("por=orgao")}>Ver por órgão <span aria-hidden="true">→</span></a>
         </li>
-      ))}
-    </ol>
+        <li>
+          <h3>Por área de governo</h3>
+          <p>Saúde, educação, previdência e as outras funções do governo, com suas subfunções.</p>
+          <a href={explorer("por=funcao")}>Ver por função <span aria-hidden="true">→</span></a>
+        </li>
+        <li>
+          <h3>Por tipo de gasto</h3>
+          <p>Quanto vai para pessoal, juros da dívida, custeio, investimentos e amortização.</p>
+          <a href={explorer("por=gnd")}>Ver por natureza <span aria-hidden="true">→</span></a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 5. Pronto para começar -->
+  <section class="pronto">
+    <div class="wrap">
+      <h2>Pronto para começar?</h2>
+      <ul class="pronto-cartoes">
+        <li>
+          <span class="rotulo-secao">Explorar os dados</span>
+          <h3>Divida o orçamento em partes</h3>
+          <a href={explorer("")}>Abrir o Explorer <span aria-hidden="true">→</span></a>
+        </li>
+        <li>
+          <span class="rotulo-secao">Comparar anos</span>
+          <h3>Veja o orçamento desde 2014</h3>
+          <a href={`/explorer?ano=2014`}>Começar em 2014 <span aria-hidden="true">→</span></a>
+        </li>
+        <li>
+          <span class="rotulo-secao">Sobre os dados</span>
+          <h3>Conheça a fonte original</h3>
+          <a href="https://portaldatransparencia.gov.br/download-de-dados/orcamento-despesa">
+            Portal da Transparência <span aria-hidden="true">↗</span>
+          </a>
+        </li>
+      </ul>
+    </div>
   </section>
 </Base>
 
-<style>
-  .hero { padding: 56px 0 40px; border-bottom: 1px solid var(--border); background: var(--surface); }
-  .eyebrow { margin: 0 0 8px; color: var(--text-2); font-weight: 600; }
-  h1 { margin: 0; font-size: clamp(2.25rem, 7vw, 4rem); line-height: 1.05; letter-spacing: -0.03em; }
-  h1 .sub { display: block; font-size: 0.4em; font-weight: 500; letter-spacing: -0.01em; color: var(--text-2); margin-top: 8px; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 28px 0; max-width: 640px; }
-  .tile { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; background: var(--bg); }
-  .tile .v { font-size: 1.375rem; font-weight: 650; }
-  .cta {
-    display: inline-block; background: var(--accent); color: var(--accent-ink); text-decoration: none;
-    padding: 10px 16px; border-radius: var(--radius); font-weight: 600;
+<script>
+  // Palavras que se revezam no título (para quem não pediu menos movimento).
+  const reduzir = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const rots = [...document.querySelectorAll<HTMLElement>("[data-palavras]")];
+  const botao = document.querySelector<HTMLButtonElement>("[data-pausar]");
+  let i = 0;
+  let timer: number | undefined;
+  const passo = () => {
+    i++;
+    for (const el of rots) {
+      const lista = el.dataset.palavras!.split("|");
+      el.classList.add("saindo");
+      setTimeout(() => {
+        el.textContent = lista[i % lista.length];
+        el.classList.remove("saindo");
+      }, 250);
+    }
+  };
+  const tocar = () => { timer = window.setInterval(passo, 3200); };
+  if (reduzir || !botao) botao?.remove();
+  else {
+    tocar();
+    botao.addEventListener("click", () => {
+      const pausado = timer === undefined;
+      if (pausado) tocar(); else { clearInterval(timer); timer = undefined; }
+      botao.querySelector("span")!.textContent = pausado ? "Pausar animação do texto" : "Retomar animação do texto";
+      botao.querySelector("path")!.setAttribute("d", pausado ? "M4 3h3v10H4zM9 3h3v10H9z" : "M5 3l8 5-8 5z");
+    });
   }
-  .fases { padding-top: 40px; padding-bottom: 56px; }
-  .fases h2 { font-size: 1.25rem; margin: 0 0 16px; }
-  .fases ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-  .fases li { display: flex; gap: 12px; }
-  .fases p { margin: 4px 0 0; }
+
+  // Palavra do dia: muda a cada dia; o botão sorteia outra.
+  const caixa = document.querySelector<HTMLElement>("[data-glossario]");
+  if (caixa) {
+    const lista: [string, string][] = JSON.parse(caixa.dataset.glossario!);
+    const dia = Math.floor(Date.now() / 86_400_000);
+    let k = dia % lista.length;
+    const mostrar = () => {
+      caixa.querySelector("[data-termo]")!.textContent = lista[k][0];
+      caixa.querySelector("[data-definicao]")!.textContent = lista[k][1];
+    };
+    mostrar();
+    caixa.querySelector("[data-outra]")!.addEventListener("click", () => { k = (k + 1) % lista.length; mostrar(); });
+  }
+</script>
+
+<style>
+  /* 1. topo */
+  .hero { background: var(--hero); padding: 64px 0 40px; }
+  .hero-inner { text-align: center; }
+  .hero-titulo {
+    margin: 0 auto; max-width: 22ch; min-height: 2.24em; font-size: clamp(2.25rem, 5.6vw, 3.5rem); font-weight: 700;
+    line-height: 1.12; letter-spacing: -0.01em; color: var(--text);
+  }
+  .hero-titulo span { display: inline; }
+  .rot { transition: opacity 250ms ease; }
+  .rot.saindo { opacity: 0; }
+  .rot-a { color: var(--hero-palavra); }
+  .rot-b { color: var(--total); }
+  .hero-botoes { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 36px 0 28px; }
+  .btn {
+    display: inline-block; font-size: 1.25rem; font-weight: 600; text-decoration: none;
+    padding: 12px 22px; border-radius: 4px; border: 1px solid var(--accent);
+  }
+  .btn-cheio { background: #005ea2; border-color: #005ea2; color: #ffffff; }
+  .btn-cheio:hover { background: #1a4480; border-color: #1a4480; }
+  .btn-contorno { background: var(--surface); color: var(--link); }
+  .btn-contorno:hover { background: var(--surface-2); }
+  .hero-sub { margin: 0 auto; max-width: 56ch; font-size: 1.1875rem; color: var(--text-2); }
+  .pausar {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 20px;
+    font: inherit; font-size: 0.9375rem; font-weight: 600; color: var(--link);
+    background: none; border: 0; cursor: pointer;
+  }
+  .pausar svg { width: 14px; height: 14px; fill: currentColor; }
+  .hero-numeros {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 48px; margin-top: 40px;
+  }
+  .hero-numeros div { display: grid; }
+  .rot-num { font-size: 0.875rem; font-weight: 600; text-transform: uppercase; color: var(--text-2); letter-spacing: 0.02em; }
+  .hero-numeros strong { font-size: 1.75rem; font-weight: 600; color: var(--total); }
+
+  .mini { margin: 32px 0 0; }
+  .mini-mapa { position: relative; height: 320px; background: var(--surface); }
+  .mini-alto { display: none; height: 420px; }
+  .mini-bloco {
+    position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #ffffff; text-decoration: none; text-align: center; overflow: hidden; transition: background-color 120ms;
+  }
+  .mini-bloco.claro { color: #1b1b1b; }
+  .mini-bloco:hover, .mini-bloco:focus-visible { background: var(--destaque) !important; color: #1b1b1b; outline: none; }
+  .mini-nome { max-width: 100%; padding: 0 6px; font-size: 0.9375rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mini-pct { font-size: 0.875rem; font-weight: 700; }
+  .mini figcaption { margin-top: 10px; font-size: 0.875rem; color: var(--text-2); text-align: center; }
+
+  /* 2. atalhos */
+  .faixa-atalhos { background: #0e4f5c; color: #ffffff; padding: 40px 0 44px; }
+  .faixa-atalhos h2 { margin: 0; font-size: 1.5rem; font-weight: 600; }
+  .faixa-atalhos > .wrap > p { margin: 6px 0 22px; }
+  .atalhos {
+    list-style: none; margin: 0; padding: 0 0 6px; display: grid; gap: 16px;
+    grid-auto-flow: column; grid-auto-columns: minmax(260px, 1fr); overflow-x: auto;
+    scroll-snap-type: x mandatory;
+  }
+  .atalhos li { scroll-snap-align: start; }
+  .atalhos a {
+    display: flex; gap: 12px; height: 100%; padding: 16px 20px; border-radius: 6px;
+    background: #ffffff; color: #2e2e2e; text-decoration: none;
+  }
+  .atalhos a:hover { box-shadow: inset 0 0 0 2px var(--destaque); }
+  .atalhos svg { width: 22px; height: 22px; fill: #0e7c95; flex: none; margin-top: 1px; }
+  .atalhos strong { display: block; font-weight: 600; }
+  .atalho-texto { font-size: 0.875rem; color: #555555; }
+  .atalho-texto b { color: #2e2e2e; }
+
+  /* 3. destaque */
+  .destaque { display: grid; grid-template-columns: 2fr 1fr; gap: 40px; padding-top: 56px; padding-bottom: 56px; }
+  .rotulo-secao {
+    display: flex; align-items: center; gap: 8px; margin: 0 0 14px;
+    font-size: 0.9375rem; font-weight: 600; text-transform: uppercase; color: var(--text-2); letter-spacing: 0.02em;
+  }
+  .rotulo-secao svg { width: 16px; height: 16px; fill: var(--link); }
+  .fases { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(2, 1fr); }
+  .fases li { display: flex; gap: 14px; border: 1px solid var(--border); background: var(--surface); padding: 20px; }
+  .fases h3 { margin: 0 0 4px; font-size: 1.25rem; font-weight: 600; }
+  .fases p { margin: 0; color: var(--text-2); }
   .passo {
-    flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
-    background: var(--surface-2); font-weight: 700; font-size: 0.875rem;
+    flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+    background: #0076d6; color: #ffffff; font-weight: 700;
+  }
+  .fases-nota { margin: 16px 0 0; color: var(--text-2); }
+  .palavra { background: #205493; color: #ffffff; padding: 32px; min-height: calc(100% - 36px); display: flex; flex-direction: column; }
+  .palavra h3 { margin: 0; font-size: 1.5rem; font-weight: 600; }
+  .palavra-linha { display: block; width: 64px; height: 4px; background: #73b3e7; margin: 14px 0 18px; }
+  .palavra p { margin: 0 0 24px; font-size: 1.125rem; line-height: 1.6; flex: 1; }
+  .palavra-outra {
+    align-self: flex-start; font: inherit; font-size: 0.9375rem; font-weight: 600; color: #ffffff;
+    background: transparent; border: 1px solid #ffffff; border-radius: 4px; padding: 8px 16px; cursor: pointer;
+  }
+  .palavra-outra:hover { background: rgb(255 255 255 / 0.1); }
+
+  /* 4. explorar */
+  .explorar { border-top: 1px solid var(--border); padding: 56px 0; }
+  .explorar h2, .pronto h2 { margin: 0 0 28px; font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 600; }
+  .cartoes { list-style: none; margin: 0; padding: 0; display: grid; gap: 24px; grid-template-columns: repeat(3, 1fr); }
+  .cartoes li { border: 1px solid var(--border); background: var(--surface); padding: 28px; display: flex; flex-direction: column; }
+  .cartoes h3 { margin: 0 0 8px; font-size: 1.5rem; font-weight: 600; }
+  .cartoes p { margin: 0 0 20px; color: var(--text-2); flex: 1; }
+  .cartoes a, .pronto-cartoes a { font-weight: 600; text-decoration: none; }
+  .cartoes a:hover, .pronto-cartoes a:hover { text-decoration: underline; }
+
+  /* 5. pronto */
+  .pronto { background: #1a4480; color: #ffffff; padding: 56px 0 64px; }
+  .pronto-cartoes { list-style: none; margin: 0; padding: 0; display: grid; gap: 24px; grid-template-columns: repeat(3, 1fr); }
+  .pronto-cartoes li { background: var(--surface); color: var(--text); padding: 24px 28px; border-radius: 4px; }
+  .pronto-cartoes .rotulo-secao { font-size: 0.8125rem; margin-bottom: 6px; }
+  .pronto-cartoes h3 { margin: 0 0 16px; font-size: 1.375rem; font-weight: 600; }
+
+  @media (max-width: 900px) {
+    .destaque { grid-template-columns: 1fr; }
+    .cartoes, .pronto-cartoes { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .hero { padding-top: 40px; }
+    .btn { font-size: 1.0625rem; padding: 10px 16px; }
+    .hero-numeros strong { font-size: 1.375rem; }
+    .mini-largo { display: none; }
+    .mini-alto { display: block; }
+    .fases { grid-template-columns: 1fr; }
+    .palavra { padding: 24px; }
   }
 </style>
