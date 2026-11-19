@@ -1,0 +1,141 @@
+---
+/**
+ * Educação: o gasto da prefeitura ao lado da nota das escolas (Ideb), com a mediana das
+ * cidades do mesmo porte. Mostra os dois números juntos, sem concluir que um causa o outro.
+ */
+import { moedaCurta, pct } from "../../lib/formato";
+import { docCidades, medianaDa, porPessoa, type Cidade } from "../../lib/cidades";
+import { idebDe, type NotaIdeb } from "../../lib/indicadores";
+
+interface Props {
+  cidade: Cidade;
+  /** "de 100 a 500 mil habitantes"; null quando não há grupo de comparação. */
+  faixa: string | null;
+}
+const { cidade, faixa } = Astro.props;
+const ideb = idebDe(cidade);
+const gasto = cidade.f?.["12"]?.[0] ?? 0;
+const porHab = gasto > 0 ? gasto / cidade.pop : null;
+const medianaGasto = medianaDa(cidade, "12", docCidades);
+const total = cidade.total?.[0] ?? 0;
+
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const n = (v: number | null | undefined) => (v === null || v === undefined ? "—" : nf1.format(v));
+
+function tendencia(x: NotaIdeb | null): string | null {
+  if (!x || x.nota === null || !x.antes) return null;
+  const d = Math.round((x.nota - x.antes.nota) * 10) / 10;
+  if (d === 0) return `igual a ${x.antes.ano}`;
+  return `${d > 0 ? "subiu" : "caiu"} ${nf1.format(Math.abs(d))} desde ${x.antes.ano}`;
+}
+const frente = (v: number | null, m: number | null) => {
+  if (v === null || m === null) return null;
+  const d = Math.round((v - m) * 10) / 10;
+  return d === 0 ? "igual à mediana" : `${nf1.format(Math.abs(d))} ${d > 0 ? "acima" : "abaixo"} da mediana`;
+};
+const municipal = ideb && (ideb.mi?.nota != null || ideb.mf?.nota != null);
+const estadual = ideb && (ideb.ei?.nota != null || ideb.ef?.nota != null);
+const linhas = ideb
+  ? [
+      { rotulo: "Anos iniciais (1º ao 5º ano)", x: ideb.mi },
+      { rotulo: "Anos finais (6º ao 9º ano)", x: ideb.mf },
+    ].filter((l) => l.x && l.x.nota !== null)
+  : [];
+---
+
+{ideb && (municipal || estadual) && (
+  <section class="resultado">
+    <div class="texto">
+      <span class="sobretitulo verde">Gasto e resultado</span>
+      <h2>Educação: quanto se gasta e que nota as escolas tiram</h2>
+      {porHab !== null && (
+        <p>
+          Em {cidade.ano}, a prefeitura gastou <strong>{porPessoa(porHab)} por habitante</strong> em educação
+          ({moedaCurta(gasto)}{total > 0 && <>, {pct(gasto / total)} de tudo o que gastou</>}).
+          {medianaGasto !== null && faixa && <> A mediana das cidades {faixa} é {porPessoa(medianaGasto)}.</>}
+        </p>
+      )}
+      {municipal ? (
+        <p>
+          No Ideb de {ideb.edicao}, as escolas da prefeitura tiveram{" "}
+          {ideb.mi?.nota != null && <><strong>{n(ideb.mi.nota)}</strong> nos anos iniciais</>}
+          {ideb.mi?.nota != null && ideb.mf?.nota != null && " e "}
+          {ideb.mf?.nota != null && <><strong>{n(ideb.mf.nota)}</strong> nos anos finais</>}, numa escala de 0 a 10.
+        </p>
+      ) : (
+        <p>As escolas da prefeitura não tiveram nota no Ideb de {ideb.edicao} (poucos alunos avaliados ou rede sem essas séries).</p>
+      )}
+      <p class="menor">
+        O Ideb junta a nota dos alunos numa prova nacional com a taxa de aprovação. Os dois números aparecem lado a lado
+        para você comparar; um não explica o outro sozinho: cidades com alunos mais pobres ou mais espalhados precisam
+        gastar mais para chegar à mesma nota. O gasto é por habitante, não por aluno.
+      </p>
+    </div>
+    <div class="dados">
+      {linhas.length > 0 && (
+        <div class="tabela" role="table" aria-label={`Ideb da rede municipal em ${ideb.edicao}`}>
+          <div class="linha cab" role="row">
+            <span role="columnheader">Rede municipal · Ideb {ideb.edicao}</span>
+            <span role="columnheader" class="d">Aqui</span>
+            <span role="columnheader" class="d">Parecidas</span>
+          </div>
+          {linhas.map(({ rotulo, x }) => (
+            <div class="linha" role="row">
+              <span role="cell" class="nome">
+                {rotulo}
+                <small>{[tendencia(x!), frente(x!.nota, x!.mediana)].filter(Boolean).join(" · ")}</small>
+              </span>
+              <strong role="cell" class="d num">{n(x!.nota)}</strong>
+              <span role="cell" class="d num muted">{n(x!.mediana)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {linhas[0] && linhas[0].x!.historico.length > 2 && (
+        <p class="serie">
+          <span>{linhas[0].rotulo.split(" (")[0]}, ano a ano:</span>{" "}
+          {linhas[0].x!.historico.slice(-6).map(([ano, v]) => `${ano}: ${n(v)}`).join(" · ")}
+        </p>
+      )}
+      {estadual && (
+        <p class="estadual">
+          <strong>Escolas estaduais na cidade</strong> (responsabilidade do governo do estado):{" "}
+          {[
+            ideb.ei?.nota != null ? `${n(ideb.ei.nota)} nos anos iniciais` : null,
+            ideb.ef?.nota != null ? `${n(ideb.ef.nota)} nos anos finais` : null,
+          ].filter(Boolean).join(" e ")}.
+        </p>
+      )}
+      <p class="fonte">Fonte: {ideb.fonte}, edição de {ideb.edicao}. "Parecidas" é a mediana da rede municipal nas cidades {faixa ?? "do mesmo porte"}.</p>
+    </div>
+  </section>
+)}
+
+<style>
+  .resultado { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; min-width: 0; align-self: center; }
+  .tabela { display: flex; flex-direction: column; }
+  .linha { display: grid; grid-template-columns: minmax(0, 1fr) 80px 90px; gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--regra-leve); }
+  .cab { font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 0; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--tinta); }
+  .d { text-align: right; }
+  .nome { font-weight: 600; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .nome small { font-size: 13px; font-weight: 400; color: var(--texto-3); }
+  .linha strong { font-family: var(--serifa); font-size: 28px; }
+  .serie, .estadual, .fonte { margin: 0; font-size: 14px; line-height: 1.5; color: var(--texto-2); }
+  .serie span { color: var(--texto-3); }
+  .fonte { font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .resultado { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+  }
+  @media (max-width: 640px) {
+    .linha { grid-template-columns: minmax(0, 1fr) 56px 70px; gap: 10px; }
+    .linha strong { font-size: 24px; }
+  }
+</style>

@@ -100,6 +100,13 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline estado-mg 2025
 
+      # Ideb por município e rede (INEP), para pôr a nota ao lado do gasto em educação.
+      # O INEP costuma recusar conexões dos servidores do GitHub: nesse caso o comando usa a
+      # cópia versionada em pipeline/referencia/ideb.json (o Ideb só muda a cada dois anos).
+      - name: Pipeline do Ideb
+        continue-on-error: true
+        run: uv run --project pipeline ideb
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

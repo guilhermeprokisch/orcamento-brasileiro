@@ -27,10 +27,18 @@ Atualizado em 19/11/2026.
 Colocar ao lado do gasto o que ele produziu. É o que transforma número em pergunta: "por que
 gastamos mais e temos menos?".
 
-- Educação: gasto por aluno ao lado da nota no Ideb. Fonte: INEP (Ideb e Censo Escolar, por
-  município) — a confirmar.
+- Educação: **feito** com o Ideb por município e rede (`uv run ideb`), ao lado do gasto por
+  habitante. Falta trocar "por habitante" por "por aluno", com as matrículas do Censo Escolar,
+  e levar a rede estadual às páginas de estado.
 - Saúde: gasto por habitante ao lado de mortalidade infantil e cobertura da atenção básica.
   Fonte: DATASUS — a confirmar.
+- Saneamento: população com água tratada e esgoto coletado. Fonte: SNIS/SINISA — a confirmar.
+- Segurança: taxa de homicídios, nas páginas de estado (polícia é responsabilidade estadual).
+  Fonte: Atlas da Violência (IPEA), a partir dos registros de óbito — a confirmar.
+- Contas: nota de capacidade de pagamento (CAPAG, do Tesouro), na seção "sobrou ou faltou".
+- Critério para entrar: existir para todas as cidades, medir resultado para a população, ser
+  dado oficial e aberto, e corresponder a um gasto que o site já mostra. Rankings de consultorias
+  e índices que só cobrem cidades grandes ficam de fora.
 - Feito quando: a página de cada cidade mostra os dois números juntos, com a mediana das
   cidades do mesmo porte.
 
