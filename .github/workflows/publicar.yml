@@ -130,6 +130,10 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline capag
 
+      - name: Pipeline da saúde (mortalidade infantil)
+        continue-on-error: true
+        run: uv run --project pipeline saude
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
