@@ -444,3 +444,54 @@ export function irMoradoresDe(c: Cidade, esfera: "mun" | "uf" = "mun"): IrMorado
   }
   return { fonte: docIrpf.fonte, ano: Number(ano), declarantes: v[0], valor: v[1], porHab: v[1] / c.pop, mediana: medianasIr.get(chave)! };
 }
+
+// ----- Para o mapa: os quatro números de "Como está a cidade", de cada cidade e estado -----
+
+export interface SituacaoDoMapa {
+  /** medida → { ano (texto), fonte, mun: ibge → valor, uf: código → valor, brasil } ; valor null = sem dado comparável */
+  [medida: string]: { ano: string; fonte: string; mun: Record<string, number | null>; uf: Record<string, number | null>; brasil: number | null };
+}
+
+/** Mortalidade infantil (por mil, 2 anos), homicídios (por 100 mil), água e esgoto na rede (fração). */
+export function situacaoParaMapa(): SituacaoDoMapa {
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  const r3 = (v: number) => Math.round(v * 1000) / 1000;
+  const out: SituacaoDoMapa = {};
+  if (docSaude) {
+    const t = (v?: [number, number]) => (v && v[0] >= NASCIDOS_MINIMO ? r1((v[1] / v[0]) * 1000) : null);
+    const br = Object.values(docSaude.uf).reduce((s, x) => [s[0] + x[0], s[1] + x[1]], [0, 0]);
+    out.mort = {
+      ano: docSaude.anos.join(" e "), fonte: docSaude.fonte,
+      mun: Object.fromEntries(Object.entries(docSaude.mun).map(([k, v]) => [k, t(v)])),
+      uf: Object.fromEntries(Object.entries(docSaude.uf).map(([k, v]) => [k, t(v)])),
+      brasil: br[0] ? r1((br[1] / br[0]) * 1000) : null,
+    };
+  }
+  const ano = docSeguranca ? Object.keys(docSeguranca.anos).sort().at(-1) : undefined;
+  const pops = ano ? docPopulacao?.anos[ano] : undefined;
+  if (docSeguranca && ano && pops) {
+    const taxa = (y: [number, number, number] | undefined, p: number) => r1((((y?.[0] ?? 0) + (y?.[1] ?? 0)) / p) * 1e5);
+    const uf: Record<string, number | null> = {}, mun: Record<string, number | null> = {};
+    let n = 0, p = 0;
+    for (const [k, pop] of Object.entries(pops)) {
+      if (k.length === 2) {
+        const y = docSeguranca.anos[ano][k];
+        uf[k] = taxa(y, pop);
+        if (y) { n += y[0] + y[1]; p += pop; }
+      } else if (docSeguranca.mun?.[ano]) mun[k] = taxa(docSeguranca.mun[ano][k], pop);
+    }
+    out.hom = { ano, fonte: docSeguranca.fonte, mun, uf, brasil: p ? r1((n / p) * 1e5) : null };
+  }
+  if (docSaneamento) {
+    for (const [medida, i] of [["agua", 1], ["esgoto", 2]] as const) {
+      const br = Object.values(docSaneamento.uf).reduce((s, x) => [s[0] + x[0], s[1] + x[i]], [0, 0]);
+      out[medida] = {
+        ano: String(docSaneamento.ano), fonte: docSaneamento.fonte,
+        mun: Object.fromEntries(Object.entries(docSaneamento.mun).map(([k, v]) => [k, v[0] ? r3(v[i] / v[0]) : null])),
+        uf: Object.fromEntries(Object.entries(docSaneamento.uf).map(([k, v]) => [k, v[0] ? r3(v[i] / v[0]) : null])),
+        brasil: br[0] ? r3(br[1] / br[0]) : null,
+      };
+    }
+  }
+  return out;
+}

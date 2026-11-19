@@ -110,6 +110,9 @@
   .perguntas button span { font-size: 12.5px; line-height: 1.45; display: none; }
   .perguntas button[aria-pressed="true"] { border-left: 3px solid var(--verde); padding-left: 10px; }
   .perguntas button[aria-pressed="true"] span { display: block; }
+  /* "Como está a cidade": mesma lista, marcada em ocre para não confundir com o dinheiro */
+  .bloco-situacao legend { color: var(--o5); }
+  .situacao button[aria-pressed="true"] { border-left-color: var(--o4); }
   .areas { display: flex; flex-wrap: wrap; gap: 6px; }
   .areas button { font: inherit; font-size: 12.5px; padding: 5px 10px; background: none; border: 1px solid var(--regra); color: var(--texto-2); cursor: pointer; }
   .areas button[aria-pressed="true"] { border-color: var(--tinta); background: var(--tinta); color: var(--papel); }
@@ -338,6 +341,21 @@
       </div>
     </fieldset>
 
+    <fieldset class="bloco-situacao">
+      <legend id="leg-situacao">Como está a cidade</legend>
+      <div class="perguntas situacao" role="group" aria-label="Como está o lugar">
+        <button type="button" id="q-mort" data-medida="mort" aria-pressed="false"><strong>Mortalidade infantil</strong>
+          <span>Bebês que morrem antes de completar 1 ano, a cada mil nascidos, somando os dois anos mais recentes, pelo lugar onde a mãe mora. Mais escuro: mais mortes. Em cinza, as cidades com menos de 100 nascimentos.</span></button>
+        <button type="button" id="q-hom" data-medida="hom" aria-pressed="false"><strong>Homicídios</strong>
+          <span>Pessoas mortas por agressão ou em ações da polícia, a cada 100 mil habitantes, no último ano com dados fechados, pelo lugar onde moravam. Nas prefeituras, só as cidades com mais de 50 mil habitantes; as outras ficam em cinza.</span></button>
+        <button type="button" id="q-agua" data-medida="agua" aria-pressed="false"><strong>Água da rede</strong>
+          <span>Parte dos moradores que recebe água da rede geral, pelo Censo 2022. Mais escuro: menos gente com água da rede.</span></button>
+        <button type="button" id="q-esgoto" data-medida="esgoto" aria-pressed="false"><strong>Esgoto na rede</strong>
+          <span>Parte dos moradores com o esgoto ligado à rede, pelo Censo 2022. Ligado à rede não quer dizer tratado. Mais escuro: menos gente com esgoto na rede.</span></button>
+      </div>
+      <p class="so-2025" id="so-situacao" hidden>Essas perguntas usam o dado mais recente de cada fonte, e não o ano escolhido em “Ano e opções”.</p>
+    </fieldset>
+
     <p class="rodape" id="rodape"></p>
   </aside>
 
@@ -357,7 +375,7 @@
       <span class="rotulo" id="leg-titulo" style="padding:0"></span>
       <div class="faixas" id="faixas"></div>
       <div class="rotulos" id="rotulos"></div>
-      <div class="sem"><i></i> sem prestação de contas</div>
+      <div class="sem"><i></i> <span id="leg-sem">sem prestação de contas</span></div>
     </div>
     </div>
     <div class="detalhe" id="detalhe" aria-live="polite"></div>
@@ -513,6 +531,11 @@
   const SO_PREFEITURAS = new Set(["fed", "imp"]);
   const COM_FLUXO = new Set(["dep", "fed", "imp"]);   // perguntas em que as linhas de dinheiro aparecem   // perguntas que só existem para cidades
   const valor = (r) => (r ? MEDIDA[estado.medida](r) : null);
+  // "Como está a cidade": números de outras fontes (DATASUS, IBGE), num arquivo próprio, baixado na primeira vez.
+  const SITUACAO = new Set(["mort", "hom", "agua", "esgoto"]);
+  let situacao = null;
+  async function carregarSituacao() { if (!situacao) situacao = await json("situacao.json").catch(() => ({})); }
+  const daSituacao = (id, m = estado.medida, esfera = estado.esfera) => situacao?.[m]?.[esfera]?.[id] ?? null;
 
   // O que sai de uma cidade em impostos. À prefeitura e à União: medido (a União pela Receita Federal,
   // no município de quem recolhe). Ao estado: estimativa a partir das cotas que o estado devolve
@@ -559,18 +582,20 @@
   }
   const fedPorMorador = (id) => { const f = fedDe(id), r = porAno[federal.ano]?.mun[id]; return f && r ? d3.sum(f) / r[I.pop] : null; };
   /** Valor da medida escolhida para um ente (a medida federal não vem das contas do ente). */
-  const valorDe = (id) => (estado.medida === "fed" ? fedPorMorador(id) : valor(base()[id]));
+  const valorDe = (id) => (SITUACAO.has(estado.medida) ? daSituacao(id) : estado.medida === "fed" ? fedPorMorador(id) : valor(base()[id]));
 
   function formatar(v, medida = estado.medida) {
     if (v === null || v === undefined) return "—";
     if (medida === "desp" || medida === "rec" || medida === "fed" || medida === "imp") return reais(v);
     if (medida === "saldo") return v >= 0 ? `sobrou ${pct1(v)}` : `faltou ${pct1(v)}`;
+    if (medida === "mort" || medida === "hom") return nf1.format(v);
     return pct(v);
   }
 
   let escala;
   function pintar() {
-    const ids = Object.keys(base());
+    const sit = SITUACAO.has(estado.medida);
+    const ids = sit ? Object.keys(situacao?.[estado.medida]?.[estado.esfera] ?? {}) : Object.keys(base());
     const vals = ids.map(valorDe).filter((v) => v !== null && Number.isFinite(v));
     let cores, rot;
     if (estado.medida === "saldo") {
@@ -579,10 +604,12 @@
       escala = d3.scaleThreshold().domain([-0.10, -0.03, 0, 0.03, 0.10]).range(cores);
       rot = ["faltou 10%+", "0", "sobrou 10%+"];
     } else {
-      cores = estado.medida === "dep" ? ocres() : estado.medida === "fed" ? azuis() : verdes();
+      // Situação: tons de ocre, mais escuro = pior (água e esgoto: pior é ter menos).
+      const menosEPior = estado.medida === "agua" || estado.medida === "esgoto";
+      cores = sit ? (menosEPior ? ocres().reverse() : ocres()) : estado.medida === "dep" ? ocres() : estado.medida === "fed" ? azuis() : verdes();
       escala = d3.scaleQuantile().domain(vals).range(cores);
       const q = [d3.min(vals), d3.median(vals), d3.max(vals)];
-      rot = vals.length ? (estado.medida === "dep" ? q.map(pct) : q.map((x) => nf0.format(x))) : ["—"];
+      rot = vals.length ? (estado.medida === "dep" || menosEPior ? q.map(pct) : sit ? q.map((x) => nf1.format(x)) : q.map((x) => nf0.format(x))) : ["—"];
     }
     const cor = (f) => { const v = valorDe(f.properties.id); return v === null || !Number.isFinite(v) ? css("--sem-dados") : escala(v); };
     pathsMun.attr("display", estado.esfera === "mun" ? null : "none").attr("fill", (f) => (estado.esfera === "mun" ? cor(f) : null));
@@ -592,7 +619,15 @@
     document.getElementById("faixas").innerHTML = cores.map((c) => `<span style="background:${c}"></span>`).join("");
     document.getElementById("rotulos").innerHTML = rot.map((t) => `<span>${t}</span>`).join("");
     const quem = estado.esfera === "mun" ? "da prefeitura" : "do governo estadual";
-    document.getElementById("leg-titulo").textContent = {
+    const s = situacao?.[estado.medida];
+    document.getElementById("leg-sem").textContent = !sit ? "sem prestação de contas"
+      : estado.medida === "mort" ? "poucos nascimentos" : estado.medida === "hom" && estado.esfera === "mun" ? "menos de 50 mil habitantes" : "sem dado";
+    document.getElementById("leg-titulo").textContent = sit ? {
+      mort: `Mortes antes de 1 ano a cada mil nascidos · ${s?.ano ?? ""}`,
+      hom: `Homicídios a cada 100 mil habitantes · ${s?.ano ?? ""}`,
+      agua: `Moradores com água da rede · Censo ${s?.ano ?? ""}`,
+      esgoto: `Moradores com esgoto na rede · Censo ${s?.ano ?? ""}`,
+    }[estado.medida] : {
       desp: `Gasto ${quem} por morador (R$)${estado.area === "total" ? "" : ", " + NOME_AREA[estado.area]}`,
       rec: `Receita ${quem} por morador (R$)`,
       saldo: "Receita menos despesa",
@@ -637,10 +672,12 @@
     document.querySelectorAll("[data-dela]").forEach((e) => (e.textContent = mun ? "da prefeitura" : "do governo estadual"));
     document.querySelectorAll("[data-doestado]").forEach((e) => (e.textContent = mun ? "do estado" : "de outras esferas"));
     document.getElementById("areas").hidden = estado.medida !== "desp" || ehParcial();
-    const fed = estado.medida === "fed", imp = estado.medida === "imp";
+    const fed = estado.medida === "fed", imp = estado.medida === "imp", sit = SITUACAO.has(estado.medida);
     document.getElementById("bloco-fluxo").hidden = !COM_FLUXO.has(estado.medida);
     mostrarBotaoAnimar();
-    for (const idc of ["ano", "ano-menos", "ano-mais", "tocar", "real"]) document.getElementById(idc).disabled = fed;
+    for (const idc of ["ano", "ano-menos", "ano-mais", "tocar", "real"]) document.getElementById(idc).disabled = fed || sit;
+    document.getElementById("so-situacao").hidden = !sit;
+    document.getElementById("leg-situacao").textContent = mun ? "Como está a cidade" : "Como está o estado";
     if (ehParcial()) document.getElementById("real").disabled = true;
     const avisoParcial = document.getElementById("so-parcial");
     avisoParcial.hidden = !ehParcial();
@@ -719,6 +756,27 @@
     const blocos = [];
     const comReceita = temReceita(r);
     const fd = mun && estado.ano === federal.ano ? fedDe(id) : null;
+
+    // "Como está a cidade": o número escolhido, a mediana, o Brasil e o gasto na área, no topo do cartão.
+    if (SITUACAO.has(q) && situacao?.[q]) {
+      const sv = situacao[q], v = daSituacao(id), todos = Object.entries(sv[estado.esfera]).filter(([k, x]) => x !== null && k !== "53").map(([, x]) => x);   // sem o DF, como nas páginas
+      const med = todos.length ? d3.median(todos) : null;
+      const titulo = { mort: "Mortalidade infantil", hom: "Homicídios", agua: "Água da rede", esgoto: "Esgoto na rede" }[q];
+      const unidade = { mort: "mortes antes de 1 ano a cada mil nascidos", hom: "homicídios a cada 100 mil habitantes", agua: "dos moradores com água da rede", esgoto: "dos moradores com esgoto na rede" }[q];
+      const quando = q === "mort" ? `Em ${sv.ano}` : q === "hom" ? `Em ${sv.ano}` : `No Censo ${sv.ano}`;
+      const comparar = mun ? (q === "hom" ? "das cidades com mais de 50 mil habitantes" : "das cidades") : "dos estados";
+      const area = { mort: ["saude", "saúde"], hom: ["seg", "segurança pública"] }[q];
+      const gasto = area && r[I[area[0]]] > 0 ? (r[I[area[0]]] / r[I.pop]) * fator() : null;
+      const ancora = { mort: "saude", hom: "seguranca", agua: "saneamento", esgoto: "saneamento" }[q];
+      const semNumero = q === "mort" ? "Poucos nascimentos para uma taxa que se possa comparar." : q === "hom" ? "Homicídios só são mostrados para cidades com mais de 50 mil habitantes." : "Sem o dado do Censo.";
+      blocos.push(bloco(titulo, formatar(v), `
+        <p class="bloco-nota">${v === null ? semNumero : `${quando}: <strong>${formatar(v)}</strong> ${unidade}.`}
+          ${med !== null ? ` Mediana ${comparar}: ${formatar(med)}.` : ""}${sv.brasil !== null ? ` Brasil: ${formatar(sv.brasil)}.` : ""}</p>
+        ${gasto !== null ? `<p class="bloco-nota">${mun ? "A prefeitura" : "O governo do estado"} gastou ${reais(gasto)} por morador em ${area[1]} em ${rotuloAno()}${q === "hom" ? (mun ? "; as polícias são do governo do estado" : "") : ""}.</p>` : ""}
+        ${q === "agua" || q === "esgoto" ? `<p class="bloco-nota">Água e esgoto costumam ser serviço de uma empresa paga pela conta de água, por isso o gasto público mostra só uma parte.</p>` : ""}
+        <p class="bloco-nota">Um número não explica o outro sozinho. <a href="${pagina}#${ancora}">Ver na página ${mun ? "da cidade" : "do estado"} →</a></p>
+        <p class="nota">Fonte: ${sv.fonte}.</p>`, true));
+    }
 
     // O que sai daqui (só cidades): impostos à prefeitura (medido), ao estado e à União (estimativas).
     const sai = mun ? saiDaqui(id) : null;
@@ -897,8 +955,11 @@
       dica.hidden = false;
       dica.style.left = `${ev.clientX - box.left}px`;
       dica.style.top = `${ev.clientY - box.top}px`;
-      const un = { desp: " por morador", rec: " por morador", saldo: " da receita", dep: " da receita vem de repasses", fed: " por morador, do governo federal", imp: " por morador, em impostos à prefeitura" }[estado.medida];
-      dica.innerHTML = r && valorDe(id) !== null ? `<b>${nome(id)[0]}</b> · ${formatar(valorDe(id))}${un}` : `<b>${nome(id)[0]}</b> · sem dados em ${estado.ano}`;
+      const un = { desp: " por morador", rec: " por morador", saldo: " da receita", dep: " da receita vem de repasses", fed: " por morador, do governo federal", imp: " por morador, em impostos à prefeitura",
+        mort: " mortes de bebês a cada mil nascidos", hom: " homicídios a cada 100 mil habitantes", agua: " dos moradores com água da rede", esgoto: " dos moradores com esgoto na rede" }[estado.medida];
+      const sit = SITUACAO.has(estado.medida);
+      dica.innerHTML = (sit || r) && valorDe(id) !== null ? `<b>${nome(id)[0]}</b> · ${formatar(valorDe(id))}${un}`
+        : `<b>${nome(id)[0]}</b> · ${sit ? "sem número comparável" : `sem dados em ${estado.ano}`}`;
     })
       .on("mouseleave", () => { dica.hidden = true; })
       .on("click", (ev, f) => selecionar(estado.sel === f.properties.id ? null : f.properties.id, estado.esfera === "uf"));
@@ -1115,6 +1176,7 @@
     if (ehParcial() && estado.medida === "imp") { if ("medida" in mudancas) estado.ano = ANO_FECHADO; else estado.medida = "desp"; }
     if (ehParcial()) { estado.area = "total"; estado.real = false; document.getElementById("real").checked = false; }
     if (estado.medida === "fed") { estado.ano = federal.ano; estado.real = false; document.getElementById("real").checked = false; await carregarAno(federal.ano); }
+    if (SITUACAO.has(estado.medida)) await carregarSituacao();
     const trocouEsfera = estado.esfera !== esferaAntes;
     if (estado.esfera === "uf" && estado.ano < 2014) estado.ano = 2014;
     doc = await carregarAno(estado.ano);
@@ -1162,7 +1224,7 @@
     if (location.hash !== h) { try { location.replace(h); } catch {} }
   }
   function lerHash() {
-    const m = location.hash.match(/^#(?:(c|e)(\d+)|(prefeituras|estados))-a(\d{4})-(desp|rec|saldo|dep|fed|imp)$/);
+    const m = location.hash.match(/^#(?:(c|e)(\d+)|(prefeituras|estados))-a(\d{4})-(desp|rec|saldo|dep|fed|imp|mort|hom|agua|esgoto)$/);
     if (!m) return null;
     const esfera = m[1] ? (m[1] === "c" ? "mun" : "uf") : m[3] === "prefeituras" ? "mun" : "uf";
     const sel = m[2] && nomes[esfera][m[2]] ? m[2] : null;
