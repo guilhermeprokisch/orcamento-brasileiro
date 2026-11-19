@@ -1,0 +1,122 @@
+---
+/**
+ * Seções comuns das páginas de cidade e de estado: destaques (saúde, educação…)
+ * com as subfunções, e a tabela de gasto por habitante em cada área com a
+ * mediana do grupo de comparação.
+ */
+import { moedaCompleta, moedaCurta, pct } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
+import { funcoesDa, porPessoa, subfuncoesDa, type Cidade, type DocCidades } from "../../lib/cidades";
+
+interface Props {
+  ente: Cidade;
+  doc: DocCidades;
+  /** "das cidades de 100 a 500 mil habitantes", "dos estados"; null quando não há comparação. */
+  grupo: string | null;
+  destaques: { cod: string; titulo: string }[];
+}
+const { ente, doc, grupo, destaques } = Astro.props;
+const emp = ente.total?.[0] ?? 0;
+const funcoes = funcoesDa(ente, doc);
+const maxBarra = Math.max(1, ...funcoes.map((f) => Math.max(f.perCapita, f.mediana ?? 0)));
+const blocos = destaques
+  .map((d) => ({ ...d, f: funcoes.find((f) => f.cod === d.cod), subs: subfuncoesDa(ente, d.cod, doc) }))
+  .filter((b) => b.f);
+---
+
+{blocos.length > 0 && (
+  <section class="destaques" style={`--colunas:${Math.min(blocos.length, 3)}`}>
+    {blocos.map(({ f, subs, titulo }) => (
+      <div class="destaque">
+        <h2>{titulo}</h2>
+        <p>
+          <strong class="num">{moedaCurta(f!.emp)}</strong> ({pct(f!.emp / emp)} do gasto),{" "}
+          {porPessoa(f!.perCapita)} por habitante.
+          {f!.mediana !== null && grupo && <> A mediana {grupo} é {porPessoa(f!.mediana)}.</>}
+        </p>
+        <ul class="subs">
+          {subs.slice(0, 6).map((s, k) => (
+            <li>
+              <span class="lb-linha"><span>{s.nome}</span><strong class="num">{moedaCurta(s.emp)}</strong></span>
+              <span class="lb-barra" style={`width:${(s.emp / Math.max(1, subs[0].emp)) * 100}%;background:${corDaRampa(Math.min(1, k / 4))}`}></span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))}
+  </section>
+)}
+
+<section class="areas">
+  <div class="areas-topo">
+    <h2>Para onde vai o dinheiro</h2>
+    <p>
+      Gasto por habitante em cada área.{" "}
+      {grupo && <span class="so-largo">O traço mostra a mediana {grupo}.</span>}
+    </p>
+  </div>
+  <div class="tabela" role="table" aria-label={`Gasto por área em ${ente.ano}`}>
+    <div class="linha cab" role="row">
+      <span role="columnheader">Área</span>
+      <span role="columnheader" class="so-largo">Por habitante</span>
+      <span role="columnheader" class="d">Por hab.</span>
+      <span role="columnheader" class="d so-largo">Mediana</span>
+      <span role="columnheader" class="d">Total</span>
+    </div>
+    {funcoes.map((f, i) => (
+      <div class="linha" role="row">
+        <span role="cell" class="nome">{f.nome}</span>
+        <span role="cell" class="trilho so-largo">
+          <span class="barra" style={`width:${(f.perCapita / maxBarra) * 100}%;background:${corDaRampa(Math.min(1, i / 8))}`}></span>
+          {f.mediana !== null && f.mediana > 0 && (
+            <span class="mediana" style={`left:${(f.mediana / maxBarra) * 100}%`} title={`Mediana: ${porPessoa(f.mediana)}`}></span>
+          )}
+        </span>
+        <span role="cell" class="d num">{porPessoa(f.perCapita)}</span>
+        <span role="cell" class="d num so-largo muted">{f.mediana === null ? "—" : porPessoa(f.mediana)}</span>
+        <span role="cell" class="d num" title={moedaCompleta(f.emp)}>{moedaCurta(f.emp)}</span>
+      </div>
+    ))}
+  </div>
+</section>
+
+<style>
+  .destaques { display: grid; grid-template-columns: repeat(var(--colunas), minmax(0, 1fr)); gap: 48px; padding: 40px 0; }
+  .destaque { display: flex; flex-direction: column; gap: 12px; }
+  .destaque h2 { font-size: 34px; }
+  .destaque p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .destaque p strong { color: var(--tinta); }
+  .subs { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .subs li { display: flex; flex-direction: column; gap: 4px; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+  .lb-linha strong { white-space: nowrap; }
+  .lb-barra { display: block; height: 8px; min-width: 2px; }
+
+  .areas { border-top: 2px solid var(--tinta); padding: 32px 0; display: flex; flex-direction: column; gap: 20px; }
+  .areas-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; flex-wrap: wrap; }
+  .areas h2 { font-size: 34px; }
+  .areas-topo p { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .tabela { display: flex; flex-direction: column; }
+  .linha {
+    display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr) 100px 100px 110px; gap: 20px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--regra-leve);
+  }
+  .cab {
+    font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 8px 0; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--tinta);
+  }
+  .d { text-align: right; }
+  .nome { font-weight: 600; min-width: 0; }
+  .trilho { position: relative; display: block; height: 14px; }
+  .barra { display: block; height: 100%; min-width: 2px; }
+  .mediana { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tinta); }
+
+  @media (max-width: 900px) {
+    .destaques { grid-template-columns: 1fr; gap: 32px; padding: 28px 0; }
+    .destaque h2, .areas h2 { font-size: 28px; line-height: 1.1; }
+  }
+  /* mesmo corte do .so-largo (global.css), que esconde as colunas extras */
+  @media (max-width: 640px) {
+    .linha { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; }
+  }
+</style>

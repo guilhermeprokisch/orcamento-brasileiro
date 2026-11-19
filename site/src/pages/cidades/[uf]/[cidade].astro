@@ -1,0 +1,148 @@
+---
+import Base from "../../../layouts/Base.astro";
+import GastoPorArea from "../../../components/gasto/GastoPorArea.astro";
+import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../../lib/formato";
+import {
+  caminhoCidade, caminhoEstado, docCidades, habitantes, medianaDa, NOMES_UF, porPessoa, type Cidade,
+} from "../../../lib/cidades";
+
+export function getStaticPaths() {
+  return (docCidades?.cidades ?? []).map((c) => {
+    const [, , uf, cidade] = caminhoCidade(c).split("/");
+    return { params: { uf, cidade }, props: { c } };
+  });
+}
+
+const { c } = Astro.props as { c: Cidade };
+const doc = docCidades!;
+const temDados = c.ano !== null && !!c.total;
+const nomeUf = NOMES_UF[c.uf] ?? c.uf;
+const ehDF = c.ibge === 53;
+const quem = ehDF ? "o Governo do Distrito Federal" : `a prefeitura de ${c.nome}`;
+
+const [emp, pago] = c.total ?? [0, 0];
+const perCapita = temDados ? emp / c.pop : 0;
+const medTotal = medianaDa(c, "total");
+const faixa = c.faixa !== undefined && !ehDF ? doc.faixas[c.faixa] : null;
+const anoAnterior = c.ano ? c.hist?.[String(c.ano - 1)] : undefined;
+const variacao = anoAnterior ? emp / anoAnterior - 1 : null;
+
+function comparar(v: number, m: number | null): string | null {
+  if (m === null || m <= 0) return null;
+  const r = v / m;
+  if (r > 1.15) return `${pct(r - 1)} acima`;
+  if (r < 0.85) return `${pct(1 - r)} abaixo`;
+  return "perto";
+}
+const compTotal = comparar(perCapita, medTotal);
+const descricao = temDados
+  ? `Quanto ${quem} gastou em ${c.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por habitante, por área (saúde, educação…).`
+  : `Gastos de ${c.nome} (${c.uf}).`;
+---
+
+<Base title={`${c.nome} (${c.uf}) · Orçamento Brasileiro`} description={descricao}>
+  <div class="wrap">
+    <nav aria-label="Caminho" class="caminho">
+      <a href="/cidades">Cidades</a><span aria-hidden="true">/</span><a href={caminhoEstado(c.uf)}>{nomeUf}</a><span aria-hidden="true">/</span><span>{c.nome}</span>
+    </nav>
+
+    <section class="cabeca">
+      <div>
+        <span class="sobretitulo">{ehDF ? "Distrito Federal" : `Município · ${nomeUf}`} · {habitantes(c.pop)}</span>
+        <h1>{c.nome}</h1>
+        {temDados ? (
+          <p>
+            Em {c.ano}, {quem} empenhou <strong class="marca">{moedaExtenso(emp)}</strong>,
+            ou <strong>{porPessoa(perCapita)} por habitante</strong>.
+            {compTotal && faixa && (
+              <> Isso fica {compTotal} da mediana das cidades {faixa} ({porPessoa(medTotal!)}).</>
+            )}
+          </p>
+        ) : (
+          <p>{quem[0].toUpperCase() + quem.slice(1)} não entregou ao Tesouro a prestação de contas anual de nenhum ano entre {doc.anos[0]} e {doc.anos.at(-1)}.</p>
+        )}
+      </div>
+    </section>
+
+    {temDados && (
+      <section class="numeros" aria-label={`Totais de ${c.ano}`}>
+        <div><span>Empenhado em {c.ano}</span><strong class="num" title={moedaCompleta(emp)}>{moedaCurta(emp)}</strong></div>
+        <div><span>Pago no ano</span><strong class="num pago" title={moedaCompleta(pago)}>{moedaCurta(pago)}</strong></div>
+        <div><span>Por habitante</span><strong class="num">{porPessoa(perCapita)}</strong></div>
+        <div>
+          <span>Em relação a {c.ano! - 1}</span>
+          <strong class="num">{variacao === null ? "—" : `${variacao >= 0 ? "+" : "−"}${pct(Math.abs(variacao))}`}</strong>
+        </div>
+      </section>
+    )}
+
+    {temDados && (
+      <GastoPorArea
+        ente={c}
+        doc={doc}
+        grupo={faixa ? `das cidades ${faixa}` : null}
+        destaques={[{ cod: "10", titulo: "Saúde" }, { cod: "12", titulo: "Educação" }]}
+      />
+    )}
+
+    <section class="unidade">
+      <h2>E a escola ou o posto de saúde do meu bairro?</h2>
+      <p>
+        A prestação de contas das prefeituras para em áreas como "Ensino Fundamental" ou "Atenção Básica". Salários,
+        merenda e contratos são pagos pela secretaria, não por escola ou posto, então o gasto de cada unidade não vem pronto.
+        Alguns pedaços existem em outras bases: o que o SUS paga a cada hospital (DATASUS, pelo código CNES) e o
+        dinheiro federal que vai direto para cada escola (PDDE). Essas bases ainda não estão neste site.
+      </p>
+      {!ehDF && (
+        <p>
+          Escolas estaduais, hospitais regionais e a polícia são do governo do estado:
+          veja <a href={caminhoEstado(c.uf)}>o gasto de {nomeUf}</a>.
+        </p>
+      )}
+    </section>
+
+    <p class="nota">
+      Fonte: Declaração de Contas Anuais (DCA, Anexo I-E) entregue por {ehDF ? "o GDF" : "a prefeitura"} ao Tesouro Nacional
+      pelo SICONFI. Os números são os declarados pelo próprio ente. Empenhado é o gasto comprometido no ano, incluindo a Câmara
+      Municipal; não inclui despesas intraorçamentárias. Mediana calculada entre as cidades do mesmo porte que entregaram a DCA de {c.ano}.
+      {ehDF && " O DF acumula funções de estado e de município e por isso não é comparado com outras cidades."}
+    </p>
+  </div>
+</Base>
+
+<style>
+  .caminho { padding: 14px 0; border-bottom: 1px solid var(--regra); font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .caminho span[aria-hidden] { color: var(--texto-4); }
+  .cabeca { padding: 40px 0 32px; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 860px; }
+  .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .cabeca p strong { color: var(--tinta); }
+
+  .numeros {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra);
+  }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 36px; font-weight: 700; white-space: nowrap; }
+  .numeros .pago { color: var(--verde); }
+
+  .unidade { border-top: 1px solid var(--regra); padding: 28px 0; max-width: 860px; display: flex; flex-direction: column; gap: 10px; }
+  .unidade h2 { font-size: 26px; }
+  .unidade p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .nota { margin: 0 0 24px; font-size: 12px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
+
+  @media (max-width: 900px) {
+    .cabeca { padding: 28px 0 24px; }
+    .cabeca h1 { font-size: 40px; }
+    .cabeca p { font-size: 17px; }
+    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(2n) { border-right: 0; }
+    .numeros div:nth-child(2n + 1) { padding-left: 0; }
+    .numeros strong { font-size: 26px; }
+  }
+</style>
