@@ -164,25 +164,8 @@
   #mapa path.uf.destino { stroke: var(--fluxo); stroke-width: 2.5; }
   .fechar { align-self: flex-start; font: inherit; font-size: 12px; font-weight: 600; padding: 3px 8px; background: none; border: 1px solid var(--regra); color: var(--texto-2); cursor: pointer; }
   .fechar:hover { border-color: var(--tinta); color: var(--tinta); }
+  .detalhe .pagina { align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--verde); text-decoration: underline; text-underline-offset: 2px; }
   .nota.forte { font-size: 12.5px; color: var(--texto-2); }
-  .rk-corpo { display: flex; flex-direction: column; gap: 10px; }
-  .rk-corpo[open] { display: flex; }
-  .rk-corpo > *:not(summary) { margin-top: 10px; }
-  .rk-corpo summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  .rk-corpo summary::-webkit-details-marker { display: none; }
-  .rk-corpo .abrir { font-size: 12px; font-weight: 600; color: var(--texto-3); white-space: nowrap; text-decoration: underline; }
-  .rk-corpo[open] .abrir { display: none; }
-  .rk-filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .rk-filtros select { font: inherit; font-size: 12.5px; padding: 5px 6px; background: var(--papel); color: var(--tinta); border: 1px solid var(--regra); max-width: 100%; }
-  .seg.mini button { font-size: 12.5px; padding: 5px 10px; }
-  .rk { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .rk li button { width: 100%; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; text-align: left; font: inherit; font-size: 13.5px; padding: 6px 0; background: none; border: 0; border-bottom: 1px solid var(--regra); color: var(--tinta); cursor: pointer; }
-  .rk li button:hover { background: var(--papel-2); }
-  .rk .pos { color: var(--texto-3); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .rk .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  .rk .nm i { font-style: normal; font-weight: 400; font-size: 12px; color: var(--texto-3); }
-  .rk em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--texto-2); white-space: nowrap; }
-  .rk .nada { padding: 8px 0; font-size: 13px; color: var(--texto-3); }
   .so-2025 { margin: 0; font-size: 12px; line-height: 1.45; color: var(--texto-3); }
   .seg button:disabled, .ano button:disabled, .tocar:disabled { opacity: .4; cursor: not-allowed; }
   .fed h3 { margin: 0 0 2px; font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--texto-2); }
@@ -265,6 +248,7 @@
     .detalhe { order: 2; position: static; width: auto; max-height: none; overflow: visible; box-shadow: none; border: 0; border-bottom: 2px solid var(--tinta); padding: 14px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
     aside { order: 3; border-right: 0; overflow: visible; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: max(24px, env(safe-area-inset-bottom, 0px)); gap: 24px; }
     .zoom { left: 12px; top: 12px; }
+    .palco .animar { left: auto; right: 12px; top: 12px; }   /* a regra geral vem depois no arquivo: o .palco ganha dela */
     .legenda { left: 8px; right: auto; top: auto; bottom: 8px; width: 210px; padding: 6px 8px; gap: 4px; }
     .guia { position: fixed; z-index: 9; }
     .serie { display: none; }
@@ -273,7 +257,9 @@
   @media (max-height: 520px) and (pointer: coarse) {
     .palco { position: relative; height: 82vh; height: 82svh; min-height: 0; }
   }
-  @media (prefers-reduced-motion: reduce) { #fluxo { display: none; } }
+  /* Liga e desliga o movimento do dinheiro; desligado, as linhas e os valores continuam no mapa. */
+  .animar { position: absolute; left: 16px; top: 130px; z-index: 2; font: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 10px; background: var(--papel); color: var(--tinta); border: 1px solid var(--tinta); cursor: pointer; }
+  .animar[aria-pressed="false"] { background: var(--tinta); color: var(--papel); }
 </style>
 </head>
 <body>
@@ -365,6 +351,7 @@
       <button type="button" id="zoom-menos" aria-label="Afastar">−</button>
       <button type="button" id="zoom-br" aria-label="Ver o Brasil inteiro">⌂</button>
     </div>
+    <button type="button" class="animar" id="animar" aria-pressed="true" hidden>❚❚ Pausar animação</button>
     <div class="dica" id="dica" hidden></div>
     <div class="legenda" aria-live="polite">
       <span class="rotulo" id="leg-titulo" style="padding:0"></span>
@@ -411,6 +398,11 @@
   const curto = (v) => v >= 1e9 ? `R$ ${nf1.format(v / 1e9)} bi` : v >= 1e6 ? `R$ ${nf1.format(v / 1e6)} mi` : `R$ ${nf0.format(v / 1e3)} mil`;
   const pct = (v) => `${nf0.format(v * 100)}%`;
   const pct1 = (v) => `${nf1.format(Math.abs(v) * 100)}%`;
+  /** O mesmo endereço das páginas /cidades/{uf}/{nome} do site (lib/cidades.ts). */
+  const slug = (t) => t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  /** "do Acre", "da Bahia", "de Goiás": a mesma tabela de lib/cidades.ts. */
+  const PREP_UF = { AC: "do", AL: "de", AM: "do", AP: "do", BA: "da", CE: "do", DF: "do", ES: "do", GO: "de", MA: "do", MG: "de", MS: "de", MT: "de", PA: "do",
+    PB: "da", PE: "de", PI: "do", PR: "do", RJ: "do", RN: "do", RO: "de", RR: "de", RS: "do", SC: "de", SE: "de", SP: "de", TO: "do" };
   const semAcento = (t) => t.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
   const BASE = document.documentElement.dataset.dados || "";   // pasta dos arquivos gerados pelo pipeline
   const json = (u) => fetch(BASE + u).then((r) => { if (!r.ok) throw new Error(`${u}: ${r.status}`); return r.json(); });
@@ -465,7 +457,7 @@
   }
   const feicao = { mun: new Map(geoMun.features.map((f) => [f.properties.id, f])), uf: new Map(geoUf.features.map((f) => [f.properties.id, f])) };
 
-  const estado = { esfera: "mun", medida: "desp", area: "total", ano: ANO_FECHADO, sel: null, fluxo: true, real: false, rk: { uf: "", porte: 0, ordem: "desc" } };
+  const estado = { esfera: "mun", medida: "desp", area: "total", ano: ANO_FECHADO, sel: null, fluxo: true, real: false };
   /** Fator que leva reais de um ano a reais de hoje (IPCA); 1 quando a correção está desligada. */
   const fator = (ano = estado.ano) => (estado.real ? ipca.fatores[ano] ?? 1 : 1);
   const ehParcial = (ano = estado.ano) => !!parcial && ano === parcial.ano;
@@ -630,6 +622,7 @@
     document.getElementById("areas").hidden = estado.medida !== "desp" || ehParcial();
     const fed = estado.medida === "fed", imp = estado.medida === "imp";
     document.getElementById("bloco-fluxo").hidden = !COM_FLUXO.has(estado.medida);
+    mostrarBotaoAnimar();
     for (const idc of ["ano", "ano-menos", "ano-mais", "tocar", "real"]) document.getElementById(idc).disabled = fed;
     if (ehParcial()) document.getElementById("real").disabled = true;
     const avisoParcial = document.getElementById("so-parcial");
@@ -690,11 +683,15 @@
   function detalhe(id) {
     const el = document.getElementById("detalhe");
     const mun = estado.esfera === "mun";
-    if (!id) { ranking(el); return; }
+    el.hidden = !id;   // sem lugar escolhido, o mapa fica sozinho
+    if (!id) { el.innerHTML = ""; return; }
     const r = base()[id];
     const [nm, uf] = nome(id);
+    // A página completa do lugar: a da cidade (prefeitura) ou a do estado (governo estadual).
+    const pagina = mun ? (uf === "DF" ? "/cidades/df/brasilia" : `/cidades/${uf.toLowerCase()}/${slug(nm)}`) : `/estados/${uf.toLowerCase()}`;
+    const linkPagina = `<a class="pagina" href="${pagina}">Ver a página completa ${mun ? `da prefeitura de ${nm}` : `do governo ${PREP_UF[uf] ?? "de"} ${nm}`} →</a>`;
     if (!r) {
-      el.innerHTML = `<button type="button" class="fechar" id="fechar">← ranking</button><span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${rotuloAno()}</span><h2>${nm}</h2><p class="nota">${ehParcial() ? `Sem o relatório de janeiro a ${parcial.ate} de ${parcial.ano} entregue ao Tesouro.` : `Sem prestação de contas ao Tesouro em ${estado.ano}.`} Tente outro ano.</p>`;
+      el.innerHTML = `<button type="button" class="fechar" id="fechar" aria-label="Fechar o cartão">✕ Fechar</button><span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${rotuloAno()}</span><h2>${nm}</h2>${linkPagina}<p class="nota">${ehParcial() ? `Sem o relatório de janeiro a ${parcial.ate} de ${parcial.ano} entregue ao Tesouro.` : `Sem prestação de contas ao Tesouro em ${estado.ano}.`} Tente outro ano.</p>`;
       return;
     }
     const pop = r[I.pop], k = fator(), q = estado.medida;
@@ -855,49 +852,13 @@
       <p class="nota"><i class="q rec"></i> receita <i class="q desp"></i> despesa, por ano, ${estado.real ? `em reais de ${ipca.base}` : "em valores da época"}.</p>`, q === "desp" || q === "rec"));
 
     el.innerHTML = `
-      <button type="button" class="fechar" id="fechar" aria-label="Fechar e voltar ao ranking">← ranking</button>
+      <button type="button" class="fechar" id="fechar" aria-label="Fechar o cartão">✕ Fechar</button>
       <span class="sub">${mun ? `Prefeitura · ${uf}` : "Governo estadual"} · ${nf0.format(pop)} moradores · ${rotuloAno()}</span>
       <h2>${nm}</h2>
+      ${linkPagina}
       ${blocos.join("")}
       <p class="nota">Contas declaradas pelo próprio ${mun ? "município" : "estado"} ao Tesouro Nacional${estado.real ? `, em reais de ${ipca.base}` : ""}. Toque num título para abrir ou fechar.</p>`;
     document.getElementById("ver-fluxo")?.addEventListener("click", () => definir({ medida: "dep" }, true));
-  }
-
-  /** Sem nada selecionado, o cartão mostra o ranking da pergunta escolhida, com filtros. */
-  function ranking(el) {
-    const mun = estado.esfera === "mun", rk = estado.rk;
-    const titulos = {
-      desp: ["Quem mais gasta por morador", "Quem menos gasta por morador"], rec: ["Quem mais recebe por morador", "Quem menos recebe por morador"],
-      saldo: ["Onde mais sobrou", "Onde mais faltou"], dep: ["Os mais dependentes de repasses", "Os menos dependentes de repasses"],
-      fed: ["Onde chega mais dinheiro federal por morador", "Onde chega menos dinheiro federal por morador"],
-      imp: ["Onde se paga mais imposto à prefeitura", "Onde se paga menos imposto à prefeitura"],
-    }[estado.medida];
-    const un = { desp: "", rec: "", saldo: " da receita", dep: " da receita", fed: "", imp: "" }[estado.medida];
-    const linhas = Object.entries(base())
-      .filter(([id, r]) => (!mun || ((!rk.uf || nomes.mun[id][1] === rk.uf) && r[I.pop] >= rk.porte)))
-      .map(([id]) => [id, valorDe(id)]).filter(([, v]) => v !== null && Number.isFinite(v))
-      .sort((a, b) => (rk.ordem === "desc" ? b[1] - a[1] : a[1] - b[1]));
-    const ufs = [...new Set(Object.values(nomes.mun).map((x) => x[1]))].sort();
-    el.innerHTML = `
-      <span class="sub">Ranking · ${mun ? "prefeituras" : "governos estaduais"} · ${rotuloAno()}</span>
-      <details class="rk-corpo"${rk.aberto ?? matchMedia("(min-width: 761px)").matches ? " open" : ""}>
-      <summary><h2>${titulos[rk.ordem === "desc" ? 0 : 1]}</h2><span class="abrir">ver a lista</span></summary>
-      <div class="rk-filtros">
-        <div class="seg mini" role="group" aria-label="Ordem">
-          <button type="button" data-ordem="desc" aria-pressed="${rk.ordem === "desc"}">Maiores</button>
-          <button type="button" data-ordem="asc" aria-pressed="${rk.ordem === "asc"}">Menores</button>
-        </div>
-        ${mun ? `<select id="rk-uf" aria-label="Estado"><option value="">Brasil inteiro</option>${ufs.map((u) => `<option${u === rk.uf ? " selected" : ""}>${u}</option>`).join("")}</select>
-        <select id="rk-porte" aria-label="Tamanho da cidade">${[[0, "Todas as cidades"], [2e4, "Mais de 20 mil hab."], [1e5, "Mais de 100 mil hab."], [5e5, "Mais de 500 mil hab."]].map(([v, t]) => `<option value="${v}"${v === rk.porte ? " selected" : ""}>${t}</option>`).join("")}</select>` : ""}
-      </div>
-      <ol class="rk">${linhas.slice(0, mun ? 12 : 27).map(([id, v], n) => `<li><button type="button" data-id="${id}"><span class="pos">${n + 1}</span><span class="nm">${nome(id)[0]}${mun ? ` <i>${nome(id)[1]}</i>` : ""}</span><em>${formatar(v)}${un}</em></button></li>`).join("") || `<li class="nada">Nenhum resultado com esses filtros.</li>`}</ol>
-      <p class="nota">${nf0.format(linhas.length)} ${mun ? "prefeituras" : "governos"} na lista. Clique num nome para ver os detalhes, ou clique direto no mapa.${mun && !rk.porte ? " Cidades muito pequenas dominam os extremos: use o filtro de tamanho." : ""}</p>
-      </details>`;
-    el.querySelector(".rk-corpo").addEventListener("toggle", (ev) => { rk.aberto = ev.target.open; });
-    el.querySelectorAll("[data-ordem]").forEach((b) => b.addEventListener("click", () => { rk.ordem = b.dataset.ordem; ranking(el); }));
-    el.querySelector("#rk-uf")?.addEventListener("change", (ev) => { rk.uf = ev.target.value; ranking(el); });
-    el.querySelector("#rk-porte")?.addEventListener("change", (ev) => { rk.porte = Number(ev.target.value); ranking(el); });
-    el.querySelectorAll(".rk button").forEach((b) => b.addEventListener("click", () => selecionar(b.dataset.id, true)));
   }
 
   document.getElementById("detalhe").addEventListener("click", (ev) => { if (ev.target.closest("#fechar")) selecionar(null); });
@@ -1044,6 +1005,15 @@
     const u = 1 - t;
     return [u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]];
   }
+  // Quem pediu ao sistema para reduzir movimento começa com a animação parada (e pode ligar no botão).
+  let animando = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const botaoAnimar = document.getElementById("animar");
+  function mostrarBotaoAnimar() {
+    botaoAnimar.hidden = !(estado.fluxo && COM_FLUXO.has(estado.medida));
+    botaoAnimar.setAttribute("aria-pressed", String(animando));
+    botaoAnimar.textContent = animando ? "❚❚ Pausar animação" : "▶ Animar o dinheiro";
+  }
+  botaoAnimar.addEventListener("click", () => { animando = !animando; mostrarBotaoAnimar(); });
   function desenhar() {
     const { width, height } = palco.getBoundingClientRect();
     ctx.clearRect(0, 0, width, height);
@@ -1059,6 +1029,7 @@
       ctx.setLineDash([]);
       ctx.globalAlpha = 1; ctx.fillStyle = css("--papel");
       for (const p of particulas) {
+        if (!animando) continue;   // parado: só as linhas, sem as bolinhas andando
         p.t += p.v; if (p.t > 1) p.t -= 1;
         const a = ponto(p.r.origem), b = ponto(p.r.destino);
         const [x, y] = quad(a, curva(a, b, p.r.lado), b, p.t);
@@ -1130,7 +1101,7 @@
   document.querySelectorAll("[data-esfera]").forEach((b) => b.addEventListener("click", () => definir({ esfera: b.dataset.esfera })));
   document.querySelectorAll("[data-medida]").forEach((b) => b.addEventListener("click", () => definir({ medida: b.dataset.medida }, true)));
   document.querySelectorAll("[data-area]").forEach((b) => b.addEventListener("click", () => definir({ area: b.dataset.area }, true)));
-  document.getElementById("cam-fluxo").addEventListener("change", (ev) => { estado.fluxo = ev.target.checked; pintar(); });
+  document.getElementById("cam-fluxo").addEventListener("change", (ev) => { estado.fluxo = ev.target.checked; pintar(); mostrarBotaoAnimar(); });
   document.getElementById("real").addEventListener("change", (ev) => definir({ real: ev.target.checked }, true));
   const campoAno = document.getElementById("ano");
   campoAno.min = ANO_MIN; campoAno.max = ANO_MAX; campoAno.value = estado.ano;
@@ -1213,7 +1184,7 @@
   const inicial = lerHash();
   await definir(inicial || {});
   if (inicial?.sel) zoomPara(feicao[inicial.esfera].get(inicial.sel));
-  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) requestAnimationFrame(desenhar);
+  requestAnimationFrame(desenhar);
   new ResizeObserver(ajustar).observe(palco);
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", pintar);
   new MutationObserver(pintar).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
