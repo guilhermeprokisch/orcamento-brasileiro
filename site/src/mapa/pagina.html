@@ -418,7 +418,7 @@
     return porAno[ano];
   }
   const areasAno = {};   // gasto por área (28 funções), carregado só quando um cartão é aberto
-  // Despesa por natureza e balanço patrimonial de cada município: {ibge: {n: [...], b: [...]}}.
+  // Despesa por natureza e balanço patrimonial de cada município e estado: {id: {n: [...], b: [...]}}.
   // n: pessoal, juros, custeio, investimentos, inversões, amortização, restos a pagar processados e não processados.
   // b: caixa, ativo financeiro, passivo financeiro, empréstimos de curto e de longo prazo, provisões de longo prazo.
   const contasAno = {};
@@ -719,8 +719,8 @@
         <p class="nota">O FUNDEB inclui dinheiro de estados e municípios redistribuído pelo fundo.${beneficiosParciais ? ` Bolsa Família e BPC são <b>estimativas</b> para o ano, a partir de ${mesesBen[8]} mês de dados.` : ""} O INSS é o valor líquido pago pelas agências da cidade: quem recebe em outra cidade conta lá. Não inclui o gasto direto de órgãos federais.</p>`, true));
     }
 
-    // Onde gasta: todas as áreas e, nas cidades, com o quê (carregados sob demanda).
-    const ct = mun ? contasAno[estado.ano]?.[id] : null;
+    // Onde gasta: todas as áreas e com o quê (carregados sob demanda).
+    const ct = contasAno[estado.ano]?.[id];
     const areas = areasAno[estado.ano]?.[estado.esfera]?.[id];
     if (!areasAno[estado.ano]) carregarAreas(estado.ano).then(() => { if (estado.sel === id) detalhe(id); });
     let corpoAreas = `<p class="nota">Carregando as áreas…</p>`;
@@ -734,12 +734,12 @@
         <p class="nota">Gasto comprometido no ano, por área.</p>`;
       if (ct?.n) {
         const n = ct.n, tot = d3.sum(n.slice(0, 6)) || 1;
-        const tipos = [["Salários e encargos dos servidores", n[0]], ["Serviços, materiais e outros custeios", n[2]], ["Obras e equipamentos (investimentos)", n[3]],
+        const tipos = [["Salários e encargos dos servidores", n[0]], [mun ? "Serviços, materiais e outros custeios" : "Serviços, materiais, repasses a municípios e outros custeios", n[2]], ["Obras e equipamentos (investimentos)", n[3]],
           ["Pagamento de dívida", n[5]], ["Juros da dívida", n[1]], ["Compra de imóveis e participações", n[4]]].filter((x) => x[1] > 0).sort((a, b) => b[1] - a[1]);
         const maiorTipo = d3.max(tipos, (x) => x[1]) || 1;
         corpoAreas += `<h4>Com o quê</h4>
           <ul class="barras">${tipos.map(([rot, v]) => `<li><span>${rot}</span><em>${curto(v * k)} · ${pct(v / tot)}</em><i style="width:${(v / maiorTipo) * 100}%;background:var(--o3)"></i></li>`).join("")}</ul>
-          <p class="nota">Aqui entram também os pagamentos entre órgãos da própria prefeitura (como a contribuição ao fundo de previdência dos servidores), por isso a soma passa um pouco do total por área.</p>`;
+          <p class="nota">Aqui entram também os pagamentos entre órgãos ${mun ? "da própria prefeitura" : "do próprio governo"} (como a contribuição ao fundo de previdência dos servidores), por isso a soma, ${curto(tot * k)}, é maior que o total por área.</p>`;
       }
     }
     blocos.push(bloco(mun ? "Onde a prefeitura gasta" : "Onde o governo estadual gasta", curto(r[I.desp] * k), corpoAreas, q === "desp"));
@@ -750,7 +750,7 @@
       // Restos a pagar declarados; em 2013 (e em quem não os declarou), empenhado menos pago.
       const restos = ct?.n ? ct.n[6] + ct.n[7] : 0;
       const semPagar = (restos > 0 ? restos : Math.max(0, r[I.desp] - r[I.pago])) * k, emprestimo = r[I.credito] * k;
-      const b = ct?.b, bAnt = mun ? contasAno[estado.ano - 1]?.[id]?.b : null;
+      const b = ct?.b, bAnt = contasAno[estado.ano - 1]?.[id]?.b;
       // Sem o ativo financeiro declarado não dá para calcular a sobra acumulada.
       const sobraAcum = b && b[1] > 0 ? (b[1] - b[2]) * k : null;
       const sobraAntes = sobraAcum !== null && bAnt && bAnt[1] > 0 ? (bAnt[1] - bAnt[2]) * fator(estado.ano - 1) : null;
@@ -762,17 +762,17 @@
         </div>
         <p class="saldo">${saldo >= 0 ? `<b>Sobrou ${curto(saldo)}</b>, ${pct1(saldo / rec)} da receita.` : `<b>Faltou ${curto(-saldo)}</b>: gastou ${pct1(saldo / rec)} a mais do que recebeu.`}</p>
         ${linhas([["Gasto que ficou sem pagar até o fim do ano", semPagar], ["Empréstimos tomados no ano (já contados na receita)", emprestimo]])}
-        ${b ? `<h4>O que a prefeitura tinha e devia em 31/12 <small>balanço</small></h4>
+        ${b ? `<h4>O que ${mun ? "a prefeitura" : "o governo"} tinha e devia em 31/12 <small>balanço</small></h4>
           <ul class="linhas">
             <li><span>Dinheiro em caixa</span><em>${curto(b[0] * k)}</em></li>
-            ${sobraAcum !== null ? `<li><span>${sobraAcum >= 0 ? "Sobra acumulada" : "Falta acumulada"} (caixa menos contas de curto prazo)</span><em>${sinal(sobraAcum)}</em></li>` : ""}
+            ${sobraAcum !== null ? `<li><span>${sobraAcum >= 0 ? "Sobra acumulada" : "Falta acumulada"} (dinheiro e aplicações menos contas de curto prazo)</span><em>${sinal(sobraAcum)}</em></li>` : ""}
             ${sobraAntes !== null ? `<li><span>A mesma conta um ano antes</span><em>${sinal(sobraAntes)}</em></li>` : ""}
             ${b[3] + b[4] > 0 ? `<li><span>Dívida com empréstimos e financiamentos</span><em>${curto((b[3] + b[4]) * k)}</em></li>` : ""}
             ${b[5] > 0 ? `<li><span>Compromissos de longo prazo (em geral, aposentadorias futuras dos servidores)</span><em>${curto(b[5] * k)}</em></li>` : ""}
           </ul>` : ""}
         <p class="nota">${saldo < 0
           ? `Quem gasta mais do que recebe cobre a diferença com a sobra acumulada de anos anteriores${sobraAntes !== null ? ` (aqui, ${sinal(sobraAntes)} no começo do ano)` : ""} ou deixando contas para o ano seguinte${semPagar > 0 ? ` (${curto(semPagar)} ficaram sem pagar)` : ""}.`
-          : "A sobra do ano é receita menos gasto comprometido. O que estava em caixa e as dívidas aparecem no balanço acima, quando a prefeitura o entregou."}</p>`, q === "saldo"));
+          : "A sobra do ano é receita menos gasto comprometido. O que estava em caixa e as dívidas aparecem no balanço acima, quando ele foi entregue."}</p>`, q === "saldo"));
     }
 
     // Comparação com parecidas e série histórica.

@@ -1,6 +1,7 @@
 """Leva e traz o cache do SICONFI por um release do GitHub.
 
     uv run semente publicar    # sobe data/raw/siconfi/dca-*/ para o release (precisa de permissão de escrita)
+    uv run semente publicar dca-id dca-iab    # só os anexos que mudaram
     uv run semente aplicar     # baixa o release e junta ao cache local o que falta
 
 Os arquivos do FINBRA são baixados à mão (o site tem captcha; ver finbra.py), então o
@@ -45,10 +46,10 @@ def _gh(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["gh", *args], capture_output=True, text=True)
 
 
-def publicar() -> None:
-    anexos = [p for p in sorted(c.PASTA_BRUTO.glob("dca-*")) if p.is_dir() and any(p.glob("*.json.gz"))]
-    if not anexos:
-        raise SystemExit(f"nada para publicar em {c.PASTA_BRUTO}")
+def publicar(so: list[str] | None = None) -> None:
+    anexos = [p for p in sorted(c.PASTA_BRUTO.glob("dca-*")) if p.is_dir() and any(p.glob("*.json.gz")) and (not so or p.name in so)]
+    if not anexos or (so and len(anexos) != len(set(so))):
+        raise SystemExit(f"nada para publicar em {c.PASTA_BRUTO}" if not so else f"anexo não encontrado entre {so}")
     with tempfile.TemporaryDirectory() as tmp:
         pacotes = []
         for pasta in anexos:
@@ -123,8 +124,9 @@ def aplicar() -> None:
 def main() -> None:
     p = argparse.ArgumentParser(prog="semente", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("acao", choices=["publicar", "aplicar"])
+    p.add_argument("anexos", nargs="*", help="só para publicar: pastas do cache a enviar (padrão: todas)")
     args = p.parse_args()
-    publicar() if args.acao == "publicar" else aplicar()
+    publicar(args.anexos) if args.acao == "publicar" else aplicar()
 
 
 if __name__ == "__main__":

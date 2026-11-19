@@ -6,7 +6,27 @@ achadas pelo nome: os códigos têm um zero a mais ou a menos conforme o ano.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from .cidades import COL_EMPENHADO, _so_letras
+
+# Pasta do cache -> (nome do anexo na API, quantos níveis do plano de contas guardar).
+# Só os níveis de cima são usados: guardar tudo multiplicaria o cache dos municípios por dez.
+ANEXOS = {"dca-id": ("DCA-Anexo I-D", 2), "dca-iab": ("DCA-Anexo I-AB", 3)}
+CAMPOS_CACHE = ("coluna", "conta", "cod_conta", "valor", "populacao")
+
+
+def niveis(conta: str | None) -> int:
+    """Quantos níveis do código estão preenchidos: "3.1.00.00.00 - Pessoal" -> 2. Sem código -> 0."""
+    cod = (conta or "").split(" ")[0]
+    return len([p for p in cod.split(".") if p.strip("0")]) if cod[:1].isdigit() else 0
+
+
+def filtro(pasta: str) -> Callable[[list[dict]], list[dict]]:
+    """O que vai para o cache de um anexo: só os campos usados e, nestes anexos, os níveis de cima."""
+    limite = ANEXOS[pasta][1] if pasta in ANEXOS else None
+    return lambda itens: [{k: i.get(k) for k in CAMPOS_CACHE} for i in itens
+                          if limite is None or niveis(i.get("conta")) <= limite]
 
 # Ordem dos valores devolvidos (e gravados em site/public/data/mapa/contas/{ano}.json).
 NATUREZA = ["pessoal", "juros", "custeio", "investimentos", "inversoes", "amortizacao",

@@ -11,8 +11,8 @@ no mesmo cache.
 Saídas em site/public/data/mapa/:
 - anos/{ano}.json   {"mun": {ibge: registro}, "uf": {id: registro}}
 - areas/{ano}.json  gasto por função (28 áreas) de cada ente
-- contas/{ano}.json despesa por natureza e balanço patrimonial de cada município
-                    ({ibge: {"n": contas.NATUREZA, "b": contas.BALANCO}}), dos anexos I-D e I-AB
+- contas/{ano}.json despesa por natureza e balanço patrimonial de cada município e estado
+                    ({id: {"n": contas.NATUREZA, "b": contas.BALANCO}}), dos anexos I-D e I-AB
 - nomes.json        nomes de municípios, estados e áreas
 - serie.json        despesa e receita de cada ente em todos os anos
 - ipca.json         fatores para corrigir pela inflação
@@ -36,7 +36,7 @@ from pathlib import Path
 
 from . import cidades as c
 from .fontes import CONTEXTO_TLS, USER_AGENT, baixar_ipca
-from .contas import balanco, natureza
+from .contas import ANEXOS as ANEXOS_CONTAS, balanco, filtro as filtro_contas, natureza
 from .receitas import receita
 from .transformar import fatores_ipca
 
@@ -153,10 +153,14 @@ def main() -> None:
     for n, ano in enumerate(anos):
         despesa = c.CacheAno(ano)
         receitas = c.CacheAno(ano, anexo="dca-ic", filtro=filtro_receita)
-        if ano >= c.PRIMEIRO_ANO:  # receitas dos estados: API
-            for uf in nomes["uf"]:
-                c.baixar_dca(receitas, ano, int(uf), anexo=ANEXO_RECEITA)
-            receitas.salvar()
+        # Despesa por natureza e balanço patrimonial (municípios: arquivos do FINBRA).
+        por_natureza = c.CacheAno(ano, anexo="dca-id", filtro=filtro_contas("dca-id"))
+        patrimonio = c.CacheAno(ano, anexo="dca-iab", filtro=filtro_contas("dca-iab"))
+        if ano >= c.PRIMEIRO_ANO:  # estados: receitas, natureza e balanço vêm da API
+            for cache, anexo in ((receitas, ANEXO_RECEITA), (por_natureza, ANEXOS_CONTAS["dca-id"][0]), (patrimonio, ANEXOS_CONTAS["dca-iab"][0])):
+                for uf in nomes["uf"]:
+                    c.baixar_dca(cache, ano, int(uf), anexo=anexo)
+                cache.salvar()
         doc: dict = {"mun": {}, "uf": {}}
         areas: dict = {"mun": {}, "uf": {}}
         for esfera in ("mun", "uf"):
@@ -173,11 +177,8 @@ def main() -> None:
                 s[1][n] = r[6] if len(r) > 6 else None
         (SAIDA / "anos" / f"{ano}.json").write_text(json.dumps(doc, separators=(",", ":")))
         (SAIDA / "areas" / f"{ano}.json").write_text(json.dumps(areas, separators=(",", ":")))
-        # Despesa por natureza e balanço patrimonial (só municípios; vêm dos arquivos do FINBRA).
-        por_natureza = c.CacheAno(ano, anexo="dca-id", filtro=filtro_receita)
-        patrimonio = c.CacheAno(ano, anexo="dca-iab", filtro=filtro_receita)
         contas: dict = {}
-        for ibge in doc["mun"]:
+        for ibge in [*doc["mun"], *doc["uf"]]:
             n = natureza(por_natureza.obter(int(ibge)) or [])
             b = balanco(patrimonio.obter(int(ibge)) or [])
             if n or b:
@@ -185,7 +186,8 @@ def main() -> None:
         (SAIDA / "contas" / f"{ano}.json").write_text(json.dumps(contas, separators=(",", ":")))
         print(f"{ano}: {len(doc['mun'])} municípios ({sum(1 for r in doc['mun'].values() if len(r) > 6)} com receita), "
               f"{len(doc['uf'])} estados ({sum(1 for r in doc['uf'].values() if len(r) > 6)} com receita); "
-              f"natureza {sum(1 for x in contas.values() if 'n' in x)}, balanço {sum(1 for x in contas.values() if 'b' in x)}", flush=True)
+              f"natureza {sum(1 for x in contas.values() if 'n' in x)}, balanço {sum(1 for x in contas.values() if 'b' in x)} "
+              f"(estados: {sum(1 for k, x in contas.items() if len(k) == 2 and 'n' in x)} e {sum(1 for k, x in contas.items() if len(k) == 2 and 'b' in x)})", flush=True)
 
     nomes["areas"] = dict(sorted(nomes["areas"].items()))
     (SAIDA / "nomes.json").write_text(json.dumps(nomes, ensure_ascii=False, separators=(",", ":")))
