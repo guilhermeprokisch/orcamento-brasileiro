@@ -1226,7 +1226,11 @@
     semear();
   }
   function semear() {
-    particulas = [];
+    // As moedas: poucas por linha (mais quando o valor é maior), espaçadas por igual.
+    particulas = rotas.filter((r) => !r.semParticula).flatMap((r) => {
+      const n = 1 + Math.round(r.peso * (r.fina ? 1 : 4));
+      return d3.range(n).map((i) => ({ r, t: (i + Math.random() * 0.4) / n, v: r.fina ? 0.0016 : 0.0022 }));
+    });
     for (const r of rotas) r.c = css(r.cor);
     // No retrato geral são 26 linhas: só as cinco maiores levam etiqueta, perto do estado.
     const gerais = rotas.filter((r) => r.uf).sort((a, b) => b.valor - a.valor);
@@ -1253,7 +1257,6 @@
     const { width, height } = palco.getBoundingClientRect();
     ctx.clearRect(0, 0, width, height);
     if (estado.fluxo && COM_FLUXO.has(estado.medida) && rotas.length) {
-      const agora = performance.now() / 1000;
       ctx.lineCap = "butt";
       for (const r of rotas) {
         const a = ponto(r.origem), b = ponto(r.destino), c = curva(a, b, r.lado);
@@ -1261,9 +1264,7 @@
         const traco = () => { ctx.beginPath(); ctx.moveTo(...a); ctx.quadraticCurveTo(...c, ...b); ctx.stroke(); };
         const forca = r.uf ? 0.22 + 0.78 * r.peso : 1;   // no retrato geral, as linhas pequenas recuam para as grandes aparecerem
         ctx.strokeStyle = r.c; ctx.lineWidth = larg;
-        ctx.setLineDash([]); ctx.globalAlpha = 0.16 * forca; traco();               // o leito: uma faixa clara
-        ctx.setLineDash(r.tracejada ? [3, 8] : [11, 9]); ctx.lineDashOffset = -agora * (r.fina ? 14 : 22);
-        ctx.globalAlpha = (r.tracejada ? 0.6 : 0.9) * forca; traco();                 // a corrente: traços andando para o destino
+        ctx.setLineDash(r.tracejada ? [5, 5] : []); ctx.globalAlpha = 0.3 * forca; traco();   // o caminho: uma faixa clara (tracejada se for estimativa)
         if (!r.fina) {                                                                // a seta, na chegada
           const ang = Math.atan2(b[1] - c[1], b[0] - c[0]), t = 4 + larg * 1.1;
           ctx.setLineDash([]); ctx.globalAlpha = 0.95 * forca; ctx.fillStyle = r.c;
@@ -1273,6 +1274,21 @@
           ctx.closePath(); ctx.fill();
         }
       }
+      // O dinheiro: moedas que andam pelo caminho, na cor dele (borda tracejada quando é estimativa).
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      const papel = css("--papel");
+      for (const p of particulas) {
+        p.t += p.v; if (p.t > 1) p.t -= 1;
+        const a = ponto(p.r.origem), b = ponto(p.r.destino), [x, y] = quad(a, curva(a, b, p.r.lado), b, p.t);
+        const raio = p.r.fina ? 5 : 7.5;
+        ctx.globalAlpha = Math.min(1, p.t * 10, (1 - p.t) * 10) * (p.r.uf ? 0.4 + 0.6 * p.r.peso : 1);   // nasce e some nas pontas
+        ctx.beginPath(); ctx.arc(x, y, raio, 0, Math.PI * 2);
+        ctx.fillStyle = papel; ctx.fill();
+        ctx.setLineDash(p.r.tracejada ? [2.5, 2.5] : []); ctx.strokeStyle = p.r.c; ctx.lineWidth = 1.6; ctx.stroke();
+        ctx.setLineDash([]); ctx.fillStyle = p.r.c; ctx.font = `700 ${raio * 1.4}px Inter, system-ui, sans-serif`;
+        ctx.fillText("$", x, y + 0.5);
+      }
+      ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
       ctx.setLineDash([]); ctx.lineDashOffset = 0; ctx.globalAlpha = 1;
       ctx.font = "600 11px Inter, system-ui, sans-serif";
       const bsb = ponto(centroCapital.DF);
