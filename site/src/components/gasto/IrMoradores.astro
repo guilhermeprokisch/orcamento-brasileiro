@@ -10,13 +10,16 @@ import { irMoradoresDe } from "../../lib/indicadores";
 
 interface Props {
   cidade: Cidade;
+  /** "mun" (padrão) ou "uf", para um estado: soma das cidades */
+  esfera?: "mun" | "uf";
   /** "de Fortaleza", "do Distrito Federal" */
   deOnde: string;
   /** "das cidades de 100 a 500 mil habitantes"; null sem comparação */
   grupo: string | null;
 }
-const { cidade: c, deOnde, grupo } = Astro.props;
-const ir = irMoradoresDe(c);
+const { cidade: c, deOnde, grupo, esfera = "mun" } = Astro.props;
+const ir = irMoradoresDe(c, esfera);
+const comparaveis = esfera === "uf" ? "Mediana dos estados" : "Cidades parecidas";
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const frente = ir && ir.mediana ? ir.porHab / ir.mediana - 1 : null;
 ---
@@ -31,20 +34,29 @@ const frente = ir && ir.mediana ? ir.porHab / ir.mediana - 1 : null;
         <strong>{moedaExtenso(ir.valor)}</strong> à União, ou <strong>{porPessoa(ir.porHab)} por habitante</strong>.
         {ir.mediana !== null && grupo && <> A mediana {grupo} é {porPessoa(ir.mediana)}{frente !== null && Math.abs(frente) >= 0.1 && <> ({nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"})</>}.</>}
       </p>
-      <p class="menor">
-        É o imposto descontado do salário mais o pago na declaração, menos o que voltou na restituição, contado pela cidade
-        onde a pessoa mora, onde quer que ela trabalhe. A arrecadação federal que a Receita registra em cada cidade conta o
-        imposto onde fica a empresa que o recolheu. Por isso, numa cidade onde muita gente trabalha fora, este número é bem
-        maior que o imposto de renda registrado nela. Não inclui INSS nem impostos embutidos nas compras.
-      </p>
+      {esfera === "uf" ? (
+        <p class="menor">
+          É o imposto descontado do salário mais o pago na declaração, menos o que voltou na restituição, somando as
+          declarações de quem mora em cada cidade do estado. A arrecadação federal que a Receita registra em cada estado
+          conta o imposto onde fica a sede da empresa que o recolheu, e por isso os estados com sedes de grandes empresas,
+          como São Paulo e o Distrito Federal, aparecem lá bem mais altos. Não inclui INSS nem impostos embutidos nas compras.
+        </p>
+      ) : (
+        <p class="menor">
+          É o imposto descontado do salário mais o pago na declaração, menos o que voltou na restituição, contado pela cidade
+          onde a pessoa mora, onde quer que ela trabalhe. A arrecadação federal que a Receita registra em cada cidade conta o
+          imposto onde fica a empresa que o recolheu. Por isso, numa cidade onde muita gente trabalha fora, este número é bem
+          maior que o imposto de renda registrado nela. Não inclui INSS nem impostos embutidos nas compras.
+        </p>
+      )}
     </div>
     <div class="numeros-ir">
       <p class="unidade">Imposto de renda dos moradores, {ir.ano}</p>
       <div><span>Total</span><strong class="num">{moedaCurta(ir.valor)}</strong></div>
       <div><span>Por habitante</span><strong class="num">{porPessoa(ir.porHab)}</strong></div>
-      {ir.mediana !== null && grupo && <div><span>Cidades parecidas</span><strong class="num muted">{porPessoa(ir.mediana)}</strong></div>}
+      {ir.mediana !== null && grupo && <div><span>{comparaveis}</span><strong class="num muted">{porPessoa(ir.mediana)}</strong></div>}
     </div>
-    <p class="fonte">Fonte: {ir.fonte}, ano-calendário {ir.ano}.</p>
+    <p class="fonte">Fonte: {ir.fonte}, ano-calendário {ir.ano}{esfera === "uf" && ", somando as cidades do estado"}.</p>
   </section>
 )}
 
