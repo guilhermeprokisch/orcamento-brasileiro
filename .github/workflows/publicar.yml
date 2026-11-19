@@ -100,6 +100,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline estado-mg 2025
 
+      # Ideb por município e rede (INEP), para pôr a nota ao lado do gasto em educação.
+      # São dois zips de ~25 MB, guardados no cache de data/raw. Se falhar, a seção não aparece.
+      - name: Pipeline do Ideb
+        continue-on-error: true
+        run: uv run --project pipeline ideb
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

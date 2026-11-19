@@ -14,6 +14,24 @@ import certifi
 # por sites do governo (ex.: GlobalSign Root R46 no SIOP).
 CONTEXTO_TLS = ssl.create_default_context(cafile=certifi.where())
 
+
+def contexto_tls_com_intermediario(url_do_certificado: str) -> ssl.SSLContext:
+    """Contexto TLS para um servidor que não envia a cadeia de certificados completa.
+
+    Alguns sites do governo (o de downloads do INEP, por exemplo) entregam só o próprio
+    certificado, sem o da autoridade intermediária, e a verificação falha. Em vez de
+    desligar a verificação, este contexto recebe o intermediário que a própria autoridade
+    publica. Ele só é aceito se fechar a cadeia até uma raiz confiável: por isso a opção de
+    "cadeia parcial" fica desligada, e não importa que o download dele seja por HTTP.
+    """
+    with urllib.request.urlopen(url_do_certificado, timeout=60) as resp:
+        pem = ssl.DER_cert_to_PEM_cert(resp.read())
+    ctx = ssl.create_default_context(cafile=certifi.where())
+    if hasattr(ssl, "VERIFY_X509_PARTIAL_CHAIN"):
+        ctx.verify_flags &= ~ssl.VERIFY_X509_PARTIAL_CHAIN
+    ctx.load_verify_locations(cadata=pem)
+    return ctx
+
 # Orçamento da despesa: um zip por exercício (2014 em diante), com um CSV
 # em latin-1, separado por ";", no nível órgão × UO × função × programa × ação × elemento.
 URL_ORCAMENTO_DESPESA = (

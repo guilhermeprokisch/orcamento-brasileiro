@@ -3,6 +3,7 @@ import Base from "../../../layouts/Base.astro";
 import GastoPorArea from "../../../components/gasto/GastoPorArea.astro";
 import ReceitaESaldo from "../../../components/gasto/ReceitaESaldo.astro";
 import GastoEstadualAqui from "../../../components/gasto/GastoEstadualAqui.astro";
+import EducacaoResultado from "../../../components/gasto/EducacaoResultado.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../../lib/formato";
 import {
   caminhoCidade, caminhoEstado, docCidades, habitantes, medianaDa, NOMES_UF, porPessoa, type Cidade,
@@ -25,7 +26,9 @@ const quem = ehDF ? "o Governo do Distrito Federal" : `a prefeitura de ${c.nome}
 const [emp, pago] = c.total ?? [0, 0];
 const perCapita = temDados ? emp / c.pop : 0;
 const medTotal = medianaDa(c, "total");
-const faixa = c.faixa !== undefined && !ehDF ? doc.faixas[c.faixa] : null;
+// "cidades de 5 a 10 mil habitantes", mas "cidades com até 5 mil" e "cidades com mais de 500 mil".
+const rotuloFaixa = c.faixa !== undefined && !ehDF ? doc.faixas[c.faixa] : null;
+const faixa = rotuloFaixa && /^(até|mais)\b/.test(rotuloFaixa) ? `com ${rotuloFaixa}` : rotuloFaixa;
 const anoAnterior = c.ano ? c.hist?.[String(c.ano - 1)] : undefined;
 const variacao = anoAnterior ? emp / anoAnterior - 1 : null;
 
@@ -86,6 +89,8 @@ const descricao = temDados
         destaques={[{ cod: "10", titulo: "Saúde" }, { cod: "12", titulo: "Educação" }]}
       />
     )}
+
+    {temDados && !ehDF && <EducacaoResultado cidade={c} faixa={faixa} />}
 
     {temDados && <ReceitaESaldo ente={c} esfera="mun" quem={quem} onde={ehDF ? "no Distrito Federal" : `em ${c.nome}`} />}
 
