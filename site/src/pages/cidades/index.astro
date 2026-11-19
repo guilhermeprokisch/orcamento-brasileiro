@@ -1,0 +1,150 @@
+---
+import Base from "../../layouts/Base.astro";
+import { moedaCurta } from "../../lib/formato";
+import { caminhoCidade, docCidades, porPessoa } from "../../lib/cidades";
+
+const doc = docCidades;
+const capitais = (doc?.cidades ?? [])
+  .filter((c) => c.capital && c.total)
+  .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+const comDados = (doc?.cidades ?? []).filter((c) => c.ano !== null).length;
+const ultimoAno = doc?.anos.at(-1);
+---
+
+<Base title="Cidades · Orçamento Brasileiro" description="Quanto a prefeitura da sua cidade gastou em saúde, educação e outras áreas, por habitante.">
+  <div class="wrap">
+    <section class="topo-lista">
+      <div>
+        <span class="sobretitulo verde">Novo · protótipo</span>
+        <h1>Quanto a sua cidade gasta</h1>
+        <p>
+          O gasto de cada prefeitura por área, por habitante, comparado com cidades do mesmo tamanho.
+          {doc && <> {comDados.toLocaleString("pt-BR")} das {doc.cidades.length.toLocaleString("pt-BR")} cidades (5.570 municípios e o DF) entregaram as contas de {ultimoAno} ou {ultimoAno! - 1}.</>}
+          {" "}Veja também <a href="/estados">o gasto dos estados</a>.
+        </p>
+      </div>
+      <label class="filtro">Procure sua cidade
+        <input type="search" placeholder="Ex.: Campinas, Juazeiro BA" data-busca autocomplete="off" />
+      </label>
+    </section>
+
+    <ul class="resultados" data-resultados hidden></ul>
+    <p class="vazio" data-vazio hidden>Nenhuma cidade com esse nome.</p>
+
+    <section class="capitais" data-capitais>
+      <h2>Capitais</h2>
+      <div class="tabela" role="table" aria-label="Capitais">
+        <div class="linha cab" role="row">
+          <span role="columnheader">Cidade</span>
+          <span role="columnheader" class="d">Por habitante</span>
+          <span role="columnheader" class="d">Saúde/hab.</span>
+          <span role="columnheader" class="d so-largo">Educação/hab.</span>
+          <span role="columnheader" class="d so-largo">Total</span>
+        </div>
+        {capitais.map((c) => (
+          <a href={caminhoCidade(c)} class="linha" role="row">
+            <span role="cell" class="nome">{c.nome}{c.ibge === 53 && "*"} <span class="muted">{c.uf}</span></span>
+            <span role="cell" class="d num">{porPessoa(c.total![0] / c.pop)}</span>
+            <span role="cell" class="d num">{porPessoa((c.f?.["10"]?.[0] ?? 0) / c.pop)}</span>
+            <span role="cell" class="d num so-largo">{porPessoa((c.f?.["12"]?.[0] ?? 0) / c.pop)}</span>
+            <span role="cell" class="d num so-largo">{moedaCurta(c.total![0])} <span class="muted">({c.ano})</span></span>
+          </a>
+        ))}
+      </div>
+    </section>
+    <p class="nota">
+      Fonte: SICONFI/Tesouro Nacional, Declaração de Contas Anuais (DCA). Valores empenhados no ano, declarados pelas prefeituras.
+      * O Distrito Federal acumula funções de estado e de município.
+    </p>
+  </div>
+</Base>
+
+<script>
+  type Item = [string, string, string, number];
+  const campo = document.querySelector<HTMLInputElement>("[data-busca]")!;
+  const lista = document.querySelector<HTMLUListElement>("[data-resultados]")!;
+  const vazio = document.querySelector<HTMLElement>("[data-vazio]")!;
+  const capitais = document.querySelector<HTMLElement>("[data-capitais]")!;
+  const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
+  let itens: (Item & { chave?: string })[] | null = null;
+  let carregando: Promise<void> | null = null;
+  const carregar = () =>
+    (carregando ??= fetch("/cidades/lista.json").then((r) => r.json()).then((d: Item[]) => {
+      itens = d.map((i) => Object.assign(i, { chave: norm(`${i[0]} ${i[1]}`) }));
+    }));
+  campo.addEventListener("focus", carregar, { once: true });
+  campo.addEventListener("input", async () => {
+    await carregar();
+    const termos = norm(campo.value).split(/\s+/).filter(Boolean);
+    const ativo = termos.length > 0;
+    capitais.hidden = ativo;
+    lista.hidden = !ativo;
+    if (!ativo) { vazio.hidden = true; return; }
+    const achados = itens!
+      .filter((i) => termos.every((t) => i.chave!.includes(t)))
+      .sort((a, b) => Number(!norm(a[0]).startsWith(termos[0])) - Number(!norm(b[0]).startsWith(termos[0])) || b[3] - a[3])
+      .slice(0, 20);
+    vazio.hidden = achados.length > 0;
+    lista.replaceChildren(...achados.map(([nome, uf, href, pop]) => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = href;
+      a.innerHTML = `<span class="nome"></span><span class="muted"></span>`;
+      a.children[0].textContent = `${nome} (${uf})`;
+      a.children[1].textContent = `${pop.toLocaleString("pt-BR")} hab.`;
+      li.append(a);
+      return li;
+    }));
+  });
+  campo.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") lista.querySelector("a")?.click();
+  });
+</script>
+
+<style>
+  .topo-lista {
+    padding: 44px 0 28px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; align-items: end;
+  }
+  .topo-lista > div { grid-column: span 8; display: flex; flex-direction: column; gap: 12px; }
+  .topo-lista h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
+  .topo-lista p { margin: 0; font-size: 18px; line-height: 1.55; color: var(--texto-2); }
+  .filtro { grid-column: span 4; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--texto-3); }
+  .filtro input {
+    height: 44px; border: 0; border-bottom: 2px solid var(--tinta); background: transparent; border-radius: 0;
+    font: inherit; font-size: 17px; color: var(--tinta); padding: 0 2px; outline: none;
+  }
+  .resultados { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--tinta); }
+  .resultados :global(a) {
+    display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--regra-leve);
+    color: var(--tinta); text-decoration: none;
+  }
+  .resultados :global(a:hover) { background: var(--marca-texto-fundo); }
+  .resultados :global(.nome) { font-weight: 600; }
+  .vazio { margin: 0; padding: 20px 0; color: var(--texto-3); }
+  .capitais { display: flex; flex-direction: column; gap: 16px; }
+  .capitais[hidden] { display: none; }
+  .capitais h2 { font-size: 34px; }
+  .tabela { display: flex; flex-direction: column; }
+  .linha {
+    display: grid; grid-template-columns: minmax(0, 1fr) 130px 130px 130px 160px; gap: 20px; align-items: center;
+    padding: 11px 0; border-bottom: 1px solid var(--regra-leve); color: var(--tinta); text-decoration: none;
+  }
+  a.linha:hover { background: var(--marca-texto-fundo); color: var(--tinta); }
+  a.linha:hover .nome { text-decoration: underline; }
+  .cab {
+    font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 8px 0; border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--tinta);
+  }
+  .d { text-align: right; }
+  .nome { font-weight: 600; min-width: 0; }
+  .nota { margin: 16px 0 24px; font-size: 12px; color: var(--texto-3); }
+  @media (max-width: 900px) {
+    .topo-lista { display: flex; flex-direction: column; align-items: stretch; gap: 20px; padding: 28px 0 20px; }
+    .topo-lista h1 { font-size: 38px; }
+    .topo-lista p { font-size: 16px; }
+  }
+  /* mesmo corte do .so-largo (global.css), que esconde as colunas extras */
+  @media (max-width: 640px) {
+    .linha { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; }
+  }
+</style>

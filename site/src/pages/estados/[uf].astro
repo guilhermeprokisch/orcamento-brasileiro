@@ -1,0 +1,241 @@
+---
+import Base from "../../layouts/Base.astro";
+import GastoPorArea from "../../components/gasto/GastoPorArea.astro";
+import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
+import { fatorIpca, resumo } from "../../lib/perfis";
+import {
+  caminhoCidade, deUf, docCidades, docEstados, habitantes, medianaDa, NOMES_UF, porPessoa, type Cidade,
+} from "../../lib/cidades";
+
+export function getStaticPaths() {
+  return (docEstados?.cidades ?? []).map((e) => ({ params: { uf: e.uf.toLowerCase() }, props: { e } }));
+}
+
+const { e } = Astro.props as { e: Cidade };
+const doc = docEstados!;
+const temDados = e.ano !== null && !!e.total;
+const ehDF = e.ibge === 53;
+const nome = NOMES_UF[e.uf] ?? e.nome;
+const quem = ehDF ? "o Governo do Distrito Federal" : `o governo ${deUf(e.uf)}`;
+
+const [emp, pago] = e.total ?? [0, 0];
+const perCapita = temDados ? emp / e.pop : 0;
+const medTotal = medianaDa(e, "total", doc);
+const anoAnterior = e.ano ? e.hist?.[String(e.ano - 1)] : undefined;
+const variacao = anoAnterior ? emp / anoAnterior - 1 : null;
+const r = medTotal ? perCapita / medTotal : null;
+const comp = r === null ? null : r > 1.15 ? `${pct(r - 1)} acima` : r < 0.85 ? `${pct(1 - r)} abaixo` : "perto";
+
+// Evolução: total empenhado de cada ano, corrigido pelo IPCA (mesma base do resto do site).
+const baseIpca = resumo?.ipca?.base ?? null;
+const serie = Object.entries(e.hist ?? {})
+  .map(([ano, v]) => ({ ano: Number(ano), nominal: v, real: v * fatorIpca(Number(ano)) }))
+  .sort((a, b) => a.ano - b.ano);
+const maxSerie = Math.max(1, ...serie.map((p) => p.real));
+const crescimento = serie.length > 1 ? serie.at(-1)!.real / serie[0].real - 1 : null;
+
+// Municípios do estado, do maior para o menor.
+const LIMITE = 15;
+const cidades = ehDF ? [] : (docCidades?.cidades ?? []).filter((c) => c.uf === e.uf).sort((a, b) => b.pop - a.pop);
+const ph = (c: Cidade, f: string) => (c.f?.[f]?.[0] ?? 0) / c.pop;
+const descricao = temDados
+  ? `Quanto ${quem} gastou em ${e.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por habitante, por área.`
+  : `Gastos do governo ${deUf(e.uf)}.`;
+---
+
+<Base title={`${nome} · Orçamento Brasileiro`} description={descricao}>
+  <div class="wrap">
+    <nav aria-label="Caminho" class="caminho">
+      <a href="/estados">Estados</a><span aria-hidden="true">/</span><span>{nome}</span>
+    </nav>
+
+    <section class="cabeca">
+      <div>
+        <span class="sobretitulo">{ehDF ? "Distrito Federal" : "Governo estadual"} · {habitantes(e.pop)}</span>
+        <h1>{nome}</h1>
+        {temDados ? (
+          <p>
+            Em {e.ano}, {quem} empenhou <strong class="marca">{moedaExtenso(emp)}</strong>,
+            ou <strong>{porPessoa(perCapita)} por habitante</strong>.
+            {comp && <> Isso fica {comp} da mediana dos estados ({porPessoa(medTotal!)}).</>}
+          </p>
+        ) : (
+          <p>O estado não entregou ao Tesouro a prestação de contas anual de nenhum ano entre {doc.anos[0]} e {doc.anos.at(-1)}.</p>
+        )}
+      </div>
+    </section>
+
+    {temDados && (
+      <section class="numeros" aria-label={`Totais de ${e.ano}`}>
+        <div><span>Empenhado em {e.ano}</span><strong class="num" title={moedaCompleta(emp)}>{moedaCurta(emp)}</strong></div>
+        <div><span>Pago no ano</span><strong class="num pago" title={moedaCompleta(pago)}>{moedaCurta(pago)}</strong></div>
+        <div><span>Por habitante</span><strong class="num">{porPessoa(perCapita)}</strong></div>
+        <div>
+          <span>Em relação a {e.ano! - 1}</span>
+          <strong class="num">{variacao === null ? "—" : `${variacao >= 0 ? "+" : "−"}${pct(Math.abs(variacao))}`}</strong>
+        </div>
+      </section>
+    )}
+
+    {temDados && (
+      <GastoPorArea
+        ente={e}
+        doc={doc}
+        grupo={ehDF ? null : "dos estados"}
+        destaques={[{ cod: "10", titulo: "Saúde" }, { cod: "12", titulo: "Educação" }, { cod: "06", titulo: "Segurança" }]}
+      />
+    )}
+
+    {serie.length > 2 && (
+      <section class="evolucao">
+        <div class="evolucao-texto">
+          <h2>Ao longo dos anos</h2>
+          <p>
+            Gasto empenhado de cada ano{baseIpca && <>, em reais de {baseIpca} (corrigido pelo IPCA)</>}.
+            {crescimento !== null && (
+              <> De {serie[0].ano} a {serie.at(-1)!.ano}, o gasto {crescimento >= 0 ? "cresceu" : "caiu"} <strong>{pct(Math.abs(crescimento))}</strong> acima da inflação.</>
+            )}
+          </p>
+        </div>
+        <ol class="anos">
+          {serie.map((p) => (
+            <li title={`${moedaCompleta(p.nominal)} em valores da época`}>
+              <span class="num ano">{p.ano}</span>
+              <span class="trilho"><span style={`width:${(p.real / maxSerie) * 100}%`}></span></span>
+              <strong class="num">{moedaCurta(p.real)}</strong>
+            </li>
+          ))}
+        </ol>
+      </section>
+    )}
+
+    {cidades.length > 0 && (
+      <section class="cidades">
+        <h2>As cidades {deUf(e.uf)}</h2>
+        <p>O que cada prefeitura gastou por habitante, no último ano entregue.</p>
+        <div class="tabela" role="table" aria-label={`Municípios de ${nome}`}>
+          <div class="linha cab" role="row">
+            <span role="columnheader">Cidade</span>
+            <span role="columnheader" class="d so-largo">Habitantes</span>
+            <span role="columnheader" class="d">Por hab.</span>
+            <span role="columnheader" class="d so-largo">Saúde/hab.</span>
+            <span role="columnheader" class="d so-largo">Educação/hab.</span>
+          </div>
+          {cidades.map((c, i) => (
+            <a href={caminhoCidade(c)} class:list={["linha", { extra: i >= LIMITE }]} role="row">
+              <span role="cell" class="nome">{c.nome}</span>
+              <span role="cell" class="d num so-largo muted">{c.pop.toLocaleString("pt-BR")}</span>
+              {c.total ? (
+                <>
+                  <span role="cell" class="d num">{porPessoa(c.total[0] / c.pop)}</span>
+                  <span role="cell" class="d num so-largo">{porPessoa(ph(c, "10"))}</span>
+                  <span role="cell" class="d num so-largo">{porPessoa(ph(c, "12"))}</span>
+                </>
+              ) : (
+                <span role="cell" class="d muted sem">não entregou</span>
+              )}
+            </a>
+          ))}
+          {cidades.length > LIMITE && (
+            <button type="button" class="mais" data-mais>
+              <span>+ {cidades.length - LIMITE} cidades menores</span><span>mostrar todas</span>
+            </button>
+          )}
+        </div>
+      </section>
+    )}
+
+    <p class="nota">
+      Fonte: Declaração de Contas Anuais (DCA, Anexo I-E) entregue pelo governo estadual ao Tesouro Nacional pelo SICONFI.
+      Os números são os declarados pelo próprio estado e incluem Assembleia Legislativa, Tribunal de Justiça, Ministério Público
+      e Tribunal de Contas. Empenhado é o gasto comprometido no ano; não inclui despesas intraorçamentárias.
+      {ehDF
+        ? " O DF acumula funções de estado e de município e por isso não é comparado com os estados."
+        : ` Mediana calculada entre os 26 estados (sem o DF) que entregaram a DCA de ${e.ano}.`}
+    </p>
+  </div>
+</Base>
+
+<script>
+  document.querySelector<HTMLButtonElement>("[data-mais]")?.addEventListener("click", (ev) => {
+    const botao = ev.currentTarget as HTMLButtonElement;
+    botao.closest(".tabela")?.classList.add("todos");
+    botao.hidden = true;
+  });
+</script>
+
+<style>
+  .caminho { padding: 14px 0; border-bottom: 1px solid var(--regra); font-size: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .caminho span[aria-hidden] { color: var(--texto-4); }
+  .cabeca { padding: 40px 0 32px; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 860px; }
+  .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .cabeca p strong { color: var(--tinta); }
+
+  .numeros {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra);
+  }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 36px; font-weight: 700; white-space: nowrap; }
+  .numeros .pago { color: var(--verde); }
+
+  .evolucao { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .evolucao-texto { grid-column: span 4; display: flex; flex-direction: column; gap: 12px; }
+  .evolucao h2 { font-size: 34px; }
+  .evolucao-texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .evolucao-texto p strong { color: var(--tinta); }
+  .anos { grid-column: span 8; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .anos li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 90px; gap: 14px; align-items: center; font-size: 14px; }
+  .anos .ano { color: var(--texto-3); }
+  .anos strong { text-align: right; }
+  .anos .trilho { display: block; height: 14px; }
+  .anos .trilho > span { display: block; height: 100%; background: var(--verde); }
+  .anos li:last-child .trilho > span { background: var(--verde-escuro); }
+  .cidades { border-top: 2px solid var(--tinta); padding: 32px 0; display: flex; flex-direction: column; gap: 12px; }
+  .cidades h2 { font-size: 34px; }
+  .cidades > p { margin: 0 0 8px; font-size: 14px; color: var(--texto-3); }
+  .tabela { display: flex; flex-direction: column; }
+  .linha {
+    display: grid; grid-template-columns: minmax(0, 1fr) 130px 120px 120px 120px; gap: 20px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--regra-leve); color: var(--tinta); text-decoration: none;
+  }
+  a.linha:hover { background: var(--marca-texto-fundo); color: var(--tinta); }
+  a.linha:hover .nome { text-decoration: underline; }
+  .cab {
+    font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 8px 0; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--tinta);
+  }
+  .d { text-align: right; }
+  .nome { font-weight: 600; min-width: 0; }
+  .sem { grid-column: span 3; }
+  .tabela:not(.todos) .extra { display: none; }
+  .mais {
+    display: flex; justify-content: space-between; padding: 14px 0; font: inherit; font-size: 14px;
+    color: var(--texto-3); background: none; border: 0; cursor: pointer;
+  }
+  .mais:hover { color: var(--verde); }
+  .nota { margin: 0 0 24px; font-size: 12px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
+
+  @media (max-width: 900px) {
+    .cabeca { padding: 28px 0 24px; }
+    .cabeca h1 { font-size: 40px; }
+    .cabeca p { font-size: 17px; }
+    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(2n) { border-right: 0; }
+    .numeros div:nth-child(2n + 1) { padding-left: 0; }
+    .numeros strong { font-size: 26px; }
+    .cidades h2, .evolucao h2 { font-size: 28px; }
+    .evolucao { display: flex; flex-direction: column; gap: 20px; }
+  }
+  /* mesmo corte do .so-largo (global.css), que esconde as colunas extras */
+  @media (max-width: 640px) {
+    .linha { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+    .sem { grid-column: auto; }
+  }
+</style>

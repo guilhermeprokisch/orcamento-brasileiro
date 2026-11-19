@@ -1,0 +1,97 @@
+---
+import Base from "../../layouts/Base.astro";
+import { moedaCurta } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
+import { caminhoEstado, docEstados, NOMES_UF, porPessoa, type Cidade } from "../../lib/cidades";
+
+const doc = docEstados;
+const ph = (e: Cidade, f: string) => (e.f?.[f]?.[0] ?? 0) / e.pop;
+const linhas = (doc?.cidades ?? [])
+  .filter((e) => e.total)
+  .map((e) => ({ e, total: e.total![0] / e.pop }))
+  .sort((a, b) => b.total - a.total);
+const max = Math.max(1, ...linhas.map((l) => l.total));
+const anos = [...new Set(linhas.map((l) => l.e.ano))].sort();
+const mediana = doc?.medianas[String(doc.anos.at(-1))]?.[0]?.total ?? null;
+---
+
+<Base title="Estados · Orçamento Brasileiro" description="Quanto cada governo estadual gastou em saúde, educação, segurança e outras áreas, por habitante.">
+  <div class="wrap">
+    <section class="topo-lista">
+      <div>
+        <span class="sobretitulo verde">Novo · protótipo</span>
+        <h1>Quanto cada estado gasta</h1>
+        <p>
+          O gasto dos 26 governos estaduais e do Distrito Federal por habitante, em {anos.join(" e ")}.
+          {mediana && <> A mediana dos estados é <strong class="marca">{porPessoa(mediana)} por habitante</strong>.</>}
+        </p>
+      </div>
+    </section>
+
+    <div class="tabela" role="table" aria-label="Gasto dos estados por habitante">
+      <div class="linha cab" role="row">
+        <span role="columnheader">Estado</span>
+        <span role="columnheader" class="so-largo">Gasto por habitante</span>
+        <span role="columnheader" class="d">Por hab.</span>
+        <span role="columnheader" class="d so-largo">Saúde</span>
+        <span role="columnheader" class="d so-largo">Educação</span>
+        <span role="columnheader" class="d so-largo">Segurança</span>
+        <span role="columnheader" class="d">Total</span>
+      </div>
+      {linhas.map(({ e, total }, i) => (
+        <a href={caminhoEstado(e.uf)} class="linha" role="row">
+          <span role="cell" class="nome">{NOMES_UF[e.uf] ?? e.nome}{e.ibge === 53 && "*"}</span>
+          <span role="cell" class="trilho so-largo"><span style={`width:${(total / max) * 100}%;background:${corDaRampa(Math.min(1, i / 20))}`}></span></span>
+          <span role="cell" class="d num">{porPessoa(total)}</span>
+          <span role="cell" class="d num so-largo">{porPessoa(ph(e, "10"))}</span>
+          <span role="cell" class="d num so-largo">{porPessoa(ph(e, "12"))}</span>
+          <span role="cell" class="d num so-largo">{porPessoa(ph(e, "06"))}</span>
+          <span role="cell" class="d num">{moedaCurta(e.total![0])}</span>
+        </a>
+      ))}
+    </div>
+    <p class="nota">
+      Fonte: SICONFI/Tesouro Nacional, Declaração de Contas Anuais (DCA). Valores empenhados no ano, declarados pelos estados,
+      incluindo Legislativo, Judiciário e Ministério Público estaduais. Estados com pouca população e muito repasse federal
+      (Fundo de Participação dos Estados) tendem a gastar mais por habitante.
+      * O Distrito Federal acumula funções de estado e de município.
+    </p>
+  </div>
+</Base>
+
+<style>
+  .topo-lista { padding: 44px 0 28px; }
+  .topo-lista > div { max-width: 860px; display: flex; flex-direction: column; gap: 12px; }
+  .topo-lista h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
+  .topo-lista p { margin: 0; font-size: 18px; line-height: 1.55; color: var(--texto-2); }
+  .topo-lista p strong { color: var(--tinta); }
+  .tabela { display: flex; flex-direction: column; }
+  .linha {
+    display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 100px 90px 90px 90px 110px; gap: 20px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--regra-leve); color: var(--tinta); text-decoration: none;
+  }
+  a.linha:hover { background: var(--marca-texto-fundo); color: var(--tinta); }
+  a.linha:hover .nome { text-decoration: underline; }
+  .cab {
+    font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 8px 0; border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--tinta);
+  }
+  .d { text-align: right; }
+  .nome { font-weight: 600; min-width: 0; }
+  .trilho { display: block; height: 12px; }
+  .trilho > span { display: block; height: 100%; min-width: 2px; }
+  .nota { margin: 16px 0 24px; font-size: 12px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
+  @media (max-width: 900px) {
+    .topo-lista { padding: 28px 0 20px; }
+    .topo-lista h1 { font-size: 38px; }
+    .topo-lista p { font-size: 16px; }
+  }
+  @media (min-width: 641px) and (max-width: 1000px) {
+    .linha { grid-template-columns: minmax(0, 1fr) 100px 80px 80px 80px 100px; }
+    .trilho { display: none; }
+  }
+  /* mesmo corte do .so-largo (global.css), que esconde as colunas extras */
+  @media (max-width: 640px) {
+    .linha { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; }
+  }
+</style>

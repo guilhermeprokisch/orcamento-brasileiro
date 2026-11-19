@@ -47,6 +47,13 @@ jobs:
       - name: Pipeline de dados
         run: uv run --project pipeline orcamento
 
+      # Estados e municípios. A API do SICONFI responde um ente por vez e bloqueia
+      # rajadas: são ~11 mil consultas na primeira vez, a ~2/s. O limite (~17 min)
+      # deixa o resto para as execuções seguintes (o cache de data/raw acumula);
+      # depois disso só são consultadas as prefeituras que ainda não tinham entregado.
+      - name: Pipeline de estados e cidades (SICONFI)
+        run: uv run --project pipeline cidades --max-chamadas 2000
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

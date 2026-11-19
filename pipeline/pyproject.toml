@@ -10,6 +10,8 @@ dependencies = [
 
 [project.scripts]
 orcamento = "orcamento_pipeline.cli:main"
+cidades = "orcamento_pipeline.cidades:main"
+finbra = "orcamento_pipeline.finbra:main"
 
 [build-system]
 requires = ["hatchling"]
