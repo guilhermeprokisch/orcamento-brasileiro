@@ -264,6 +264,53 @@ export function homicidiosDe(e: Cidade): Homicidios | null {
   };
 }
 
+// ----- Água e esgoto (IBGE, Censo 2022, pipeline/…/saneamento.py) -----
+
+interface DocSaneamento {
+  fonte: string;
+  ano: number;
+  /** ibge (ou código do estado) → [moradores, com água da rede, com esgoto na rede] */
+  mun: Record<string, [number, number, number]>;
+  uf: Record<string, [number, number, number]>;
+}
+const arquivosSaneamento = import.meta.glob<DocSaneamento>("../../public/data/indicadores/saneamento.json", { eager: true, import: "default" });
+const docSaneamento: DocSaneamento | null = Object.values(arquivosSaneamento)[0] ?? null;
+
+export interface Saneamento {
+  fonte: string;
+  ano: number;
+  moradores: number;
+  /** Partes dos moradores (0 a 1). */
+  agua: number;
+  esgoto: number;
+  /** Medianas dos comparáveis (cidades do mesmo porte ou estados) e o Brasil. */
+  medianaAgua: number | null;
+  medianaEsgoto: number | null;
+  brasilAgua: number;
+  brasilEsgoto: number;
+}
+const medianasSaneamento = new Map<string, [number | null, number | null]>();
+
+export function saneamentoDe(c: Cidade, esfera: "mun" | "uf"): Saneamento | null {
+  const doc = docSaneamento;
+  if (!doc) return null;
+  const v = doc[esfera][String(c.ibge)];
+  if (!v || !v[0]) return null;
+  const chave = esfera === "uf" ? "uf" : `mun-${c.faixa}`;
+  if (!medianasSaneamento.has(chave)) {
+    const linhas = esfera === "uf"
+      ? Object.entries(doc.uf).filter(([k]) => k !== "53").map(([, x]) => x)
+      : (docCidades?.cidades ?? []).filter((x) => x.faixa === c.faixa).map((x) => doc.mun[String(x.ibge)]).filter(Boolean);
+    medianasSaneamento.set(chave, [mediana(linhas.map((x) => x[1] / x[0])), mediana(linhas.map((x) => x[2] / x[0]))]);
+  }
+  const [medianaAgua, medianaEsgoto] = medianasSaneamento.get(chave)!;
+  const br = Object.values(doc.uf).reduce((s, x) => [s[0] + x[0], s[1] + x[1], s[2] + x[2]], [0, 0, 0]);
+  return {
+    fonte: doc.fonte, ano: doc.ano, moradores: v[0], agua: v[1] / v[0], esgoto: v[2] / v[0],
+    medianaAgua, medianaEsgoto, brasilAgua: br[1] / br[0], brasilEsgoto: br[2] / br[0],
+  };
+}
+
 // ----- Imposto de renda pela cidade onde a pessoa mora (Receita, pipeline/…/irpf.py) -----
 
 interface DocIrpf {
