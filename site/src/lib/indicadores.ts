@@ -80,3 +80,50 @@ export function idebDe(c: Cidade): Ideb | null {
   const r = { edicao: doc.edicao, fonte: doc.fonte, mi: nota(c, "mi"), mf: nota(c, "mf"), ei: nota(c, "ei"), ef: nota(c, "ef") };
   return r.mi || r.mf || r.ei || r.ef ? r : null;
 }
+
+// ----- Matrículas (Censo Escolar, pipeline/…/matriculas.py) -----
+
+interface DocMatriculas {
+  fonte: string;
+  /** ano → ibge → [rede municipal, rede estadual] */
+  anos: Record<string, Record<string, [number, number]>>;
+}
+const arquivosMatriculas = import.meta.glob<DocMatriculas>("../../public/data/indicadores/matriculas.json", { eager: true, import: "default" });
+const docMatriculas: DocMatriculas | null = Object.values(arquivosMatriculas)[0] ?? null;
+
+/** Gasto da prefeitura em educação por aluno da rede municipal, no ano das contas da cidade. */
+export interface PorAluno {
+  ano: number;
+  fonte: string;
+  alunos: number;
+  porAluno: number;
+  /** Mediana entre as cidades do mesmo porte, no mesmo ano; null com menos de 10 cidades. */
+  mediana: number | null;
+}
+
+const gastoPorAluno = (c: Cidade): number | null => {
+  const alunos = c.ano !== null ? docMatriculas?.anos[String(c.ano)]?.[String(c.ibge)]?.[0] : undefined;
+  const gasto = c.f?.["12"]?.[0] ?? 0;
+  return alunos && alunos > 0 && gasto > 0 ? gasto / alunos : null;
+};
+const medianasPorAluno = new Map<string, number | null>();
+function medianaPorAluno(faixa: number, ano: number): number | null {
+  const chave = `${faixa}-${ano}`;
+  if (!medianasPorAluno.has(chave)) {
+    const valores = (docCidades?.cidades ?? [])
+      .filter((c) => c.faixa === faixa && c.ano === ano && c.ibge !== 53)
+      .map(gastoPorAluno)
+      .filter((v): v is number => v !== null);
+    medianasPorAluno.set(chave, mediana(valores));
+  }
+  return medianasPorAluno.get(chave)!;
+}
+
+export function porAlunoDe(c: Cidade): PorAluno | null {
+  const porAluno = gastoPorAluno(c);
+  if (!docMatriculas || porAluno === null || c.ano === null) return null;
+  return {
+    ano: c.ano, fonte: docMatriculas.fonte, alunos: docMatriculas.anos[String(c.ano)][String(c.ibge)][0], porAluno,
+    mediana: c.faixa !== undefined ? medianaPorAluno(c.faixa, c.ano) : null,
+  };
+}
