@@ -34,7 +34,11 @@ export function arquivoDoAno(ano: number, grupo: string): Promise<ArquivoDoAno |
   return baixados.get(chave)!;
 }
 
-const PARTES: [string, (ctx: Contexto) => string][] = [["frase", fraseHtml], ["numeros", numerosHtml], ["areas", areasHtml], ["contas", contasHtml]];
+// "contas" é o bloco inteiro (página do estado); a página da cidade o divide em três pedaços.
+const PARTES: [string, (ctx: Contexto) => string][] = [
+  ["frase", fraseHtml], ["numeros", numerosHtml], ["areas", areasHtml], ["contas", (c) => contasHtml(c)],
+  ["natureza", (c) => contasHtml(c, "natureza")], ["receitas", (c) => contasHtml(c, "receitas")], ["inss", (c) => contasHtml(c, "inss")],
+];
 const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
 
 /** Liga o seletor de ano. `aoTrocar` recebe o ano já desenhado (a página do estado atualiza a lista de cidades). */

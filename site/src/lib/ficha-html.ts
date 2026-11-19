@@ -139,15 +139,20 @@ const barras = (itens: { rotulo: string; dica?: string; valor: string; titulo?: 
     <span class="lb-barra" style="width:${i.largura}%;background:${i.cor}"></span>
   </li>`).join("")}</ul>`;
 
-/** Com o quê gasta, de onde vem o dinheiro, se sobrou ou faltou, o balanço e o INSS. */
-export function contasHtml(ctx: Contexto): string {
+/**
+ * Com o quê gasta, de onde vem o dinheiro, se sobrou ou faltou, o balanço e o INSS. `quais` escolhe
+ * um pedaço, para a página da cidade, que os põe em lugares diferentes: "natureza" (com o quê
+ * gasta), "receitas" (de onde vem, sobrou ou faltou, o balanço) ou "inss".
+ */
+export function contasHtml(ctx: Contexto, quais: "tudo" | "natureza" | "receitas" | "inss" = "tudo"): string {
+  const quer = (q: string) => quais === "tudo" || quais === q;
   const { f, ehDF, municipal } = comum(ctx);
   const { contas, natureza, balanco, inss } = f;
   const quem = esc(ctx.quem);
   const deQuem = ehDF ? "do governo do Distrito Federal" : municipal ? "da prefeitura" : "do governo estadual";
   const partes: string[] = [];
 
-  if (natureza) {
+  if (natureza && quer("natureza")) {
     const tipos = [
       { rotulo: "Salários e encargos dos servidores", v: natureza.pessoal },
       { rotulo: municipal ? "Serviços, materiais e contas do dia a dia" : "Serviços, materiais, repasses às prefeituras e contas do dia a dia", v: natureza.custeio },
@@ -178,7 +183,7 @@ export function contasHtml(ctx: Contexto): string {
     </section>`);
   }
 
-  if (contas) {
+  if (contas && quer("receitas")) {
     // Partes abaixo de 0,05% ficam de fora (resíduos de classificação).
     const origens = [
       { rotulo: "Arrecadação própria", dica: municipal ? "ISS, IPTU, taxas e outras receitas da prefeitura" : ehDF ? "ICMS, IPVA, ISS, IPTU e outras receitas do DF" : "ICMS, IPVA e outras receitas do estado", v: contas.propria },
@@ -227,7 +232,7 @@ export function contasHtml(ctx: Contexto): string {
     </section>`);
   }
 
-  if (balanco) {
+  if (balanco && quer("receitas")) {
     const sinal = (v: number) => (v < 0 ? `−${moedaCurta(-v)}` : moedaCurta(v));
     const semPagar = natureza && natureza.restos > 0 ? natureza.restos : Math.max(0, f.total[0] - f.total[1]);
     const linhas = [
@@ -250,7 +255,7 @@ export function contasHtml(ctx: Contexto): string {
     </section>`);
   }
 
-  if (inss) {
+  if (inss && quer("inss")) {
     const partesInss = ([["Aposentadorias", inss.aposentadorias], ["Pensões por morte", inss.pensoes],
       ["Auxílios e outros benefícios", inss.total - inss.aposentadorias - inss.pensoes]] as [string, number][]).filter((p) => p[1] > 0);
     const frente = f.total[0] ? inss.total / f.total[0] : null;
@@ -267,10 +272,14 @@ export function contasHtml(ctx: Contexto): string {
     </section>`);
   }
 
-  if (partes.length) {
+  const fonteInss = "INSS pelo Ministério da Previdência Social (Estatísticas Municipais)";
+  if (partes.length && quais === "inss") {
+    partes.push(`<p class="fonte">Fonte: ${fonteInss}.</p>`);
+  } else if (partes.length && quais !== "natureza") {
     const id = ehDF ? "e53" : `${ctx.esfera === "mun" ? "c" : "e"}${ctx.ibge}`;
+    const comInss = inss && quais === "tudo";
     partes.push(`<p class="fonte"><a href="/mapa/#${id}-a${ctx.ano}-saldo">Ver no mapa</a>: impostos pagos, repasses federais, comparação com ${municipal ? "cidades parecidas" : "outros estados"} e outros anos.
-      Fontes: ${contas || natureza || balanco ? `contas declaradas ao Tesouro Nacional (DCA, Anexos I-C, I-D e I-AB)${inss ? "; " : ""}` : ""}${inss ? "INSS pelo Ministério da Previdência Social (Estatísticas Municipais)" : ""}.</p>`);
+      Fontes: ${contas || natureza || balanco ? `contas declaradas ao Tesouro Nacional (DCA, Anexos I-C, I-D e I-AB)${comInss ? "; " : ""}` : ""}${comInss ? fonteInss : ""}.</p>`);
   }
   return partes.join("\n");
 }
