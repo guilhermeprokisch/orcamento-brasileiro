@@ -8,17 +8,35 @@ Este documento lista o que está em andamento e o que vem depois. A ordem dentro
 é a ordem sugerida. "Fonte" indica de onde o dado viria; onde está escrito **a confirmar**, o
 acesso ainda não foi testado.
 
-Atualizado em 19/11/2026.
+Atualizado em 20/11/2026.
 
 ## Em andamento
 
 | # | Melhoria | Situação |
 |---|---|---|
-| 1 | O ano em andamento (2026) no mapa | Feito para os estados. Municípios: download do relatório bimestral em curso |
-| 2 | Dívida oficial e limites fiscais (RGF do SICONFI) | Não começou; usa a mesma API do item 1, que aceita uma consulta por segundo |
+| 1 | O ano em andamento (2026) no mapa e nas páginas | Feito para estados e municípios (relatório bimestral, atualizado pelo `bimestral.yml`) |
+| 2 | Dívida oficial e limites fiscais (RGF do SICONFI) | Estados: feito (#22). Prefeituras: download em curso, PR a seguir. Falta o gasto com pessoal frente ao limite (RGF, Anexo 1) |
 | 3 | Conciliar o dinheiro federal: Portal da Transparência x prefeituras | Feito ([conciliacao-federal.md](conciliacao-federal.md)) |
 | 4 | Bolsa Família e BPC de outros anos | Depende de download manual (o Portal pede captcha); hoje só 2025 |
 | 5 | Gasto do estado em cada cidade | Feito para a Paraíba e para Minas Gerais. Demais estados: ver o item H |
+| 6 | ICMS medido por cidade (hoje estimado pela cota-parte × 4) | Nenhum estado pesquisado publica em formato aberto e atualizado. Pedidos de LAI enviados a SP e MG em 19/11/2026 ([pedidos-lai/icms-por-municipio.md](pedidos-lai/icms-por-municipio.md)); resposta até 09/12/2026 |
+
+## Feito em novembro de 2026
+
+| O quê | Onde | PR |
+|---|---|---|
+| Seletor de ano nas páginas de cidade e estado (a página inteira muda) | páginas | #18 |
+| Imposto federal por cidade medido pela Receita Federal, não estimado | mapa | #19 |
+| Imposto de renda pela cidade onde a pessoa mora (Grandes Números do IRPF) | mapa, cidades, estados | #27, #30 |
+| Gasto em educação por aluno (matrículas do Censo Escolar) | cidades, estados | #20, #21 |
+| Dívida dos estados frente ao limite da LRF, ano a ano | estados | #22 |
+| Nota de capacidade de pagamento (CAPAG) | cidades, estados | #23 |
+| Mortalidade infantil ao lado do gasto em saúde, com série de 2015 a 2025 | cidades, estados | #24, #29 |
+| Homicídios ao lado do gasto em segurança, com taxa ano a ano e marca nos anos subcontados | estados, cidades acima de 100 mil hab. | #25, #31, #34, #35 |
+| Água e esgoto na rede (Censo 2022) ao lado do gasto em saneamento | cidades, estados | #28 |
+| "Com o quê gasta": a frase cita a maior fatia e explica serviços e materiais | cidades, estados | #26 |
+| Lista "Nesta página" e seções em grupos (em que gasta, contas, o que chega e sai, como está) | cidades, estados | #32, #33 |
+| Bloco "Como está a cidade" no mapa (mortalidade, homicídios, água, esgoto) | mapa | #36 |
 
 ## Próximas, na ordem sugerida
 
@@ -27,15 +45,16 @@ Atualizado em 19/11/2026.
 Colocar ao lado do gasto o que ele produziu. É o que transforma número em pergunta: "por que
 gastamos mais e temos menos?".
 
-- Educação: **feito** com o Ideb por município e rede (`uv run ideb`), ao lado do gasto por
-  habitante. Falta trocar "por habitante" por "por aluno", com as matrículas do Censo Escolar,
-  e levar a rede estadual às páginas de estado.
-- Saúde: gasto por habitante ao lado de mortalidade infantil e cobertura da atenção básica.
-  Fonte: DATASUS — a confirmar.
-- Saneamento: população com água tratada e esgoto coletado. Fonte: SNIS/SINISA — a confirmar.
-- Segurança: taxa de homicídios, nas páginas de estado (polícia é responsabilidade estadual).
-  Fonte: Atlas da Violência (IPEA), a partir dos registros de óbito — a confirmar.
-- Contas: nota de capacidade de pagamento (CAPAG, do Tesouro), na seção "sobrou ou faltou".
+- Educação: **feito**. Ideb por município e rede, gasto por aluno com as matrículas do Censo
+  Escolar, e a rede estadual nas páginas de estado. Falta o gasto por aluno mudar com o ano
+  escolhido na página (hoje só o ano mais recente).
+- Saúde: **feito** com a mortalidade infantil (DATASUS, SINASC e SIM, 2015 a 2025). Falta a
+  cobertura da atenção básica.
+- Saneamento: **feito** com água e esgoto na rede (IBGE, Censo 2022). Falta o esgoto tratado,
+  que o Censo não mede. Fonte possível: SINISA — a confirmar.
+- Segurança: **feito** com os homicídios (DATASUS, SIM) nos estados e nas cidades com mais de
+  100 mil habitantes, em taxa ano a ano com a população do IBGE.
+- Contas: **feito** com a nota CAPAG, nas cidades e nos estados.
 - Critério para entrar: existir para todas as cidades, medir resultado para a população, ser
   dado oficial e aberto, e corresponder a um gasto que o site já mostra. Rankings de consultorias
   e índices que só cobrem cidades grandes ficam de fora.
@@ -53,6 +72,7 @@ A promessa original do projeto: chegar na unidade.
 
 ### C. Resumo e imagem para compartilhar
 
+- A lista "Nesta página" já ajuda a navegar (#32, #33); o resumo ainda não existe.
 - Três frases no topo de cada cidade, escritas a partir dos números ("A prefeitura depende
   83% de repasses; de cada R$ 100, R$ 36 vão para salários…").
 - Uma imagem com os números da cidade, para WhatsApp e redes.
@@ -67,12 +87,14 @@ Transparência e Transferegov — a confirmar (o Portal bloqueia downloads em s�
 
 Marcar na página, com a regra escrita ao lado:
 
-- gasto com pessoal acima do limite legal (depende do item 2, RGF);
+- gasto com pessoal acima do limite legal (depende do item 2, RGF Anexo 1);
 - mínimo constitucional em saúde e em educação não aplicado. Fonte: RREO, anexos de saúde e
   educação — a confirmar;
 - vários anos seguidos gastando mais do que recebe (já temos o dado);
 - declaração com cara de erro: números repetidos de um ano para o outro, diferença de mais de
   30% entre receita e despesa. Hoje esses casos aparecem como se fossem fato.
+- Já existem dois avisos parecidos: a cor da dívida perto e acima do limite, e a marca † nos
+  anos de homicídio com mais mortes violentas sem causa definida do que homicídios.
 
 ### F. Comparar duas cidades lado a lado
 
@@ -108,7 +130,8 @@ convênios, quase nada. Os dados já estão no documento da pesquisa.
 Para o que não existe em lugar nenhum: despesa por município de aplicação nos estados das
 faixas de baixo, tabela de unidades com município (SP, RJ, BA, AM, GO), efetivo policial por
 município (Ministério da Justiça) e remuneração por escola (FNDE). Os pedidos são redigidos no
-projeto; o envio depende de cadastro pessoal.
+projeto; o envio depende de cadastro pessoal. Os primeiros enviados: ICMS por município a SP e MG
+([pedidos-lai/](pedidos-lai/)).
 
 ### I. "Quanto eu pago?"
 
