@@ -1,0 +1,48 @@
+---
+trilha: orcamento
+ordem: 9
+titulo: "Dívida pública e refinanciamento"
+resumo: "Mais de um quarto do orçamento federal é a troca de títulos da dívida que vencem por títulos novos. Entender isso evita o erro mais comum ao olhar o total do orçamento."
+minutos: 6
+palavras: [refinanciamento, gnd, regra-de-ouro]
+fontes: ["Tesouro Nacional, Relatório Mensal da Dívida", "Manual Técnico de Orçamento (SOF)", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, federal, federalSemRefin, refinanciamento, parcelaRefin, fazenda, gnd, bi, pctInt, de, link } from "../../../lib/aprenda";
+
+## Como a dívida funciona
+
+O governo pega dinheiro emprestado vendendo **títulos públicos**: papéis que prometem devolver o valor com juros numa data. Bancos, fundos de investimento, fundos de pensão e pessoas físicas, pelo Tesouro Direto, compram esses títulos.
+
+Quando um título vence, o governo precisa devolver o dinheiro. Na prática, ele quase sempre faz isso vendendo títulos novos. Essa troca é o **refinanciamento**, ou rolagem, da dívida.
+
+## Por que aparece no orçamento
+
+Pela lei, todo pagamento precisa estar no orçamento, inclusive a devolução dos títulos que vencem. Então o refinanciamento entra como despesa, e o dinheiro dos títulos novos entra como receita. Em {ANO}:
+
+- o orçamento total foi de {bi(federal.atualizado)};
+- desse total, {bi(refinanciamento)}, ou <mark>{pctInt(parcelaRefin)}</mark>, foram refinanciamento;
+- sem ele, sobram {bi(federalSemRefin.atualizado)}.
+
+<Quadro titulo="O Ministério da Fazenda é o maior “gastador”?">
+  <p>Com o refinanciamento, o Ministério da Fazenda aparece com {bi(fazenda.atualizado)}, {pctInt(de(fazenda.atualizado, federal.atualizado))} do orçamento. Não é que o ministério gaste isso: é por ele que passa a dívida pública. Para comparar órgãos, ligue “Sem refinanciamento” no Explorer.</p>
+</Quadro>
+
+## O que é custo de verdade
+
+Rolar a dívida não é um gasto novo: troca-se uma dívida por outra. O custo real da dívida está em dois lugares:
+
+- os **juros e encargos**: {bi(gnd.juros.atualizado)} autorizados em {ANO};
+- a **amortização** paga com outras receitas, que de fato reduz a dívida: {bi(gnd.amortizacao.atualizado)}.
+
+Os juros dependem principalmente da taxa básica de juros, a Selic, e do tamanho da dívida. Quando a Selic sobe, a conta de juros sobe junto, mesmo que o governo não gaste um real a mais em nenhuma outra área.
+
+<NaPratica titulo="Ligue e desligue o refinanciamento" href={link([], { por: "orgao" })} botao="Abrir o Explorer →">
+  Veja como o mapa de blocos muda quando você clica em “Sem refinanciamento”.
+</NaPratica>
+
+<Quiz pergunta="Uma notícia diz que “a dívida consome quase metade do orçamento”. O que está faltando nessa frase?" opcoes={["Nada, a frase está correta e completa", "A maior parte disso é rolagem: troca de títulos velhos por novos, não um gasto novo", "A dívida não aparece no orçamento"]} correta={1}>
+  <p>O número inclui o refinanciamento. O custo efetivo da dívida no ano está nos juros e na amortização que não é feita com dívida nova.</p>
+</Quiz>

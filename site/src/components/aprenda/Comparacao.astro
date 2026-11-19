@@ -1,0 +1,46 @@
+---
+/** Dois pares de barras: o mesmo item em dois anos, nominal e corrigido pela inflação. */
+import { moedaCurta } from "../../lib/formato";
+
+interface Props {
+  anoA: number;
+  anoB: number;
+  nominalA: number;
+  realA: number;
+  valorB: number;
+  baseIpca: number;
+}
+const { anoA, anoB, nominalA, realA, valorB, baseIpca } = Astro.props;
+const max = Math.max(nominalA, realA, valorB, 1);
+const h = (v: number) => `${(v / max) * 100}%`;
+const c = (v: number) => moedaCurta(v).replace("R$ ", "");
+const grupos = [
+  { titulo: "Valores nominais", a: nominalA },
+  { titulo: `Corrigidos pela inflação (reais de ${baseIpca})`, a: realA },
+];
+---
+
+<figure class="comp" aria-label={`Comparação ${anoA} e ${anoB}, nominal e corrigido`}>
+  {grupos.map((g) => (
+    <div class="grupo">
+      <span class="titulo">{g.titulo}</span>
+      <div class="barras">
+        <div><strong class="serifa">{c(g.a)}</strong><span style={`height:${h(g.a)};background:var(--areia)`}></span></div>
+        <div><strong class="serifa">{c(valorB)}</strong><span style={`height:${h(valorB)};background:var(--verde)`}></span></div>
+      </div>
+      <div class="anos"><span>{anoA}</span><span>{anoB}</span></div>
+    </div>
+  ))}
+</figure>
+
+<style>
+  .comp { margin: 16px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; font-family: var(--sans); }
+  .grupo { display: flex; flex-direction: column; gap: 8px; }
+  .titulo { font-size: 13px; font-weight: 600; }
+  .barras { display: flex; align-items: flex-end; gap: 16px; height: 220px; border-bottom: 1px solid var(--tinta); }
+  .barras > div { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+  .barras span { display: block; max-height: 180px; }
+  .barras strong { font-size: 20px; }
+  .anos { display: flex; justify-content: space-around; font-size: 13px; color: var(--texto-3); }
+  @media (max-width: 640px) { .comp { gap: 16px; } .barras { height: 160px; } .barras span { max-height: 120px; } .barras strong { font-size: 16px; } }
+</style>

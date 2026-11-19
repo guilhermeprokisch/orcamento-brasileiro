@@ -1,0 +1,66 @@
+---
+/** Teste de múltipla escolha: a pessoa escolhe e vê se acertou, com a explicação. */
+interface Props {
+  pergunta: string;
+  opcoes: string[];
+  correta: number; // índice a partir de 0
+}
+const { pergunta, opcoes, correta } = Astro.props;
+const id = `quiz-${Math.random().toString(36).slice(2, 8)}`;
+---
+
+<section class="quiz" data-quiz data-correta={correta}>
+  <span class="rotulo">Teste seu entendimento</span>
+  <h3>{pergunta}</h3>
+  <fieldset>
+    <legend class="visually-hidden">{pergunta}</legend>
+    {opcoes.map((o, i) => (
+      <label>
+        <input type="radio" name={id} value={i} />
+        <span>{o}</span>
+        <span class="marcador" aria-live="polite"></span>
+      </label>
+    ))}
+  </fieldset>
+  <div class="explicacao" hidden><slot /></div>
+</section>
+
+<script>
+  for (const quiz of document.querySelectorAll<HTMLElement>("[data-quiz]")) {
+    const correta = Number(quiz.dataset.correta);
+    const explicacao = quiz.querySelector<HTMLElement>(".explicacao");
+    quiz.addEventListener("change", (e) => {
+      const alvo = e.target as HTMLInputElement;
+      if (alvo.type !== "radio") return;
+      for (const label of quiz.querySelectorAll("label")) {
+        const input = label.querySelector("input")!;
+        const i = Number(input.value);
+        label.classList.toggle("certa", i === correta && input.checked);
+        label.classList.toggle("errada", i !== correta && input.checked);
+        label.querySelector(".marcador")!.textContent =
+          input.checked ? (i === correta ? "✓ Correto" : "✗ Tente de novo") : "";
+      }
+      if (explicacao && Number(alvo.value) === correta) explicacao.hidden = false;
+    });
+  }
+</script>
+
+<style>
+  .quiz { border-top: 2px solid var(--tinta); padding-top: 22px; display: flex; flex-direction: column; gap: 14px; margin: 16px 0 8px; font-family: var(--sans); }
+  .rotulo { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--verde); }
+  h3 { font-size: 26px; line-height: 1.25; letter-spacing: -0.01em; }
+  fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  label {
+    display: flex; gap: 12px; align-items: center; padding: 14px 16px; border: 1px solid var(--regra);
+    background: #ffffff; font-size: 16px; cursor: pointer;
+  }
+  label:hover { border-color: var(--tinta); }
+  label input { accent-color: var(--verde); width: 18px; height: 18px; margin: 0; flex: none; }
+  .marcador { margin-left: auto; font-weight: 600; white-space: nowrap; }
+  label.certa { border: 2px solid var(--verde); }
+  label.certa .marcador { color: var(--verde); }
+  label.errada { border: 2px solid #b42318; }
+  label.errada .marcador { color: #b42318; }
+  .explicacao :global(p) { margin: 0 !important; font-family: var(--sans) !important; font-size: 15px !important; line-height: 1.55 !important; color: var(--texto-2) !important; }
+  @media (max-width: 640px) { h3 { font-size: 21px; } label { font-size: 15px; } }
+</style>

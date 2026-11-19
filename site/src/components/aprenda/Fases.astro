@@ -1,0 +1,69 @@
+---
+import type { Valores } from "../../lib/dados";
+import { moedaCurta } from "../../lib/formato";
+
+interface Props {
+  nome: string;
+  ano: number;
+  valores: Valores;
+}
+const { nome, ano, valores } = Astro.props;
+const max = Math.max(1, valores.atualizado, valores.empenhado, valores.realizado);
+const h = (v: number) => `${Math.max(2, (v / max) * 100)}%`;
+const curto = (v: number) => moedaCurta(v).replace("R$ ", "");
+const fases = [
+  { n: 1, nome: "Dotação", desc: "quanto a lei autoriza gastar", v: valores.atualizado, cor: "var(--areia)" },
+  { n: 2, nome: "Empenho", desc: "dinheiro reservado para um gasto", v: valores.empenhado, cor: "#1f7a47" },
+  { n: 3, nome: "Liquidação", desc: "confere se o serviço foi entregue", v: null, cor: "" },
+  { n: 4, nome: "Pagamento", desc: "o dinheiro sai do Tesouro", v: valores.realizado, cor: "var(--verde-escuro)" },
+];
+---
+
+<figure class="fases">
+  <figcaption><span><strong>Exemplo real:</strong> {nome}, {ano}</span><span class="so-largo">valores em reais</span></figcaption>
+
+  <div class="colunas so-largo" role="img" aria-label={`Fases da despesa: ${fases.filter((f) => f.v !== null).map((f) => `${f.nome} ${moedaCurta(f.v!)}`).join(", ")}`}>
+    {fases.map((f) => (
+      <div class="coluna">
+        {f.v === null
+          ? <span class="sem-dado">não aparece neste conjunto de dados</span>
+          : <strong class:list={["serifa", { pago: f.n === 4 }]}>{curto(f.v)}</strong>}
+        <span class:list={["barra", { hachura: f.v === null }]} style={f.v === null ? "height: 92%" : `height: ${h(f.v)}; background: ${f.cor}`}></span>
+      </div>
+    ))}
+  </div>
+  <div class="legenda so-largo">
+    {fases.map((f) => <div><strong class="serifa">{f.n} · {f.nome}</strong><p>{f.desc}</p></div>)}
+  </div>
+
+  <div class="linhas so-celular">
+    {fases.map((f) => (
+      <div class="linha">
+        <strong>{f.n} · {f.n === 4 ? "Pago" : f.nome}</strong>
+        <span class:list={["barra", { hachura: f.v === null }]} style={f.v === null ? "width: 100%" : `width: ${h(f.v)}; background: ${f.cor}`}></span>
+        {f.v === null ? <span class="sem">sem dado</span> : <span class:list={["serifa", "valor", { pago: f.n === 4 }]}>{curto(f.v)}</span>}
+      </div>
+    ))}
+  </div>
+</figure>
+
+<style>
+  .fases { margin: 8px 0; border-top: 2px solid var(--tinta); padding-top: 18px; display: flex; flex-direction: column; gap: 14px; font-family: var(--sans); }
+  figcaption { display: flex; justify-content: space-between; font-size: 13px; color: var(--texto-3); }
+  figcaption strong { color: var(--tinta); }
+  .colunas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: end; height: 220px; }
+  .coluna { display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; height: 100%; }
+  .coluna strong { font-size: 26px; font-weight: 700; }
+  .coluna .barra { display: block; max-height: 160px; }
+  .pago { color: var(--verde); }
+  .sem-dado { font-size: 13px; color: var(--texto-3); line-height: 1.35; }
+  .hachura { background: repeating-linear-gradient(135deg, var(--areia) 0 3px, transparent 3px 7px); border: 1px dashed var(--texto-4); }
+  .legenda { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; border-top: 1px solid var(--tinta); padding-top: 10px; }
+  .legenda strong { font-size: 20px; }
+  .legenda p { margin: 4px 0 0 !important; font-family: var(--sans) !important; font-size: 14px !important; line-height: 1.45 !important; color: var(--texto-2) !important; }
+  .linhas { display: flex; flex-direction: column; gap: 10px; }
+  .linha { display: grid; grid-template-columns: 96px minmax(0, 1fr) 72px; gap: 8px; align-items: center; font-size: 13px; }
+  .linha .barra { display: block; height: 14px; }
+  .linha .valor { text-align: right; font-weight: 700; font-size: 15px; }
+  .linha .sem { text-align: right; color: var(--texto-3); font-size: 11px; }
+</style>

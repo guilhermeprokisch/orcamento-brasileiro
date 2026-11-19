@@ -1,0 +1,51 @@
+---
+trilha: orcamento
+ordem: 2
+titulo: "Quem decide e quando: PPA, LDO e LOA"
+resumo: "Três leis organizam o orçamento, cada uma com um prazo. O governo propõe, o Congresso discute e muda, o presidente sanciona. E durante o ano o orçamento ainda pode mudar."
+minutos: 6
+palavras: [ppa, ldo, loa, credito-adicional]
+fontes: ["Constituição Federal, arts. 165 e 166", "ADCT, art. 35, § 2º (prazos)", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, federal, bi, de, pct1 } from "../../../lib/aprenda";
+
+## Três leis, três horizontes
+
+O orçamento federal não nasce do nada a cada ano. Ele segue uma cadeia de três leis, previstas na Constituição:
+
+<table>
+  <thead><tr><th>Lei</th><th>O que faz</th><th>Vale por</th></tr></thead>
+  <tbody>
+    <tr><td><strong>PPA</strong> · Plano Plurianual</td><td>Define os programas e objetivos do governo</td><td>4 anos</td></tr>
+    <tr><td><strong>LDO</strong> · Lei de Diretrizes Orçamentárias</td><td>Fixa as metas fiscais e as regras para montar e executar o orçamento</td><td>1 ano</td></tr>
+    <tr><td><strong>LOA</strong> · Lei Orçamentária Anual</td><td>Estima a receita e fixa cada despesa</td><td>1 ano</td></tr>
+  </tbody>
+</table>
+
+O PPA é o plano de médio prazo. Ele começa no segundo ano de um mandato e termina no primeiro ano do mandato seguinte, para que um novo governo não chegue sem orçamento. A LDO faz a ponte: diz quais são as metas e prioridades do ano seguinte. A LOA é o orçamento propriamente dito.
+
+## O calendário
+
+Na regra geral da Constituição, o Executivo envia ao Congresso:
+
+- o projeto da **LDO** até 15 de abril, que deve ser votado antes do recesso de julho;
+- o projeto da **LOA** até 31 de agosto, que deve ser votado até o fim do ano;
+- o projeto do **PPA** até 31 de agosto do primeiro ano de mandato.
+
+Quem monta os projetos é o Ministério do Planejamento e Orçamento, a partir dos pedidos de cada órgão. No Congresso, eles passam pela Comissão Mista de Orçamento (CMO), onde deputados e senadores apresentam **emendas**, e depois pelo plenário. Por fim, o presidente sanciona a lei e pode vetar partes.
+
+<Quadro titulo="E se a LOA atrasar?">
+  <p>Acontece. Nesse caso a LDO costuma permitir que o governo execute uma parte das despesas, como salários e benefícios, até a lei ser aprovada. Obras e programas novos esperam.</p>
+</Quadro>
+
+## O orçamento muda durante o ano
+
+A LOA aprovada é o ponto de partida, não o fim. Ao longo do ano, o Congresso aprova **créditos adicionais** que aumentam, criam ou remanejam dotações. Em {ANO}, o orçamento federal começou com {bi(federal.inicial)} e terminou o ano com {bi(federal.atualizado)} autorizados, uma diferença de {pct1(de(federal.atualizado - federal.inicial, federal.inicial))}.
+
+É por isso que o site mostra duas dotações: a **inicial**, que é a da lei aprovada, e a **atualizada**, que já inclui essas mudanças.
+
+<Quiz pergunta="Qual é a ordem certa em que as leis orçamentárias são feitas?" opcoes={["LOA, depois LDO, depois PPA", "PPA, depois LDO, depois LOA", "As três são votadas juntas no fim do ano"]} correta={1}>
+  <p>O PPA dá o plano de quatro anos; a LDO, as regras e metas do ano seguinte; e a LOA, os valores. Cada uma precisa respeitar a anterior.</p>
+</Quiz>

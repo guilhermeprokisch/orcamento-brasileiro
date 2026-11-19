@@ -1,0 +1,55 @@
+---
+trilha: orcamento
+ordem: 7
+titulo: "As regras fiscais"
+resumo: "Lei de Responsabilidade Fiscal, regra de ouro e arcabouço fiscal. Três camadas de regras que limitam quanto o governo pode gastar e se endividar."
+minutos: 7
+palavras: [resultado-primario, arcabouco-fiscal, regra-de-ouro, contingenciamento]
+fontes: ["Lei Complementar nº 101/2000 (LRF)", "Constituição Federal, art. 167, III (regra de ouro)", "Lei Complementar nº 200/2023 (Regime Fiscal Sustentável)", "Emenda Constitucional nº 95/2016 (teto de gastos)"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, gnd, bi, link } from "../../../lib/aprenda";
+
+## Por que existem regras fiscais
+
+Um governo pode gastar mais do que arrecada pegando dinheiro emprestado. Fazer isso de vez em quando é normal; fazer sempre faz a dívida crescer, os juros subirem e sobrar menos para o resto. As regras fiscais existem para pôr limites nesse caminho. No Brasil, há três camadas principais.
+
+## 1. A Lei de Responsabilidade Fiscal
+
+A **LRF**, de 2000, vale para União, estados e municípios. Entre outras coisas, ela:
+
+- obriga a LDO a fixar **metas fiscais** para o ano;
+- manda o governo **contingenciar** despesas quando a arrecadação não for suficiente para cumprir a meta;
+- limita os gastos com pessoal a uma parcela da receita;
+- proíbe criar despesa permanente sem dizer de onde vem o dinheiro.
+
+## 2. A regra de ouro
+
+A Constituição proíbe o governo de se endividar além do que gasta com **despesas de capital**, como investimentos e amortização da dívida. A ideia: empréstimo pode financiar uma obra que dura décadas, mas não o salário do mês. Quando a regra não pode ser cumprida, o governo precisa pedir ao Congresso uma autorização especial.
+
+## 3. O arcabouço fiscal
+
+Desde 2023, a regra principal é o **Regime Fiscal Sustentável**, conhecido como arcabouço fiscal. Ele substituiu o teto de gastos, criado em 2016, que congelava a despesa em termos reais. O arcabouço tem duas peças:
+
+- um **limite para a despesa**, que pode crescer acima da inflação, mas menos do que a receita, dentro de uma faixa fixada em lei;
+- uma **meta de resultado primário**, com uma margem de tolerância para mais ou para menos.
+
+O **resultado primário** é o que sobra das receitas depois das despesas, sem contar os juros da dívida. Se é positivo, há superávit primário: dinheiro para abater a dívida.
+
+<Quadro titulo="Por que os juros ficam de fora?">
+  <p>Os juros dependem da taxa básica e do tamanho da dívida, não das escolhas de gasto do ano. Em {ANO}, o orçamento autorizou {bi(gnd.juros.atualizado)} em juros e encargos da dívida. Tirá-los da conta mostra se o governo, com o que arrecada, cobre as próprias despesas.</p>
+</Quadro>
+
+## Bloqueio e contingenciamento
+
+Ao longo do ano, o governo publica a cada dois meses um relatório de avaliação de receitas e despesas. Se a receita vem menor do que o previsto e a meta corre risco, as despesas discricionárias são **contingenciadas**. Se são as despesas obrigatórias que crescem além do previsto e ameaçam o limite, o governo **bloqueia** outras despesas para compensar. Nos dois casos, o efeito prático é parecido: dinheiro autorizado que não pode ser usado.
+
+<NaPratica titulo="Veja quanto vai para os juros" href={link([["gnd", "2"]])} botao="Abrir juros da dívida →">
+  No Explorer, o grupo “Juros e encargos da dívida” mostra o tamanho dessa conta.
+</NaPratica>
+
+<Quiz pergunta="O resultado primário de um ano foi de R$ 50 bilhões negativos. O que isso quer dizer?" opcoes={["O governo gastou R$ 50 bilhões a mais do que arrecadou, sem contar os juros", "O governo pagou R$ 50 bilhões de juros", "A dívida caiu R$ 50 bilhões"]} correta={0}>
+  <p>Um resultado primário negativo, o déficit primário, quer dizer que as receitas não cobriram as despesas mesmo antes de pagar os juros. A diferença vira dívida.</p>
+</Quiz>

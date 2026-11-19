@@ -1,0 +1,30 @@
+---
+/** Seção "Armadilha": texto à esquerda, gráfico à direita (slot "grafico"). */
+interface Props {
+  titulo: string;
+}
+const { titulo } = Astro.props;
+---
+
+<section class="armadilha">
+  <div class="texto">
+    <span class="rotulo">Armadilha</span>
+    <h2>{titulo}</h2>
+    <slot />
+  </div>
+  <div class="grafico"><slot name="grafico" /></div>
+</section>
+
+<style>
+  .armadilha { border-top: 2px solid var(--tinta); padding-top: 28px; margin-top: 20px; display: grid; grid-template-columns: 5fr 7fr; gap: 40px; align-items: start; }
+  .texto { display: flex; flex-direction: column; gap: 14px; }
+  .rotulo { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #b42318; }
+  h2 { font-size: 36px; line-height: 1.1; letter-spacing: -0.02em; }
+  .texto :global(p) { margin: 0; }
+  .texto :global(p + p) { font-family: var(--sans); font-size: 15px; line-height: 1.55; color: var(--texto-2); }
+  .grafico :global(.comp) { margin: 0; }
+  @media (max-width: 900px) {
+    .armadilha { grid-template-columns: 1fr; gap: 20px; padding-top: 20px; }
+    h2 { font-size: 28px; }
+  }
+</style>

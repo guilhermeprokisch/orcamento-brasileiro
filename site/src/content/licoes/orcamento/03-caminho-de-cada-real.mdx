@@ -1,0 +1,40 @@
+---
+trilha: orcamento
+ordem: 3
+titulo: "O caminho de cada real"
+resumo: "Entre a lei que autoriza um gasto e o dinheiro chegar a quem prestou o serviço, cada real passa por quatro etapas. Entender esse caminho é o primeiro passo para ler qualquer número do orçamento."
+minutos: 5
+palavras: [dotacao, empenho, restos-a-pagar]
+fontes: ["Lei nº 4.320/1964 (fases da despesa)", "Manual Técnico de Orçamento (SOF)", "dados: Portal da Transparência"]
+---
+import Fases from "../../../components/aprenda/Fases.astro";
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, saude, bi, link } from "../../../lib/aprenda";
+
+<Fases nome="Ministério da Saúde" ano={ANO} valores={saude} />
+
+## 1. Dotação: a permissão para gastar
+
+Todo gasto começa na Lei Orçamentária Anual, a LOA. Ela diz quanto cada órgão pode gastar e em quê. Esse valor é a <mark>**dotação**</mark>. Ao longo do ano, o Congresso pode aprovar créditos que aumentam ou cortam esse valor; por isso o site mostra a *dotação inicial* e a *atualizada*.
+
+## 2. Empenho: o dinheiro reservado
+
+Quando o governo decide comprar algo ou firmar um contrato, ele **empenha** o valor: separa o dinheiro da dotação para aquele gasto específico. Empenhar não é pagar. É uma promessa formal de que o dinheiro existe.
+
+## 3 e 4. Liquidação e pagamento
+
+Depois que o serviço é prestado, o governo confere a entrega (a **liquidação**) e só então **paga**. No exemplo da Saúde, {bi(saude.empenhado)} foram empenhados em {ANO}, mas {bi(saude.realizado)} foram pagos no próprio ano.
+
+<Quadro titulo="Por que o pago é menor?">
+  <p>Os {bi(saude.empenhado - saude.realizado)} de diferença não sumiram. O que foi empenhado e não pago até 31 de dezembro em geral vira **restos a pagar** e é quitado nos anos seguintes.</p>
+</Quadro>
+
+<NaPratica titulo="Veja as quatro etapas de qualquer órgão no Explorer" href={link([["orgao", "36000"]])} botao={`Abrir Saúde ${ANO} →`}>
+  A frase no topo do Explorer sempre diz quanto foi empenhado e quanto foi pago.
+</NaPratica>
+
+<Quiz pergunta="Um ministério empenhou R$ 10 bilhões em um contrato em novembro. A obra só termina em março. Em que ano o pagamento aparece?" opcoes={["No mesmo ano do empenho", "No ano seguinte, como restos a pagar", "O empenho é cancelado"]} correta={1}>
+  <p>O pagamento só acontece depois da liquidação, quando a obra é entregue. Como isso passa de 31 de dezembro, o valor vira restos a pagar.</p>
+</Quiz>

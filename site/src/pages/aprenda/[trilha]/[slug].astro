@@ -1,0 +1,199 @@
+---
+import { render } from "astro:content";
+import Base from "../../../layouts/Base.astro";
+import { TRILHAS, slugDe } from "../../../lib/aprenda";
+import { todasAsLicoes, urlLicao, chaveLicao, type Licao } from "../../../lib/licoes";
+import { GLOSSARIO } from "../../../lib/glossario";
+
+export async function getStaticPaths() {
+  const licoes = await todasAsLicoes();
+  return licoes.map((licao, i) => ({
+    params: { trilha: licao.data.trilha, slug: slugDe(licao.id) },
+    props: { licao, anterior: licoes[i - 1]?.data.trilha === licao.data.trilha ? licoes[i - 1] : null, proxima: licoes[i + 1] ?? null, irmas: licoes.filter((l) => l.data.trilha === licao.data.trilha) },
+  }));
+}
+
+interface Props {
+  licao: Licao;
+  anterior: Licao | null;
+  proxima: Licao | null;
+  irmas: Licao[];
+}
+const { licao, anterior, proxima, irmas } = Astro.props;
+const { Content, headings } = await render(licao);
+const d = licao.data;
+const trilha = TRILHAS[d.trilha];
+const posicao = irmas.findIndex((l) => l.id === licao.id) + 1;
+const secoes = headings.filter((h) => h.depth === 2);
+const palavras = d.palavras.map((id) => GLOSSARIO.find((t) => t.id === id)).filter((t) => t !== undefined);
+/** primeira frase da definição, para caber na coluna */
+const curta = (s: string) => s.match(/^[^.]+\./)?.[0] ?? s;
+const larga = d.larga;
+---
+
+<Base title={`${d.titulo} · Aprenda · Orçamento Brasileiro`} description={d.resumo}>
+  <div class="wrap">
+    <nav class="caminho so-largo" aria-label="Caminho">
+      <a href="/aprenda">Aprenda</a><span class="sep">/</span><a href={`/aprenda#${d.trilha}`}>{trilha.nome}</a><span class="sep">/</span><span>Lição {posicao} de {irmas.length}</span>
+      <span class="cresce"></span>
+      <span class="progresso" aria-label={`Progresso: ${posicao} de ${irmas.length}`}>
+        {irmas.map((_, i) => <span class:list={{ feita: i + 1 < posicao, atual: i + 1 === posicao }}></span>)}
+      </span>
+    </nav>
+    <div class="caminho-celular so-celular">
+      <a href="/aprenda">{trilha.nome} · {posicao} de {irmas.length}</a>
+      <span class="progresso pequeno" aria-hidden="true">
+        {irmas.map((_, i) => <span class:list={{ feita: i + 1 < posicao, atual: i + 1 === posicao }}></span>)}
+      </span>
+    </div>
+
+    <div class:list={["grade", { larga }]}>
+      <article data-licao={chaveLicao(licao)}>
+        <header class="cabeca">
+          <span class="sobretitulo verde">
+            <span class="so-largo">{larga ? `${trilha.nome} · ${d.minutos} min` : `Lição ${posicao} · ${d.minutos} min de leitura`}</span>
+            <span class="so-celular">Lição {posicao} · {d.minutos} min</span>
+          </span>
+          <h1>{d.titulo}</h1>
+          <p class="dek">{d.resumo}</p>
+        </header>
+
+        <div class="prosa">
+          <Content />
+        </div>
+
+        <nav class="vizinhas so-largo" aria-label="Lições vizinhas">
+          {anterior
+            ? <a href={urlLicao(anterior)}><span>← Lição anterior</span><strong>{anterior.data.titulo}</strong></a>
+            : <a href="/aprenda"><span>← Voltar para</span><strong>Aprenda</strong></a>}
+          {proxima
+            ? <a class="dir" href={urlLicao(proxima)}><span>Próxima lição →</span><strong>{proxima.data.titulo}</strong></a>
+            : <a class="dir" href="/aprenda"><span>Fim das trilhas →</span><strong>Voltar para Aprenda</strong></a>}
+        </nav>
+        <nav class="vizinhas-celular so-celular" aria-label="Lições vizinhas">
+          <a href={anterior ? urlLicao(anterior) : "/aprenda"}>← Anterior</a>
+          {proxima ? <a href={urlLicao(proxima)}>Próxima: {proxima.data.titulo} →</a> : <a href="/aprenda">Voltar para Aprenda →</a>}
+        </nav>
+      </article>
+
+      <aside class="lado">
+        {!larga && secoes.length > 0 && (
+          <div class="bloco so-largo">
+            <span class="rotulo">Nesta lição</span>
+            {secoes.map((h) => <a class="secao" href={`#${h.slug}`} data-secao={h.slug}>{h.text}</a>)}
+          </div>
+        )}
+        {palavras.length > 0 && (
+          <div class="bloco">
+            <span class="rotulo">Palavras desta lição</span>
+            {palavras.map((t) => (
+              <div><strong class="serifa">{t.termo}</strong><p>{curta(t.definicao)}</p></div>
+            ))}
+            <a class="link-forte" href="/glossario">Ver o glossário completo →</a>
+          </div>
+        )}
+        {d.fontes.length > 0 && (
+          <div class="bloco">
+            <span class="rotulo">Fontes</span>
+            <span class="fontes">{d.fontes.join(" · ")}</span>
+          </div>
+        )}
+      </aside>
+    </div>
+  </div>
+</Base>
+
+<script>
+  // marca a lição como lida (usado no índice para ✓ e "continue aqui")
+  const artigo = document.querySelector<HTMLElement>("[data-licao]");
+  if (artigo) {
+    try {
+      const lidas = new Set<string>(JSON.parse(localStorage.getItem("aprenda:lidas") ?? "[]"));
+      lidas.add(artigo.dataset.licao!);
+      localStorage.setItem("aprenda:lidas", JSON.stringify([...lidas]));
+    } catch { /* sem armazenamento: tudo bem */ }
+  }
+  // destaca a seção que está na tela
+  const links = document.querySelectorAll<HTMLAnchorElement>("[data-secao]");
+  if (links.length) {
+    const obs = new IntersectionObserver((entradas) => {
+      for (const e of entradas) {
+        if (!e.isIntersecting) continue;
+        links.forEach((a) => a.classList.toggle("ativa", a.dataset.secao === e.target.id));
+      }
+    }, { rootMargin: "0px 0px -70% 0px" });
+    links.forEach((a) => { const alvo = document.getElementById(a.dataset.secao!); if (alvo) obs.observe(alvo); });
+    links[0].classList.add("ativa");
+  }
+</script>
+
+<style>
+  .caminho { padding: 12px 0; border-bottom: 1px solid var(--regra); font-size: 14px; display: flex; gap: 10px; align-items: center; }
+  .sep { color: var(--texto-4); }
+  .cresce { flex-grow: 1; }
+  .progresso { display: flex; gap: 3px; }
+  .progresso span { width: 22px; height: 4px; background: var(--regra); }
+  .progresso span.feita { background: var(--verde); }
+  .progresso span.atual { background: var(--tinta); }
+  .progresso.pequeno { gap: 2px; }
+  .progresso.pequeno span { width: 10px; }
+  .caminho-celular { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--regra); font-size: 12px; }
+  .caminho-celular a { color: var(--texto-3); text-decoration: none; }
+
+  .grade { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 48px; padding-top: 48px; }
+  article { grid-column: span 8; display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+  .grade.larga article { grid-column: 1 / -1; }
+  .grade.larga .cabeca { padding-top: 0; max-width: 860px; }
+  .grade.larga .lado { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; padding-top: 0; }
+  .cabeca { display: flex; flex-direction: column; gap: 14px; }
+  .cabeca h1 { font-size: 64px; line-height: 1; letter-spacing: -0.025em; }
+  .dek { margin: 0; font-family: var(--serifa); font-size: 23px; line-height: 1.45; color: var(--texto-2); }
+
+  /* texto corrido das lições */
+  .prosa { display: flex; flex-direction: column; gap: 18px; font-family: var(--serifa); font-size: 20px; line-height: 1.65; color: #24221d; }
+  .prosa :global(> p) { margin: 0; }
+  .prosa :global(> h2) { margin: 18px 0 0; font-size: 32px; line-height: 1.15; letter-spacing: -0.02em; color: var(--tinta); scroll-margin-top: 20px; }
+  .prosa :global(> h3) { margin: 6px 0 0; font-size: 24px; line-height: 1.2; color: var(--tinta); }
+  .prosa :global(> ul), .prosa :global(> ol) { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+  .prosa :global(strong) { font-weight: 700; }
+  .prosa :global(mark) { background: linear-gradient(transparent 58%, var(--marca-texto) 58%); color: inherit; }
+  .prosa :global(table) { border-collapse: collapse; font-family: var(--sans); font-size: 15px; width: 100%; }
+  .prosa :global(th), .prosa :global(td) { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--regra); vertical-align: top; }
+  .prosa :global(th) { border-bottom: 2px solid var(--tinta); font-weight: 600; }
+  .prosa :global(td.num), .prosa :global(th.num) { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .vizinhas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; border-top: 2px solid var(--tinta); padding-top: 18px; margin-top: 12px; }
+  .vizinhas a { display: flex; flex-direction: column; gap: 4px; color: var(--tinta); text-decoration: none; }
+  .vizinhas a span { font-size: 13px; color: var(--texto-3); }
+  .vizinhas a strong { font-family: var(--serifa); font-size: 22px; line-height: 1.2; }
+  .vizinhas a:hover strong { color: var(--verde); }
+  .vizinhas a.dir { text-align: right; }
+  .vizinhas-celular { display: flex; justify-content: space-between; gap: 12px; border-top: 2px solid var(--tinta); padding-top: 14px; font-weight: 600; }
+  .vizinhas-celular a { text-decoration: none; }
+  .vizinhas-celular a:first-child { white-space: nowrap; }
+  .vizinhas-celular a:last-child { text-align: right; }
+
+  .lado { grid-column: span 4; display: flex; flex-direction: column; gap: 32px; padding-top: 6px; }
+  .bloco { border-top: 2px solid var(--tinta); padding-top: 14px; display: flex; flex-direction: column; gap: 12px; align-self: start; }
+  .lado .bloco:first-child { position: sticky; top: 16px; }
+  .rotulo { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--texto-3); }
+  .secao { color: var(--texto-3); text-decoration: none; }
+  .secao.ativa, .secao:hover { color: var(--tinta); font-weight: 600; }
+  .bloco strong.serifa { font-size: 19px; }
+  .bloco p { margin: 2px 0 0; font-size: 14px; line-height: 1.5; color: var(--texto-2); }
+  .fontes { font-size: 14px; line-height: 1.5; color: var(--texto-2); }
+
+  @media (max-width: 900px) {
+    .grade { display: flex; flex-direction: column; gap: 32px; padding-top: 24px; }
+    .grade.larga .lado { display: flex; }
+    .lado { padding-top: 0; }
+    .lado .bloco:first-child { position: static; }
+    article { gap: 18px; }
+    .cabeca h1 { font-size: 40px; line-height: 1.02; letter-spacing: -0.02em; }
+    .dek { font-size: 19px; }
+    .prosa { font-size: 18px; line-height: 1.6; }
+    .prosa :global(> h2) { font-size: 26px; margin-top: 6px; }
+    .prosa :global(table) { display: block; overflow-x: auto; font-size: 13px; }
+    .prosa :global(th), .prosa :global(td) { padding: 8px 6px; }
+  }
+</style>

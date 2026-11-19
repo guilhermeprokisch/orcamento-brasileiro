@@ -1,0 +1,47 @@
+---
+trilha: orcamento
+ordem: 1
+titulo: "O que é o orçamento público"
+resumo: "O orçamento é a lei que diz quanto o governo espera arrecadar e quanto pode gastar em cada coisa durante um ano. Tudo o que o governo federal paga precisa estar previsto nele."
+minutos: 4
+palavras: [loa, dotacao, refinanciamento]
+fontes: ["Constituição Federal, arts. 165 a 169", "Lei nº 4.320/1964", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, federal, federalSemRefin, refinanciamento, parcelaRefin, previdencia, saude, educacaoMinisterio, bi, pctInt, de, link } from "../../../lib/aprenda";
+
+## Uma lei, todo ano
+
+O orçamento público é uma lei. Todo ano o governo federal manda ao Congresso um projeto que **estima as receitas** (quanto deve arrecadar) e **fixa as despesas** (quanto pode gastar e em quê). Depois de aprovado, ele vira a Lei Orçamentária Anual, a <mark>LOA</mark>.
+
+A palavra importante é *fixa*. O orçamento não é uma previsão solta: ele é um limite. Um ministério só pode gastar o que está autorizado na LOA, naquela finalidade. Esse valor autorizado se chama **dotação**.
+
+## Do tamanho de um país
+
+Em {ANO}, o orçamento federal autorizou {bi(federal.atualizado)} em despesas. É um número difícil de imaginar, e parte dele nem é gasto de verdade: {bi(refinanciamento)}, ou {pctInt(parcelaRefin)} do total, são **refinanciamento da dívida**, a troca de títulos públicos que vencem por títulos novos.
+
+Tirando o refinanciamento, sobram {bi(federalSemRefin.atualizado)}. Daí saem as aposentadorias e pensões do INSS e dos servidores ({bi(previdencia.atualizado)}, {pctInt(de(previdencia.atualizado, federalSemRefin.atualizado))} desse valor), o Ministério da Saúde ({bi(saude.atualizado)}), o Ministério da Educação ({bi(educacaoMinisterio.atualizado)}) e todo o resto.
+
+## Três orçamentos em um
+
+A Constituição divide a LOA em três partes:
+
+- o **orçamento fiscal**, com os poderes, ministérios, fundos e órgãos da União;
+- o **orçamento da seguridade social**, com saúde, previdência e assistência social;
+- o **orçamento de investimento** das empresas estatais.
+
+Este site mostra os dois primeiros, que é onde está quase todo o gasto federal. As estatais, como a Petrobras, têm contabilidade própria.
+
+<Quadro titulo="Por que isso importa?">
+  <p>Se um gasto não está no orçamento, o governo não pode fazê-lo. Por isso o orçamento é o melhor mapa das prioridades reais de um governo: discursos mudam, a lei diz onde está o dinheiro.</p>
+</Quadro>
+
+<NaPratica titulo="Veja o orçamento inteiro de uma vez" href={link()} botao={`Abrir o orçamento ${ANO} →`}>
+  O Explorer começa pelo total federal e deixa você abrir cada pedaço.
+</NaPratica>
+
+<Quiz pergunta="Um ministério quer gastar R$ 1 bilhão num programa novo que não está na LOA. O que precisa acontecer?" opcoes={["Nada: basta o ministro assinar", "O Congresso precisa aprovar um crédito que autorize o gasto", "O Tribunal de Contas aprova o gasto"]} correta={1}>
+  <p>Gasto fora da LOA só com autorização do Congresso, por meio de um crédito adicional. É assim que o orçamento muda ao longo do ano.</p>
+</Quiz>

@@ -1,0 +1,25 @@
+---
+/** Quadro amarelo de destaque dentro da lição ("Por que o pago é menor?"). */
+interface Props {
+  titulo: string;
+  tom?: "destaque" | "armadilha";
+}
+const { titulo, tom = "destaque" } = Astro.props;
+---
+
+<aside class:list={["quadro", tom]}>
+  <span class="rotulo">{titulo}</span>
+  <div class="corpo"><slot /></div>
+</aside>
+
+<style>
+  .quadro { background: var(--marca-texto-fundo); border-left: 4px solid var(--tinta); padding: 22px 26px; display: flex; flex-direction: column; gap: 10px; margin: 8px 0; }
+  .quadro.armadilha { background: #fde7e4; border-left-color: #b42318; }
+  .rotulo { font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+  .armadilha .rotulo { color: #b42318; }
+  .corpo :global(p) { margin: 0 !important; font-size: 20px; line-height: 1.55; }
+  @media (max-width: 640px) {
+    .quadro { padding: 16px 18px; }
+    .corpo :global(p) { font-size: 17px !important; }
+  }
+</style>

@@ -1,0 +1,52 @@
+---
+trilha: dados
+ordem: 2
+titulo: "Dotação, empenhado ou pago: qual olhar?"
+resumo: "O Explorer mostra quatro valores para cada linha do orçamento. Cada um responde a uma pergunta diferente, e escolher o errado muda a conclusão."
+minutos: 5
+palavras: [dotacao, empenho, pagamento, restos-a-pagar]
+fontes: ["Lei nº 4.320/1964", "dados: Portal da Transparência"]
+---
+import Quadro from "../../../components/aprenda/Quadro.astro";
+import NaPratica from "../../../components/aprenda/NaPratica.astro";
+import Quiz from "../../../components/aprenda/Quiz.astro";
+import { ANO, ANO_CORRENTE, fazenda, presidencia, gnd, bi, pctInt, pagoDe, link } from "../../../lib/aprenda";
+
+## Os quatro valores
+
+<table>
+  <thead><tr><th>Valor</th><th>O que é</th><th>Responde a</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Dotação inicial</strong></td><td>O que a LOA aprovou</td><td>O que o governo e o Congresso planejaram?</td></tr>
+    <tr><td><strong>Dotação atualizada</strong></td><td>A inicial mais os créditos e cortes do ano</td><td>Quanto podia ser gasto, no fim das contas?</td></tr>
+    <tr><td><strong>Empenhado</strong></td><td>O que foi reservado para gastos concretos</td><td>Quanto o governo se comprometeu a gastar?</td></tr>
+    <tr><td><strong>Pago</strong></td><td>O que saiu do caixa no ano</td><td>Quanto dinheiro chegou de fato?</td></tr>
+  </tbody>
+</table>
+
+O Explorer usa a **dotação atualizada** como padrão para o tamanho dos blocos, porque ela mostra o espaço que cada área teve no orçamento. A frase-resumo sempre diz quanto disso foi empenhado e pago.
+
+## Quando o pago conta outra história
+
+A porcentagem paga varia muito. Em {ANO}, o Ministério da Fazenda pagou {pctInt(pagoDe(fazenda))} do que tinha autorizado; a Presidência da República, {pctInt(pagoDe(presidencia))}.
+
+O tipo de gasto também pesa. Salários são pagos todo mês, então quase todo o valor de **pessoal** sai no próprio ano: {pctInt(pagoDe(gnd.pessoal))} em {ANO}. Já em **investimentos**, como obras, o pagamento depende de etapas concluídas: só {pctInt(pagoDe(gnd.investimentos))} foi pago no ano. O resto em geral vira restos a pagar.
+
+<Quadro titulo="Pago baixo nem sempre é problema">
+  <p>Uma obra empenhada em novembro só será paga quando a etapa for entregue, muitas vezes no ano seguinte. Um pago baixo pode indicar atraso, mas também pode ser só o ritmo normal daquele tipo de despesa. Compare com anos anteriores antes de concluir.</p>
+</Quadro>
+
+## Qual usar
+
+- Para saber **as prioridades** do orçamento: dotação atualizada.
+- Para saber **o que foi planejado** e comparar com o que mudou: dotação inicial.
+- Para saber **o que de fato aconteceu**: empenhado e pago.
+- Para o **ano em andamento** ({ANO_CORRENTE}): olhe a dotação; empenhado e pago ainda vão crescer até dezembro.
+
+<NaPratica titulo="Troque a métrica no Explorer" href={link([], { por: "gnd", refin: 0, metrica: "realizado" })} botao="Ver o pago por tipo de gasto →">
+  Na lista, compare as colunas de autorizado e pago de cada grupo.
+</NaPratica>
+
+<Quiz pergunta="Você quer mostrar quanto dinheiro de fato chegou às escolas federais em um ano já encerrado. Qual valor usar?" opcoes={["Dotação inicial", "Dotação atualizada", "Pago"]} correta={2}>
+  <p>A dotação é só a autorização. O pago mostra o que saiu do caixa. Lembre de dizer que restos a pagar podem ser pagos no ano seguinte.</p>
+</Quiz>
