@@ -38,7 +38,8 @@ uv run mapa
 #     (resultado e explicação em docs/conciliacao-federal.md)
 uv run conciliar 2025
 
-# 1e. o ano em andamento, pelo relatório bimestral (RREO): estados; com --municipios, todos (~1h40)
+# 1e. o ano em andamento, pelo relatório bimestral (RREO): estados; com --municipios, todos (~1h40).
+#     Rodar depois do mapa: acrescenta o ano em andamento aos arquivos dele.
 uv run rreo
 uv run federal 2025    # repasses e benefícios federais por município
 uv run inss            # aposentadorias e pensões do INSS por município
@@ -63,7 +64,7 @@ cd ../site && npm install && npm run dev
 | Ministério da Previdência Social | [Estatísticas municipais](https://www.gov.br/previdencia/pt-br/assuntos/previdencia-social/estatisticas-municipais-2000-a-2022), benefícios emitidos por município | Mapa: aposentadorias, pensões e auxílios do INSS pagos em cada município, 2013+. Só os benefícios previdenciários (o BPC vem do Portal da Transparência). Valor líquido, pelo município da agência que paga, não o de residência |
 | Receita Federal | [Arrecadação por estado](https://www.gov.br/receitafederal/dados/arrecadacao-estado.csv) | Mapa: impostos federais arrecadados em cada estado, base da estimativa do que cada cidade manda para a União |
 | Tesouro Nacional | [Municípios do SIAFI](https://www.tesourotransparente.gov.br/ckan/dataset/lista-de-municipios-do-siafi) | Código SIAFI → código IBGE (o Portal da Transparência usa o SIAFI) |
-| SICONFI (Tesouro Nacional) | [API de dados abertos](https://apidatalake.tesouro.gov.br/docs/siconfi/), RREO Anexo 01 | O ano em andamento nas páginas de estado e cidade: receita arrecadada e despesa empenhada e paga até o último bimestre com prazo de entrega vencido, frente ao previsto para o ano e ao mesmo período do ano anterior |
+| SICONFI (Tesouro Nacional) | [API de dados abertos](https://apidatalake.tesouro.gov.br/docs/siconfi/), RREO Anexo 01 | O ano em andamento nas páginas de estado e cidade: receita arrecadada e despesa empenhada e paga até o último bimestre com prazo de entrega vencido, frente ao previsto para o ano e ao mesmo período do ano anterior. No mapa, é o último ano do seletor, marcado como parcial ("2026 (até agosto)"), com gasto total, tipo de gasto, receita, saldo e origem do dinheiro |
 | IBGE | [Malhas territoriais](https://servicodados.ibge.gov.br/api/docs/malhas) | Contornos de municípios e estados do mapa |
 
 Saídas do pipeline:
