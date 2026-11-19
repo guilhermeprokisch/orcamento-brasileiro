@@ -206,6 +206,8 @@ export interface PontoSerie {
   valor: number;
   /** Os dois anos mais recentes do DATASUS ainda são preliminares. */
   preliminar: boolean;
+  /** Ano em que o número deve estar subcontado (ex.: mais mortes violentas sem causa do que homicídios). */
+  marca?: boolean;
 }
 
 /** Abaixo disso, a taxa oscila demais de um ano para outro e não é comparada. */
@@ -301,7 +303,8 @@ function serieHomicidios(porAno: Record<string, Record<string, [number, number, 
   const serie = anos.map((a) => {
     const y = porAno[a][id];
     const n = y ? y[0] + y[1] : 0;
-    return { ano: Number(a), valor: emTaxa ? (n / pops[a][id]) * 1e5 : n, preliminar: false };
+    // Mais mortes violentas sem causa definida do que homicídios: parte deles não foi contada.
+    return { ano: Number(a), valor: emTaxa ? (n / pops[a][id]) * 1e5 : n, preliminar: false, marca: !!y && y[2] > n };
   });
   const serieBrasil = !emTaxa ? [] : anos.flatMap((a) => {
     let n = 0, p = 0;

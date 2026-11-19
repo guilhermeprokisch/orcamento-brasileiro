@@ -12,12 +12,15 @@ interface Props {
   referencia?: PontoSerie[];
   rotuloReferencia?: string;
   casas?: number;
+  /** O que a marca † quer dizer, quando algum ano a tem. */
+  notaMarca?: string;
 }
-const { titulo, serie, referencia = [], rotuloReferencia = "Brasil", casas = 0 } = Astro.props;
+const { titulo, serie, referencia = [], rotuloReferencia = "Brasil", casas = 0, notaMarca } = Astro.props;
 const nf = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
 const ref = new Map(referencia.map((p) => [p.ano, p.valor]));
 const escala = Math.max(...serie.map((p) => p.valor), ...referencia.map((p) => p.valor)) * 1.05 || 1;
 const temPreliminar = serie.some((p) => p.preliminar);
+const temMarca = !!notaMarca && serie.some((p) => p.marca);
 const linhas = serie.map((p) => {
   const r = ref.get(p.ano);
   return { ...p, largura: (p.valor / escala) * 100, ref: r === undefined ? null : { left: (r / escala) * 100, titulo: `${rotuloReferencia}: ${nf.format(r)}` } };
@@ -29,8 +32,8 @@ const linhas = serie.map((p) => {
     <figcaption>{titulo}</figcaption>
     <ol>
       {linhas.map((p) => (
-        <li class:list={{ preliminar: p.preliminar }}>
-          <span class="num ano">{p.ano}{p.preliminar && "*"}</span>
+        <li class:list={{ preliminar: p.preliminar, subcontado: p.marca && !!notaMarca }}>
+          <span class="num ano">{p.ano}{p.preliminar && "*"}{p.marca && notaMarca && "†"}</span>
           <span class="trilho">
             <span class="barra" style={`width:${p.largura}%`}></span>
             {p.ref && <span class="ref" style={`left:${p.ref.left}%`} title={p.ref.titulo}></span>}
@@ -41,7 +44,8 @@ const linhas = serie.map((p) => {
     </ol>
     <p class="nota">
       {ref.size > 0 && <><span class="traco" aria-hidden="true"></span> {rotuloReferencia}. </>}
-      {temPreliminar && <>* Dados preliminares.</>}
+      {temPreliminar && <>* Dados preliminares. </>}
+      {temMarca && <>† {notaMarca}</>}
     </p>
   </figure>
 )}
@@ -56,7 +60,8 @@ const linhas = serie.map((p) => {
   .trilho { position: relative; display: block; height: 12px; }
   .barra { display: block; height: 100%; background: var(--verde); }
   .preliminar .barra { opacity: 0.45; }
+  .subcontado .barra { background: repeating-linear-gradient(135deg, var(--verde) 0 4px, color-mix(in srgb, var(--verde) 35%, var(--papel)) 4px 7px); }
   .ref { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--tinta); }
-  .nota { margin: 0; font-size: 12px; color: var(--texto-3); display: flex; align-items: center; gap: 6px; }
-  .traco { display: inline-block; width: 2px; height: 12px; background: var(--tinta); }
+  .nota { margin: 0; font-size: 12px; line-height: 1.45; color: var(--texto-3); }
+  .traco { display: inline-block; width: 2px; height: 12px; background: var(--tinta); vertical-align: -2px; margin-right: 4px; }
 </style>
