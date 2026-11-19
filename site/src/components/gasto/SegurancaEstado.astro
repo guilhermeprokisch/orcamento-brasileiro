@@ -75,8 +75,8 @@ const muitasIndeterminadas = h ? h.indeterminadas > h.homicidios * 0.4 : false;
       {frente !== null && Math.abs(frente) >= 0.1 && <p class="frente">{nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"} {mun ? "das cidades parecidas" : "da mediana dos estados"}</p>}
     </div>
     {h.serieEmTaxa
-      ? <SerieAnos titulo="Ano a ano, a cada 100 mil habitantes" serie={h.serie} referencia={h.serieBrasil} casas={1} />
-      : <SerieAnos titulo="Homicídios por ano (número de mortes)" serie={h.serie} />}
+      ? <SerieAnos titulo="Ano a ano, a cada 100 mil habitantes" serie={h.serie} referencia={h.serieBrasil} casas={1} notaMarca="Ano com mais mortes violentas sem causa definida do que homicídios: parte dos homicídios não foi contada, e o número real deve ser maior." />
+      : <SerieAnos titulo="Homicídios por ano (número de mortes)" serie={h.serie} notaMarca="Ano com mais mortes violentas sem causa definida do que homicídios: parte dos homicídios não foi contada, e o número real deve ser maior." />}
     </div>
     <p class="fonte">Fonte: {h.fonte}, {h.ano}. Homicídios: agressões e intervenções legais (CID-10 X85 a Y09, Y35 e Y36), pel{mun ? "a cidade" : "o estado"} onde a pessoa morava.{h.serieEmTaxa && <> Na série, a população de cada ano é a estimada pelo IBGE (o Censo em 2022); as estimativas até 2021, feitas antes do Censo, ficaram em muitos lugares acima da população real, o que deixa a taxa desses anos um pouco mais baixa.</>}</p>
   </section>
