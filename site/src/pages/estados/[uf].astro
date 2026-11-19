@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import AnoEmAndamento from "../../components/gasto/AnoEmAndamento.astro";
+import EducacaoEstado from "../../components/gasto/EducacaoEstado.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import { fatorIpca, resumo } from "../../lib/perfis";
 import { caminhoCidade, deUf, docCidades, docEstados, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../lib/cidades";
@@ -80,6 +81,7 @@ const descricao = temDados
     {ctx && <div class="ficha" data-parte="numeros" set:html={numerosHtml(ctx)} />}
     {ctx && <p class="aviso-ano" id="aviso-ano" hidden></p>}
     {ctx && <div class="ficha" data-parte="areas" set:html={areasHtml(ctx)} />}
+    {temDados && <div data-so-padrao="o gasto por aluno"><EducacaoEstado estado={e} quem={quem} /></div>}
     {ctx && <div class="ficha" data-parte="contas" set:html={contasHtml(ctx)} />}
     {temDados && <AnoEmAndamento ente={e} esfera="uf" quem={quem} />}
 
