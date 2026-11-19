@@ -374,11 +374,31 @@ export interface IrMoradores {
 }
 const medianasIr = new Map<string, number | null>();
 
-export function irMoradoresDe(c: Cidade): IrMoradores | null {
+/** As cidades somadas por estado: código do estado → [declarantes, imposto devido]. */
+function irPorEstado(ano: string): Record<string, [number, number]> {
+  const soma: Record<string, [number, number]> = {};
+  for (const [ibge, v] of Object.entries(docIrpf!.anos[ano])) {
+    const s = (soma[ibge.slice(0, 2)] ??= [0, 0]);
+    s[0] += v[0];
+    s[1] += v[1];
+  }
+  return soma;
+}
+
+export function irMoradoresDe(c: Cidade, esfera: "mun" | "uf" = "mun"): IrMoradores | null {
   if (!docIrpf || !c.pop) return null;
   const ano = Object.keys(docIrpf.anos).sort().at(-1);
-  const v = ano ? docIrpf.anos[ano][String(c.ibge)] : undefined;
-  if (!ano || !v) return null;
+  if (!ano) return null;
+  if (esfera === "uf") {
+    const porUf = irPorEstado(ano);
+    const v = porUf[String(c.ibge)];
+    if (!v) return null;
+    const pop = new Map((docEstados?.cidades ?? []).map((x) => [String(x.ibge), x.pop]));
+    const valores = Object.entries(porUf).filter(([k]) => k !== "53" && pop.get(k)).map(([k, x]) => x[1] / pop.get(k)!);
+    return { fonte: docIrpf.fonte, ano: Number(ano), declarantes: v[0], valor: v[1], porHab: v[1] / c.pop, mediana: mediana(valores) };
+  }
+  const v = docIrpf.anos[ano][String(c.ibge)];
+  if (!v) return null;
   const chave = `${ano}-${c.faixa}`;
   if (!medianasIr.has(chave)) {
     const doAno = docIrpf.anos[ano];
