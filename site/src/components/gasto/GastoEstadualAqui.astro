@@ -23,15 +23,19 @@ const gastoDaPrefeitura = cidade.total?.[0] ?? 0;
     <div class="texto">
       <h2>O que o governo do estado gastou aqui</h2>
       <p>
-        Em {g.ano}, o governo {deUf(cidade.uf)} comprometeu <strong>{moedaExtenso(g.local)}</strong> em obras, serviços e
-        compras registrados em {cidade.nome}, ou {porPessoa(g.local / cidade.pop)} por habitante.
+        Em {g.ano}, o governo {deUf(cidade.uf)} {g.texto?.resumo ?? "comprometeu"} <strong>{moedaExtenso(g.local)}</strong>{" "}
+        {g.texto?.onde ?? "em obras, serviços e compras registrados em"} {cidade.nome}, ou {porPessoa(g.local / cidade.pop)} por habitante.
         {gastoDaPrefeitura > 0 && <> A prefeitura gastou {moedaExtenso(gastoDaPrefeitura)} no mesmo ano.</>}
       </p>
-      <p class="menor">
-        Soma dos empenhos do estado que indicam este município. Não inclui salários: a folha é registrada na sede de cada
-        órgão{g.folha > 0 && <> ({moedaCurta(g.folha)} aparecem aqui por esse motivo)</>}. Uma obra que atende várias cidades
-        pode estar registrada inteira em uma delas, e compras centralizadas ficam na capital.
-      </p>
+      {g.texto ? (
+        <p class="menor">{g.texto.nota}</p>
+      ) : (
+        <p class="menor">
+          Soma dos empenhos do estado que indicam este município. Não inclui salários: a folha é registrada na sede de cada
+          órgão{g.folha > 0 && <> ({moedaCurta(g.folha)} aparecem aqui por esse motivo)</>}. Uma obra que atende várias cidades
+          pode estar registrada inteira em uma delas, e compras centralizadas ficam na capital.
+        </p>
+      )}
     </div>
     <div class="dados">
       <ul class="barras">
@@ -45,16 +49,16 @@ const gastoDaPrefeitura = cidade.total?.[0] ?? 0;
           <li><span class="lb-linha"><span>Outras áreas</span><strong class="num">{moedaCurta(outras)} · {pct(outras / g.local)}</strong></span></li>
         )}
       </ul>
-      <h3>As maiores despesas</h3>
+      <h3>{g.maiores.some((m) => m.credor) ? "As maiores despesas" : "Os maiores programas"}</h3>
       <ol class="maiores">
         {g.maiores.map((m) => (
           <li>
-            <span><strong>{m.acao}</strong><small>{m.credor} · {m.orgao}</small></span>
+            <span><strong>{m.acao}</strong><small>{[m.credor, m.orgao].filter(Boolean).join(" · ")}</small></span>
             <span class="num" title={moedaCompleta(m.valor)}>{moedaCurta(m.valor)}</span>
           </li>
         ))}
       </ol>
-      <p class="fonte">Fonte: {g.fonte}, despesas orçamentárias de {g.ano}. Pessoas físicas aparecem somadas, sem nome.</p>
+      <p class="fonte">Fonte: {g.fonte}, {g.ano}.{!g.texto && " Pessoas físicas aparecem somadas, sem nome."}</p>
     </div>
   </section>
 )}

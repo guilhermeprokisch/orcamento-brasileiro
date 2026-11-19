@@ -20,6 +20,7 @@ semente = "orcamento_pipeline.semente:main"
 rreo = "orcamento_pipeline.rreo:main"
 conciliar = "orcamento_pipeline.conciliar:main"
 estado-pb = "orcamento_pipeline.estado_pb:main"
+estado-mg = "orcamento_pipeline.estado_mg:main"
 
 [build-system]
 requires = ["hatchling"]

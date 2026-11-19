@@ -94,6 +94,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline estado-pb 2025
 
+      # Gasto do governo de Minas Gerais distribuído por município (arquivos pequenos do
+      # portal de dados abertos do estado). Se falhar, as cidades mineiras saem sem a seção.
+      - name: Pipeline do gasto estadual localizado (MG)
+        continue-on-error: true
+        run: uv run --project pipeline estado-mg 2025
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
