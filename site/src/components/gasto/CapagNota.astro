@@ -1,0 +1,99 @@
+---
+/**
+ * A nota de capacidade de pagamento (CAPAG) que o Tesouro dá às contas da prefeitura ou do
+ * governo estadual, com as três notas parciais explicadas em palavras simples.
+ */
+import type { Cidade } from "../../lib/cidades";
+import { capagDe, type Parcial } from "../../lib/capag";
+
+interface Props {
+  ente: Cidade;
+  esfera: "mun" | "uf";
+  /** "a prefeitura de Fortaleza", "o governo do Ceará" */
+  quem: string;
+  /** "das cidades de 100 a 500 mil habitantes"; para os estados, "dos estados" */
+  grupo: string | null;
+}
+const { ente, esfera, quem, grupo } = Astro.props;
+const c = capagDe(ente, esfera);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct = (v: number) => `${nf0.format(v * 100)}%`;
+const boa = (n: string | null) => !!n && (n[0] === "A" || n[0] === "B");
+const classe = (n: string | null) => (n ? `n${n[0].toLowerCase()}` : "nsem");
+
+const linhas: { titulo: string; texto: string; p: Parcial }[] = c
+  ? [
+      { titulo: "Endividamento", p: c.endividamento,
+        texto: c.endividamento.valor === null ? "sem dado" : `a dívida é ${pct(c.endividamento.valor)} da receita` },
+      { titulo: "Poupança", p: c.poupanca,
+        texto: c.poupanca.valor === null ? "sem dado" : `o gasto do dia a dia consome ${pct(c.poupanca.valor)} da receita do dia a dia` },
+      { titulo: "Liquidez", p: c.liquidez,
+        texto: c.liquidez.valor === null ? "sem dado"
+          : c.liquidez.valor < 0 ? "faltava caixa para pagar as contas de curto prazo"
+          : `sobrava em caixa, depois das contas de curto prazo, ${pct(c.liquidez.valor)} da receita` },
+    ]
+  : [];
+---
+
+{c && (
+  <section class="capag">
+    <div class="texto">
+      <h2>A nota do Tesouro</h2>
+      {c.nota ? (
+        <p>
+          Na avaliação do Tesouro Nacional de {c.quando}{c.anoBase && <>, com as contas de {c.anoBase}</>}, {quem} tirou{" "}
+          <strong>nota {c.nota}</strong>.{" "}
+          {boa(c.nota)
+            ? <>Com nota A ou B, pode pegar empréstimo com a União como garantidora, o que deixa os juros mais baixos.</>
+            : <>Com nota C ou D, não pode pegar empréstimo com a União como garantidora.</>}
+          {c.nota.endsWith("+") && <> O "+" é um bônus pela boa qualidade das informações contábeis.</>}
+        </p>
+      ) : (
+        <p>Na avaliação do Tesouro Nacional de {c.quando}, {quem} ficou sem nota: faltaram dados entregues ao Tesouro para fazer a conta.</p>
+      )}
+      <p class="menor">
+        A nota, chamada CAPAG (capacidade de pagamento), junta três avaliações das contas, cada uma de A a C.
+        {c.boas !== null && grupo && <> Entre {esfera === "uf" ? "os estados" : `as cidades ${grupo.replace(/^das cidades /, "")}`}, {pct(c.boas)} têm nota A ou B.</>}
+      </p>
+    </div>
+    <div class="dados">
+      <span class={`letra ${classe(c.nota)}`} aria-label={c.nota ? `Nota ${c.nota}` : "Sem nota"}>{c.nota ?? "—"}</span>
+      <ul>
+        {linhas.map((l) => (
+          <li>
+            <span class={`parcial ${classe(l.p.nota)}`}>{l.p.nota ?? "—"}</span>
+            <span><strong>{l.titulo}</strong>: {l.texto}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+    <p class="fonte">Fonte: {c.fonte}, versão de {c.quando}. O Tesouro avisa que o resultado é uma prévia e não vincula a decisão sobre cada empréstimo.</p>
+  </section>
+)}
+
+<style>
+  .capag { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 6; display: flex; gap: 24px; align-items: center; }
+  .letra { flex: none; width: 96px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: var(--serifa); font-size: 52px; font-weight: 700; color: #fff; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  li { display: flex; gap: 12px; align-items: baseline; font-size: 15px; line-height: 1.45; color: var(--texto-2); }
+  li strong { color: var(--tinta); }
+  .parcial { flex: none; width: 26px; text-align: center; padding: 1px 0; font-weight: 700; color: #fff; font-size: 13px; }
+  .na { background: var(--verde); }
+  .nb { background: #4fae73; }
+  .nc { background: #c2913a; }
+  .nd { background: #a3401a; }
+  .nsem { background: var(--regra); color: var(--tinta); }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .capag { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; }
+    .letra { width: 72px; height: 72px; font-size: 40px; }
+  }
+</style>
