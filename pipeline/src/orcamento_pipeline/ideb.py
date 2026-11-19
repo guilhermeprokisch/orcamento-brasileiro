@@ -15,6 +15,11 @@ médio fica de fora por enquanto: é quase todo estadual.
 O servidor de downloads do INEP não envia a cadeia de certificados completa; ver
 fontes.contexto_tls_com_intermediario.
 
+O INEP derruba conexões vindas de fora do país (é o caso dos servidores do GitHub). Como o
+Ideb só muda a cada dois anos, o resultado também é gravado em pipeline/referencia/ideb.json,
+versionado: quando o download falha, a saída é copiada de lá, com um aviso. Depois de uma
+edição nova, basta rodar este comando numa máquina que alcance o INEP e versionar o arquivo.
+
 Cache em data/raw/inep/. Saída em site/public/data/indicadores/ideb.json:
     {"edicao": 2025, "anos": [2005, …], "mun": {ibge: {"mi": […], "mf": […], "ei": […], "ef": […]}}}
 com uma nota por ano em cada lista (null quando não há): m/e = rede municipal/estadual,
@@ -41,6 +46,7 @@ URL = "https://download.inep.gov.br/ideb/resultados/divulgacao_{etapa}_municipio
 INTERMEDIARIO = "http://secure.globalsign.com/cacert/rnpicpedugr46ovtlsca2025.crt"
 PASTA_BRUTO = RAIZ / "data" / "raw" / "inep"
 SAIDA = RAIZ / "site" / "public" / "data" / "indicadores" / "ideb.json"
+REFERENCIA = RAIZ / "pipeline" / "referencia" / "ideb.json"
 ETAPAS = {"anos_iniciais": "i", "anos_finais": "f"}
 REDES = {"Municipal": "m", "Estadual": "e"}
 PRIMEIRA_EDICAO = 2005
@@ -101,16 +107,23 @@ def main() -> None:
     p = argparse.ArgumentParser(prog="ideb", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("edicao", type=int, nargs="?", help="ano da edição (ímpar); padrão: a mais recente publicada")
     args = p.parse_args()
-    contexto = contexto_tls_com_intermediario(INTERMEDIARIO)
-
     ultimo_impar = date.today().year - (date.today().year + 1) % 2
     candidatas = [args.edicao] if args.edicao else [ultimo_impar, ultimo_impar - 2]
-    for edicao in candidatas:
-        arquivos = {etapa: baixar(etapa, edicao, contexto) for etapa in ETAPAS}
-        if all(arquivos.values()):
-            break
-    else:
-        raise SystemExit(f"o INEP não tem as planilhas das edições {candidatas}")
+    try:
+        contexto = contexto_tls_com_intermediario(INTERMEDIARIO)
+        for edicao in candidatas:
+            arquivos = {etapa: baixar(etapa, edicao, contexto) for etapa in ETAPAS}
+            if all(arquivos.values()):
+                break
+        else:
+            raise SystemExit(f"o INEP não tem as planilhas das edições {candidatas}")
+    except (OSError, RuntimeError) as e:  # sem acesso ao INEP: fica a cópia versionada
+        if not REFERENCIA.exists():
+            raise
+        SAIDA.parent.mkdir(parents=True, exist_ok=True)
+        SAIDA.write_bytes(REFERENCIA.read_bytes())
+        print(f"  aviso: INEP inacessível ({e}); usando a cópia versionada, edição {json.loads(REFERENCIA.read_text())['edicao']}", flush=True)
+        return
 
     anos = list(range(PRIMEIRA_EDICAO, edicao + 1, 2))
     mun: dict[str, dict[str, list[float | None]]] = {}
@@ -118,8 +131,11 @@ def main() -> None:
         for ibge, redes in ler(arquivos[etapa], anos).items():
             for rede, serie in redes.items():
                 mun.setdefault(ibge, {})[rede + sufixo] = serie
-    SAIDA.parent.mkdir(parents=True, exist_ok=True)
-    SAIDA.write_text(json.dumps({"edicao": edicao, "fonte": "INEP, Ideb por município e rede", "anos": anos, "mun": mun}, separators=(",", ":")))
+    texto = json.dumps({"edicao": edicao, "fonte": "INEP, Ideb por município e rede", "anos": anos, "mun": dict(sorted(mun.items()))},
+                       separators=(",", ":"), sort_keys=True)
+    for destino in (SAIDA, REFERENCIA):
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(texto)
     com = lambda k: sum(1 for m in mun.values() if k in m and m[k][-1] is not None)
     print(f"Ideb {edicao}: {len(mun)} municípios; com nota em {edicao}: rede municipal {com('mi')} (anos iniciais) e {com('mf')} (anos finais); "
           f"rede estadual {com('ei')} e {com('ef')}")

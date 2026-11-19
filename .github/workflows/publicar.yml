@@ -101,7 +101,8 @@ jobs:
         run: uv run --project pipeline estado-mg 2025
 
       # Ideb por município e rede (INEP), para pôr a nota ao lado do gasto em educação.
-      # São dois zips de ~25 MB, guardados no cache de data/raw. Se falhar, a seção não aparece.
+      # O INEP costuma recusar conexões dos servidores do GitHub: nesse caso o comando usa a
+      # cópia versionada em pipeline/referencia/ideb.json (o Ideb só muda a cada dois anos).
       - name: Pipeline do Ideb
         continue-on-error: true
         run: uv run --project pipeline ideb
