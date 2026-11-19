@@ -6,12 +6,18 @@ requires-python = ">=3.12"
 dependencies = [
     "certifi>=2026.10.23",
     "duckdb>=1.1",
+    "openpyxl>=3.1.5",
 ]
 
 [project.scripts]
 orcamento = "orcamento_pipeline.cli:main"
 cidades = "orcamento_pipeline.cidades:main"
 finbra = "orcamento_pipeline.finbra:main"
+mapa = "orcamento_pipeline.mapa:main"
+federal = "orcamento_pipeline.federal:main"
+inss = "orcamento_pipeline.inss:main"
+semente = "orcamento_pipeline.semente:main"
+rreo = "orcamento_pipeline.rreo:main"
 
 [build-system]
 requires = ["hatchling"]

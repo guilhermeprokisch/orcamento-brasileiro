@@ -165,8 +165,9 @@ class CacheAno:
 
     SALVAR_A_CADA = 200
 
-    def __init__(self, ano: int, anexo: str = "dca-ie", filtro: Callable[[list[dict]], list[dict]] | None = None) -> None:
+    def __init__(self, ano: int | str, anexo: str = "dca-ie", filtro: Callable[[list[dict]], list[dict]] | None = None) -> None:
         # `anexo`: pasta do cache (dca-ie = despesa por função; dca-ic = receitas, vindas do FINBRA).
+        # `ano`: o exercício ou, nos relatórios bimestrais, "2026-b4" (ver rreo.py).
         self.filtro = filtro or compactar
         self.arq = PASTA_BRUTO / anexo / f"{ano}.json.gz"
         self.trava = threading.Lock()
@@ -199,6 +200,15 @@ class CacheAno:
             if self.novos % self.SALVAR_A_CADA == 0:
                 self._gravar()
 
+    def juntar(self, outros: dict[str, list[dict]]) -> int:
+        """Incorpora respostas já no formato do cache (de outra cópia do mesmo anexo),
+        sem sobrescrever as que existem. Devolve quantos entes entraram."""
+        with self.trava:
+            faltam = {k: v for k, v in outros.items() if v and not self.dados.get(k)}
+            self.dados.update(faltam)
+            self.novos += len(faltam)
+        return len(faltam)
+
     def salvar(self) -> None:
         with self.trava:
             if self.novos:
@@ -211,15 +221,19 @@ class CacheAno:
         os.replace(tmp, self.arq)
 
 
-def baixar_dca(cache: CacheAno, ano: int, ibge: int, consultar: bool = True) -> list[dict] | None:
-    """Linhas do Anexo I-E de um ente. None se a chamada falhar, o limite acabar ou `consultar` for falso."""
+def baixar_dca(cache: CacheAno, ano: int, ibge: int, consultar: bool = True, anexo: str = ANEXO) -> list[dict] | None:
+    """Linhas de um anexo da DCA de um ente (por padrão o I-E, despesa por função).
+
+    None se a chamada falhar, o limite acabar ou `consultar` for falso. O `cache` tem que ser
+    o do mesmo anexo.
+    """
     itens = cache.obter(ibge)
     if itens or not consultar:
         return itens
     if not CHAMADAS.gastar():
         return None
     try:
-        d = _get("dca", {"an_exercicio": ano, "no_anexo": ANEXO, "id_ente": ibge})
+        d = _get("dca", {"an_exercicio": ano, "no_anexo": anexo, "id_ente": ibge})
     except Exception:
         return None
     if d.get("hasMore"):
