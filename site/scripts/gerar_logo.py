@@ -13,7 +13,7 @@ VERDE, AMARELO, AZUL, BRANCO = "#009C3B", "#FFDF00", "#002776", "#FFFFFF"
 BARRAS, LARG_BARRA, VAO = 8, 12, 4          # barras verdes verticais
 L = BARRAS * LARG_BARRA + (BARRAS - 1) * VAO  # largura total = 124
 A = 86                                       # altura máxima (proporção ~10:7)
-ALTURAS = [0.94, 0.56, 0.64, 0.72, 0.8, 0.87, 0.94, 1.0]  # fração de A, da esquerda à direita
+ALTURAS = [0.94, 0.64, 0.66, 0.72, 0.8, 0.87, 0.94, 1.0]  # fração de A, da esquerda à direita
 RAIO_BARRA = 2.5
 CX, CY = L / 2, A / 2
 MARGEM_X, MARGEM_Y = 10, 9                   # distância do losango às bordas
