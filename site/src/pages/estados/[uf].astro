@@ -3,6 +3,7 @@ import Base from "../../layouts/Base.astro";
 import AnoEmAndamento from "../../components/gasto/AnoEmAndamento.astro";
 import DividaEstado from "../../components/gasto/DividaEstado.astro";
 import IrMoradores from "../../components/gasto/IrMoradores.astro";
+import NestaPagina, { type GrupoDaPagina } from "../../components/NestaPagina.astro";
 import CapagNota from "../../components/gasto/CapagNota.astro";
 import SaudeResultado from "../../components/gasto/SaudeResultado.astro";
 import SegurancaEstado from "../../components/gasto/SegurancaEstado.astro";
@@ -53,6 +54,14 @@ const crescimento = serie.length > 1 ? serie.at(-1)!.real / serie[0].real - 1 : 
 // Municípios do estado, do maior para o menor.
 const LIMITE = 15;
 const cidades = ehDF ? [] : (docCidades?.cidades ?? []).filter((c) => c.uf === e.uf).sort((a, b) => b.pop - a.pop);
+// A lista "Nesta página": os grupos na ordem em que aparecem; um item sem conteúdo some no navegador.
+const SUMARIO: GrupoDaPagina[] = [
+  { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["evolucao", "Ao longo dos anos"]] },
+  { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida frente ao limite"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
+  { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"]] },
+  { id: "como-esta", n: 4, titulo: ehDF ? "Como está o Distrito Federal" : "Como está o estado", itens: [["educacao", "Educação: gasto por aluno"], ["saude", "Saúde: mortalidade infantil"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
+  ...(cidades.length ? [{ id: "grupo-cidades", n: 5, titulo: `As cidades ${deUf(e.uf)}`, itens: [["cidades", "As cidades"]] as [string, string][] }] : []),
+];
 const ph = (c: Cidade, f: string) => (c.f?.[f]?.[0] ?? 0) / c.pop;
 const descricao = temDados
   ? `Quanto ${quem} gastou em ${e.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por habitante, por área.`
@@ -87,17 +96,12 @@ const descricao = temDados
 
     {ctx && <div class="ficha" data-parte="numeros" set:html={numerosHtml(ctx)} />}
     {ctx && <p class="aviso-ano" id="aviso-ano" hidden></p>}
-    {ctx && <div class="ficha" data-parte="areas" set:html={areasHtml(ctx)} />}
-    {temDados && <div data-so-padrao="o gasto por aluno"><EducacaoEstado estado={e} quem={quem} /></div>}
-    {temDados && <div data-so-padrao="a mortalidade infantil"><SaudeResultado ente={e} esfera="uf" quem={quem} grupo={ehDF ? null : "dos estados"} onde={noEstado} /></div>}
-    {temDados && <div data-so-padrao="os homicídios"><SegurancaEstado estado={e} quem={quem} onde={noEstado} /></div>}
-    {temDados && <div data-so-padrao="a água e o esgoto"><SaneamentoResultado ente={e} esfera="uf" quem={quem} grupo={ehDF ? null : "dos estados"} onde={noEstado} /></div>}
-    {ctx && <div class="ficha" data-parte="contas" set:html={contasHtml(ctx)} />}
-    {temDados && <div data-so-padrao="o imposto de renda dos moradores"><IrMoradores cidade={e} esfera="uf" deOnde={ehDF ? "do Distrito Federal" : deUf(e.uf)} grupo={ehDF ? null : "dos estados"} /></div>}
-    {temDados && <AnoEmAndamento ente={e} esfera="uf" quem={quem} />}
-    <DividaEstado ibge={e.ibge} quem={quem} ano={e.ano} />
-    <CapagNota ente={e} esfera="uf" quem={quem} grupo="dos estados" />
+    {ctx && <NestaPagina grupos={SUMARIO} />}
 
+    {ctx && <p class="grupo-pagina" id="em-que-gasta" data-grupo="em-que-gasta">1 · Em que gasta</p>}
+    {ctx && <div class="ficha" id="areas" data-parte="areas" set:html={areasHtml(ctx)} />}
+    {ctx && <div class="ficha" id="com-o-que" data-parte="natureza" set:html={contasHtml(ctx, "natureza")} />}
+    <div id="evolucao">
     {serie.length > 2 && (
       <section class="evolucao">
         <div class="evolucao-texto">
@@ -120,7 +124,26 @@ const descricao = temDados
         </ol>
       </section>
     )}
+    </div>
 
+    {ctx && <p class="grupo-pagina" id="contas" data-grupo="contas">2 · As contas fecham</p>}
+    {ctx && <div class="ficha" id="receitas" data-parte="receitas" set:html={contasHtml(ctx, "receitas")} />}
+    <div id="divida"><DividaEstado ibge={e.ibge} quem={quem} ano={e.ano} /></div>
+    <div id="capag"><CapagNota ente={e} esfera="uf" quem={quem} grupo="dos estados" /></div>
+    {temDados && <div id="ano-atual"><AnoEmAndamento ente={e} esfera="uf" quem={quem} /></div>}
+
+    {ctx && <p class="grupo-pagina" id="chega-e-sai" data-grupo="chega-e-sai">3 · O que chega e o que sai daqui</p>}
+    {ctx && <div class="ficha" id="beneficios" data-parte="inss" set:html={contasHtml(ctx, "inss")} />}
+    {temDados && <div id="ir" data-so-padrao="o imposto de renda dos moradores"><IrMoradores cidade={e} esfera="uf" deOnde={ehDF ? "do Distrito Federal" : deUf(e.uf)} grupo={ehDF ? null : "dos estados"} /></div>}
+
+    {temDados && <p class="grupo-pagina" id="como-esta" data-grupo="como-esta">4 · Como está {ehDF ? "o Distrito Federal" : "o estado"}</p>}
+    {temDados && <div id="educacao" data-so-padrao="o gasto por aluno"><EducacaoEstado estado={e} quem={quem} /></div>}
+    {temDados && <div id="saude" data-so-padrao="a mortalidade infantil"><SaudeResultado ente={e} esfera="uf" quem={quem} grupo={ehDF ? null : "dos estados"} onde={noEstado} /></div>}
+    {temDados && <div id="seguranca" data-so-padrao="os homicídios"><SegurancaEstado estado={e} quem={quem} onde={noEstado} /></div>}
+    {temDados && <div id="saneamento" data-so-padrao="a água e o esgoto"><SaneamentoResultado ente={e} esfera="uf" quem={quem} grupo={ehDF ? null : "dos estados"} onde={noEstado} /></div>}
+
+    {cidades.length > 0 && <p class="grupo-pagina" id="grupo-cidades" data-grupo="grupo-cidades">5 · As cidades</p>}
+    <div id="cidades">
     {cidades.length > 0 && (
       <section class="cidades">
         <h2>As cidades {deUf(e.uf)}</h2>
@@ -150,6 +173,7 @@ const descricao = temDados
         </div>
       </section>
     )}
+    </div>
 
     <p class="nota">
       Fonte: Declaração de Contas Anuais (DCA, Anexo I-E) entregue pelo governo estadual ao Tesouro Nacional pelo SICONFI.

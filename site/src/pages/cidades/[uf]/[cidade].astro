@@ -8,6 +8,7 @@ import SaudeResultado from "../../../components/gasto/SaudeResultado.astro";
 import SaneamentoResultado from "../../../components/gasto/SaneamentoResultado.astro";
 import SegurancaEstado from "../../../components/gasto/SegurancaEstado.astro";
 import IrMoradores from "../../../components/gasto/IrMoradores.astro";
+import NestaPagina, { type GrupoDaPagina } from "../../../components/NestaPagina.astro";
 import { moedaExtenso } from "../../../lib/formato";
 import { caminhoCidade, caminhoEstado, deUf, docCidades, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../../lib/cidades";
 import { anosDe, fichaDe, pacoteDe } from "../../../lib/ficha";
@@ -46,7 +47,7 @@ const base: BaseDaPagina | null = ctx
   ? { ibge: c.ibge, nome: c.nome, uf: c.uf, esfera: "mun", quem, onde, destaques, anos, padrao: c.ano!, grupo: c.uf.toLowerCase() }
   : null;
 // A lista "Nesta página": os grupos na ordem em que aparecem; um item sem conteúdo some no navegador.
-const SUMARIO: { id: string; n: number; titulo: string; itens: [string, string][] }[] = [
+const SUMARIO: GrupoDaPagina[] = [
   { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"]] },
   { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
   { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["estado-aqui", "O que o governo do estado gastou aqui"]] },
@@ -86,19 +87,7 @@ const descricao = temDados
     {ctx && <div class="ficha" data-parte="numeros" set:html={numerosHtml(ctx)} />}
     {ctx && <p class="aviso-ano" id="aviso-ano" hidden></p>}
 
-    {ctx && (
-      <nav class="nesta-pagina" aria-labelledby="nesta-pagina">
-        <h2 id="nesta-pagina">Nesta página</h2>
-        <div class="grupos">
-          {SUMARIO.map((g) => (
-            <div class="grupo" data-grupo={g.id}>
-              <a class="titulo-grupo" href={`#${g.id}`}>{g.n}. {g.titulo}</a>
-              <ul>{g.itens.map(([id, nome]) => <li><a href={`#${id}`}>{nome}</a></li>)}</ul>
-            </div>
-          ))}
-        </div>
-      </nav>
-    )}
+    {ctx && <NestaPagina grupos={SUMARIO} />}
 
     {ctx && <p class="grupo-pagina" id="em-que-gasta" data-grupo="em-que-gasta">1 · Em que gasta</p>}
     {ctx && <div class="ficha" id="areas" data-parte="areas" set:html={areasHtml(ctx)} />}
@@ -150,29 +139,6 @@ const descricao = temDados
   import { iniciarTrocaDeAno } from "../../../lib/troca-de-ano";
   iniciarTrocaDeAno();
 
-  // "Nesta página": some o item cuja seção está vazia ou escondida (outro ano escolhido), e o
-  // grupo inteiro, com o rótulo dele na página, quando não sobra nenhum item.
-  const nav = document.querySelector<HTMLElement>(".nesta-pagina");
-  // Só mexe quando muda: trocar `hidden` dispara o observador abaixo de novo.
-  const esconder = (el: HTMLElement, sim: boolean) => { if (el.hidden !== sim) el.hidden = sim; };
-  function atualizarSumario() {
-    if (!nav) return;
-    for (const grupo of nav.querySelectorAll<HTMLElement>(".grupo")) {
-      let algum = false;
-      for (const li of grupo.querySelectorAll<HTMLElement>("li")) {
-        const alvo = document.getElementById(li.querySelector("a")!.hash.slice(1));
-        const filhos = alvo ? [...alvo.children] as HTMLElement[] : [];
-        const vazio = !alvo || !alvo.textContent?.trim() || !!alvo.closest("[hidden]") || (filhos.length > 0 && filhos.every((f) => f.hidden));
-        esconder(li, vazio);
-        algum ||= !vazio;
-      }
-      esconder(grupo, !algum);
-      const rotulo = document.querySelector<HTMLElement>(`.grupo-pagina[data-grupo="${grupo.dataset.grupo}"]`);
-      if (rotulo) esconder(rotulo, !algum);
-    }
-  }
-  atualizarSumario();
-  if (nav) new MutationObserver(atualizarSumario).observe(document.querySelector("main") ?? document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"], childList: true });
 </script>
 
 <style>
@@ -184,15 +150,6 @@ const descricao = temDados
   .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
   .cabeca p strong { color: var(--tinta); }
 
-  .nesta-pagina { border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); padding: 16px 0 20px; margin-top: 8px; display: flex; flex-direction: column; gap: 14px; }
-  .nesta-pagina h2 { font-family: var(--sans); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--texto-3); }
-  .nesta-pagina .grupos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px 32px; }
-  .nesta-pagina .grupo { display: flex; flex-direction: column; gap: 2px; }
-  .nesta-pagina .titulo-grupo { font-family: var(--serifa); font-size: 19px; font-weight: 700; color: var(--tinta); text-decoration: none; padding-bottom: 4px; }
-  .nesta-pagina ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-  .nesta-pagina li a { display: block; padding: 5px 0; font-size: 15px; line-height: 1.35; }
-  .grupo-pagina { margin: 40px 0 0; padding-top: 10px; border-top: 4px solid var(--tinta); font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--verde); scroll-margin-top: 16px; }
-  :global([id]) { scroll-margin-top: 16px; }
 
   .unidade { border-top: 1px solid var(--regra); padding: 28px 0; max-width: 860px; display: flex; flex-direction: column; gap: 10px; }
   .unidade h2 { font-size: 26px; }
@@ -200,8 +157,6 @@ const descricao = temDados
   .nota { margin: 0 0 24px; font-size: 12px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
 
   @media (max-width: 900px) {
-    .nesta-pagina .grupos { grid-template-columns: minmax(0, 1fr); gap: 14px; }
-    .nesta-pagina li a { padding: 8px 0 8px 16px; }
     .cabeca { padding: 28px 0 24px; }
     .cabeca h1 { font-size: 40px; }
     .cabeca p { font-size: 17px; }
