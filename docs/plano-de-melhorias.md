@@ -83,9 +83,11 @@ capital) e ver tudo em duas colunas.
 ### G. O que o governo federal gasta direto na cidade
 
 O mapa mostra o que a União repassa, não o que ela mesma gasta ali (universidades federais,
-hospitais federais, quartéis, agências). Fonte: Portal da Transparência, despesas por
-localidade — a confirmar. Atenção: o gasto costuma ser registrado na sede do órgão, o mesmo
-problema da folha de pagamento na Paraíba.
+hospitais federais, quartéis, agências). Feito para 2025 na página de cada cidade: execução da
+despesa do Portal da Transparência pela cidade da unidade que paga
+([levantamento-gasto-federal-direto.md](levantamento-gasto-federal-direto.md)). Metade do valor
+fica registrada em Brasília, onde estão as sedes; só 38% cai numa cidade que não é sede. Falta a
+folha por cidade de exercício (servidores × endereço da unidade no SIORG) e o Judiciário.
 
 ### H. Gasto do estado em cada cidade, para mais estados
 

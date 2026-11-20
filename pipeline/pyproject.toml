@@ -44,6 +44,7 @@ estado-pb = "orcamento_pipeline.estado_pb:main"
 estado-mg = "orcamento_pipeline.estado_mg:main"
 pagamentos = "orcamento_pipeline.pagamentos:main"
 receitas-uniao = "orcamento_pipeline.receitas_uniao:main"
+gasto-federal = "orcamento_pipeline.gasto_federal:main"
 
 [build-system]
 requires = ["hatchling"]
