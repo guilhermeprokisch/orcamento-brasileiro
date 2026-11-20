@@ -1,0 +1,167 @@
+---
+/**
+ * Os postos, UPAs e hospitais da cidade: as unidades da prefeitura (CNES) e quantas internações pelo
+ * SUS cada hospital fez no ano, com o valor pago pela tabela do SUS (SIH). Fonte: pipeline/…/unidades_saude.py.
+ */
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { unidadesSaudeDe } from "../../lib/indicadores";
+import type { Cidade } from "../../lib/cidades";
+
+interface Props {
+  cidade: Cidade;
+  /** "a prefeitura de Fortaleza" */
+  quem: string;
+}
+const { cidade, quem } = Astro.props;
+const u = unidadesSaudeDe(cidade);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const SIGLAS = /^(UBS|USF|AMA|FMUSP|UNIFESP|UNICAMP|UFC|UFMG|UFRJ|EBSERH|UBSF|CSF|PSF|ESF|UPA|CAPS|CAPSI|CAPSAD|AD|II|III|IV|SAMU|CEO|CER|SUS|UTI|HU|HGE|HR|HC|CEM|CEMA|PA|UAPS|CS|PS|SMS|APAE)$/;
+const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
+const titulo = (s: string) => s.toLowerCase().split(/\s+/).map((p, i) => {
+  const alto = p.toUpperCase();
+  if (SIGLAS.test(alto.replace(/[.,]/g, ""))) return alto;
+  return i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1);
+}).join(" ");
+const internacoes = u ? u.hospitais.reduce((s, h) => s + h.internacoes, 0) : 0;
+const valor = u ? u.hospitais.reduce((s, h) => s + h.valor, 0) : 0;
+const [anoCnes, mesCnes] = (u?.mesCnes ?? "").split("-");
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const quando = mesCnes ? `${MESES[Number(mesCnes) - 1]} de ${anoCnes}` : "";
+// Como cada grupo aparece na frase: [singular, plural].
+const NOMES: Record<string, [string, string]> = {
+  "Posto ou unidade básica": ["posto ou unidade básica", "postos e unidades básicas"],
+  "Urgência": ["unidade de urgência", "unidades de urgência"],
+  "Hospital": ["hospital", "hospitais"],
+  "Especialidades": ["centro de especialidades", "centros de especialidades"],
+  "Exames": ["unidade de exames", "unidades de exames"],
+  "Saúde mental (CAPS)": ["CAPS (saúde mental)", "CAPS (saúde mental)"],
+  "Atenção domiciliar": ["serviço de atenção domiciliar", "serviços de atenção domiciliar"],
+  "Vigilância em saúde": ["unidade de vigilância em saúde", "unidades de vigilância em saúde"],
+  "Vacinação": ["centro de vacinação", "centros de vacinação"],
+  "Academia da saúde": ["academia da saúde", "academias da saúde"],
+};
+const lista = (grupos: [string, number][]) => {
+  const partes = grupos.map(([g, n]) => `${nf0.format(n)} ${(NOMES[g] ?? [g.toLowerCase(), g.toLowerCase()])[n === 1 ? 0 : 1]}`);
+  return partes.length > 1 ? `${partes.slice(0, -1).join(", ")} e ${partes.at(-1)}` : partes[0];
+};
+const VISIVEIS = 15;
+---
+
+{u && (u.unidades.length > 0 || u.hospitais.length > 0) && (
+  <section class="unidades" data-unidades>
+    <div class="texto">
+      <span class="sobretitulo">Unidade por unidade</span>
+      <h2>Os postos e hospitais</h2>
+      {u.unidades.length > 0 && (
+        <p>
+          No cadastro do SUS de {quando}, {quem} tem <strong>{nf0.format(u.unidades.length)} unidades de saúde</strong>
+          {" "}em funcionamento: {lista(u.porGrupo)}.
+        </p>
+      )}
+      {u.hospitais.length > 0 && (
+        <p>
+          Em {u.ano}, {u.hospitais.length === 1 ? "o hospital da cidade fez" : `os ${nf0.format(u.hospitais.length)} hospitais da cidade que atendem pelo SUS fizeram`}{" "}
+          <strong>{nf0.format(internacoes)} internações pelo SUS</strong>, pelas quais o SUS pagou {moedaExtenso(valor)} pela tabela.
+          Entram também os hospitais do estado e os sem fins lucrativos, como as Santas Casas, que atendem gente de toda a região.
+        </p>
+      )}
+      <p class="menor">
+        O valor das internações é o que o SUS paga por procedimento, pela tabela nacional; não é o custo do hospital,
+        que tem salários e outras despesas pagas por fora, sobretudo nos hospitais públicos. Postos e unidades básicas
+        não aparecem com valor porque o SUS os paga pelo número de moradores atendidos, não por consulta. Os nomes vêm do
+        cadastro, às vezes sem acentos.
+      </p>
+    </div>
+    <div class="lado">
+      {u.hospitais.length > 0 && (
+        <div class="bloco">
+          <h3>Internações pelo SUS em {u.ano}, por hospital</h3>
+          <div class="tabela" role="table" aria-label="Hospitais da cidade">
+            <div class="linha h cab" role="row">
+              <span role="columnheader">Hospital</span>
+              <span role="columnheader" class="d">Internações</span>
+              <span role="columnheader" class="d">Pago pelo SUS</span>
+            </div>
+            {u.hospitais.slice(0, 12).map((h) => (
+              <div class="linha h" role="row">
+                <span role="cell" class="nome">{titulo(h.nome)}<small>{h.quem}{h.bairro && ` · ${titulo(h.bairro)}`}</small></span>
+                <span role="cell" class="d num">{nf0.format(h.internacoes)}</span>
+                <span role="cell" class="d num">{moedaCurta(h.valor)}</span>
+              </div>
+            ))}
+          </div>
+          {u.hospitais.length > 12 && <p class="nota">E mais {u.hospitais.length - 12} com menos internações.</p>}
+        </div>
+      )}
+      {u.unidades.length > 0 && (
+        <div class="bloco">
+          <h3>As unidades da prefeitura</h3>
+          {u.unidades.length > VISIVEIS && (
+            <label class="busca">
+              <span>Procure pelo nome ou pelo bairro</span>
+              <input type="search" data-filtro placeholder="Ex.: Centro, UPA" autocomplete="off" />
+            </label>
+          )}
+          <ul class="lista">
+            {u.unidades.map((x, i) => (
+              <li class:list={{ escondida: i >= VISIVEIS }} data-busca={`${x.nome} ${x.bairro} ${x.grupo}`.toLowerCase()}>
+                <span>{titulo(x.nome)}<small>{x.grupo}{x.bairro && ` · ${titulo(x.bairro)}`}</small></span>
+              </li>
+            ))}
+          </ul>
+          {u.unidades.length > VISIVEIS && <button type="button" class="mais" data-mais>Mostrar as {nf0.format(u.unidades.length)} unidades</button>}
+        </div>
+      )}
+      <p class="fonte">Fonte: {u.fonte}. Cadastro de {quando}; internações de {u.ano}.</p>
+    </div>
+  </section>
+)}
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-unidades]").forEach((s) => {
+    const itens = [...s.querySelectorAll<HTMLElement>("[data-busca]")];
+    const campo = s.querySelector<HTMLInputElement>("[data-filtro]");
+    const mais = s.querySelector<HTMLButtonElement>("[data-mais]");
+    const sem = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    let todas = false;
+    const atualizar = () => {
+      const termo = sem(campo?.value.trim() ?? "");
+      itens.forEach((l, i) => l.classList.toggle("escondida", termo ? !l.dataset.busca!.includes(termo) : !todas && i >= 15));
+      if (mais) mais.hidden = todas || !!termo;
+    };
+    campo?.addEventListener("input", atualizar);
+    mais?.addEventListener("click", () => { todas = true; atualizar(); });
+  });
+</script>
+
+<style>
+  .unidades { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .lado { grid-column: span 7; display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  .bloco { display: flex; flex-direction: column; gap: 8px; }
+  .bloco h3 { margin: 0; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  .tabela { display: flex; flex-direction: column; border-top: 1px solid var(--tinta); }
+  .linha.h { display: grid; grid-template-columns: minmax(0, 1fr) 92px 104px; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 14px; }
+  .cab { font-size: 11px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .d { text-align: right; }
+  .nome, .lista li span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  small { font-size: 12px; color: var(--texto-3); }
+  .busca { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--texto-3); }
+  .busca input { font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--tinta); background: var(--papel, #fff); color: var(--tinta); }
+  .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; }
+  .lista li { padding: 7px 0; border-bottom: 1px solid var(--regra); font-size: 14px; }
+  .lista li.escondida { display: none; }
+  .mais { align-self: flex-start; font: inherit; font-size: 14px; font-weight: 600; padding: 8px 12px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
+  .nota, .fonte { margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .unidades { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+    .lista { grid-template-columns: minmax(0, 1fr); }
+    .linha.h { grid-template-columns: minmax(0, 1fr) 76px 88px; gap: 8px; font-size: 13px; }
+  }
+</style>

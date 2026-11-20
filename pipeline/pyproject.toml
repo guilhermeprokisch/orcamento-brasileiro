@@ -5,6 +5,8 @@ description = "Baixa e organiza os dados do orçamento federal (Portal da Transp
 requires-python = ">=3.12"
 dependencies = [
     "certifi>=2026.10.23",
+    "datasus-dbc>=0.1.3",
+    "dbfread>=2.0.7",
     "duckdb>=1.1",
     "openpyxl>=3.1.5",
 ]
@@ -30,6 +32,7 @@ saneamento = "orcamento_pipeline.saneamento:main"
 populacao = "orcamento_pipeline.populacao:main"
 emendas = "orcamento_pipeline.emendas:main"
 escolas = "orcamento_pipeline.escolas:main"
+unidades-saude = "orcamento_pipeline.unidades_saude:main"
 contratos = "orcamento_pipeline.contratos:main"
 explorador-contratos = "orcamento_pipeline.explorador_contratos:main"
 explorador-emendas = "orcamento_pipeline.explorador_emendas:main"
