@@ -25,6 +25,10 @@ export interface DocDividaFederal {
   /** ano → [juros nominais do governo federal no ano, R$ bilhões; % do PIB] */
   juros: Record<string, [number, number | null]>;
   juros_12m: { ate: string; valor: number | null; pib: number | null };
+  /** ano → [títulos vendidos menos pagos, juros e correções somados à dívida, operações com o Banco Central], R$ bilhões */
+  fatores?: Record<string, [number, number, number]>;
+  /** último mês somado em "fatores" (o ano em andamento vai até ele) */
+  fatores_ate?: string;
 }
 
 const arquivos = import.meta.glob<DocDividaFederal>("../../public/data/federal/divida.json", { eager: true, import: "default" });

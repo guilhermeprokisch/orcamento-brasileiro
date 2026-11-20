@@ -12,6 +12,8 @@ Fontes (ver docs/divida-federal.md):
     3.1  quanto vence em até 12 meses
     3.7  prazo médio (anos), linha "DPF"
     4.2  custo médio acumulado em 12 meses (% ao ano), linha "DPF"
+    2.9  fatores de variação da DPF (R$ milhões): títulos vendidos menos pagos, juros apropriados
+         (juros e correção pela inflação, pela Selic e pelo câmbio) e operações com o Banco Central
 - Banco Central, séries do SGS (api.bcb.gov.br, sem chave):
     13761  dívida bruta do governo geral (DBGG), R$ milhões
     13762  DBGG, % do PIB
@@ -25,7 +27,9 @@ versionada em pipeline/referencia/divida-federal.json (usada com --sem-baixar ou
      "dpf": [R$ bi], "pib12": [R$ bi], "dbgg": [R$ bi], "dbgg_pib": [%],
      "indexador": {"prefixado": [R$ bi], …}, "detentores": {"bancos": [R$ bi], …},
      "vence_12m": [R$ bi], "prazo_medio": [anos], "custo_medio": [% a.a.],
-     "juros": {"2025": [R$ bi, % do PIB], …}, "juros_12m": {"ate": "2026-09", "valor": R$ bi, "pib": %}}
+     "juros": {"2025": [R$ bi, % do PIB], …}, "juros_12m": {"ate": "2026-09", "valor": R$ bi, "pib": %},
+     "fatores": {"2025": [vendidos menos pagos, juros apropriados, Banco Central], …}, "fatores_ate": "2026-09"}
+O ano em andamento entra em "fatores" com os meses até "fatores_ate".
 As listas mensais seguem "meses" (de janeiro de 2014 ao mês do último RMD); null onde falta o dado.
 """
 
@@ -67,6 +71,11 @@ INDEXADORES = {"prefixado": "prefixado", "indice precos": "inflacao", "taxa flut
 DETENTORES = {"instituicoes financeiras": "bancos", "fundos de investimento": "fundos", "previdencia": "previdencia",
               "nao-residentes": "estrangeiros", "tesouro direto": "tesouro_direto", "governo": "governo",
               "seguradoras": "seguradoras", "outros": "outros", "total": "total"}
+
+
+# Fatores de variação (aba 2.9): rótulo da linha (início, sem acento) → chave.
+FATORES = {"emissao": "i.1 - emissao/resgate liquido", "juros": "i.2 - juros apropriados",
+           "bc": "ii - operacoes do mercado com o banco central"}
 
 
 def _get(url: str, timeout: int = 120) -> bytes:
@@ -143,14 +152,15 @@ def serie_longa(ws, rotulos: dict[str, str]) -> dict[str, dict[str, float]]:
     return saida
 
 
-def serie_larga(ws, rotulo: str) -> dict[str, float]:
-    """Aba com um mês por coluna ('Set/26' no cabeçalho): os valores da linha cujo rótulo é `rotulo`."""
+def serie_larga(ws, rotulo: str, prefixo: bool = False) -> dict[str, float]:
+    """Aba com um mês por coluna ('Set/26' no cabeçalho): os valores da linha cujo rótulo é `rotulo`
+    (ou começa com ele, com `prefixo`)."""
     cabecalho: list[str | None] = []
     for linha in ws.iter_rows(values_only=True):
         meses = [_mes(v) for v in linha]
         if sum(m is not None for m in meses) > 12:
             cabecalho = meses
-        elif cabecalho and _normal(linha[0]) == rotulo.lower():
+        elif cabecalho and (_normal(linha[0]).startswith(rotulo.lower()) if prefixo else _normal(linha[0]) == rotulo.lower()):
             return {m: v for m, x in zip(cabecalho, linha) if m and int(m[:4]) >= PRIMEIRO_ANO and (v := _num(x)) is not None}
     raise ValueError(f"aba {ws.title}: linha {rotulo!r} não encontrada")
 
@@ -164,6 +174,7 @@ def ler_anexo(xlsx: bytes) -> dict:
         "vence_12m": {m: v["ate12"] for m, v in venc.items() if "ate12" in v},
         "prazo_medio": serie_larga(wb["3.7"], "DPF"),
         "custo_medio": serie_larga(wb["4.2"], "DPF"),
+        "fatores": {k: serie_larga(wb["2.9"], rotulo, prefixo=True) for k, rotulo in FATORES.items()},
     }
 
 
@@ -207,6 +218,15 @@ def montar(anexo: dict, bc: dict[int, dict[str, float]], nome: str, url: str) ->
     a, m = int(fim_juros[:4]), int(fim_juros[5:])
     ultimos12 = [juros_mes.get(f"{a - (k > m - 1)}-{(m - 1 - k) % 12 + 1:02d}") for k in range(12)]
 
+    fatores: dict[str, list[float]] = {}
+    fim_fatores = max(anexo["fatores"]["juros"])
+    for chave_mes in sorted(anexo["fatores"]["juros"]):
+        ano = chave_mes[:4]
+        if int(ano) >= PRIMEIRO_ANO:
+            soma = fatores.setdefault(ano, [0.0, 0.0, 0.0])
+            for j, k in enumerate(FATORES):
+                soma[j] += anexo["fatores"][k].get(chave_mes, 0) / 1000   # R$ milhões → bilhões
+
     return {
         "fonte": FONTE,
         "gerado_em": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -227,6 +247,8 @@ def montar(anexo: dict, bc: dict[int, dict[str, float]], nome: str, url: str) ->
         "juros": juros,
         "juros_12m": {"ate": fim_juros, "valor": round(sum(ultimos12), 1) if None not in ultimos12 else None,
                       "pib": r(bc[5751].get(fim_juros))},
+        "fatores": {a: [round(v, 1) for v in vs] for a, vs in fatores.items()},
+        "fatores_ate": fim_fatores,
     }
 
 

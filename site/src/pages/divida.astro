@@ -9,7 +9,7 @@ import Termo from "../components/Termo.astro";
 import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
 import { linkExplorer } from "../lib/perfis";
 import {
-  DETENTORES, INDEXADORES, docDivida as d, fatias, gastoNoOrcamento, mesExtenso, pontos, ultimoMes, type DocDividaFederal,
+  DETENTORES, INDEXADORES, docDivida as d, fatias, gastoNoOrcamento, mesCurto, mesExtenso, pontos, ultimoMes, type DocDividaFederal,
 } from "../lib/divida-federal";
 
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -65,12 +65,24 @@ function calcular(d: DocDividaFederal) {
   const jurosAnos = anosJuros.map((a) => ({ ano: a, valor: bi(d.juros[String(a)][0]), pib: d.juros[String(a)][1] }));
   const maxJurosPib = Math.max(...jurosAnos.map((j) => j.pib ?? 0));
 
+  // Por que cresceu: o aumento de cada ano separado em juros (e correções) e títulos vendidos a mais do que os pagos.
+  const fatores = Object.entries(d.fatores ?? {})
+    .map(([ano, [emissao, juros, bc]]) => ({
+      ano: Number(ano), emissao: emissao * 1e9, juros: juros * 1e9, total: (emissao + juros + bc) * 1e9,
+      rotulo: d.fatores_ate && d.fatores_ate.startsWith(ano) && !d.fatores_ate.endsWith("-12") ? mesCurto(d.fatores_ate) : ano,
+    }))
+    .sort((a, b) => a.ano - b.ano);
+  const somaF = fatores.reduce((t, f) => ({ juros: t.juros + f.juros, emissao: t.emissao + f.emissao, total: t.total + f.total }), { juros: 0, emissao: 0, total: 0 });
+  const maxF = Math.max(1, ...fatores.map((f) => f.juros + Math.max(0, f.emissao)));
+  const anosVendeuMais = fatores.filter((f) => f.emissao > 0).sort((a, b) => b.emissao - a.emissao).slice(0, 2).map((f) => f.ano).sort();
+
   return {
     iU, mesU, p0, estoque, maxPib, pibU: pib(iU), pib0: pib(p0.i), dpfU: bi(d.dpf[iU]), dpf0: bi(d.dpf[p0.i]),
     dbggPib: d.dbgg_pib[iU], dbgg: bi(d.dbgg[iU]),
     pts, det, ind, detU, indU, ind0, mudancas, maiorDet, totalDet: bi(d.detentores.total[iU]),
     vence, venceParte, prazo, vencimentos, maxParte,
     custo: d.custo_medio[iU], anoComp, orc, jurosComp, comparacao, maxComp, jurosAnos, maxJurosPib,
+    fatores, somaF, maxF, anosVendeuMais,
   };
 }
 const dados = d ? calcular(d) : null;
@@ -110,6 +122,7 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
 
         <nav class="indice" aria-label="Nesta página">
           <a href="#quanto">Quanto é</a>
+          {dados.fatores.length > 0 && <a href="#por-que">Por que cresceu</a>}
           <a href="#quem">Quem empresta</a>
           <a href="#tipo">De que tipo</a>
           <a href="#vence">Quando vence</a>
@@ -125,10 +138,6 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
               <strong>{pct0(dados.pibU)} do <Termo id="pib" /></strong>, tudo o que o país produz em um ano.
               No fim de {dados.p0.rotulo}, devia {moedaExtenso(dados.dpf0)}, {pct0(dados.pib0)} do PIB.
               Em reais, a dívida ficou {vezes(dados.dpfU / dados.dpf0)} maior; frente à economia, que também cresceu, passou de {pct0(dados.pib0)} para {pct0(dados.pibU)}.
-            </p>
-            <p>
-              A dívida cresce de dois jeitos: quando o governo gasta mais do que arrecada (o déficit do{" "}
-              <Termo id="resultado-primario">resultado primário</Termo>) e quando os juros se somam ao que ele já devia.
             </p>
             {dados.dbggPib !== null && (
               <p class="menor">
@@ -148,6 +157,53 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
             ))}
           </ol>
         </section>
+
+        <!-- 1b. Por que cresceu -->
+        {dados.fatores.length > 0 && (
+          <section class="bloco" id="por-que">
+            <div class="texto">
+              <h2>Por que cresceu</h2>
+              <p>
+                A dívida cresce de dois jeitos. O primeiro são os juros: o que o governo deve rende juros todo mês, e o que ele não paga
+                se soma à dívida. O segundo é o governo vender mais títulos do que paga, para cobrir um ano em que gastou mais do que
+                arrecadou (o déficit do <Termo id="resultado-primario">resultado primário</Termo>).
+              </p>
+              <p>
+                De {dados.fatores[0].ano} a {mesExtenso(d.fatores_ate!)}, a dívida aumentou <strong>{moedaExtenso(dados.somaF.total)}</strong>.
+                Desse aumento, <strong>{moedaExtenso(dados.somaF.juros)} ({pct0(dados.somaF.juros / dados.somaF.total)})</strong> foram juros
+                que se somaram ao que o governo já devia.
+                {dados.somaF.emissao > 0
+                  ? <> Só {moedaExtenso(dados.somaF.emissao)} vieram de títulos vendidos além dos que foram pagos{dados.anosVendeuMais.length > 0 && <>, a maior parte em {dados.anosVendeuMais.join(" e ")}</>}.</>
+                  : <> No conjunto do período, o governo pagou mais títulos do que vendeu.</>}
+              </p>
+              <p class="menor">
+                Os juros aqui incluem a correção pela inflação, nos títulos que seguem o IPCA, e pelo dólar, na dívida externa.
+                Nos anos com barra listrada, o governo vendeu menos títulos do que pagou: usou dinheiro que tinha em caixa,
+                e a dívida cresceu menos que os juros.
+              </p>
+            </div>
+            <div class="grafico">
+              <ul class="legenda-curta" aria-hidden="true">
+                <li><span class="cor juros"></span>Juros somados à dívida</li>
+                <li><span class="cor vendeu"></span>Vendeu mais títulos do que pagou</li>
+                <li><span class="cor pagou"></span>Pagou mais do que vendeu</li>
+              </ul>
+              <ol class="linhas" aria-label="Aumento da dívida em cada ano: juros e títulos vendidos a mais do que os pagos">
+                {dados.fatores.map((f) => (
+                  <li class:list={{ atual: f.rotulo !== String(f.ano) }}
+                    title={`${f.rotulo}: juros ${moedaCurta(f.juros)}; ${f.emissao >= 0 ? "vendeu a mais" : "pagou a mais"} ${moedaCurta(Math.abs(f.emissao))}; aumento de ${moedaCurta(f.total)}`}>
+                    <span class="num rotulo">{f.rotulo}</span>
+                    <span class="trilho fatores">
+                      <span class="seg juros" style={`width:${(Math.min(f.juros, f.juros + f.emissao) / dados.maxF) * 100}%`}></span>
+                      <span class:list={["seg", f.emissao >= 0 ? "vendeu" : "pagou"]} style={`width:${(Math.abs(f.emissao) / dados.maxF) * 100}%`}></span>
+                    </span>
+                    <span class="num valor"><strong>+{moedaCurta(f.total).replace("R$ ", "")}</strong></span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+        )}
 
         <!-- 2. Quem empresta -->
         <section class="bloco" id="quem">
@@ -376,6 +432,7 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
   .bloco > .linhas, .grafico { grid-column: span 7; }
   .grafico { display: flex; flex-direction: column; gap: 18px; }
   .grafico h3 { font-size: 18px; }
+  .grafico .linhas { align-self: stretch; }
 
   /* Linhas: rótulo | barra | valor */
   .linhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; align-self: start; }
@@ -393,6 +450,14 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
   .barra.escura { background: var(--tinta); }
   .atual .barra { background: var(--verde-escuro); }
   .atual .barra.clara { background: #a39a83; }
+  .fatores { display: flex; }
+  .seg { display: block; height: 100%; }
+  .seg.juros, .legenda-curta .juros { background: var(--tinta); }
+  .seg.vendeu, .legenda-curta .vendeu { background: #4fae73; }
+  .seg.pagou, .legenda-curta .pagou { background: repeating-linear-gradient(135deg, var(--tinta) 0 2px, var(--papel) 2px 5px); }
+  .legenda-curta { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--texto-3); }
+  .legenda-curta li { display: flex; align-items: center; gap: 6px; }
+  .legenda-curta .cor { width: 14px; height: 14px; display: inline-block; border: 1px solid var(--tinta); }
   .dentro { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--tinta); }
 
   /* Legenda com a fatia do último mês */

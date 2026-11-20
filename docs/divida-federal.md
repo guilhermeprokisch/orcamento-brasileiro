@@ -24,6 +24,7 @@ Levantamento para a página `/divida` (item L do plano). Tudo conferido baixando
   | 3.1 | vencimentos da DPF por faixa (até 12 meses, 1 a 2 anos…) | nov/2006 |
   | 3.7 | prazo médio da DPF, em anos | dez/2005 |
   | 4.2 | custo médio da DPF acumulado em 12 meses, % ao ano | dez/2005 |
+  | 2.9 | **fatores de variação** da DPF, R$ milhões: títulos vendidos menos pagos (I.1), juros apropriados (I.2: juros e correção pela inflação, Selic e câmbio) e operações com o Banco Central (II) | jan/2007 |
 
   Notas: os detentores cobrem só a DPMFi (96% da DPF); a DPF externa não tem essa abertura. Na aba 2.7,
   mar/18 e abr/18 vêm como texto com asterisco (dados corrigidos). Desde set/2025, as cooperativas de
@@ -71,6 +72,10 @@ encargos da dívida).
 
 DBGG em set/2026: 82,95% do PIB (BC). DPF em % do PIB, calculada: 70,0%.
 
+Fatores de variação (aba 2.9): a soma de cada ano bate com a diferença de estoque entre dezembros
+(2025: 439,1 + 880,0 = 1.319,0 = 8.635,09 − 7.316,07). De jan/2014 a set/2026, a dívida cresceu
+R$ 7,26 tri: R$ 6,34 tri de juros apropriados e R$ 0,93 tri de títulos vendidos além dos pagos.
+
 ## Cuidados
 
 - **Duas contas de juros.** Os juros nominais do BC (R$ 868 bi em 2025) contam tudo o que a dívida
@@ -85,7 +90,6 @@ DBGG em set/2026: 82,95% do PIB (BC). DPF em % do PIB, calculada: 70,0%.
 
 - CKAN do Tesouro Transparente, conjunto `estoque-da-divida-publica-federal`: CSV de 12 MB com o estoque
   por título, sem detentores; o anexo do RMD já traz tudo num arquivo só.
-- CKAN, `fatores-de-variacao-da-divida-publica-federal`: explica por que a dívida cresce (emissões,
-  juros apropriados). Pode virar um bloco "por que cresceu" depois. A mesma informação está na aba 2.9
-  do anexo do RMD.
+- CKAN, `fatores-de-variacao-da-divida-publica-federal`: os mesmos fatores da aba 2.9 do anexo, que
+  já usamos.
 - Não há conjunto de detentores no CKAN (a busca por "detentores" volta vazia).
