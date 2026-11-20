@@ -12,6 +12,7 @@ import socket
 import struct
 import threading
 import unittest
+from unittest import mock
 
 from orcamento_pipeline import pagamentos as pb
 from orcamento_pipeline import pagamentos_qlik as pq
@@ -292,6 +293,45 @@ class TestResumo(unittest.TestCase):
         cache = {CNPJ_B: "EMPRESA B LTDA"}
         self.assertEqual(pq.nome_do_cnpj(CNPJ_B, cache), "EMPRESA B LTDA")
         self.assertEqual(pq.formatar_cnpj(CNPJ_A), "11.222.333/0001-81")
+
+
+class TestCarga(unittest.TestCase):
+    def test_conexao_que_cai_reabre_e_repete_a_cidade(self):
+        aberturas, chamadas = [], []
+
+        class SessaoFalsa:
+            def __exit__(self, *a):
+                pass
+
+        def abrir(painel, ano, pausa):
+            aberturas.append(1)
+            return SessaoFalsa(), 1, {"Empenho": (10, [])}
+
+        def ler(s, doc, painel, ano, nome, medidas):
+            chamadas.append(nome)
+            if len(chamadas) == 2:   # a segunda cidade cai na primeira tentativa
+                raise ErroQlik("o servidor fechou a conexão")
+            return {"pago": 1}, {"linhas": 1}
+
+        with mock.patch.object(pq, "abrir", abrir), mock.patch.object(pq, "ler_municipio", ler), \
+                mock.patch.object(pq, "municipios", lambda s, d, p: ["A", "B", "C"]), mock.patch("builtins.print"):
+            r, sem = pq.carregar(pq.SC, 2025, None, 0, {"A": "1", "B": "2", "C": "3"}, espera=0)
+        self.assertEqual(chamadas, ["A", "B", "B", "C"])
+        self.assertEqual(len(aberturas), 2)
+        self.assertEqual((sorted(r), sem), (["1", "2", "3"], []))
+
+    def test_desiste_depois_de_algumas_tentativas(self):
+        class SessaoFalsa:
+            def __exit__(self, *a):
+                pass
+
+        def ler(*a):
+            raise ErroQlik("fora do ar")
+
+        with mock.patch.object(pq, "abrir", lambda *a: (SessaoFalsa(), 1, {})), mock.patch.object(pq, "ler_municipio", ler), \
+                mock.patch.object(pq, "municipios", lambda s, d, p: ["A"]), mock.patch("builtins.print"):
+            with self.assertRaisesRegex(ErroQlik, "fora do ar"):
+                pq.carregar(pq.SC, 2025, None, 0, {"A": "1"}, tentativas=3, espera=0)
 
 
 if __name__ == "__main__":

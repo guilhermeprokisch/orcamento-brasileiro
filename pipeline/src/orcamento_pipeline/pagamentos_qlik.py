@@ -252,14 +252,37 @@ def municipios(s: Sessao, doc: int, painel: Painel) -> list[str]:
     return nomes
 
 
-def carregar(painel: Painel, ano: int, so: list[str] | None, pausa: float, ibge_por_nome: dict[str, str]) -> tuple[dict, list[str]]:
-    resultado, sem_ibge = {}, []
-    with Sessao(painel.host, painel.app, pausa=pausa) as s:
+def abrir(painel: Painel, ano: int, pausa: float) -> tuple[Sessao, int, dict]:
+    """Abre o painel e confere que ele ainda tem as tabelas, os campos e o ano que o coletor lê."""
+    s = Sessao(painel.host, painel.app, pausa=pausa).__enter__()
+    try:
         doc = s.abrir_doc()
         tabelas = s.conferir_campos(doc, painel.campos)
         anos = s.valores(doc, painel.campo_ano)
         if str(ano) not in anos:
             raise ErroQlik(f"o painel do {painel.uf} não tem {ano} (tem {', '.join(anos)})")
+    except BaseException:
+        s.__exit__()
+        raise
+    return s, doc, tabelas
+
+
+def ler_municipio(s: Sessao, doc: int, painel: Painel, ano: int, nome: str, medidas: list[str]) -> tuple[dict, dict]:
+    s.limpar(doc)
+    s.selecionar(doc, painel.campo_ano, [ano])
+    s.selecionar(doc, painel.campo_ente, [nome])
+    total: list[int] = []
+    resumo, fora = resumir(linha(v) for v in s.ler_tabela(doc, painel.dimensoes, medidas, total=total))
+    if fora["linhas"] != total[0]:
+        raise ErroQlik(f"{nome}: o Qlik disse {total[0]} linhas e vieram {fora['linhas']}")
+    return resumo, fora
+
+
+def carregar(painel: Painel, ano: int, so: list[str] | None, pausa: float, ibge_por_nome: dict[str, str],
+             tentativas: int = 3, espera: float = 30) -> tuple[dict, list[str]]:
+    resultado, sem_ibge = {}, []
+    s, doc, tabelas = abrir(painel, ano, pausa)
+    try:
         nomes = municipios(s, doc, painel)
         if so:
             pedidos = {pb._chave(n) for n in so}
@@ -275,16 +298,24 @@ def carregar(painel: Painel, ano: int, so: list[str] | None, pausa: float, ibge_
                 continue
             if i > 1:
                 time.sleep(pausa)
-            s.limpar(doc)
-            s.selecionar(doc, painel.campo_ano, [ano])
-            s.selecionar(doc, painel.campo_ente, [nome])
-            t0, total = time.time(), []
-            resumo, fora = resumir(linha(v) for v in s.ler_tabela(doc, painel.dimensoes, medidas, total=total))
-            if fora["linhas"] != total[0]:
-                raise ErroQlik(f"{nome}: o Qlik disse {total[0]} linhas e vieram {fora['linhas']}")
+            t0 = time.time()
+            # Numa carga longa a conexão pode cair: abre de novo e repete a cidade, algumas vezes.
+            for tentativa in range(1, tentativas + 1):
+                try:
+                    resumo, fora = ler_municipio(s, doc, painel, ano, nome, medidas)
+                    break
+                except (ErroQlik, OSError) as e:
+                    if tentativa == tentativas:
+                        raise
+                    print(f"  {nome}: {e}; tentando de novo em {espera:.0f} s", flush=True)
+                    s.__exit__()
+                    time.sleep(espera)
+                    s, doc, _ = abrir(painel, ano, pausa)
             resultado[ibge] = resumo
             print(f"  [{i}/{len(nomes)}] {nome}: {br(fora['linhas'])} empenhos, pago R$ {br(resumo['pago'] / 1e6, 1)} mi"
                   f" ({time.time() - t0:.0f} s)", flush=True)
+    finally:
+        s.__exit__()
     return resultado, sem_ibge
 
 
