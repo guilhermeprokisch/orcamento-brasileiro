@@ -55,8 +55,8 @@ const tem = (e: string) => !!r?.esferas[e];
         <input type="search" name="q" placeholder="Ex.: merenda, coleta de lixo, nome da empresa ou CNPJ" autocomplete="off" />
       </label>
       <div class="filtros">
-        <label><span>Cidade</span>
-          <input type="search" name="lugar" list="lista-lugares" placeholder="Ex.: Barueri" autocomplete="off" data-lugar />
+        <label><span>Cidade ou estado</span>
+          <input type="search" name="lugar" list="lista-lugares" placeholder="Ex.: Barueri, Ceará" autocomplete="off" data-lugar />
           <datalist id="lista-lugares"></datalist>
         </label>
         <label><span>Estado</span>
@@ -148,9 +148,16 @@ const tem = (e: string) => !!r?.esferas[e];
     const nomes = await fetch("/data/mapa/nomes.json").then((x) => x.json());
     lugares = { porNome: new Map(), porCodigo: new Map() };
     const opcoes = [];
+    // Os governos estaduais primeiro, com o código do estado (é como o arquivo guarda os contratos deles).
+    for (const [cod, [nome]] of Object.entries(nomes.uf)) {
+      const rotulo = `${nome} (governo do estado)`;
+      lugares.porNome.set(sem(rotulo), cod); lugares.porNome.set(sem(nome), cod);
+      lugares.porCodigo.set(cod, rotulo);
+      opcoes.push(`<option value="${esc(rotulo)}"></option>`);
+    }
     for (const [ibge, [nome, uf]] of Object.entries(nomes.mun)) {
       const rotulo = `${nome} (${uf})`;
-      lugares.porNome.set(sem(rotulo), ibge); lugares.porNome.set(sem(nome), lugares.porNome.get(sem(nome)) ?? ibge);
+      lugares.porNome.set(sem(rotulo), ibge); if (!lugares.porNome.has(sem(nome))) lugares.porNome.set(sem(nome), ibge);
       lugares.porCodigo.set(ibge, rotulo);
       opcoes.push(`<option value="${esc(rotulo)}"></option>`);
     }
@@ -163,7 +170,7 @@ const tem = (e: string) => !!r?.esferas[e];
     ev.preventDefault();
     const texto = campoLugar.value.trim();
     form.elements.namedItem("ente").value = texto ? (await carregarLugares()).porNome.get(sem(texto)) ?? "" : "";
-    if (texto && !form.elements.namedItem("ente").value) { campoLugar.setCustomValidity("Escolha uma cidade da lista."); campoLugar.reportValidity(); campoLugar.setCustomValidity(""); return; }
+    if (texto && !form.elements.namedItem("ente").value) { campoLugar.setCustomValidity("Escolha uma cidade ou um estado da lista."); campoLugar.reportValidity(); campoLugar.setCustomValidity(""); return; }
     form.elements.namedItem("empresa").value = "";   // procurar sai da página da empresa
     const q = new URLSearchParams();
     for (const [k, v] of new FormData(form)) if (v && k !== "lugar") q.set(k, v);
@@ -179,7 +186,6 @@ const tem = (e: string) => !!r?.esferas[e];
     document.querySelector("[data-exemplos]")?.setAttribute("hidden", "");
     document.title = `${titulo_} · Contratos · Orçamento Brasileiro`;
   }
-  if (ARQ && pergunta && saida) iniciar();
 
   const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
   const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -194,9 +200,17 @@ const tem = (e: string) => !!r?.esferas[e];
   const linkPncp = (id) => { const m = /^(\d{14})-\d-0*(\d+)\/(\d{4})$/.exec(id || ""); return m ? `https://pncp.gov.br/app/contratos/${m[1]}/${m[3]}/${m[2]}` : null; };
 
   let conn;
-  async function conectar() {
+  /** O painel de carregamento: o passo atual e uma barra em movimento, no lugar do resultado. */
+  function etapa(n, texto) {
     saida.hidden = false;
-    saida.innerHTML = `<p class="carregando">Preparando a consulta… a primeira busca no Brasil inteiro pode baixar até 50 MB.</p>`;
+    saida.innerHTML = `<div class="carregando" role="status" aria-live="polite">
+      <div class="barra-carga" aria-hidden="true"><i></i></div>
+      <p><strong>${esc(texto)}</strong></p>
+      <p class="menor">Passo ${n} de 3. A primeira consulta baixa o motor de busca e a parte dos dados de que precisa; as seguintes são mais rápidas.</p>
+    </div>`;
+  }
+  async function conectar() {
+    etapa(1, "Preparando o motor de consulta…");
     const duckdb = await import("https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm");
     const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
     const url = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" }));
@@ -235,12 +249,21 @@ const tem = (e: string) => !!r?.esferas[e];
 
   async function iniciar() {
     document.querySelector("[data-inicio]")?.setAttribute("hidden", "");
+    // Enquanto consulta: a busca fica travada e o título já mostra o lugar escolhido.
+    form.inert = true;
+    form.classList.add("travado");
+    if (params.get("ente")) topo("Carregando…", "", "Contratos");   // na hora, sem esperar a lista de cidades
+    if (params.get("ente")) carregarLugares().then((l) => { const r = l.porCodigo.get(params.get("ente")); if (r) topo(r.replace(/ \(governo do estado\)$/, ""), "Carregando os contratos…", "Contratos"); });
+    if (params.get("empresa")) topo("Procurando a empresa…", "", "Empresa");
     try {
       await conectar();
       if (params.get("empresa")) await empresa();
       else await busca();
     } catch (erro) {
-      saida.innerHTML = `<p class="carregando">Não foi possível consultar os contratos agora (${esc(erro.message || erro)}). Tente de novo em instantes.</p>`;
+      saida.innerHTML = `<p class="erro">Não foi possível consultar os contratos agora (${esc(erro.message || erro)}). Tente de novo em instantes.</p>`;
+    } finally {
+      form.inert = false;
+      form.classList.remove("travado");
     }
   }
 
@@ -257,9 +280,10 @@ const tem = (e: string) => !!r?.esferas[e];
 
   async function busca() {
     const filtro = filtros();
-    saida.innerHTML = `<p class="carregando">Procurando…</p>`;
+    etapa(2, params.get("q") ? "Procurando nos contratos…" : "Lendo os contratos…");
     // O arquivo é lido uma vez; trocar o agrupamento ou ver mais linhas consulta só o que foi achado.
     await consulta(`CREATE OR REPLACE TEMP TABLE r AS SELECT * FROM c ${filtro.where}`, filtro.v);
+    etapa(3, "Organizando o resultado…");
     const where = "", v = [];
     const [s] = await consulta(`SELECT count(*)::INTEGER AS n, coalesce(sum(valor), 0) AS valor, count(DISTINCT coalesce(nullif(ente, ''), quem))::INTEGER AS lugares, count(DISTINCT fornecedor)::INTEGER AS fornecedores FROM r`);
     const ente = params.get("ente");
@@ -312,7 +336,7 @@ const tem = (e: string) => !!r?.esferas[e];
 
   async function empresa() {
     const raizCnpj0 = (params.get("empresa") || "").replace(/\D/g, "").slice(0, 8).padStart(8, "0");
-    saida.innerHTML = `<p class="carregando">Procurando a empresa…</p>`;
+    etapa(2, "Procurando os contratos da empresa…");
     // A cópia por CNPJ está ordenada: a faixa [raiz, raiz + 1) fica em poucos blocos do arquivo.
     const ate = String(Number(raizCnpj0) + 1).padStart(8, "0");
     await consulta(`CREATE OR REPLACE TEMP TABLE e AS SELECT * FROM read_parquet('${POR_CNPJ}') WHERE cnpj >= ? AND cnpj < ?`, [raizCnpj0, ate]);
@@ -335,10 +359,13 @@ const tem = (e: string) => !!r?.esferas[e];
       <div class="tabela" role="table" aria-label="Contratos da empresa"><div class="linha cab" role="row"><span role="columnheader">Quem contratou</span><span role="columnheader">O que foi contratado</span><span role="columnheader">Fornecedor</span><span role="columnheader" class="d">Data</span><span role="columnheader" class="d">Valor</span></div>${contratos.map(linhaContrato).join("")}</div>
       <p class="menor">Uma empresa contratada por muitos lugares não é sinal de problema: distribuidores de remédios e material hospitalar vencem pregões em centenas de cidades. Filiais da mesma empresa (a mesma raiz de CNPJ) aparecem juntas.</p>`;
   }
+  // Por último: a busca usa as funções acima.
+  if (ARQ && pergunta && saida) iniciar();
 </script>
 
 <style is:global>
   /* Global, mas só dentro do explorador: o resultado da busca é montado no navegador, fora do escopo do Astro. */
+  @keyframes corre { from { left: -35%; } to { left: 100%; } }
   .explorador {
 
   .topo { padding: 44px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
@@ -367,6 +394,7 @@ const tem = (e: string) => !!r?.esferas[e];
   .col { display: flex; flex-direction: column; gap: 2px; }
   small { display: block; font-size: 12px; color: var(--texto-3); }
   .aviso { color: #8f3d1d; }
+  [hidden] { display: none !important; }   /* o display das seções abaixo não pode vencer o "escondido" */
   .inicio { display: flex; flex-direction: column; gap: 36px; padding-bottom: 32px; }
   .tipos { border-top: 2px solid var(--tinta); padding-top: 20px; display: flex; flex-direction: column; gap: 12px; }
   .cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
@@ -374,7 +402,13 @@ const tem = (e: string) => !!r?.esferas[e];
   .cartoes span { font-size: 13px; color: var(--texto-3); }
   .cartoes strong { font-family: var(--serifa); font-size: 26px; }
   .resultado { display: flex; flex-direction: column; gap: 16px; padding-bottom: 32px; }
-  .carregando { margin: 0; padding: 20px 0; font-size: 16px; color: var(--texto-2); }
+  .carregando { display: flex; flex-direction: column; gap: 8px; padding: 28px 24px; margin: 8px 0; background: #fff; border: 1px solid var(--regra); }
+  .carregando p { margin: 0; font-size: 17px; color: var(--tinta); }
+  .barra-carga { position: relative; height: 4px; overflow: hidden; background: var(--regra); }
+  .barra-carga i { position: absolute; top: 0; bottom: 0; width: 35%; background: var(--verde); animation: corre 1.2s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .barra-carga i { animation: none; left: 0; width: 100%; opacity: .5; } }
+  .erro { margin: 0; padding: 20px 0; font-size: 16px; color: #8f3d1d; }
+  .busca.travado { opacity: .55; }
   .numeros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; border-top: 2px solid var(--tinta); padding-top: 16px; }
   .numeros div { display: flex; flex-direction: column; gap: 4px; }
   .numeros span { font-size: 13px; color: var(--texto-3); }
