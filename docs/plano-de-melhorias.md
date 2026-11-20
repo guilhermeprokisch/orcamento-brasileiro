@@ -70,31 +70,10 @@ A promessa original do projeto: chegar na unidade.
 - Limite já conhecido: salários, merenda e contratos são pagos pela secretaria, não pela
   unidade. O que dá para mostrar é um pedaço do gasto, e a página precisa dizer isso.
 
-### C. Resumo e imagem para compartilhar
-
-- A lista "Nesta página" já ajuda a navegar (#32, #33); o resumo ainda não existe.
-- Três frases no topo de cada cidade, escritas a partir dos números ("A prefeitura depende
-  83% de repasses; de cada R$ 100, R$ 36 vão para salários…").
-- Uma imagem com os números da cidade, para WhatsApp e redes.
-- Busca por CEP ou localização, em vez de digitar o nome.
-
 ### D. Emendas parlamentares
 
 Quanto cada deputado e senador mandou para cada cidade, e para quê. Fonte: Portal da
 Transparência e Transferegov — a confirmar (o Portal bloqueia downloads em série com captcha).
-
-### E. Alertas automáticos
-
-Marcar na página, com a regra escrita ao lado:
-
-- gasto com pessoal acima do limite legal (depende do item 2, RGF Anexo 1);
-- mínimo constitucional em saúde e em educação não aplicado. Fonte: RREO, anexos de saúde e
-  educação — a confirmar;
-- vários anos seguidos gastando mais do que recebe (já temos o dado);
-- declaração com cara de erro: números repetidos de um ano para o outro, diferença de mais de
-  30% entre receita e despesa. Hoje esses casos aparecem como se fossem fato.
-- Já existem dois avisos parecidos: a cor da dívida perto e acima do limite, e a marca † nos
-  anos de homicídio com mais mortes violentas sem causa definida do que homicídios.
 
 ### F. Comparar duas cidades lado a lado
 
@@ -159,6 +138,70 @@ Os maiores fornecedores de cada prefeitura. É o mais trabalhoso: depende dos po
 municipais, que são milhares e cada um num formato
 ([levantamento](levantamento-portais-municipais.md)). Começar pelos Tribunais de Contas que
 publicam os dados de todos os municípios do estado num formato só.
+O levantamento estado por estado está em [levantamento-pagamentos-tce.md](levantamento-pagamentos-tce.md);
+a Paraíba é o primeiro.
+
+### K. De onde vem o dinheiro do governo federal
+
+O site mostra para onde vai o dinheiro da União (o Explorer), mas não de onde ele vem. Fazer o
+mesmo para as receitas:
+
+- Quanto entrou em cada ano e de onde: imposto de renda, contribuições à Previdência, Cofins,
+  IPI, IOF, royalties do petróleo, dividendos das estatais e o dinheiro emprestado (venda de
+  títulos da dívida).
+- Um mapa de blocos igual ao do Explorer, por tipo de receita, com a série desde 2014 e o
+  previsto contra o arrecadado.
+- Deixar claro o peso do refinanciamento: boa parte da "receita" é dívida nova que paga dívida
+  velha, o mesmo bloco que aparece como gasto do Ministério da Fazenda no Explorer.
+
+Fontes: Portal da Transparência (receitas previstas e realizadas por ano, em CSV), Tesouro
+Nacional (Resultado do Tesouro Nacional) e Receita Federal (arrecadação mensal por tributo).
+
+### L. A dívida pública federal
+
+Uma página para entender a dívida da União:
+
+- Quanto é, em reais e em relação ao PIB, e como cresceu.
+- Quem empresta: bancos, fundos de investimento, fundos de previdência, seguradoras,
+  estrangeiros e o próprio governo.
+- De que tipo: com juros fixos, atrelada à Selic, à inflação ou ao dólar.
+- Quando vence: quanto vence nos próximos 12 meses e o prazo médio.
+- Quanto custa: os juros pagos por ano, comparados com o gasto em saúde e em educação.
+
+Fontes: Tesouro Nacional (Relatório Mensal da Dívida e os dados abertos no Tesouro
+Transparente, com a tabela de detentores) e Banco Central (dívida bruta do governo geral e
+juros nominais).
+
+## Para depois
+
+### C. Resumo e imagem para compartilhar
+
+Um dia, para testar; não é prioridade.
+
+
+- A lista "Nesta página" já ajuda a navegar (#32, #33); o resumo ainda não existe.
+- Três frases no topo de cada cidade, escritas a partir dos números ("A prefeitura depende
+  83% de repasses; de cada R$ 100, R$ 36 vão para salários…").
+- Uma imagem com os números da cidade, para WhatsApp e redes.
+- Busca por CEP ou localização, em vez de digitar o nome.
+
+### E. Alertas automáticos
+
+Útil, mas depois: antes é preciso definir com cuidado o que conta como anormal (a métrica, e
+como separar erro de declaração de gasto ruim) e deixar os dados de todas as fontes
+consolidados e estáveis.
+
+
+Marcar na página, com a regra escrita ao lado:
+
+- gasto com pessoal acima do limite legal (depende do item 2, RGF Anexo 1);
+- mínimo constitucional em saúde e em educação não aplicado. Fonte: RREO, anexos de saúde e
+  educação — a confirmar;
+- vários anos seguidos gastando mais do que recebe (já temos o dado);
+- declaração com cara de erro: números repetidos de um ano para o outro, diferença de mais de
+  30% entre receita e despesa. Hoje esses casos aparecem como se fossem fato.
+- Já existem dois avisos parecidos: a cor da dívida perto e acima do limite, e a marca † nos
+  anos de homicídio com mais mortes violentas sem causa definida do que homicídios.
 
 ## Base (não aparece para o usuário, mas sustenta o resto)
 
