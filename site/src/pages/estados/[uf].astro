@@ -16,6 +16,7 @@ import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato"
 import { fatorIpca, resumo } from "../../lib/perfis";
 import { caminhoCidade, deUf, docCidades, docEstados, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../lib/cidades";
 import { anosDe, fichaDe, pacoteDe } from "../../lib/ficha";
+import { estadoDe, faixaDe } from "../../lib/quem-publica";
 import { areasHtml, contasHtml, fraseHtml, numerosHtml, type Contexto } from "../../lib/ficha-html";
 import type { BaseDaPagina } from "../../lib/troca-de-ano";
 import "../../styles/ficha.css";
@@ -31,6 +32,10 @@ const ehDF = e.ibge === 53;
 const nome = NOMES_UF[e.uf] ?? e.nome;
 const noEstado = ehDF ? "no Distrito Federal" : deUf(e.uf).replace(/^(do|da|de) /, (x) => ({ "do ": "no ", "da ": "na ", "de ": "em " })[x] ?? x);
 const quem = ehDF ? "o Governo do Distrito Federal" : `o governo ${deUf(e.uf)}`;
+
+// Em que faixa da página "Quem publica onde gasta" o estado está.
+const publica = estadoDe(e.uf);
+const quemMaiusculo = quem.charAt(0).toUpperCase() + quem.slice(1);
 
 const [emp] = e.total ?? [0, 0];
 const perCapita = temDados ? emp / e.pop : 0;
@@ -96,6 +101,12 @@ const descricao = temDados
           </>
         ) : (
           <p>O estado não entregou ao Tesouro a prestação de contas anual de nenhum ano entre {doc.anos[0]} e {doc.anos.at(-1)}.</p>
+        )}
+        {publica && (
+          <p class="quem-publica">
+            {quemMaiusculo} {ehDF ? faixaDe(publica.faixa).frase.replace("cada município", "cada região administrativa") : faixaDe(publica.faixa).frase}{publica.noSite ? ", e o site mostra esse gasto na página de cada cidade" : ""}.{" "}
+            <a href={`/quem-publica#${e.uf.toLowerCase()}`}>Quem publica onde gasta</a>
+          </p>
         )}
       </div>
     </section>
@@ -246,6 +257,7 @@ const descricao = temDados
   .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
   .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
   .cabeca p strong { color: var(--tinta); }
+  .cabeca p.quem-publica { font-size: 15px; line-height: 1.5; color: var(--texto-3); }
 
   .evolucao { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
   .evolucao-texto { grid-column: span 4; display: flex; flex-direction: column; gap: 12px; }

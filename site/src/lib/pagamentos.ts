@@ -20,6 +20,8 @@ interface DocPagamentos {
 }
 const arquivos = import.meta.glob<DocPagamentos>("../../public/data/indicadores/pagamentos*.json", { eager: true, import: "default" });
 const docs = Object.values(arquivos);
+/** Estados com o arquivo de pagamentos no build (PB, AC, SC…). */
+export const ufsComPagamentos = (): string[] => docs.map((d) => d.uf.toUpperCase());
 
 export interface Credor { nome: string; cnpj: string; pago: number; empenhos: number }
 export interface Pagamentos {
