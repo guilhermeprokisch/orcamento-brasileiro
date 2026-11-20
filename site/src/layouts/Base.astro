@@ -10,7 +10,7 @@ interface Props {
   dateline?: { esquerda: string; direita: string; celular: string };
 }
 const { title, description = "De onde vem e para onde vai o dinheiro público da sua cidade, do seu estado e do país.", dateline } = Astro.props;
-// Prévia do link (WhatsApp, redes): endereço da página e imagem, sempre absolutos.
+// Endereço absoluto desta página (canonical e prévia do link) e a imagem da prévia.
 const site = Astro.site ?? new URL("https://orcamentobrasileiro.com.br");
 const urlPagina = new URL(Astro.url.pathname, site).href;
 const imagemPrevia = new URL("/previa.png", site).href;
@@ -24,6 +24,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
+    <link rel="canonical" href={urlPagina} />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Orçamento Brasileiro" />
     <meta property="og:locale" content="pt_BR" />

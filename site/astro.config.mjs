@@ -7,7 +7,8 @@ import mdx from '@astrojs/mdx';
 
 // https://astro.build/config
 export default defineConfig({
-  // Endereço público: usado nos links absolutos das prévias (WhatsApp, redes).
+  // Endereço público do site: é daqui que saem as URLs absolutas do canonical
+  // e das meta tags de compartilhamento (ver src/layouts/Base.astro).
   site: 'https://orcamentobrasileiro.com.br',
   integrations: [solidJs(), mdx()]
 });
