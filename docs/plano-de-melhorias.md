@@ -159,6 +159,39 @@ Os maiores fornecedores de cada prefeitura. É o mais trabalhoso: depende dos po
 municipais, que são milhares e cada um num formato
 ([levantamento](levantamento-portais-municipais.md)). Começar pelos Tribunais de Contas que
 publicam os dados de todos os municípios do estado num formato só.
+O levantamento estado por estado está em [levantamento-pagamentos-tce.md](levantamento-pagamentos-tce.md);
+a Paraíba é o primeiro.
+
+### K. De onde vem o dinheiro do governo federal
+
+O site mostra para onde vai o dinheiro da União (o Explorer), mas não de onde ele vem. Fazer o
+mesmo para as receitas:
+
+- Quanto entrou em cada ano e de onde: imposto de renda, contribuições à Previdência, Cofins,
+  IPI, IOF, royalties do petróleo, dividendos das estatais e o dinheiro emprestado (venda de
+  títulos da dívida).
+- Um mapa de blocos igual ao do Explorer, por tipo de receita, com a série desde 2014 e o
+  previsto contra o arrecadado.
+- Deixar claro o peso do refinanciamento: boa parte da "receita" é dívida nova que paga dívida
+  velha, o mesmo bloco que aparece como gasto do Ministério da Fazenda no Explorer.
+
+Fontes: Portal da Transparência (receitas previstas e realizadas por ano, em CSV), Tesouro
+Nacional (Resultado do Tesouro Nacional) e Receita Federal (arrecadação mensal por tributo).
+
+### L. A dívida pública federal
+
+Uma página para entender a dívida da União:
+
+- Quanto é, em reais e em relação ao PIB, e como cresceu.
+- Quem empresta: bancos, fundos de investimento, fundos de previdência, seguradoras,
+  estrangeiros e o próprio governo.
+- De que tipo: com juros fixos, atrelada à Selic, à inflação ou ao dólar.
+- Quando vence: quanto vence nos próximos 12 meses e o prazo médio.
+- Quanto custa: os juros pagos por ano, comparados com o gasto em saúde e em educação.
+
+Fontes: Tesouro Nacional (Relatório Mensal da Dívida e os dados abertos no Tesouro
+Transparente, com a tabela de detentores) e Banco Central (dívida bruta do governo geral e
+juros nominais).
 
 ## Base (não aparece para o usuário, mas sustenta o resto)
 
