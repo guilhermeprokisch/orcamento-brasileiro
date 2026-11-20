@@ -129,6 +129,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline divida
 
+      # Dívida das prefeituras: ~5.570 consultas por ano, feitas à mão (uv run divida --prefeituras). Aqui
+      # só a cópia em pipeline/referencia/ vai para o site, sem consultas: as que faltam não têm o dado.
+      - name: Pipeline da dívida das prefeituras
+        continue-on-error: true
+        run: uv run --project pipeline divida --prefeituras --max-chamadas 0
+
       # Contratos das prefeituras (PNCP): baixar um ano leva horas e o portal limita os pedidos, então a
       # carga é feita à mão e fica em pipeline/referencia/contratos.json; aqui só vai para o site.
       - name: Contratos das prefeituras

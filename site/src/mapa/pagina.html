@@ -180,6 +180,10 @@
   .detalhe .pagina { align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--verde); text-decoration: underline; text-underline-offset: 2px; }
   .nota.forte { font-size: 12.5px; color: var(--texto-2); }
   .so-2025 { margin: 0; font-size: 12px; line-height: 1.45; color: var(--texto-3); }
+  .emendas-caixa { background: var(--a0); padding: 10px 12px; margin: 8px 0; display: flex; flex-direction: column; gap: 4px; }
+  .emendas-caixa h4 { display: flex; justify-content: space-between; gap: 12px; margin: 0; font-size: 13px; }
+  .emendas-caixa .linhas li { border-bottom-color: var(--a1); }
+  .emendas-caixa .bloco-nota, .emendas-caixa .nota { margin: 2px 0 0; }
   .seg button:disabled, .ano button:disabled, .tocar:disabled { opacity: .4; cursor: not-allowed; }
   .fed h3 { margin: 0 0 2px; font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--texto-2); }
   .fed-total { margin: 0 0 8px; font-size: 14px; }
@@ -315,6 +319,7 @@
       </div>
       <button type="button" class="tocar" id="tocar" aria-pressed="false">▶ Passar os anos sozinho</button>
       <p class="so-2025" id="so-parcial" hidden></p>
+      <p class="so-2025" id="so-emendas" hidden>As emendas aparecem para o último ano fechado.</p>
       <p class="so-2025" id="so-2025" hidden>O dinheiro federal por cidade está disponível só para 2025 e só para prefeituras, por enquanto.</p>
       <label class="camada"><input type="checkbox" id="real">
         <span>Corrigir pela inflação<small>Mostra os valores de todos os anos em reais de 2025 (IPCA), para comparar anos diferentes.</small></span></label>
@@ -342,6 +347,8 @@
           <span>Que parte da receita chega por repasse (da União, <b data-doestado>do estado</b> e do FUNDEB) e não por impostos cobrados ali mesmo. Mais escuro: mais dependente de repasses.</span></button>
         <button type="button" id="q-fed" data-medida="fed" aria-pressed="false"><strong>O que vem do governo federal</strong>
           <span>Tudo o que o governo federal mandou para cada cidade em 2025, por morador: repasses à prefeitura e a outras entidades, e benefícios pagos direto às pessoas (aposentadorias e pensões do INSS, Bolsa Família e BPC). Não inclui o gasto direto de órgãos federais, como universidades e salários de servidores.</span></button>
+        <button type="button" id="q-emd" data-medida="emd" aria-pressed="false"><strong>Emendas por morador</strong>
+          <span>O que deputados e senadores mandaram em emendas no último ano fechado, pago a quem fica em cada lugar, por morador. Mais escuro: mais emendas.</span></button>
       </div>
       <div class="areas" id="areas" role="group" aria-label="Área do gasto">
         <button type="button" id="area-total" data-area="total" aria-pressed="true">Tudo</button>
@@ -539,13 +546,23 @@
   /** Tributos cobrados pela prefeitura dos moradores e empresas da cidade (sem o IR retido dos próprios servidores). */
   const tributosLocais = (r) => r[I.iptu] + r[I.iss] + r[I.itbi] + r[I.taxas] + r[I.cosip] + r[I.outrosTrib];
   const SO_PREFEITURAS = new Set(["fed", "imp"]);
-  const COM_FLUXO = new Set(["dep", "fed", "imp"]);   // perguntas em que as linhas de dinheiro aparecem   // perguntas que só existem para cidades
+  const COM_FLUXO = new Set(["dep", "fed", "imp", "emd"]);   // perguntas em que as linhas de dinheiro aparecem
   const valor = (r) => (r ? MEDIDA[estado.medida](r) : null);
   // "Como está a cidade": números de outras fontes (DATASUS, IBGE), num arquivo próprio, baixado na primeira vez.
   const SITUACAO = new Set(["mort", "hom", "agua", "esgoto"]);
   let situacao = null;
   async function carregarSituacao() { if (!situacao) situacao = await json("situacao.json").catch(() => ({})); }
   const daSituacao = (id, m = estado.medida, esfera = estado.esfera) => situacao?.[m]?.[esfera]?.[id] ?? null;
+  // Emendas parlamentares pagas no último ano fechado (CGU), por lugar de quem recebeu: [total, prefeitura (ou
+  // prefeituras, no estado), entidades e empresas, estado e outros órgãos, por morador]. Também baixadas na primeira vez.
+  let emendas = null;
+  async function carregarEmendas() { if (!emendas) emendas = await json("emendas.json").catch(() => ({})); }
+  const daEmenda = (id, esfera = estado.esfera) => emendas?.[esfera]?.[id] ?? null;
+  const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
+  /** "COM. DA SAUDE" → "Comissão da Saúde"; "BANCADA DO RIO DE JANEIRO" → "Bancada do Rio de Janeiro". */
+  const nomeAutor = (s) => s.toLowerCase().replace(/^com\. /, "comissão ").replace(/\bsaude\b/g, "saúde")
+    .split(" ").map((p, i) => (i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
+  const autoresDe = (id) => (emendas?.autores?.[id] ?? []).map(([n, v]) => [nomeAutor(emendas.nomesAutores[n]), v]);
 
   // O que sai de uma cidade em impostos. À prefeitura e à União: medido (a União pela Receita Federal,
   // no município de quem recolhe). Ao estado: estimativa a partir das cotas que o estado devolve
@@ -592,11 +609,12 @@
   }
   const fedPorMorador = (id) => { const f = fedDe(id), r = porAno[federal.ano]?.mun[id]; return f && r ? d3.sum(f) / r[I.pop] : null; };
   /** Valor da medida escolhida para um ente (a medida federal não vem das contas do ente). */
-  const valorDe = (id) => (SITUACAO.has(estado.medida) ? daSituacao(id) : estado.medida === "fed" ? fedPorMorador(id) : valor(base()[id]));
+  const valorDe = (id) => (SITUACAO.has(estado.medida) ? daSituacao(id) : estado.medida === "fed" ? fedPorMorador(id)
+    : estado.medida === "emd" ? daEmenda(id)?.[4] ?? null : valor(base()[id]));
 
   function formatar(v, medida = estado.medida) {
     if (v === null || v === undefined) return "—";
-    if (medida === "desp" || medida === "rec" || medida === "fed" || medida === "imp") return reais(v);
+    if (medida === "desp" || medida === "rec" || medida === "fed" || medida === "imp" || medida === "emd") return reais(v);
     if (medida === "saldo") return v >= 0 ? `sobrou ${pct1(v)}` : `faltou ${pct1(v)}`;
     if (medida === "mort" || medida === "hom") return nf1.format(v);
     return pct(v);
@@ -605,7 +623,8 @@
   let escala;
   function pintar() {
     const sit = SITUACAO.has(estado.medida);
-    const ids = sit ? Object.keys(situacao?.[estado.medida]?.[estado.esfera] ?? {}) : Object.keys(base());
+    const emd = estado.medida === "emd";
+    const ids = sit ? Object.keys(situacao?.[estado.medida]?.[estado.esfera] ?? {}) : emd ? Object.keys(emendas?.[estado.esfera] ?? {}) : Object.keys(base());
     const vals = ids.map(valorDe).filter((v) => v !== null && Number.isFinite(v));
     let cores, rot;
     if (estado.medida === "saldo") {
@@ -616,7 +635,7 @@
     } else {
       // Situação: tons de ocre, mais escuro = pior (água e esgoto: pior é ter menos).
       const menosEPior = estado.medida === "agua" || estado.medida === "esgoto";
-      cores = sit ? (menosEPior ? ocres().reverse() : ocres()) : estado.medida === "dep" ? ocres() : estado.medida === "fed" ? azuis() : verdes();
+      cores = sit ? (menosEPior ? ocres().reverse() : ocres()) : estado.medida === "dep" ? ocres() : estado.medida === "fed" || emd ? azuis() : verdes();
       escala = d3.scaleQuantile().domain(vals).range(cores);
       const q = [d3.min(vals), d3.median(vals), d3.max(vals)];
       rot = vals.length ? (estado.medida === "dep" || menosEPior ? q.map(pct) : sit ? q.map((x) => nf1.format(x)) : q.map((x) => nf0.format(x))) : ["—"];
@@ -630,9 +649,9 @@
     document.getElementById("rotulos").innerHTML = rot.map((t) => `<span>${t}</span>`).join("");
     const quem = estado.esfera === "mun" ? "da prefeitura" : "do governo estadual";
     const s = situacao?.[estado.medida];
-    document.getElementById("leg-sem").textContent = !sit ? "sem prestação de contas"
+    document.getElementById("leg-sem").textContent = emd ? "sem emendas pagas" : !sit ? "sem prestação de contas"
       : estado.medida === "mort" ? "poucos nascimentos" : estado.medida === "hom" && estado.esfera === "mun" ? "menos de 50 mil habitantes" : "sem dado";
-    document.getElementById("leg-titulo").textContent = sit ? {
+    document.getElementById("leg-titulo").textContent = emd ? `Emendas pagas por morador (R$) · ${emendas?.ano ?? ""}` : sit ? {
       mort: `Mortes antes de 1 ano a cada mil nascidos · ${s?.ano ?? ""}`,
       hom: `Homicídios a cada 100 mil habitantes · ${s?.ano ?? ""}`,
       agua: `Moradores com água da rede · Censo ${s?.ano ?? ""}`,
@@ -656,6 +675,9 @@
 
   /** Total por estado que o fluxo geral desenha: repasses da União (contas dos entes) ou todo o dinheiro federal. */
   function totaisFluxo() {
+    if (estado.medida === "emd") {   // emendas pagas a quem fica em cada estado (fora o DF, de onde saem as linhas)
+      return Object.fromEntries(Object.entries(emendas?.uf ?? {}).map(([id, x]) => [nomes.uf[id]?.[1], x[0]]).filter(([uf]) => uf && uf !== "DF"));
+    }
     if (estado.medida === "imp") {   // arrecadação federal em cada estado (Receita Federal)
       return Object.fromEntries(Object.entries(rfb.anos[estado.ano] || {}).filter(([uf]) => uf !== "DF").map(([uf, v]) => [uf, v * fator()]));
     }
@@ -682,10 +704,10 @@
     document.querySelectorAll("[data-dela]").forEach((e) => (e.textContent = mun ? "da prefeitura" : "do governo estadual"));
     document.querySelectorAll("[data-doestado]").forEach((e) => (e.textContent = mun ? "do estado" : "de outras esferas"));
     document.getElementById("areas").hidden = estado.medida !== "desp" || ehParcial();
-    const fed = estado.medida === "fed", imp = estado.medida === "imp", sit = SITUACAO.has(estado.medida);
+    const fed = estado.medida === "fed", imp = estado.medida === "imp", emd = estado.medida === "emd", sit = SITUACAO.has(estado.medida);
     document.getElementById("bloco-fluxo").hidden = !COM_FLUXO.has(estado.medida);
     mostrarBotaoAnimar();
-    for (const idc of ["ano", "ano-menos", "ano-mais", "tocar", "real"]) document.getElementById(idc).disabled = fed || sit;
+    for (const idc of ["ano", "ano-menos", "ano-mais", "tocar", "real"]) document.getElementById(idc).disabled = fed || sit || emd;
     document.getElementById("so-situacao").hidden = !sit;
     document.getElementById("leg-situacao").textContent = mun ? "Como está a cidade" : "Como está o estado";
     if (ehParcial()) document.getElementById("real").disabled = true;
@@ -694,7 +716,8 @@
     if (ehParcial()) avisoParcial.textContent = `${parcial.ano} ainda está em andamento: os números vão de janeiro a ${parcial.ate} e vêm do relatório que ${mun ? "as prefeituras entregam" : "os governos entregam"} a cada dois meses. Há gasto total, receita, saldo e origem do dinheiro; o gasto por área e os impostos só saem na prestação de contas anual.`;
     document.getElementById("esf-uf").disabled = SO_PREFEITURAS.has(estado.medida);
     document.getElementById("so-2025").hidden = !fed;
-    document.querySelector("#bloco-fluxo .camada span").firstChild.textContent = fed ? "Mostrar o dinheiro saindo de Brasília" : imp ? "Mostrar o dinheiro indo e voltando" : "Mostrar os repasses da União";
+    document.getElementById("so-emendas").hidden = !emd;
+    document.querySelector("#bloco-fluxo .camada span").firstChild.textContent = fed || emd ? "Mostrar o dinheiro saindo de Brasília" : imp ? "Mostrar o dinheiro indo e voltando" : "Mostrar os repasses da União";
     document.getElementById("ano-rotulo").textContent = estado.ano;
     document.getElementById("ano-topo").textContent = rotuloAno();
     document.getElementById("ano").value = estado.ano;
@@ -710,6 +733,15 @@
         ? "Linhas tracejadas: o que sai da cidade em impostos, para o estado (estimativa) e para a União (medido pela Receita Federal). Linhas cheias: o que volta em repasses para a prefeitura."
         : `Cada linha vai de um estado até Brasília. A espessura é tudo o que a Receita Federal arrecadou naquele estado em ${estado.ano}. Clique numa cidade para ver o que sai dela e o que volta.`;
       document.getElementById("maiores").innerHTML = estado.sel ? "" : maiores.map(([uf, v]) => `<li>${uf}: ${curto(v)}</li>`).join("");
+      return;
+    }
+    if (emd) {
+      const ano = emendas?.ano ?? "";
+      document.getElementById("fluxo-explica").textContent = estado.sel
+        ? `As linhas mostram as emendas pagas em ${ano} a quem fica ${mun ? "nesta cidade: a prefeitura e as entidades e empresas daqui" : "neste estado: as prefeituras, o governo estadual e as entidades e empresas"}.`
+        : `Cada linha sai de Brasília e vai até um estado. A espessura é o total de emendas pagas em ${ano} a quem fica naquele estado. Clique ${mun ? "numa cidade" : "num estado"} para ver quem mandou.`;
+      document.getElementById("maiores").innerHTML = estado.sel ? "" : maiores.map(([uf, v]) => `<li>${uf}: ${curto(v)}</li>`).join("");
+      document.getElementById("rodape").innerHTML = `<strong>Emendas parlamentares pagas em ${ano}</strong>, pelo lugar de quem recebeu: prefeituras, governos estaduais, entidades e empresas. Fonte: ${emendas?.fonte ?? "CGU"}.`;
       return;
     }
     if (fed) {
@@ -788,6 +820,38 @@
         <p class="nota">Fonte: ${sv.fonte}.</p>`, true));
     }
 
+    // Emendas parlamentares do último ano fechado: no topo, na pergunta das emendas; nas outras, dentro do que volta (cidades).
+    if (!emendas && (q === "emd" || (mun && estado.ano === ANO_FECHADO))) carregarEmendas().then(() => { if (estado.sel === id) detalhe(id); });
+    const em = daEmenda(id);
+    const paraQuem = !em ? [] : mun
+      ? [["Para a prefeitura", em[1]], ["Para entidades e empresas da cidade", em[2]], ["Para órgãos estaduais e outros", em[3]]]
+      : [["Para as prefeituras do estado", em[1]], ["Para o governo estadual e outros órgãos", em[3]], ["Para entidades e empresas", em[2]]];
+    const quemMandou = () => {
+      const a = autoresDe(id);
+      return a.length ? `<h4>Quem mandou mais</h4>${linhas(a)}${a.some(([n]) => /^(comissão|bancada)/i.test(n)) ? `<p class="nota">Comissões e bancadas são emendas coletivas, indicadas em grupo.</p>` : ""}` : "";
+    };
+    const linkEmendas = `<a href="${pagina}#emendas">Ver as emendas na página ${mun ? "da cidade" : "do estado"} →</a>`;
+    if (q === "emd" && emendas) {
+      const fx = mun ? faixaDe(r[I.pop]) : null;
+      const pares = Object.entries(emendas[estado.esfera] ?? {})
+        .filter(([k]) => (mun ? base()[k] && faixaDe(base()[k][I.pop]) === fx : nomes.uf[k]?.[1] !== "DF")).map(([, x]) => x[4]);
+      const med = pares.length ? d3.median(pares) : null;
+      blocos.push(bloco("Emendas parlamentares", em ? curto(em[0]) : "—", em ? `
+        <p class="bloco-nota">Em ${emendas.ano}: <strong>${reais(em[4])} por morador</strong>.${med !== null ? ` Mediana ${mun ? `das cidades de porte parecido (${FAIXAS[fx][1]})` : "dos estados"}: ${reais(med)}.` : ""}</p>
+        ${linhas(paraQuem)}
+        ${quemMandou()}
+        <p class="bloco-nota">${linkEmendas}</p>
+        <p class="nota">Emenda é a parte do orçamento federal que cada deputado, senador, bancada ou comissão do Congresso indica para um lugar. Aqui entra o que foi de fato pago no ano, pelo lugar de quem recebeu. Fonte: ${emendas.fonte}.</p>`
+        : `<p class="bloco-nota">Nenhuma emenda paga aqui em ${emendas.ano}.</p>`, true));
+    }
+    const caixaEmendas = mun && q !== "emd" && em && emendas?.ano === estado.ano ? `<div class="emendas-caixa">
+        <h4><span>Emendas parlamentares</span><span>${curto(em[0])}</span></h4>
+        ${linhas(paraQuem)}
+        ${quemMandou()}
+        <p class="nota">A parte da prefeitura já está somada nos repasses da União, acima; aqui ela aparece separada para mostrar quem mandou.</p>
+        <p class="bloco-nota">${linkEmendas}</p>
+      </div>` : "";
+
     // O que sai daqui (só cidades): impostos à prefeitura (medido), ao estado e à União (estimativas).
     const sai = mun ? saiDaqui(id) : null;
     let foraSai = null;
@@ -823,10 +887,11 @@
         <p class="bloco-nota">${porHab(volta)}.</p>${razao}
         <h4>Para ${mun ? "a prefeitura" : "o governo estadual"} <small>medido</small></h4>
         ${linhas([["Repasses da União", R(I.uniao), "--c-uniao"], [mun ? "Repasses do estado" : "Repasses de outros estados", R(I.estado), "--c-estado"], ["FUNDEB (fundo da educação)", R(I.fundeb), "--c-fundeb"]])}
+        ${caixaEmendas}
         ${inss ? `<h4>Aposentadorias e pensões do INSS <small>pago aqui</small> · ${curto(vInss)}</h4>${linhas([["Aposentadorias", inss[1] * k, "--c-inss"], ["Pensões por morte", inss[2] * k, "--c-inss"], ["Auxílios e outros", (inss[0] - inss[1] - inss[2]) * k, "--c-inss"]])}` : ""}
         ${fd ? `<h4>Outros benefícios direto às pessoas <small>${beneficiosParciais ? "estimativa" : "medido"}</small></h4>${linhas([["Bolsa Família", fd[8], "--c-bf"], ["BPC (idosos e pessoas com deficiência)", fd[9], "--c-bpc"]])}` : ""}
         <p class="nota">${inss ? "O INSS é o valor líquido pago pelas agências bancárias da cidade: quem mora aqui e recebe em outra cidade conta lá, então cidades sem agência aparecem com pouco e cidades-polo, com mais. " : ""}${fd ? (beneficiosParciais ? `Bolsa Família e BPC projetados para o ano a partir de ${mesesBen[8]} mês de dados.` : "") : "Bolsa Família e BPC só estão disponíveis para 2025."}</p>
-        ${q === "dep" || q === "fed" || q === "imp" ? "" : `<button type="button" class="ver-fluxo" id="ver-fluxo">Ver no mapa de onde veio →</button>`}`, q === "imp" || q === "dep" || q === "rec" || q === "fed"));
+        ${q === "dep" || q === "fed" || q === "imp" || q === "emd" ? "" : `<button type="button" class="ver-fluxo" id="ver-fluxo">Ver no mapa de onde veio →</button>`}`, q === "imp" || q === "dep" || q === "rec" || q === "fed"));
     }
 
     // Detalhe do dinheiro federal por programa (só 2025, só na pergunta federal).
@@ -965,11 +1030,11 @@
       dica.hidden = false;
       dica.style.left = `${ev.clientX - box.left}px`;
       dica.style.top = `${ev.clientY - box.top}px`;
-      const un = { desp: " por morador", rec: " por morador", saldo: " da receita", dep: " da receita vem de repasses", fed: " por morador, do governo federal", imp: " por morador, em impostos à prefeitura",
+      const un = { desp: " por morador", rec: " por morador", saldo: " da receita", dep: " da receita vem de repasses", fed: " por morador, do governo federal", emd: " por morador em emendas", imp: " por morador, em impostos à prefeitura",
         mort: " mortes de bebês a cada mil nascidos", hom: " homicídios a cada 100 mil habitantes", agua: " dos moradores com água da rede", esgoto: " dos moradores com esgoto na rede" }[estado.medida];
-      const sit = SITUACAO.has(estado.medida);
-      dica.innerHTML = (sit || r) && valorDe(id) !== null ? `<b>${nome(id)[0]}</b> · ${formatar(valorDe(id))}${un}`
-        : `<b>${nome(id)[0]}</b> · ${sit ? "sem número comparável" : `sem dados em ${estado.ano}`}`;
+      const sit = SITUACAO.has(estado.medida), emd = estado.medida === "emd";
+      dica.innerHTML = (sit || emd || r) && valorDe(id) !== null ? `<b>${nome(id)[0]}</b> · ${formatar(valorDe(id))}${un}`
+        : `<b>${nome(id)[0]}</b> · ${sit ? "sem número comparável" : emd ? `sem emendas pagas em ${estado.ano}` : `sem dados em ${estado.ano}`}`;
     })
       .on("mouseleave", () => { dica.hidden = true; })
       .on("click", (ev, f) => selecionar(estado.sel === f.properties.id ? null : f.properties.id, estado.esfera === "uf"));
@@ -1018,6 +1083,25 @@
   let rotas = [], particulas = [];
   function montarFluxo() {
     rotas = [];
+    if (estado.medida === "emd") {
+      const e = estado.sel ? daEmenda(estado.sel) : null, sigla = estado.sel ? ufDe(estado.sel) : null;
+      if (e && sigla !== "DF") {
+        const destino = estado.esfera === "mun" ? centroDe(estado.sel) : centroCapital[sigla];
+        const grupos = estado.esfera === "mun"
+          ? [["À prefeitura", e[1], "--c-uniao", 1], ["A entidades e empresas", e[2], "--c-estado", -1], ["A órgãos estaduais e outros", e[3], "--a3", 0.4]]
+          : [["Às prefeituras", e[1], "--c-uniao", 1], ["Ao governo estadual e outros", e[3], "--a3", -1], ["A entidades e empresas", e[2], "--c-estado", 0.4]];
+        // Sem etiqueta no meio das linhas (o total vai junto do nome da cidade e a divisão, no cartão); o estado leva
+        // o nome e o total perto do destino.
+        grupos.filter(([, v]) => v / e[0] >= 0.02).forEach(([, v, cor, lado], n) => rotas.push({
+          rot: estado.esfera === "uf" && n === 0 ? `${nome(estado.sel)[0]} · ${curto(e[0])}` : null, tRot: 0.8,
+          peso: Math.min(1, (v / e[0]) * 1.4), origem: centroCapital.DF, destino, cor, lado }));
+      } else if (!estado.sel) {
+        const tot = totaisFluxo(), max = d3.max(Object.values(tot)) || 1;
+        rotas = Object.keys(tot).filter((uf) => centroCapital[uf]).map((uf) => ({ peso: tot[uf] / max, origem: centroCapital.DF, destino: centroCapital[uf], cor: "--fluxo", lado: 1 }));
+      }
+      semear();
+      return;
+    }
     if (estado.medida === "fed") {
       const f = estado.sel ? fedDe(estado.sel) : null;
       if (f) {
@@ -1157,7 +1241,8 @@
     }
     // A cidade escolhida: uma bolinha no lugar dela e o nome ao lado, com ou sem as linhas de dinheiro.
     if (estado.sel && estado.esfera === "mun" && feicao.mun.has(estado.sel)) {
-      const [x, y] = ponto(centroDe(estado.sel)), nomeSel = nomes.mun[estado.sel][0];
+      const emSel = estado.medida === "emd" ? daEmenda(estado.sel) : null;
+      const [x, y] = ponto(centroDe(estado.sel)), nomeSel = nomes.mun[estado.sel][0] + (emSel ? ` · ${curto(emSel[0])}` : "");
       // O nome vai para o lado oposto ao da capital do estado, por onde passam as linhas e as etiquetas delas.
       const cap = ponto(centroCapital[ufDe(estado.sel)] || centroCapital.DF);
       const dx = cap[0] >= x ? -1 : 1, dy = cap[1] >= y ? -1 : 1;
@@ -1187,6 +1272,11 @@
     if (ehParcial()) { estado.area = "total"; estado.real = false; document.getElementById("real").checked = false; }
     if (estado.medida === "fed") { estado.ano = federal.ano; estado.real = false; document.getElementById("real").checked = false; await carregarAno(federal.ano); }
     if (SITUACAO.has(estado.medida)) await carregarSituacao();
+    if (estado.medida === "emd") {   // o último ano fechado, em valores da época
+      await carregarEmendas();
+      if (emendas.ano) estado.ano = emendas.ano;
+      estado.real = false; document.getElementById("real").checked = false;
+    }
     const trocouEsfera = estado.esfera !== esferaAntes;
     if (estado.esfera === "uf" && estado.ano < 2014) estado.ano = 2014;
     doc = await carregarAno(estado.ano);
@@ -1234,7 +1324,7 @@
     if (location.hash !== h) { try { location.replace(h); } catch {} }
   }
   function lerHash() {
-    const m = location.hash.match(/^#(?:(c|e)(\d+)|(prefeituras|estados))-a(\d{4})-(desp|rec|saldo|dep|fed|imp|mort|hom|agua|esgoto)$/);
+    const m = location.hash.match(/^#(?:(c|e)(\d+)|(prefeituras|estados))-a(\d{4})-(desp|rec|saldo|dep|fed|imp|emd|mort|hom|agua|esgoto)$/);
     if (!m) return null;
     const esfera = m[1] ? (m[1] === "c" ? "mun" : "uf") : m[3] === "prefeituras" ? "mun" : "uf";
     const sel = m[2] && nomes[esfera][m[2]] ? m[2] : null;
