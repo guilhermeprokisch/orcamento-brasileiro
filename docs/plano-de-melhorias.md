@@ -47,6 +47,7 @@ Atualizado em 20/11/2026.
 | Comparar duas cidades ou dois estados (/comparar) | página nova | #64, #72 |
 | De onde vem o dinheiro da União (/receitas) | página nova | #65 |
 | A dívida pública federal (/divida) | página nova | #63 |
+| O que o governo federal gasta ele mesmo em cada cidade (universidades, quartéis, superintendências) | cidades | #80 |
 | Cópia pública dos dados (Backblaze B2) e a página "Os dados" | /dados | #46, #48 |
 | Menu em quatro grupos, balões nas palavras técnicas, trilha e botões para voltar nos exploradores | todo o site | #50, #60, #61, #68 |
 | Publicação em quatro filas: de cerca de 15 para 7 a 8 minutos | GitHub | #69, #74 |
@@ -95,10 +96,12 @@ A promessa original do projeto: chegar na unidade.
 
 ### G. O que o governo federal gasta direto na cidade
 
-**Em andamento** (sessão própria, 20/11/2026). O mapa mostra o que a União repassa, não o que ela mesma gasta ali (universidades federais,
-hospitais federais, quartéis, agências). Fonte: Portal da Transparência, despesas por
-localidade — a confirmar. Atenção: o gasto costuma ser registrado na sede do órgão, o mesmo
-problema da folha de pagamento na Paraíba.
+**Feito** (#80): o que a União gasta ela mesma em cada cidade (universidades e institutos
+federais, hospitais universitários, quartéis, superintendências), na página de cada cidade, para
+2025: execução da despesa do Portal da Transparência pela cidade da unidade que paga
+([levantamento-gasto-federal-direto.md](levantamento-gasto-federal-direto.md)). Metade do valor
+fica registrada em Brasília, onde estão as sedes; só 38% cai numa cidade que não é sede. Falta a
+folha por cidade de exercício (servidores × endereço da unidade no SIORG) e o Judiciário.
 
 ### H. Gasto do estado em cada cidade, para mais estados
 

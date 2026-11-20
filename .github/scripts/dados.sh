@@ -69,6 +69,9 @@ fila_independente() {
   # Os Parquet dos exploradores ficam no bucket e são gerados à mão; aqui só os resumos.
   pipe pode-falhar "Explorador de emendas" explorador-emendas --sem-baixar
   pipe pode-falhar "Receitas da União" receitas-uniao --sem-baixar
+  # O que o governo federal gasta ele mesmo em cada cidade (execução da despesa do Portal e cidade de
+  # cada unidade no Compras.gov.br). Se um dos dois não responder, usa a cópia em pipeline/referencia/.
+  pipe pode-falhar "Gasto federal direto nas cidades" gasto-federal 2025
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).

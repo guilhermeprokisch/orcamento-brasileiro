@@ -1,0 +1,129 @@
+---
+/**
+ * O que o governo federal gastou ele mesmo nesta cidade, pela cidade da unidade que pagou
+ * (ver lib/gasto-federal.ts e docs/levantamento-gasto-federal-direto.md).
+ */
+import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
+import { porPessoa, type Cidade } from "../../lib/cidades";
+import { gastoFederalEm } from "../../lib/gasto-federal";
+
+interface Props {
+  cidade: Cidade;
+}
+const { cidade } = Astro.props;
+const g = await gastoFederalEm(cidade);
+const ehDF = cidade.ibge === 53;
+const onde = ehDF ? "no Distrito Federal" : `em ${cidade.nome}`;
+const gastoDaPrefeitura = g && cidade.ano === g.ano ? cidade.total?.[0] ?? 0 : 0;
+const b = g?.brasil;
+// Brasília mais as folhas centrais sem cidade no cadastro: o que fica na sede.
+const naSede = b ? (b.brasilia + b.sem_cidade) / b.total : 0;
+const nomes = g?.orgaos.slice(0, 2).map((o) => o.nome) ?? [];
+---
+
+{g && b && (
+  <section class="federal">
+    <div class="texto">
+      <h2>O que o governo federal gastou aqui</h2>
+      {g.total > 0 ? (
+        <>
+          <p>
+            Além do que repassa {ehDF ? "ao governo do DF" : "à prefeitura e ao estado"}, o governo federal gastou{" "}
+            <strong>{moedaExtenso(g.total)}</strong> {onde} em {g.ano}, ou {porPessoa(g.total / cidade.pop)} por morador, com
+            as {g.unidades === 1 ? "unidade" : `${g.unidades} unidades`} federais que tem {ehDF ? "aqui" : "na cidade"}:
+            salários de servidores, contas do dia a dia e obras.
+            {nomes.length > 0 && <> Quem mais gastou: {nomes.join(" e ")}.</>}
+            {gastoDaPrefeitura > 0 && <> {ehDF ? "O governo do DF" : "A prefeitura"} gastou {moedaExtenso(gastoDaPrefeitura)} no mesmo ano.</>}
+          </p>
+          {g.folhaCentral > 0.05 * g.total && (
+            <p class="menor">
+              {moedaExtenso(g.folhaCentral)} disso é folha de pagamento que unidades daqui pagam a servidores e militares de outras
+              cidades.
+            </p>
+          )}
+          <p class="menor">
+            {ehDF ? (
+              <>
+                Brasília concentra {pct(b.brasilia / b.total)} de todo o gasto direto federal do país porque o gasto fica
+                registrado na cidade da unidade que paga, e as sedes estão aqui: a folha do Exército, da Polícia Federal, da
+                Receita e do INSS, os remédios e vacinas comprados pelo Ministério da Saúde e as obras do DNIT saem daqui para
+                o país todo. Também entra o Fundo Constitucional do DF, que paga a polícia e parte da saúde e da educação do DF.
+              </>
+            ) : (
+              <>
+                O gasto fica registrado na cidade da unidade que paga, e muitas pagam de longe: a folha da Polícia Federal, da
+                Receita e do INSS, os remédios e vacinas comprados pelo Ministério da Saúde e as obras do DNIT saem de Brasília,
+                onde está {pct(naSede)} de todo o gasto direto federal. Universidades e institutos federais pagam os próprios
+                servidores e aparecem inteiros na cidade da reitoria, mesmo quando têm campus em outras.
+              </>
+            )}
+          </p>
+        </>
+      ) : (
+        <p>
+          Nenhuma unidade do governo federal tem endereço {onde} no cadastro do Compras.gov.br. O que a União gasta aqui (uma
+          agência do INSS, um campus de instituto federal) fica registrado na cidade da unidade que paga, em geral a capital ou
+          Brasília, onde está {pct(naSede)} de todo o gasto direto federal.
+        </p>
+      )}
+    </div>
+    <div class="dados">
+      {g.total > 0 && (
+        <>
+          <ul class="barras">
+            {g.partes.map((p, k) => (
+              <li>
+                <span class="lb-linha"><span>{p.nome}</span><strong class="num" title={moedaCompleta(p.valor)}>{moedaCurta(p.valor)} · {pct(p.valor / g.total)}</strong></span>
+                <span class="lb-barra" style={`width:${(p.valor / Math.max(...g.partes.map((x) => x.valor))) * 100}%;background:${corDaRampa(Math.min(1, k / 2))}`}></span>
+              </li>
+            ))}
+          </ul>
+          <h3>Quem gastou</h3>
+          <ol class="maiores">
+            {g.orgaos.map((o) => (
+              <li>
+                <span><strong>{o.nome}</strong></span>
+                <span class="num" title={moedaCompleta(o.valor)}>{moedaCurta(o.valor)}</span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+      <p class="fonte">
+        Fonte: {g.fonte}, {g.ano}. Valor pago no ano, com restos a pagar. Só o Poder Executivo: a Justiça Federal e o Congresso
+        não estão nesse arquivo. Não entram os repasses (veja a camada "Dinheiro federal" do <a href="/mapa/">mapa</a>), as
+        aposentadorias e benefícios do INSS, o BPC, o Bolsa Família e o seguro-desemprego (que seguem quem recebe),
+        aposentadorias e pensões de servidores, nem a dívida.
+      </p>
+    </div>
+  </section>
+)}
+
+<style>
+  .federal { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .barras li { display: flex; flex-direction: column; gap: 4px; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .lb-linha > span { min-width: 0; font-weight: 600; }
+  .lb-linha strong { white-space: nowrap; font-weight: 600; }
+  .lb-barra { display: block; height: 10px; min-width: 2px; }
+  h3 { margin: 6px 0 0; font-family: var(--sans, inherit); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .maiores { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .maiores li { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; }
+  .maiores li > span:first-child { min-width: 0; }
+  .maiores strong { font-weight: 600; }
+  .maiores .num { white-space: nowrap; font-weight: 600; }
+  .fonte { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .federal { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; line-height: 1.1; }
+  }
+</style>
