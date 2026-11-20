@@ -6,11 +6,12 @@
  */
 import Base from "../layouts/Base.astro";
 import { caminhoEstado, deUf, NOMES_UF } from "../lib/cidades";
+import { MAPA_ESTADOS } from "../lib/mapa-estados";
 import { FAIXAS, PESQUISA, PREFEITURAS, QUEM_PUBLICA, porFaixa, type Estado } from "../lib/quem-publica";
 
 const REPO = "https://github.com/guilhermeprokisch/orcamento-brasileiro/blob/main/docs";
 
-// Grade com a forma aproximada do país: [sigla, coluna, linha].
+// Sem o contorno dos estados (gerado pelo pipeline do mapa), uma grade com a forma aproximada do país: [sigla, coluna, linha].
 const GRADE: [string, number, number][] = [
   ["RR", 2, 1], ["AP", 4, 1],
   ["AM", 2, 2], ["PA", 3, 2], ["MA", 4, 2], ["CE", 5, 2], ["RN", 6, 2],
@@ -62,6 +63,29 @@ const mapas: { id: string; titulo: string; classe: (e: Estado) => string; noSite
       {mapas.map((m) => (
         <figure class="mapa">
           <figcaption>{m.titulo}</figcaption>
+          {MAPA_ESTADOS ? (
+            <svg class="brasil" viewBox={`0 0 ${MAPA_ESTADOS.largura} ${MAPA_ESTADOS.altura}`} role="img" aria-label={m.titulo}>
+              {MAPA_ESTADOS.estados.map((s) => {
+                const e = por.get(s.uf)!;
+                return (
+                  <a href={`#${s.uf.toLowerCase()}`} class:list={["est", m.classe(e)]} aria-label={`${NOMES_UF[s.uf]}${m.noSite(e) ? " (já no site)" : ""}`}>
+                    <title>{NOMES_UF[s.uf]}{m.noSite(e) ? " (já no site)" : ""}</title>
+                    <path d={s.d} />
+                  </a>
+                );
+              })}
+              {MAPA_ESTADOS.estados.map((s) => {
+                const e = por.get(s.uf)!;
+                return (
+                  <g class:list={["rot", m.classe(e), { fora: !!s.linha }]} aria-hidden="true">
+                    {s.linha && <line x1={s.linha[0]} y1={s.linha[1]} x2={s.linha[2]} y2={s.linha[3]} />}
+                    <text x={s.rx} y={s.ry} text-anchor={s.linha ? "start" : "middle"} dominant-baseline="central" class:list={{ df: s.uf === "DF" }}>{s.uf}</text>
+                    {m.noSite(e) && <circle class="ponto" cx={s.linha ? s.rx + 30 : s.rx + 17} cy={s.ry - 8} r="5" />}
+                  </g>
+                );
+              })}
+            </svg>
+          ) : (
           <div class="grade">
             {GRADE.map(([uf, c, l]) => {
               const e = por.get(uf)!;
@@ -73,6 +97,7 @@ const mapas: { id: string; titulo: string; classe: (e: Estado) => string; noSite
               );
             })}
           </div>
+          )}
           <ul class="legenda">
             {m.legenda.filter((x) => x.n).map((x) => (
               <li><span class:list={["amostra", x.classe]}></span>{x.nome} <span class="n">{x.n}</span></li>
@@ -197,6 +222,24 @@ const mapas: { id: string; titulo: string; classe: (e: Estado) => string; noSite
     box-shadow: 0 0 0 1.5px var(--tinta);
   }
   .uf.no-site::after { position: absolute; top: 4px; right: 4px; }
+  /* o mapa de verdade: as mesmas cores, no preenchimento */
+  .brasil { width: 100%; max-width: 520px; height: auto; display: block; overflow: visible; }
+  .est path { fill: var(--cor, var(--papel-escuro)); stroke: var(--papel, #f7f4ec); stroke-width: 1.2; stroke-linejoin: round; transition: opacity .15s; }
+  .est:hover path, .est:focus-visible path { stroke: var(--tinta); stroke-width: 2.4; }
+  .est.f-inteiro, .est.p-sim { --cor: #0a4a29; }
+  .est.f-folha { --cor: #4fae73; }
+  .est.f-obras, .est.p-parte { --cor: #b3dfc4; }
+  .est.f-nada, .est.p-nao { --cor: #e4dfd2; }
+  .est.p-nao-se-aplica { --cor: transparent; }
+  .est.p-nao-se-aplica path { stroke: var(--texto-4); stroke-dasharray: 3 2; }
+  .rot { pointer-events: none; }
+  .rot text { font-family: var(--sans); font-size: 15px; font-weight: 600; letter-spacing: 0.02em; fill: var(--tinta); }
+  .rot text.df { font-size: 10px; }
+  .rot.f-inteiro:not(.fora) text, .rot.p-sim:not(.fora) text { fill: #ffffff; }
+  .rot.f-nada text, .rot.p-nao text, .rot.p-nao-se-aplica text { fill: var(--texto-3); }
+  .rot.fora text { fill: var(--tinta); }
+  .rot line { stroke: var(--texto-3); stroke-width: 1; }
+  .rot .ponto { fill: var(--marca-texto); stroke: var(--tinta); stroke-width: 1.5; }
   .legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; color: var(--texto-2); }
   .legenda li { display: flex; align-items: center; gap: 6px; }
   .amostra { display: inline-block; width: 14px; height: 14px; flex: none; }
