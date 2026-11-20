@@ -1,0 +1,16 @@
+---
+/**
+ * Uma palavra técnica sublinhada que, ao passar o mouse (ou tocar, no celular), mostra num balão
+ * a explicação do glossário. Uso: <Termo id="fundeb" /> ou <Termo id="empenho">empenhado</Termo>.
+ * O comportamento (tocar, fechar, não sair da tela) está em Base.astro; o estilo, em global.css.
+ * Para textos montados em string, ver termoHtml em lib/glossario.ts.
+ */
+import { idBalao, termoPorId } from "../lib/glossario";
+
+interface Props { id: string }
+const { id } = Astro.props;
+const t = termoPorId(id);
+const b = idBalao(id);
+const texto = Astro.slots.has("default") ? await Astro.slots.render("default") : t.termo;
+---
+<span class="termo" tabindex="0" aria-describedby={b}><Fragment set:html={texto} /><span class="balao" role="tooltip" id={b}><strong>{t.termo}.</strong> {t.definicao} <a href={`/glossario#${id}`}>Glossário →</a></span></span>

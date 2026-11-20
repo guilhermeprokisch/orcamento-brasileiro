@@ -32,10 +32,52 @@ export const GLOSSARIO: Termo[] = [
   { id: "tcu", termo: "TCU", definicao: "Tribunal de Contas da União. Órgão que auxilia o Congresso a fiscalizar o uso do dinheiro federal: julga contas, faz auditorias e emite parecer sobre as contas do presidente." },
   { id: "lai", termo: "Lei de Acesso à Informação", definicao: "Lei 12.527/2011. Garante a qualquer pessoa o direito de pedir informações a órgãos públicos, sem precisar justificar o pedido." },
   { id: "emenda-parlamentar", termo: "Emenda parlamentar", definicao: "Mudança proposta por deputados e senadores no projeto da LOA, em geral para destinar recursos a obras e serviços em estados e municípios." },
+  { id: "receita-corrente-liquida", termo: "Receita corrente líquida", definicao: "A receita do dia a dia de um governo (impostos, repasses, contribuições), tirando o que ele só repassa adiante, como a parte dos impostos que vai para as prefeituras. É a base dos limites da Lei de Responsabilidade Fiscal." },
+  { id: "lrf", termo: "Lei de Responsabilidade Fiscal", definicao: "Lei Complementar 101/2000. Fixa limites para o gasto com pessoal e para a dívida de União, estados e prefeituras, e obriga a publicar relatórios das contas a cada quatro meses." },
+  { id: "divida-consolidada-liquida", termo: "Dívida consolidada líquida", definicao: "Tudo o que um governo deve a prazo maior que um ano (empréstimos, precatórios, parcelamentos), menos o dinheiro que tem em caixa e aplicações." },
+  { id: "precatorio", termo: "Precatório", definicao: "Dívida de um governo reconhecida pela Justiça, depois de uma ação que ele perdeu. Entra numa fila e é paga pelo orçamento dos anos seguintes." },
+  { id: "limite-prudencial", termo: "Limite prudencial", definicao: "95% do limite de gasto com pessoal. Quem passa dele não pode dar aumento, criar cargos nem contratar, com exceções como a reposição de professores e profissionais de saúde." },
+  { id: "capag", termo: "CAPAG", definicao: "Capacidade de pagamento: a nota que o Tesouro Nacional dá às contas de estados e prefeituras, de A a D. Com nota A ou B, o governo pode pegar empréstimo com a União como garantidora." },
+  { id: "fpm", termo: "FPM", definicao: "Fundo de Participação dos Municípios: a parte do imposto de renda e do IPI arrecadados pela União que a Constituição manda dividir entre as prefeituras. É a maior fonte de dinheiro de muitas cidades pequenas." },
+  { id: "fundeb", termo: "FUNDEB", definicao: "Fundo da educação básica. Junta parte dos impostos de estados e prefeituras e redistribui pelo número de alunos de cada rede; a União completa onde o valor por aluno fica abaixo do mínimo." },
+  { id: "icms", termo: "ICMS", definicao: "Imposto estadual embutido no preço das mercadorias, da luz, do combustível e de alguns serviços. Um quarto do que o estado arrecada vai para as prefeituras." },
+  { id: "ipva", termo: "IPVA", definicao: "Imposto estadual sobre carros e motos, pago pelo dono todo ano. Metade fica com a prefeitura da cidade onde o veículo está registrado." },
+  { id: "iss", termo: "ISS", definicao: "Imposto sobre serviços, cobrado pela prefeitura de empresas e profissionais que prestam serviços na cidade." },
+  { id: "iptu", termo: "IPTU", definicao: "Imposto sobre imóveis urbanos, cobrado pela prefeitura do dono de casas, apartamentos, lojas e terrenos na cidade." },
+  { id: "itbi", termo: "ITBI", definicao: "Imposto que a prefeitura cobra quando um imóvel é vendido, pago por quem compra." },
+  { id: "pdde", termo: "PDDE", definicao: "Programa Dinheiro Direto na Escola: dinheiro federal que vai direto para o conselho ou a caixa escolar de cada escola pública, sem passar pela prefeitura, para pequenas compras, reparos e projetos." },
+  { id: "ideb", termo: "Ideb", definicao: "Índice de Desenvolvimento da Educação Básica, do INEP. Junta a nota dos alunos numa prova nacional com a taxa de aprovação, numa escala de 0 a 10. Sai a cada dois anos." },
+  { id: "pncp", termo: "PNCP", definicao: "Portal Nacional de Contratações Públicas, onde União, estados e prefeituras devem publicar licitações e contratos desde a nova lei de licitações (Lei 14.133/2021)." },
+  { id: "credenciamento", termo: "Credenciamento", definicao: "Contratação em que o governo aceita todos os fornecedores que cumprem as condições, como clínicas para exames. O valor publicado é o máximo que se pode gastar, não o gasto." },
+  { id: "mediana", termo: "Mediana", definicao: "O valor do meio: metade das cidades (ou dos estados) fica acima dele e metade abaixo. Diferente da média, não é puxada por uns poucos casos muito altos ou muito baixos." },
+  { id: "balanco-patrimonial", termo: "Balanço patrimonial", definicao: "O retrato das contas no último dia do ano: o que o governo tem (dinheiro, aplicações, imóveis) e o que deve (fornecedores, empréstimos, aposentadorias futuras)." },
 ];
 
 /** Termo do dia, escolhido pela data (o site é gerado de novo todo dia). */
 export function palavraDoDia(data = new Date()): Termo {
   const dia = Math.floor(data.getTime() / 86_400_000);
   return GLOSSARIO[dia % GLOSSARIO.length];
+}
+
+const PORID = new Map(GLOSSARIO.map((t) => [t.id, t]));
+/** O termo pelo id; erro no build se o id não existir, para não sair um balão vazio. */
+export function termoPorId(id: string): Termo {
+  const t = PORID.get(id);
+  if (!t) throw new Error(`glossário: termo "${id}" não existe`);
+  return t;
+}
+
+const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" };
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ESC[c]);
+/**
+ * O mesmo balão do componente Termo.astro, como HTML, para os textos montados em string
+ * (lib/ficha-html.ts). `texto` é o que aparece sublinhado; o padrão é o nome do termo.
+ */
+let contador = 0;
+/** Um id único para cada balão da página (o mesmo termo pode aparecer em mais de uma seção). */
+export const idBalao = (id: string) => `balao-${id}-${++contador}`;
+
+export function termoHtml(id: string, texto?: string): string {
+  const t = termoPorId(id), b = idBalao(id);
+  return `<span class="termo" tabindex="0" aria-describedby="${b}">${esc(texto ?? t.termo)}<span class="balao" role="tooltip" id="${b}"><strong>${esc(t.termo)}.</strong> ${esc(t.definicao)} <a href="/glossario#${esc(id)}">Glossário →</a></span></span>`;
 }
