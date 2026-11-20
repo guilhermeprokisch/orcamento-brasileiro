@@ -547,3 +547,25 @@ export function emendasDe(c: Cidade, esfera: "mun" | "uf"): Emendas | null {
     serie: docEmendas.anos.map((a) => ({ ano: a, valor: (porAno[String(a)]?.[0] ?? 0) / 1e6, preliminar: a >= anoAtual })),
   };
 }
+
+/**
+ * Para o mapa (/data/mapa/emendas.json): as emendas do último ano fechado de cada cidade e estado,
+ * [total, prefeitura, entidades e empresas, estado e outros, por habitante], e os 3 maiores autores.
+ */
+export function emendasParaMapa() {
+  if (!docEmendas) return null;
+  const ano = docEmendas.anos.filter((a) => a < new Date().getFullYear()).at(-1);
+  if (!ano) return null;
+  const a = String(ano);
+  const pop = new Map([...(docCidades?.cidades ?? []), ...(docEstados?.cidades ?? [])].map((x) => [String(x.ibge), x.pop]));
+  const linhas = (esfera: "mun" | "uf") => Object.fromEntries(Object.entries(docEmendas[esfera])
+    .filter(([k, v]) => v[a] && pop.get(k))
+    .map(([k, v]) => [k, [...v[a], Math.round((v[a][0] / pop.get(k)!) * 100) / 100]]));
+  // Os nomes dos autores vão uma vez só, numa lista; cada lugar guarda [índice do nome, valor].
+  const nomesAutores: string[] = [], indice = new Map<string, number>();
+  const idx = (n: string) => { if (!indice.has(n)) { indice.set(n, nomesAutores.length); nomesAutores.push(n); } return indice.get(n)!; };
+  const autores = Object.fromEntries(Object.entries(docEmendas.autores)
+    .map(([k, v]) => [k, (v[a] ?? []).slice(0, 3).map(([n, valor]) => [idx(n), valor])])
+    .filter(([, v]) => v.length));
+  return { ano, fonte: docEmendas.fonte, mun: linhas("mun"), uf: linhas("uf"), nomesAutores, autores };
+}
