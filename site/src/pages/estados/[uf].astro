@@ -2,6 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import AnoEmAndamento from "../../components/gasto/AnoEmAndamento.astro";
 import DividaEstado from "../../components/gasto/DividaEstado.astro";
+import PessoalResultado from "../../components/gasto/PessoalResultado.astro";
 import IrMoradores from "../../components/gasto/IrMoradores.astro";
 import EmendasResultado from "../../components/gasto/EmendasResultado.astro";
 import ContratosResultado from "../../components/gasto/ContratosResultado.astro";
@@ -59,7 +60,7 @@ const cidades = ehDF ? [] : (docCidades?.cidades ?? []).filter((c) => c.uf === e
 // A lista "Nesta página": os grupos na ordem em que aparecem; um item sem conteúdo some no navegador.
 const SUMARIO: GrupoDaPagina[] = [
   { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["contratos", "Os contratos"], ["evolucao", "Ao longo dos anos"]] },
-  { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida frente ao limite"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
+  { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida frente ao limite"], ["pessoal", "O gasto com pessoal"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
   { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"]] },
   { id: "como-esta", n: 4, titulo: ehDF ? "Como está o Distrito Federal" : "Como está o estado", itens: [["educacao", "Educação: gasto por aluno"], ["saude", "Saúde: mortalidade infantil"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
   ...(cidades.length ? [{ id: "grupo-cidades", n: 5, titulo: `As cidades ${deUf(e.uf)}`, itens: [["cidades", "As cidades"]] as [string, string][] }] : []),
@@ -135,6 +136,7 @@ const descricao = temDados
     {ctx && <p class="grupo-pagina" id="contas" data-grupo="contas">2 · As contas fecham</p>}
     {ctx && <div class="ficha" id="receitas" data-parte="receitas" set:html={contasHtml(ctx, "receitas")} />}
     <div id="divida"><DividaEstado ibge={e.ibge} quem={quem} ano={e.ano} /></div>
+    <div id="pessoal"><PessoalResultado ibge={e.ibge} quem={quem} ano={e.ano} grupo={ehDF ? null : "dos estados"} /></div>
     <div id="capag"><CapagNota ente={e} esfera="uf" quem={quem} grupo="dos estados" /></div>
     {temDados && <div id="ano-atual"><AnoEmAndamento ente={e} esfera="uf" quem={quem} /></div>}
 

@@ -1,0 +1,113 @@
+---
+/**
+ * O gasto com pessoal do Poder Executivo frente ao limite da Lei de Responsabilidade Fiscal, ano a ano
+ * (Relatório de Gestão Fiscal, Anexo 1): 54% da receita corrente líquida nas prefeituras, 49% nos estados.
+ */
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { alertaPessoal, LIMITES_PESSOAL, pessoalDe, prudencial } from "../../lib/pessoal";
+
+interface Props {
+  ibge: number;
+  esfera?: "uf" | "mun";
+  /** "das cidades de 100 a 500 mil habitantes"; o padrão é "dos estados" */
+  grupo?: string | null;
+  /** "a prefeitura de Fortaleza", "o governo do Ceará" */
+  quem: string;
+  /** Ano com que a página foi montada, para destacar no gráfico. */
+  ano: number | null;
+}
+const { ibge, quem, ano, esfera = "uf", grupo = "dos estados" } = Astro.props;
+const LIMITE = LIMITES_PESSOAL[esfera], PRUDENCIAL = prudencial(esfera), ALERTA = alertaPessoal(esfera);
+const mun = esfera === "mun";
+const ente = mun ? "a prefeitura" : "o governo";
+const p = pessoalDe(ibge, esfera);
+const nf1 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+const pct = (v: number) => `${nf1.format(v * 100)}%`;
+const u = p?.ultimo;
+const escala = p ? Math.max(LIMITE * 1.15, ...p.anos.map((a) => a.razao)) : 1;
+const situacao = (r: number) => (r >= LIMITE ? "acima" : r >= PRUDENCIAL ? "prudencial" : r >= ALERTA ? "alerta" : "dentro");
+// A folha inteira (com os aposentados pagos pelo fundo de previdência), quando as partes cabem nela
+// (a diferença costuma ser a terceirização de mão de obra).
+const folha = u && u.bruta > 0 && u.ativos > 0 && u.ativos + u.inativos <= u.bruta * 1.01;
+---
+
+{p && u && (
+  <section class="pessoal">
+    <div class="texto">
+      <h2>{mun ? "O gasto com pessoal da prefeitura" : "O gasto com pessoal do governo"}</h2>
+      <p>
+        Em {u.ano}, {quem} gastou <strong>{moedaExtenso(u.dtp)}</strong> com pessoal, na conta da Lei de Responsabilidade Fiscal.
+        É <strong class={situacao(u.razao) === "dentro" ? "" : "marca"}>{pct(u.razao)} da receita corrente líquida</strong>,{" "}
+        {u.razao >= LIMITE
+          ? <>acima do limite de {pct(LIMITE)}.</>
+          : u.razao >= PRUDENCIAL
+          ? <>acima do limite prudencial ({pct(PRUDENCIAL)}) e perto do máximo, {pct(LIMITE)}.</>
+          : u.razao >= ALERTA
+          ? <>acima do limite de alerta ({pct(ALERTA)}); o máximo é {pct(LIMITE)}.</>
+          : <>abaixo do limite de {pct(LIMITE)}.</>}
+        {p.mediana !== null && grupo && <> A mediana {grupo} é {pct(p.mediana)}.</>}
+      </p>
+      {folha && (
+        <p>
+          Na folha inteira foram {moedaCurta(u.bruta)}, dos quais {moedaCurta(u.ativos)} para os servidores na ativa
+          {u.inativos > 0 && <> e {moedaCurta(u.inativos)} para aposentados e pensionistas</>}.
+          {u.bruta > u.dtp * 1.1 && <> A conta da lei é menor porque deixa de fora, entre outras coisas, as aposentadorias pagas pelo fundo de previdência dos servidores.</>}
+        </p>
+      )}
+      <p class="menor">
+        Esta porcentagem não é a mesma de "Com o quê gasta", mais acima: lá, salários e encargos aparecem como parte de
+        todo o gasto; aqui, o gasto com pessoal da lei aparece como parte da receita corrente líquida.
+        O limite vale para o Poder Executivo ({mun ? "a Câmara de Vereadores tem o seu" : "Assembleia, Justiça e Ministério Público têm os seus"}).
+        Acima de {pct(PRUDENCIAL)}, o limite prudencial, {ente} não pode dar aumento, criar cargos nem contratar, com
+        exceções como a reposição de {mun ? "professores e profissionais de saúde" : "professores, profissionais de saúde e policiais"}. Acima de {pct(LIMITE)}, precisa cortar o excesso em
+        oito meses.
+      </p>
+    </div>
+    <ol class="anos-pessoal" aria-label="Gasto com pessoal como parte da receita, ano a ano">
+      {p.anos.map((a) => (
+        <li class:list={[situacao(a.razao), { atual: a.ano === ano }]}
+          title={`${a.ano}: ${moedaCurta(a.dtp)} com pessoal, receita corrente líquida de ${moedaCurta(a.rcl)}`}>
+          <span class="num ano">{a.ano}</span>
+          <span class="trilho">
+            <span class="barra" style={`width:${(a.razao / escala) * 100}%`}></span>
+            <span class="limite" style={`left:${(LIMITE / escala) * 100}%`}></span>
+          </span>
+          <strong class="num">{pct(a.razao)}</strong>
+        </li>
+      ))}
+      <li class="legenda" aria-hidden="true"><span></span><span class="trilho"><span class="rotulo-limite" style={`left:${(LIMITE / escala) * 100}%`}>limite {pct(LIMITE)}</span></span><span></span></li>
+    </ol>
+    <p class="fonte">Fonte: {p.fonte}.</p>
+  </section>
+)}
+
+<style>
+  .pessoal { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .anos-pessoal { grid-column: span 7; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; align-self: center; }
+  .anos-pessoal li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 60px; gap: 14px; align-items: center; font-size: 14px; }
+  .anos-pessoal .ano { color: var(--texto-3); }
+  .anos-pessoal strong { text-align: right; }
+  .trilho { position: relative; display: block; height: 14px; }
+  .barra { display: block; height: 100%; background: var(--verde); }
+  .alerta .barra { background: #c2913a; }
+  .prudencial .barra { background: #b8642a; }
+  .acima .barra { background: #a3401a; }
+  .acima strong { color: #a3401a; }
+  .limite { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tinta); }
+  .atual .ano { color: var(--tinta); font-weight: 700; }
+  .atual .trilho { outline: 1px solid var(--tinta); outline-offset: 2px; }
+  .legenda { height: 16px; }
+  .rotulo-limite { position: absolute; top: 0; transform: translateX(-50%); font-size: 12px; color: var(--texto-3); white-space: nowrap; }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .pessoal { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .anos-pessoal { align-self: stretch; }
+    .texto h2 { font-size: 28px; }
+  }
+</style>
