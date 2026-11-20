@@ -55,6 +55,8 @@ const folha = u && u.bruta > 0 && u.ativos > 0 && u.ativos + u.inativos <= u.bru
         </p>
       )}
       <p class="menor">
+        Esta porcentagem não é a mesma de "Com o quê gasta", mais acima: lá, salários e encargos aparecem como parte de
+        todo o gasto; aqui, o gasto com pessoal da lei aparece como parte da receita corrente líquida.
         O limite vale para o Poder Executivo ({mun ? "a Câmara de Vereadores tem o seu" : "Assembleia, Justiça e Ministério Público têm os seus"}).
         Acima de {pct(PRUDENCIAL)}, o limite prudencial, {ente} não pode dar aumento, criar cargos nem contratar, com
         exceções como a reposição de {mun ? "professores e profissionais de saúde" : "professores, profissionais de saúde e policiais"}. Acima de {pct(LIMITE)}, precisa cortar o excesso em
