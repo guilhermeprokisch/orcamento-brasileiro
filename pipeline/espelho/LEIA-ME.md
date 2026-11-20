@@ -6,6 +6,21 @@ Tudo aqui é cópia de dados abertos publicados pelo governo. **A fonte oficial 
 
 O código que baixa e trata tudo está em [github.com/guilhermeprokisch/orcamento-brasileiro](https://github.com/guilhermeprokisch/orcamento-brasileiro), na pasta `pipeline/`.
 
+## Como baixar
+
+O bucket não deixa listar os arquivos sem uma chave, então há dois índices na raiz:
+
+- **`indice.csv`**: o caminho, o tamanho e a data de envio de cada arquivo;
+- **`indice.txt`**: o endereço de cada arquivo, um por linha.
+
+Para baixar tudo (cerca de 3,5 GB), mantendo as pastas:
+
+```bash
+curl -s https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/indice.txt | wget -x -nH --cut-dirs=2 -i -
+```
+
+Para baixar só o que o site usa, filtre as linhas de `tratados/` antes de passar para o `wget`.
+
 ## Pastas
 
 - **`brutos/`** — os arquivos das fontes, sem mudança, ou as respostas das APIs guardadas como vieram (em `.json.gz`).

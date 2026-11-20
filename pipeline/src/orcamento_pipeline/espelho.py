@@ -8,6 +8,9 @@ Envia para b2://orcamento-brasileiro-dados:
 - tratados/    ← site/public/data (os JSONs que o site lê)
 - referencia/  ← pipeline/referencia (as cargas longas, resumidas)
 - LEIA-ME.md   ← pipeline/espelho/LEIA-ME.md
+- indice.txt   o endereço de cada arquivo, um por linha (o bucket não deixa listar sem chave:
+               com o índice dá para baixar tudo com `wget -x -nH -i indice.txt`)
+- indice.csv   caminho, tamanho em bytes e data do envio de cada arquivo
 
 Usa o programa `b2` (instalado na hora pelo uvx) e a chave nas variáveis B2_APPLICATION_KEY_ID e
 B2_APPLICATION_KEY (no GitHub, os segredos B2_KEY_ID e B2_APPLICATION_KEY) ou a do
@@ -19,9 +22,16 @@ apagado no bucket: um arquivo que sumiu daqui (um cache que expirou, por exemplo
 from __future__ import annotations
 
 import argparse
+import csv
+import io
+import json
 import shutil
 import subprocess
 import sys
+import tempfile
+import urllib.parse
+from datetime import datetime, timezone
+from pathlib import Path
 
 from . import cidades as c
 
@@ -34,12 +44,32 @@ PASTAS = [
 LEIAME = c.RAIZ / "pipeline" / "espelho" / "LEIA-ME.md"
 # Temporários que os pipelines escrevem e trocam de nome no fim.
 IGNORAR = r"(\.tmp|\.part|~|\.DS_Store)$"
+URL = f"https://f005.backblazeb2.com/file/{BUCKET}"
 
 
-def b2(*args: str) -> None:
+def b2(*args: str, capturar: bool = False) -> str:
     comando = (["b2"] if shutil.which("b2") else ["uvx", "--from", "b2", "b2"]) + list(args)
     print("$", " ".join(comando[-4:]), flush=True)
-    subprocess.run(comando, check=True)
+    return subprocess.run(comando, check=True, capture_output=capturar, text=True).stdout or ""
+
+
+def indices() -> None:
+    """Lista o bucket e envia indice.txt (endereços) e indice.csv (caminho, tamanho, data)."""
+    arquivos = json.loads(b2("ls", "-r", "--json", f"b2://{BUCKET}", capturar=True) or "[]")
+    arquivos = sorted((a for a in arquivos if not a["fileName"].startswith("indice.")), key=lambda a: a["fileName"])
+    txt = "".join(f"{URL}/{urllib.parse.quote(a['fileName'])}\n" for a in arquivos)
+    tabela = io.StringIO()
+    w = csv.writer(tabela)
+    w.writerow(["caminho", "tamanho_bytes", "enviado_em"])
+    for a in arquivos:
+        w.writerow([a["fileName"], a.get("contentLength") or a.get("size") or 0,
+                    datetime.fromtimestamp(a["uploadTimestamp"] / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M")])
+    with tempfile.TemporaryDirectory() as d:
+        for nome, texto, tipo in (("indice.txt", txt, "text/plain; charset=utf-8"), ("indice.csv", tabela.getvalue(), "text/csv; charset=utf-8")):
+            caminho = Path(d) / nome
+            caminho.write_text(texto, encoding="utf-8")
+            b2("file", "upload", "--no-progress", "--quiet", "--content-type", tipo, BUCKET, str(caminho), nome)
+    print(f"  índice: {len(arquivos)} arquivos", flush=True)
 
 
 def main() -> None:
@@ -59,7 +89,8 @@ def main() -> None:
         except subprocess.CalledProcessError as erro:   # uma pasta que falhou não impede as outras
             falhas += 1
             print(f"  {destino}: falhou ({erro.returncode})", flush=True)
-    b2("file", "upload", "--no-progress", "--content-type", "text/markdown; charset=utf-8", BUCKET, str(LEIAME), "LEIA-ME.md")
+    b2("file", "upload", "--no-progress", "--quiet", "--content-type", "text/markdown; charset=utf-8", BUCKET, str(LEIAME), "LEIA-ME.md")
+    indices()
     print(f"pronto: https://f005.backblazeb2.com/file/{BUCKET}/LEIA-ME.md" + (f" ({falhas} pasta(s) falharam)" if falhas else ""))
     if falhas:
         sys.exit(1)
