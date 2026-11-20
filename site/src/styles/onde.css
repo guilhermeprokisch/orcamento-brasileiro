@@ -22,6 +22,13 @@
 .onde .onde-lista button.ativo, .onde .onde-lista button:hover { background: var(--marca-texto-fundo) !important; border-left-color: var(--verde); }
 .onde-lista small { font-size: 12px; color: var(--texto-3); }
 .onde-msg { margin: 0; padding: 12px 14px; font-size: 14px; color: var(--texto-3); }
+/* A trilha (public/explorador/trilha.js), no alto da página: "Contratos › Jandira (SP) › Empresa". */
+.trilha { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 15px; }
+.trilha a { color: var(--verde); }
+.trilha a::before { content: none; }
+.trilha a, .trilha span[aria-current] { max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trilha span[aria-current] { color: var(--texto-2); }
+.trilha .sep { color: var(--texto-3); }
 /* A pergunta quando o lugar é um estado: só o governo ou o governo e as prefeituras. */
 .escopo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--texto-3); }
 .escopo label { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; font-size: 14px; }
