@@ -179,6 +179,25 @@ export function escalar(v: Valores, fator: number): Valores {
   };
 }
 
+/** Nomes dos valores nos componentes do explorador (mapa, lista e barras), para servirem a gastos e receitas. */
+export interface Rotulos {
+  atualizado: string;
+  empenhado: string | null; // null: não mostra
+  realizado: string;
+  /** depois da porcentagem no bloco: "42% pago" */
+  taxa: string;
+  /** cabeçalhos da lista */
+  colTrilho: string;
+  colTaxa: string;
+  /** mostra o código ao lado do nome na lista (padrão: sim) */
+  codigo?: boolean;
+}
+
+export const ROTULOS_DESPESA: Rotulos = {
+  atualizado: "Dotação atualizada", empenhado: "Empenhado", realizado: "Pago",
+  taxa: "pago", colTrilho: "Dotação", colTaxa: "Pago",
+};
+
 export function taxaRealizacao(v: Valores): number | null {
   return v.atualizado > 0 ? v.realizado / v.atualizado : null;
 }

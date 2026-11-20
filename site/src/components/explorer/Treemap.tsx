@@ -1,6 +1,6 @@
 import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { hierarchy, treemap, treemapSquarify, type HierarchyRectangularNode } from "d3-hierarchy";
-import { taxaRealizacao, type Item, type Metrica } from "../../lib/dados";
+import { ROTULOS_DESPESA, taxaRealizacao, type Item, type Metrica, type Rotulos } from "../../lib/dados";
 import { moedaCurta, pct } from "../../lib/formato";
 import { RAMPA } from "../../lib/cores";
 import "./treemap.css";
@@ -11,6 +11,7 @@ interface Props {
   total: number;
   podeDescer: boolean;
   onEscolher: (item: Item) => void;
+  rotulos?: Rotulos;
 }
 
 type Dado = { item?: Item; children?: Dado[] };
@@ -28,6 +29,7 @@ export default function Treemap(props: Props) {
     onCleanup(() => ro.disconnect());
   });
 
+  const r = () => props.rotulos ?? ROTULOS_DESPESA;
   const altura = () => (largura() < 640 ? 440 : 520);
 
   const folhas = createMemo<No[]>(() => {
@@ -96,7 +98,7 @@ export default function Treemap(props: Props) {
                 <Show when={w >= 120 && h >= 90}>
                   <span class="tm-rotulo">
                     <strong>{item.nome}</strong>
-                    <span class="num">{moedaCurta(item.valores[props.metrica])}{taxa !== null ? ` · ${Math.round(taxa * 100)}% pago` : ""}</span>
+                    <span class="num">{moedaCurta(item.valores[props.metrica])}{taxa !== null ? ` · ${Math.round(taxa * 100)}% ${r().taxa}` : ""}</span>
                   </span>
                 </Show>
               </button>
@@ -113,9 +115,9 @@ export default function Treemap(props: Props) {
             <div class="tm-tip" style={posTip()} role="status">
               <strong>{item().nome}</strong>
               <dl class="num">
-                <dt>Dotação atualizada</dt><dd>{moedaCurta(item().valores.atualizado)}</dd>
-                <dt>Empenhado</dt><dd>{moedaCurta(item().valores.empenhado)}</dd>
-                <dt>Pago</dt><dd>{moedaCurta(item().valores.realizado)}{taxa() !== null ? ` (${pct(taxa())})` : ""}</dd>
+                <dt>{r().atualizado}</dt><dd>{moedaCurta(item().valores.atualizado)}</dd>
+                <Show when={r().empenhado}><dt>{r().empenhado}</dt><dd>{moedaCurta(item().valores.empenhado)}</dd></Show>
+                <dt>{r().realizado}</dt><dd>{moedaCurta(item().valores.realizado)}{taxa() !== null ? ` (${pct(taxa())})` : ""}</dd>
                 <dt>Parcela</dt><dd>{pct((n().value ?? 0) / props.total)}</dd>
               </dl>
               <Show when={props.podeDescer}><span class="tm-dica">Clique para detalhar</span></Show>
