@@ -92,7 +92,13 @@
   .ficha .areas .linha { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; }
 }
 
-/* seletor de ano, no topo da página */
+/* seletor de ano e o link para comparar, no topo da página */
+.topo-acoes { display: flex; align-items: center; gap: 12px 24px; flex-wrap: wrap; }
+.comparar-com {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px;
+  font-size: 15px; font-weight: 600; color: var(--tinta); text-decoration: none; border: 1.5px solid var(--tinta);
+}
+.comparar-com:hover { background: var(--marca-texto-fundo); }
 .escolha-ano { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; color: var(--texto-2); }
 .escolha-ano select {
   font: inherit; font-size: 15px; font-weight: 600; color: var(--tinta); background: var(--papel, #fff);

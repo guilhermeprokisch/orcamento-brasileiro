@@ -98,6 +98,8 @@ function nomeDe(l: Escolhido): Nome {
   const art = { do: "o ", da: "a ", de: "" }[p];
   return { curto: l.nome, sujeito: `${art}${l.nome}`, em: `${{ do: "no", da: "na", de: "em" }[p]} ${l.nome}`, de: `${p} ${l.nome}` };
 }
+/** "Jandira", "o Ceará", "a Paraíba": o nome como entra no meio de uma frase. */
+export const nomeNaFrase = (l: Escolhido) => nomeDe(l).sujeito;
 const maiuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // ----- números -----

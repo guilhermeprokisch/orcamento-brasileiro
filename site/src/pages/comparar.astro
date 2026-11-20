@@ -62,7 +62,7 @@ const campo = (lado: "a" | "b", rotulo: string) => (
 </Base>
 
 <script>
-  import { anosEmComum, carregarLado, desenhar, montar, type Escolhido } from "../lib/comparar";
+  import { anosEmComum, carregarLado, desenhar, montar, nomeNaFrase, type Escolhido } from "../lib/comparar";
 
   type Onde = { definir(codigo: string): Promise<Escolhido | undefined>; escolhido: Escolhido | null };
   // public/explorador/onde.js fica fora do bundle (é servido como está); o endereço completo evita
@@ -96,7 +96,18 @@ const campo = (lado: "a" | "b", rotulo: string) => (
     endereco();
     const { a, b } = lados;
     vazio.hidden = !!(a || b);
-    if (!a || !b) { resultado.innerHTML = ""; seletorAno.disabled = true; avisar(a || b ? "Escolha o outro lugar." : null); return; }
+    // O que digitar no outro campo: cidade com cidade, estado com estado.
+    for (const [k, outro] of [["a", b], ["b", a]] as const) {
+      const campo = document.querySelector<HTMLInputElement>(`[data-lado="${k}"] [data-onde-input]`)!;
+      campo.placeholder = !outro ? (k === "a" ? "Digite uma cidade ou um estado" : "Digite outra para comparar")
+        : outro.tipo === "mun" ? "Digite outra cidade" : "Digite outro estado";
+    }
+    if (!a || !b) {
+      resultado.innerHTML = ""; seletorAno.disabled = true;
+      const um = a ?? b;
+      avisar(um ? `Escolha ${um.tipo === "mun" ? "outra cidade" : "outro estado"} para comparar com ${nomeNaFrase(um)}.` : null);
+      return;
+    }
     if (a.tipo !== b.tipo) { resultado.innerHTML = ""; avisar("Compare cidade com cidade ou estado com estado."); return; }
     if (a.codigo === b.codigo) { resultado.innerHTML = ""; avisar("Escolha dois lugares diferentes."); return; }
     avisar(null);
@@ -149,6 +160,8 @@ const campo = (lado: "a" | "b", rotulo: string) => (
     const cod = params.get(k);
     if (cod) lados[k] = (await campos[k].definir(cod)) ?? null;
   }
+  // Vindo do botão "Comparar com…" da página da cidade ou do estado, só um lado vem escolhido.
+  if (lados.a && !lados.b) document.querySelector<HTMLInputElement>('[data-lado="b"] [data-onde-input]')?.focus();
   atualizar();
   }
   iniciar();
