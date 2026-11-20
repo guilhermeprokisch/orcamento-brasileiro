@@ -14,8 +14,8 @@ data/raw/pncp/contratos/{aaaammdd}.json.gz, só com prefeituras e câmaras (esfe
 Por cidade e por estado (somando os órgãos estaduais, não as cidades), no ano da assinatura: quantos contratos, o valor somado, o valor por tipo (compras,
 serviços, saúde, obras…), os 3 maiores contratos (o objeto e a empresa) e as 3 empresas que mais
 receberam. Pessoas físicas e microempreendedores individuais (o nome do MEI é o da pessoa) não têm
-o nome guardado: entram só nos totais. Contratos com valor maior que todo o gasto da prefeitura (ou do
-governo estadual) no ano são erro de digitação (há compras de livros de R$ 4,9 bilhões) e ficam de fora, contados à parte.
+o nome guardado: entram só nos totais. Contratos com valor maior que metade de todo o gasto da prefeitura (ou
+do governo estadual) no ano são erro de digitação (há compras de livros de R$ 4,9 bilhões) e ficam de fora, contados à parte.
 Vendas e cessões de bens da prefeitura também ficam de fora: nelas o dinheiro entra, não sai.
 
 Saída em site/public/data/indicadores/contratos.json, com cópia em pipeline/referencia/contratos.json
@@ -59,6 +59,9 @@ TIPOS = ["Compras", "Serviços", "Serviços de saúde", "Obras e engenharia", "A
 TIPO_DA_CATEGORIA = {2: 0, 4: 0, 8: 1, 6: 1, 3: 1, 10: 2, 7: 3, 9: 3, 5: 4}
 # Cessão (1) e alienação de bens (11): a prefeitura cede ou vende um bem e quem paga é o outro lado.
 NAO_E_GASTO = {1, 11}
+# Um contrato só não passa de metade de tudo o que o ente gasta no ano: acima disso é erro de digitação
+# (compras de alimentos de 84% do orçamento de uma cidade, livros de R$ 4,9 bilhões).
+FATIA_MAXIMA = 0.5
 PAUSA = 1.0   # segundos entre um pedido e outro de cada linha de download, para não passar do limite do portal
 MEI = re.compile(r"^\d{2}\.?\d{3}\.?\d{3}\s")   # "53.796.566 FRANCISCO …": a razão social do MEI leva o nome da pessoa
 
@@ -128,7 +131,7 @@ def agregar(ano: int) -> dict:
                 continue
             vistos.add(ident)
             m = mun[ibge]
-            if gasto.get(ibge) and valor > gasto[ibge]:
+            if gasto.get(ibge) and valor > gasto[ibge] * FATIA_MAXIMA:
                 m["fora"][0] += 1
                 m["fora"][1] += valor
                 continue

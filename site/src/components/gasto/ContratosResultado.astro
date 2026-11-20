@@ -38,6 +38,8 @@ const objeto = (bruto: string) => {
 const empresa = (s: string) => (caixaAlta(s)
   ? s.toLowerCase().split(" ").map((p, i) => (SIGLAS.has(p) && p !== "ltda." ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ")
   : s);
+// Soma maior que todo o gasto do ano: sobram valores digitados errado ou tetos estimados (credenciamentos).
+const passa = k && cidade.total?.[0] ? k.total > cidade.total[0] : false;
 const maiorTipo = k ? Math.max(...k.porTipo.map(([, v]) => v)) : 1;
 ---
 
@@ -52,6 +54,13 @@ const maiorTipo = k ? Math.max(...k.porTipo.map(([, v]) => v)) : 1;
         <strong>{nf0.format(k.n)} {k.n === 1 ? "contrato" : "contratos"}</strong>, que somam{" "}
         <strong>{moedaExtenso(k.total)}</strong> ({k.porHab < 1 ? "menos de R$ 1" : porPessoa(k.porHab)} por morador).
       </p>
+      {passa && (
+        <p class="aviso">
+          A soma passa de tudo o que {mun ? "a prefeitura" : "o governo"} gastou no ano ({moedaCurta(cidade.total![0])}). Isso
+          acontece quando há contratos com valor digitado errado ou com um teto estimado, como os credenciamentos, em que
+          o valor publicado é o máximo que se pode gastar. Leia esses números com cuidado.
+        </p>
+      )}
       <ul class="tipos">
         {k.porTipo.map(([tipo, v]) => (
           <li><span>{tipo}</span><strong class="num">{moedaCurta(v)}</strong><i style={`width:${(v / maiorTipo) * 100}%`}></i></li>
@@ -62,7 +71,7 @@ const maiorTipo = k ? Math.max(...k.porTipo.map(([, v]) => v)) : 1;
         Desde a nova lei de licitações, {mun ? "as prefeituras" : "os estados"} devem publicar os contratos no portal nacional, mas{" "}
         {mun ? "algumas" : "alguns"} ainda publicam só no próprio site, e então nem tudo aparece aqui.
         {k.pessoas > 0 && <> Contratos com pessoas físicas e microempreendedores ({moedaCurta(k.pessoas)}) entram na soma, sem o nome.</>}
-        {k.fora[0] > 0 && <> {k.fora[0] === 1 ? "Um contrato" : `${nf0.format(k.fora[0])} contratos`} com valor maior que todo o gasto {mun ? "da prefeitura" : "do governo estadual"} no ano, quase certamente erro de digitação, {k.fora[0] === 1 ? "ficou" : "ficaram"} de fora.</>}
+        {k.fora[0] > 0 && <> {k.fora[0] === 1 ? "Um contrato" : `${nf0.format(k.fora[0])} contratos`} com valor maior que metade de todo o gasto {mun ? "da prefeitura" : "do governo estadual"} no ano, quase certamente erro de digitação, {k.fora[0] === 1 ? "ficou" : "ficaram"} de fora.</>}
       </p>
     </div>
     <div class="lado">
@@ -101,6 +110,7 @@ const maiorTipo = k ? Math.max(...k.porTipo.map(([, v]) => v)) : 1;
   .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
   .texto p strong { color: var(--tinta); }
   .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .texto .aviso { font-size: 15px; padding: 10px 12px; background: var(--marca-texto-fundo, #fdf3c4); color: var(--tinta); }
   .tipos { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
   .tipos li { position: relative; display: flex; justify-content: space-between; gap: 16px; padding: 7px 0 11px; border-bottom: 1px solid var(--regra); font-size: 15px; }
   .tipos li i { position: absolute; left: 0; bottom: 3px; height: 4px; background: var(--verde, #0e6b3b); }
