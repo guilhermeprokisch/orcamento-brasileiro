@@ -135,6 +135,15 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline divida --prefeituras --max-chamadas 0
 
+      # Gasto com pessoal (RGF, Anexo 1): estados como a dívida (o cache de data/raw guarda os anos);
+      # prefeituras feitas à mão (uv run pessoal --prefeituras), aqui só a cópia vai para o site.
+      - name: Pipeline do gasto com pessoal dos estados
+        continue-on-error: true
+        run: uv run --project pipeline pessoal
+      - name: Gasto com pessoal das prefeituras
+        continue-on-error: true
+        run: uv run --project pipeline pessoal --prefeituras --max-chamadas 0
+
       # Contratos das prefeituras (PNCP): baixar um ano leva horas e o portal limita os pedidos, então a
       # carga é feita à mão e fica em pipeline/referencia/contratos.json; aqui só vai para o site.
       - name: Contratos das prefeituras
