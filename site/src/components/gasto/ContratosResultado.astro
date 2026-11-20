@@ -1,0 +1,118 @@
+---
+/**
+ * Contratos que a prefeitura (ou os órgãos do estado) assinou no último ano fechado e publicou no Portal Nacional de
+ * Contratações Públicas: quantos, quanto somam, por tipo, os maiores e as empresas que mais
+ * receberam. Fonte: pipeline/…/contratos.py.
+ */
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { porPessoa, type Cidade } from "../../lib/cidades";
+import { contratosDe } from "../../lib/indicadores";
+
+interface Props {
+  cidade: Cidade;
+  esfera?: "mun" | "uf";
+  /** "a prefeitura de Fortaleza", "o governo do Ceará" */
+  quem: string;
+}
+const { cidade, esfera = "mun", quem } = Astro.props;
+const k = contratosDe(cidade, esfera);
+const mun = esfera === "mun";
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+
+// Siglas que ficam em maiúsculas quando o texto vem todo em caixa alta.
+const SIGLAS = new Set(["sus", "ubs", "upa", "psf", "esf", "cras", "creas", "caps", "samu", "emef", "cmei", "pnae", "fnde", "glp", "led", "ti", "epi", "epis", "me", "epp", "eireli", "s/a", "s.a.", "sa", "ltda.", "cnpj"]);
+const pequenas = new Set(["de", "da", "do", "das", "dos", "e", "em", "para", "a", "o", "as", "os", "com", "no", "na", "nos", "nas"]);
+const caixaAlta = (s: string) => s === s.toUpperCase() && /[A-ZÀ-Ú]{4}/.test(s);
+/** "CONTRATAÇÃO DE EMPRESA PARA COLETA DE LIXO" → "Contratação de empresa para coleta de lixo". */
+const objeto = (s: string) => {
+  let t = caixaAlta(s)
+    ? s.toLowerCase().split(" ").map((p) => (SIGLAS.has(p.replace(/[,;:.()]/g, "")) ? p.toUpperCase() : p)).join(" ")
+    : s;
+  t = t.charAt(0).toUpperCase() + t.slice(1);
+  if (t.length <= 150) return t;
+  return t.slice(0, t.lastIndexOf(" ", 145)).replace(/[,;:\s–-]+$/, "") + "…";
+};
+/** "CONSTRUTORA BOA OBRA LTDA" → "Construtora Boa Obra Ltda". */
+const empresa = (s: string) => (caixaAlta(s)
+  ? s.toLowerCase().split(" ").map((p, i) => (SIGLAS.has(p) && p !== "ltda." ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ")
+  : s);
+const maiorTipo = k ? Math.max(...k.porTipo.map(([, v]) => v)) : 1;
+---
+
+{k && k.n > 0 && (
+  <section class="contratos">
+    <div class="texto">
+      <span class="sobretitulo">Com quem gasta</span>
+      <h2>{mun ? "Os contratos da prefeitura" : "Os contratos do estado"}</h2>
+      <p>
+        Em {k.ano}, {mun ? quem : <>{quem} e os outros órgãos estaduais (Assembleia, Justiça, Ministério Público e outros)</>}{" "}
+        {mun ? "assinou" : "assinaram"} e {mun ? "publicou" : "publicaram"} no Portal Nacional de Contratações Públicas{" "}
+        <strong>{nf0.format(k.n)} {k.n === 1 ? "contrato" : "contratos"}</strong>, que somam{" "}
+        <strong>{moedaExtenso(k.total)}</strong> ({porPessoa(k.porHab)} por habitante).
+      </p>
+      <ul class="tipos">
+        {k.porTipo.map(([tipo, v]) => (
+          <li><span>{tipo}</span><strong class="num">{moedaCurta(v)}</strong><i style={`width:${(v / maiorTipo) * 100}%`}></i></li>
+        ))}
+      </ul>
+      <p class="menor">
+        O valor de um contrato é o de toda a duração dele, que pode passar de um ano: a soma não é o gasto do ano.
+        Desde a nova lei de licitações, {mun ? "as prefeituras" : "os estados"} devem publicar os contratos no portal nacional, mas{" "}
+        {mun ? "algumas" : "alguns"} ainda publicam só no próprio site, e então nem tudo aparece aqui.
+        {k.pessoas > 0 && <> Contratos com pessoas físicas e microempreendedores ({moedaCurta(k.pessoas)}) entram na soma, sem o nome.</>}
+        {k.fora[0] > 0 && <> {k.fora[0] === 1 ? "Um contrato" : `${nf0.format(k.fora[0])} contratos`} com valor maior que todo o gasto {mun ? "da prefeitura" : "do governo estadual"} no ano, quase certamente erro de digitação, {k.fora[0] === 1 ? "ficou" : "ficaram"} de fora.</>}
+      </p>
+    </div>
+    <div class="lado">
+      {k.maiores.length > 0 && (
+        <div class="lista">
+          <h3>Os maiores contratos</h3>
+          <ol>
+            {k.maiores.map(([o, v, e]) => (
+              <li>
+                <div><span>{objeto(o) || "Sem descrição"}</span>{e && <small>{empresa(e)}</small>}</div>
+                <strong class="num">{moedaCurta(v)}</strong>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+      {k.empresas.length > 0 && (
+        <div class="lista">
+          <h3>As empresas que mais receberam contratos</h3>
+          <ol>
+            {k.empresas.map(([nome, v, n]) => (
+              <li><div><span>{empresa(nome)}</span><small>{n} {n === 1 ? "contrato" : "contratos"}</small></div><strong class="num">{moedaCurta(v)}</strong></li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+    <p class="fonte">Fonte: {k.fonte}, assinados em {k.ano}.</p>
+  </section>
+)}
+
+<style>
+  .contratos { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .tipos { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .tipos li { position: relative; display: flex; justify-content: space-between; gap: 16px; padding: 7px 0 11px; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .tipos li i { position: absolute; left: 0; bottom: 3px; height: 4px; background: var(--verde, #0e6b3b); }
+  .lado { grid-column: span 6; display: flex; flex-direction: column; gap: 24px; }
+  .lista h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  .lista ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .lista li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .lista li div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .lista li small { font-size: 13px; color: var(--texto-3); }
+  .lista li strong { white-space: nowrap; }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .contratos { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+  }
+</style>

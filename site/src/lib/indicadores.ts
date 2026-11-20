@@ -547,3 +547,38 @@ export function emendasDe(c: Cidade, esfera: "mun" | "uf"): Emendas | null {
     serie: docEmendas.anos.map((a) => ({ ano: a, valor: (porAno[String(a)]?.[0] ?? 0) / 1e6, preliminar: a >= anoAtual })),
   };
 }
+
+// Contratos das prefeituras publicados no PNCP (pipeline/…/contratos.py), no ano da assinatura.
+interface ContratosCidade {
+  n: number;
+  total: number;
+  /** valor por tipo, na ordem de DocContratos.tipos */
+  tipos: number[];
+  /** [objeto, valor, empresa (null para pessoa física ou MEI)] */
+  maiores: [string, number, string | null][];
+  /** [nome, valor, contratos] */
+  empresas: [string, number, number][];
+  pessoas: number;
+  /** [contratos, valor] com valor maior que todo o gasto da prefeitura no ano: erro de digitação */
+  fora: [number, number];
+}
+interface DocContratos { fonte: string; ano: number; tipos: string[]; mun: Record<string, ContratosCidade>; uf?: Record<string, ContratosCidade> }
+const arquivosContratos = import.meta.glob<DocContratos>("../../public/data/indicadores/contratos.json", { eager: true, import: "default" });
+const docContratos: DocContratos | null = Object.values(arquivosContratos)[0] ?? null;
+
+export interface Contratos extends ContratosCidade {
+  fonte: string;
+  ano: number;
+  porHab: number;
+  /** [tipo, valor], do maior para o menor, sem os vazios */
+  porTipo: [string, number][];
+}
+
+/** Os contratos da prefeitura (mun) ou dos órgãos estaduais (uf), no ano da assinatura. */
+export function contratosDe(c: Cidade, esfera: "mun" | "uf" = "mun"): Contratos | null {
+  const v = docContratos?.[esfera]?.[String(c.ibge)];
+  if (!docContratos || !v || !c.pop) return null;
+  const porTipo = docContratos.tipos.map((t, i) => [t, v.tipos[i] ?? 0] as [string, number])
+    .filter(([, x]) => x > 0).sort((a, b) => b[1] - a[1]);
+  return { ...v, fonte: docContratos.fonte, ano: docContratos.ano, porHab: v.total / c.pop, porTipo };
+}
