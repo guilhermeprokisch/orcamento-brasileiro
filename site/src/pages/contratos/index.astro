@@ -8,7 +8,7 @@
  */
 import Base from "../../layouts/Base.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
-import { NOMES_UF } from "../../lib/cidades";
+import "../../styles/onde.css";
 
 interface Empresa { cnpj: string; nome: string; lugares: number; n: number; valor: number; teto: boolean }
 interface Resumo {
@@ -30,7 +30,6 @@ const SIGLAS = /^(S\/?A|S\.A\.?|LTDA|ME|EPP|EIRELI|CIEE|MGS|II|III)$/;
 const nome = (s: string) => (s === s.toUpperCase()
   ? s.toLowerCase().split(/\s+/).map((p, i) => (SIGLAS.test(p.toUpperCase()) && !/^ltda$/i.test(p) ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ")
   : s);
-const ufs = Object.entries(NOMES_UF).sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
 const tem = (e: string) => !!r?.esferas[e];
 ---
 
@@ -55,14 +54,15 @@ const tem = (e: string) => !!r?.esferas[e];
         <input type="search" name="q" placeholder="Ex.: merenda, coleta de lixo, nome da empresa ou CNPJ" autocomplete="off" />
       </label>
       <div class="filtros">
-        <label><span>Cidade ou estado</span>
-          <input type="search" name="lugar" list="lista-lugares" placeholder="Ex.: Barueri, Ceará" autocomplete="off" data-lugar />
-          <datalist id="lista-lugares"></datalist>
-        </label>
-        <label><span>Estado</span>
-          <select name="uf"><option value="">Todo o Brasil</option>{ufs.map(([sigla, n]) => <option value={sigla}>{n}</option>)}</select>
-        </label>
-        <label><span>Quem contratou</span>
+        <div class="onde" data-onde>
+          <span id="onde-rotulo">Onde</span>
+          <div class="onde-campo">
+            <span class="chip" data-chip hidden><span data-chip-texto></span><button type="button" aria-label="Tirar o lugar e voltar a todo o Brasil" data-chip-tirar>✕</button></span>
+            <input type="search" data-onde-input role="combobox" aria-labelledby="onde-rotulo" aria-expanded="false" aria-controls="onde-lista" aria-autocomplete="list" placeholder="Todo o Brasil · digite uma cidade ou um estado" autocomplete="off" />
+          </div>
+          <div class="onde-lista" id="onde-lista" role="listbox" data-onde-lista hidden></div>
+        </div>
+        <label data-quem><span>Quem contratou</span>
           <select name="esfera">
             <option value="">Todos</option>
             <option value="Prefeitura">Prefeituras</option>
@@ -79,8 +79,13 @@ const tem = (e: string) => !!r?.esferas[e];
           </select>
         </label>
         <input type="hidden" name="ente" />
+        <input type="hidden" name="uf" />
         <input type="hidden" name="empresa" />
         <button type="submit">Procurar</button>
+      </div>
+      <div class="escopo" role="radiogroup" aria-label="No estado" data-escopo hidden>
+        <label><input type="radio" name="escopo" value="governo" checked /> <span data-escopo-governo>Só o governo do estado</span></label>
+        <label><input type="radio" name="escopo" value="tudo" /> <span data-escopo-tudo>O governo e as prefeituras do estado</span></label>
       </div>
       <p class="exemplos" data-exemplos>Exemplos: <a href="/contratos?q=merenda ou gêneros alimentícios&uf=CE">merenda no Ceará</a> · <a href="/contratos?q=coleta de lixo">coleta de lixo</a> · <a href="/contratos?q=show artístico">shows</a> · <a href="/contratos?q=locação de veículos">aluguel de carros</a></p>
     </form>
@@ -140,41 +145,38 @@ const tem = (e: string) => !!r?.esferas[e];
   const pergunta = ["q", "uf", "esfera", "tipo", "min", "ente", "empresa"].some((k) => params.get(k));
   const saida = document.querySelector("[data-resultado]");
 
-  // O campo "Cidade": sugestões ao digitar ("Barueri (SP)") e, ao procurar, o código da cidade vai no endereço.
-  const campoLugar = document.querySelector("[data-lugar]");
-  let lugares = null;
-  const carregarLugares = async () => {
-    if (lugares) return lugares;
-    const nomes = await fetch("/data/mapa/nomes.json").then((x) => x.json());
-    lugares = { porNome: new Map(), porCodigo: new Map() };
-    const opcoes = [];
-    // Os governos estaduais primeiro, com o código do estado (é como o arquivo guarda os contratos deles).
-    for (const [cod, [nome]] of Object.entries(nomes.uf)) {
-      const rotulo = `${nome} (governo do estado)`;
-      lugares.porNome.set(sem(rotulo), cod); lugares.porNome.set(sem(nome), cod);
-      lugares.porCodigo.set(cod, rotulo);
-      opcoes.push(`<option value="${esc(rotulo)}"></option>`);
+  // O campo "Onde" (public/explorador/onde.js): cidade ou estado. Num estado, a pergunta: só o governo
+  // ou o governo e as prefeituras. Numa cidade, nada mais de lugar faz sentido.
+  const { ligarOnde, carregarLugares } = await import("/explorador/onde.js");
+  const escopo = document.querySelector("[data-escopo]");
+  const quemContratou = document.querySelector("[data-quem]");
+  const mostrarLugar = (l) => {
+    escopo.hidden = !l || l.tipo !== "uf";
+    quemContratou.hidden = !!l;
+    if (l?.tipo === "uf") {
+      const prep = { BA: "da", PB: "da", AL: "de", GO: "de", MG: "de", MS: "de", MT: "de", PE: "de", RO: "de", RR: "de", SC: "de", SE: "de", SP: "de" }[l.sigla] ?? "do";
+      document.querySelector("[data-escopo-governo]").textContent = `Só o governo ${prep} ${l.nome}`;
+      document.querySelector("[data-escopo-tudo]").textContent = `O governo e as prefeituras ${prep === "da" ? "da" : prep === "do" ? "do" : "de"} ${l.nome}`;
     }
-    for (const [ibge, [nome, uf]] of Object.entries(nomes.mun)) {
-      const rotulo = `${nome} (${uf})`;
-      lugares.porNome.set(sem(rotulo), ibge); if (!lugares.porNome.has(sem(nome))) lugares.porNome.set(sem(nome), ibge);
-      lugares.porCodigo.set(ibge, rotulo);
-      opcoes.push(`<option value="${esc(rotulo)}"></option>`);
-    }
-    document.getElementById("lista-lugares").innerHTML = opcoes.join("");
-    return lugares;
   };
-  campoLugar?.addEventListener("focus", carregarLugares, { once: true });
-  if (params.get("ente")) carregarLugares().then((l) => { const r = l.porCodigo.get(params.get("ente")); if (r) campoLugar.value = r; });
-  form?.addEventListener("submit", async (ev) => {
+  // Escolher (ou tirar) um lugar, ou trocar a opção do estado, já aplica o filtro.
+  const onde = ligarOnde(document.querySelector("[data-onde]"), (l) => { mostrarLugar(l); form.requestSubmit(); });
+  escopo.addEventListener("change", () => form.requestSubmit());
+  // Vindo do endereço: ?ente= (cidade ou governo estadual) ou ?uf= (governo e prefeituras do estado).
+  const doEndereco = params.get("ente") || (params.get("uf") ? (await carregarLugares()).porSigla.get(params.get("uf"))?.codigo : null);
+  if (doEndereco) {
+    mostrarLugar(await onde.definir(doEndereco));
+    if (params.get("uf") && !params.get("ente")) form.querySelector('input[name="escopo"][value="tudo"]').checked = true;
+  }
+  form?.addEventListener("submit", (ev) => {
     ev.preventDefault();
-    const texto = campoLugar.value.trim();
-    form.elements.namedItem("ente").value = texto ? (await carregarLugares()).porNome.get(sem(texto)) ?? "" : "";
-    if (texto && !form.elements.namedItem("ente").value) { campoLugar.setCustomValidity("Escolha uma cidade ou um estado da lista."); campoLugar.reportValidity(); campoLugar.setCustomValidity(""); return; }
-    form.elements.namedItem("empresa").value = "";   // procurar sai da página da empresa
-    const q = new URLSearchParams();
-    for (const [k, v] of new FormData(form)) if (v && k !== "lugar") q.set(k, v);
-    location.href = `/contratos${q.size ? `?${q}` : ""}`;
+    const l = onde.escolhido, q = new URLSearchParams();
+    for (const [k, v] of new FormData(form)) if (v && !["ente", "uf", "empresa", "escopo", "esfera"].includes(k)) q.set(k, v);
+    if (!l) { const e = form.elements.namedItem("esfera").value; if (e) q.set("esfera", e); }
+    else if (l.tipo === "mun") q.set("ente", l.codigo);
+    else if (new FormData(form).get("escopo") === "tudo") q.set("uf", l.sigla);
+    else q.set("ente", l.codigo);
+    location.href = `/contratos${q.size ? `?${q}` : ""}`;   // procurar sai da página da empresa
   });
 
   /** O topo da página assume o que foi escolhido: a cidade, o estado ou a empresa. */
@@ -252,8 +254,8 @@ const tem = (e: string) => !!r?.esferas[e];
     // Enquanto consulta: a busca fica travada e o título já mostra o lugar escolhido.
     form.inert = true;
     form.classList.add("travado");
-    if (params.get("ente")) topo("Carregando…", "", "Contratos");   // na hora, sem esperar a lista de cidades
-    if (params.get("ente")) carregarLugares().then((l) => { const r = l.porCodigo.get(params.get("ente")); if (r) topo(r.replace(/ \(governo do estado\)$/, ""), "Carregando os contratos…", "Contratos"); });
+    if (params.get("ente") || params.get("uf")) topo("Carregando…", "", "Contratos");   // na hora, sem esperar a lista de cidades
+    if (params.get("ente")) carregarLugares().then((l) => { const r = l.porCodigo.get(params.get("ente")); if (r) topo(r.rotulo, "Carregando os contratos…", "Contratos"); });
     if (params.get("empresa")) topo("Procurando a empresa…", "", "Empresa");
     try {
       await conectar();
@@ -287,11 +289,23 @@ const tem = (e: string) => !!r?.esferas[e];
     const where = "", v = [];
     const [s] = await consulta(`SELECT count(*)::INTEGER AS n, coalesce(sum(valor), 0) AS valor, count(DISTINCT coalesce(nullif(ente, ''), quem))::INTEGER AS lugares, count(DISTINCT fornecedor)::INTEGER AS fornecedores FROM r`);
     const ente = params.get("ente");
-    const outros = ["q", "uf", "esfera", "tipo", "min"].some((k) => params.get(k));
+    const outros = ["q", "esfera", "tipo", "min"].some((k) => params.get(k)) || (!!ente && !!params.get("uf"));
     let titulo_ = "Contratos encontrados";
+    // Um estado inteiro (o governo e as prefeituras): ?uf=
+    const ufp = !ente && params.get("uf");
+    if (ufp) {
+      const l = (await carregarLugares()).porSigla.get(ufp);
+      if (l) {
+        topo(l.nome, outros
+          ? `Contratos do governo e das prefeituras do estado assinados em ${raiz.dataset.ano}, com os filtros escolhidos abaixo.`
+          : `Os contratos que o governo e as prefeituras do estado assinaram em ${raiz.dataset.ano} e publicaram no Portal Nacional de Contratações Públicas.`,
+          "Governo e prefeituras do estado");
+        titulo_ = outros ? "Com estes filtros" : "Todos os contratos";
+      }
+    }
     if (ente) {
       const [q] = await consulta(`SELECT quem FROM c WHERE ente = ? LIMIT 1`, [ente]);
-      const quem = q?.quem || (await carregarLugares()).porCodigo.get(ente) || "Este lugar";
+      const quem = q?.quem || (await carregarLugares()).porCodigo.get(ente)?.rotulo || "Este lugar";
       topo(quem, outros
         ? `Contratos ${quem.startsWith("Governo") ? "do governo" : "da prefeitura"} assinados em ${raiz.dataset.ano}, com os filtros escolhidos abaixo.`
         : `Os contratos que ${quem.startsWith("Governo") ? "o governo" : "a prefeitura"} assinou em ${raiz.dataset.ano} e publicou no Portal Nacional de Contratações Públicas. Procure dentro deles pelo que foi comprado ou pela empresa.`,
@@ -315,7 +329,7 @@ const tem = (e: string) => !!r?.esferas[e];
       saida.innerHTML = `
         <h2>${esc(titulo_)}</h2>
         <div class="numeros"><div><span>Contratos</span><strong>${nf0.format(s.n)}</strong></div><div><span>Somam</span><strong>${curto(s.valor)}</strong></div>${ente ? `<div><span>Fornecedores</span><strong>${nf0.format(s.fornecedores)}</strong></div>` : `<div><span>Em</span><strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong></div>`}</div>
-        ${s.n ? `<div class="agrupar"><span>Agrupar por:</span>${[["contrato", "Contrato"], ["lugar", "Quem contratou"], ["empresa", "Fornecedor"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar estes contratos (planilha)</button></div>${corpo}` : `<p>Nenhum contrato com esses filtros.</p>`}
+        ${s.n ? `<div class="agrupar"><span>Agrupar por:</span>${[["contrato", "Contrato"], ["lugar", "Quem contratou"], ["empresa", "Fornecedor"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar estes contratos (planilha)</button></div>${corpo}` : `<div class="vazio"><p><strong>Nenhum contrato com esses filtros.</strong></p><p class="menor">Tente outras palavras: cada prefeitura descreve o contrato do seu jeito (“resíduos” ou “limpeza urbana” em vez de “lixo”, por exemplo). Ou tire um filtro, ou procure em todo o Brasil.</p></div>`}
         <p class="menor">A busca procura as palavras no texto do contrato e no nome do fornecedor, com e sem acento; separe alternativas com “ou”. Contratos descritos de outro jeito podem ficar de fora.</p>`;
       saida.querySelectorAll("[data-por]").forEach((b) => b.addEventListener("click", () => { por = b.dataset.por; pagina = 0; desenhar(); }));
       saida.querySelector("[data-mais]")?.addEventListener("click", () => { pagina += 1; desenhar(); });
