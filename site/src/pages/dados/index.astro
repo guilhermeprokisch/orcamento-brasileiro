@@ -1,0 +1,120 @@
+---
+/**
+ * Onde baixar tudo o que o site usa: a cópia pública no Backblaze B2 (pipeline/…/espelho.py), o que
+ * tem em cada pasta, de onde vem cada coisa e como baixar.
+ */
+import Base from "../../layouts/Base.astro";
+
+const BASE = "https://f005.backblazeb2.com/file/orcamento-brasileiro-dados";
+const REPO = "https://github.com/guilhermeprokisch/orcamento-brasileiro";
+
+const fontes: [string, string, string, string][] = [
+  ["Tesouro Nacional (SICONFI)", "https://siconfi.tesouro.gov.br", "Contas anuais, relatórios fiscais e bimestrais de estados e prefeituras", "gasto, receita, dívida, pessoal, balanço, ano em andamento"],
+  ["Tesouro Nacional (CAPAG)", "https://www.tesourotransparente.gov.br", "Nota de capacidade de pagamento", "a nota do Tesouro"],
+  ["Portal da Transparência (CGU)", "https://portaldatransparencia.gov.br/download-de-dados", "Orçamento federal, transferências, emendas parlamentares", "Explorer, dinheiro federal, emendas"],
+  ["Portal Nacional de Contratações Públicas", "https://pncp.gov.br", "Contratos publicados por prefeituras e estados", "contratos"],
+  ["Receita Federal", "https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/dados-abertos", "Arrecadação por estado e município; Grandes Números do IRPF", "o que sai daqui, imposto de renda dos moradores"],
+  ["Ministério da Previdência Social", "https://www.gov.br/previdencia", "Benefícios do INSS pagos em cada município", "aposentadorias e pensões"],
+  ["Ministério da Saúde (DATASUS)", "https://opendatasus.saude.gov.br", "Mortalidade (SIM) e nascidos vivos (SINASC)", "mortalidade infantil, homicídios"],
+  ["INEP", "https://www.gov.br/inep", "Ideb e Censo Escolar", "educação"],
+  ["IBGE", "https://www.ibge.gov.br", "População, Censo 2022, IPCA e malhas", "por morador, saneamento, inflação, mapa"],
+  ["Governos de MG e PB", "https://dados.mg.gov.br", "Gasto estadual por município", "o gasto do estado na cidade"],
+];
+---
+
+<Base title="Os dados · Orçamento Brasileiro" description="Baixe tudo o que o Orçamento Brasileiro usa: os arquivos das fontes oficiais e os dados já tratados.">
+  <div class="wrap">
+    <section class="topo">
+      <h1>Os dados</h1>
+      <p>
+        Tudo o que este site mostra vem de dados abertos do governo. Guardamos uma cópia pública de tudo: os arquivos
+        das fontes, do jeito que vieram, e os arquivos já tratados que alimentam as páginas e o mapa. Assim qualquer
+        pessoa pode conferir um número ou refazer as contas.
+      </p>
+    </section>
+
+    <section class="bloco">
+      <h2>Onde estão</h2>
+      <p>
+        Numa pasta pública, com cerca de 3,5 GB. Comece pelo <a href={`${BASE}/LEIA-ME.md`}>LEIA-ME</a>, que explica cada
+        pasta, e pelo <a href={`${BASE}/indice.csv`}>índice</a>, uma planilha com o caminho, o tamanho e a data de cada arquivo.
+      </p>
+      <dl class="pastas">
+        <div><dt><code>brutos/</code></dt><dd>Os arquivos das fontes, sem nenhuma mudança, ou as respostas das consultas aos sistemas do governo, guardadas como vieram.</dd></div>
+        <div><dt><code>tratados/</code></dt><dd>Os arquivos que o site lê, em JSON: o gasto de cada prefeitura e estado, os indicadores, os dados do mapa.</dd></div>
+        <div><dt><code>referencia/</code></dt><dd>Resumos das cargas que levam horas para baixar, como a dívida e os contratos das prefeituras.</dd></div>
+      </dl>
+    </section>
+
+    <section class="bloco">
+      <h2>Como baixar tudo</h2>
+      <p>No terminal, este comando baixa todos os arquivos e mantém as pastas:</p>
+      <pre><code>curl -s {BASE}/indice.txt | wget -x -nH --cut-dirs=2 -i -</code></pre>
+      <p class="menor">
+        O <code>indice.txt</code> tem o endereço de cada arquivo, um por linha. Para baixar só uma parte, filtre as linhas
+        antes, por exemplo com <code>grep tratados/</code>.
+      </p>
+    </section>
+
+    <section class="bloco">
+      <h2>De onde vem cada coisa</h2>
+      <div class="tabela" role="table" aria-label="Fontes dos dados">
+        <div class="linha cab" role="row"><span role="columnheader">Fonte</span><span role="columnheader">O que é</span><span role="columnheader">Onde aparece no site</span></div>
+        {fontes.map(([nome, url, oque, onde]) => (
+          <div class="linha" role="row">
+            <span role="cell"><a href={url}>{nome}</a></span>
+            <span role="cell">{oque}</span>
+            <span role="cell" class="onde">{onde}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="bloco">
+      <h2>Cuidados</h2>
+      <ul class="cuidados">
+        <li><strong>A fonte oficial manda.</strong> Se um órgão corrigir ou retirar um registro, vale a versão dele. Cada arquivo guarda a data em que foi baixado.</li>
+        <li><strong>Os números são os declarados.</strong> Prefeituras e estados informam as próprias contas ao Tesouro; erros de preenchimento aparecem aqui como vieram. Nas páginas, os casos impossíveis ficam de fora e são avisados.</li>
+        <li><strong>Algumas coisas são estimativas</strong>, e o site diz quais: o ICMS e o IPVA pagos em cada cidade, por exemplo.</li>
+        <li><strong>Ao usar, cite a fonte original</strong> e, se quiser, o Orçamento Brasileiro.</li>
+      </ul>
+    </section>
+
+    <section class="bloco">
+      <h2>O código</h2>
+      <p>
+        O programa que baixa, confere e trata os dados é aberto, sob a licença MIT: <a href={REPO}>{REPO.replace("https://", "")}</a>.
+        Cada fonte tem o seu arquivo na pasta <code>pipeline/</code>, com a explicação no começo.
+      </p>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .topo { padding: 44px 0 28px; display: flex; flex-direction: column; gap: 12px; max-width: 820px; }
+  .topo h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
+  .topo p { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); }
+  .bloco { border-top: 2px solid var(--tinta); padding: 28px 0; display: flex; flex-direction: column; gap: 14px; max-width: 980px; }
+  .bloco h2 { font-size: 30px; }
+  .bloco p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); max-width: 820px; }
+  .bloco .menor { font-size: 14px; color: var(--texto-3); }
+  pre { margin: 0; padding: 14px 16px; background: var(--tinta); color: var(--papel, #f7f4ec); overflow-x: auto; font-size: 14px; }
+  pre code { font-family: ui-monospace, Menlo, monospace; }
+  .pastas { margin: 0; display: flex; flex-direction: column; }
+  .pastas div { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--regra); }
+  .pastas dd { margin: 0; font-size: 15px; line-height: 1.5; color: var(--texto-2); }
+  .tabela { display: flex; flex-direction: column; border-top: 1px solid var(--tinta); }
+  .linha { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--regra); font-size: 15px; line-height: 1.45; }
+  .cab { font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em; }
+  .onde { color: var(--texto-3); }
+  .cuidados { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 16px; line-height: 1.55; color: var(--texto-2); max-width: 820px; }
+  .cuidados strong { color: var(--tinta); }
+  @media (max-width: 900px) {
+    .topo { padding: 28px 0 20px; }
+    .topo h1 { font-size: 38px; }
+    .bloco h2 { font-size: 24px; }
+    .pastas div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .linha { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .cab { display: none; }
+  }
+</style>
