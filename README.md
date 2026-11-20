@@ -14,6 +14,7 @@ Projeto independente, sem vínculo com o governo.
   3. *O que chega e o que sai*: aposentadorias do INSS, imposto de renda dos moradores, emendas parlamentares, o gasto do estado na cidade;
   4. *Como está a cidade*: educação (Ideb), mortalidade infantil, homicídios, água e esgoto, sempre ao lado do gasto na área.
 - **Contratos** (`/contratos`): busca nos contratos publicados no PNCP, por lugar, empresa ou palavra, consultando no navegador (DuckDB) um Parquet guardado no bucket público.
+- **Emendas** (`/emendas`): quem mandou cada emenda, para onde, para quem e para quê; a página de cada parlamentar e de cada entidade, e a busca nos planos das emendas Pix, nos convênios e nas parcerias.
 - **Mapa** (`/mapa`): compara todas as cidades ou estados numa pergunta por vez (gasto, receita, saldo, dependência de repasses, dinheiro federal, emendas, impostos, situação), com as linhas de dinheiro saindo de Brasília. É um documento independente do layout do site (`site/src/mapa/pagina.html`).
 - **Explorer, Órgãos, Aprenda e Glossário**: o orçamento federal por órgão, programa e ação, de 2014 em diante, e as explicações.
 
@@ -23,7 +24,7 @@ Tudo vem de dados abertos oficiais. Os arquivos das fontes, como vieram, e os JS
 
 | Fonte | O que vem dela | Comando |
 |---|---|---|
-| Portal da Transparência (CGU) | Orçamento da despesa federal; transferências, Bolsa Família e BPC por município; emendas parlamentares | `orcamento`, `federal`, `emendas` |
+| Portal da Transparência (CGU) | Orçamento da despesa federal; transferências, Bolsa Família e BPC por município; emendas parlamentares e o explorador `/emendas` | `orcamento`, `federal`, `emendas`, `explorador-emendas` |
 | SIOP (Planejamento) | Nomes oficiais de órgãos, programas e ações | `orcamento` |
 | SICONFI (Tesouro) | Contas anuais (DCA) de estados e prefeituras; relatórios fiscais (RGF: dívida e pessoal; RREO: o ano em andamento) | `cidades`, `mapa`, `divida`, `rreo` |
 | FINBRA (Tesouro) | Histórico das prefeituras desde 2013 (baixado à mão por causa do captcha) | `finbra`, `semente` |

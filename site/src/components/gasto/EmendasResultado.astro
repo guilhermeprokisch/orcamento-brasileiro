@@ -67,7 +67,7 @@ const frente = e && e.mediana ? e.porHab / e.mediana - 1 : null;
       )}
       <SerieAnos titulo="Ano a ano, em R$ milhões" serie={e.serie} casas={1} notaPreliminar="Ano em andamento: o que foi pago até agora." />
     </div>
-    <p class="fonte">Fonte: {e.fonte}.</p>
+    <p class="fonte">{esfera === "mun" && <><a href={`/emendas?ente=${ente.ibge}&ano=${e.ano}`}><strong>Ver quem recebeu e quem mandou, emenda por emenda →</strong></a> · </>}Fonte: {e.fonte}.</p>
   </section>
 )}
 

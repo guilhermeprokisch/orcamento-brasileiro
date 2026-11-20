@@ -178,6 +178,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline emendas
 
+      # Explorador de emendas (/emendas): o resumo da página inicial. Os Parquet que a página consulta
+      # ficam no bucket público e são gerados à mão (uv run explorador-emendas).
+      - name: Explorador de emendas
+        continue-on-error: true
+        run: uv run --project pipeline explorador-emendas --sem-baixar
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
