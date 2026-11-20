@@ -36,10 +36,12 @@ const tem = (e: string) => !!r?.esferas[e];
 
 <Base title="Contratos · Orçamento Brasileiro" description="Busque os contratos que prefeituras e governos estaduais assinaram e publicaram no Portal Nacional de Contratações Públicas.">
   <div class="wrap explorador" data-explorador data-arquivo={r?.arquivo} data-por-cnpj={r?.porCnpj} data-ano={r?.ano}>
-    <section class="topo">
-      <h1>Os contratos</h1>
+    <section class="topo" data-topo>
+      <a class="voltar" href="/contratos" data-voltar hidden>← Todos os contratos</a>
+      <span class="sobretitulo" data-sobretitulo hidden></span>
+      <h1 data-titulo>Os contratos</h1>
       {r && (
-        <p>
+        <p data-frase>
           Todos os contratos que {tem("Governo federal") ? "prefeituras, governos estaduais e o governo federal" : "prefeituras e governos estaduais"} assinaram
           em {r.ano} e publicaram no Portal Nacional de Contratações Públicas: <strong>{nf0.format(r.total.n)} contratos</strong>,
           que somam {moedaExtenso(r.total.valor)}. Procure pelo que foi comprado, pela empresa ou pelo lugar.
@@ -53,7 +55,11 @@ const tem = (e: string) => !!r?.esferas[e];
         <input type="search" name="q" placeholder="Ex.: merenda, coleta de lixo, nome da empresa ou CNPJ" autocomplete="off" />
       </label>
       <div class="filtros">
-        <label><span>Onde</span>
+        <label><span>Cidade</span>
+          <input type="search" name="lugar" list="lista-lugares" placeholder="Ex.: Barueri" autocomplete="off" data-lugar />
+          <datalist id="lista-lugares"></datalist>
+        </label>
+        <label><span>Estado</span>
           <select name="uf"><option value="">Todo o Brasil</option>{ufs.map(([sigla, n]) => <option value={sigla}>{n}</option>)}</select>
         </label>
         <label><span>Quem contratou</span>
@@ -76,7 +82,7 @@ const tem = (e: string) => !!r?.esferas[e];
         <input type="hidden" name="empresa" />
         <button type="submit">Procurar</button>
       </div>
-      <p class="exemplos">Exemplos: <a href="/contratos?q=merenda ou gêneros alimentícios&uf=CE">merenda no Ceará</a> · <a href="/contratos?q=coleta de lixo">coleta de lixo</a> · <a href="/contratos?q=show artístico">shows</a> · <a href="/contratos?q=locação de veículos">aluguel de carros</a></p>
+      <p class="exemplos" data-exemplos>Exemplos: <a href="/contratos?q=merenda ou gêneros alimentícios&uf=CE">merenda no Ceará</a> · <a href="/contratos?q=coleta de lixo">coleta de lixo</a> · <a href="/contratos?q=show artístico">shows</a> · <a href="/contratos?q=locação de veículos">aluguel de carros</a></p>
     </form>
 
     <section class="resultado" data-resultado hidden aria-live="polite"></section>
@@ -133,6 +139,46 @@ const tem = (e: string) => !!r?.esferas[e];
   for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
   const pergunta = ["q", "uf", "esfera", "tipo", "min", "ente", "empresa"].some((k) => params.get(k));
   const saida = document.querySelector("[data-resultado]");
+
+  // O campo "Cidade": sugestões ao digitar ("Barueri (SP)") e, ao procurar, o código da cidade vai no endereço.
+  const campoLugar = document.querySelector("[data-lugar]");
+  let lugares = null;
+  const carregarLugares = async () => {
+    if (lugares) return lugares;
+    const nomes = await fetch("/data/mapa/nomes.json").then((x) => x.json());
+    lugares = { porNome: new Map(), porCodigo: new Map() };
+    const opcoes = [];
+    for (const [ibge, [nome, uf]] of Object.entries(nomes.mun)) {
+      const rotulo = `${nome} (${uf})`;
+      lugares.porNome.set(sem(rotulo), ibge); lugares.porNome.set(sem(nome), lugares.porNome.get(sem(nome)) ?? ibge);
+      lugares.porCodigo.set(ibge, rotulo);
+      opcoes.push(`<option value="${esc(rotulo)}"></option>`);
+    }
+    document.getElementById("lista-lugares").innerHTML = opcoes.join("");
+    return lugares;
+  };
+  campoLugar?.addEventListener("focus", carregarLugares, { once: true });
+  if (params.get("ente")) carregarLugares().then((l) => { const r = l.porCodigo.get(params.get("ente")); if (r) campoLugar.value = r; });
+  form?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const texto = campoLugar.value.trim();
+    form.elements.namedItem("ente").value = texto ? (await carregarLugares()).porNome.get(sem(texto)) ?? "" : "";
+    if (texto && !form.elements.namedItem("ente").value) { campoLugar.setCustomValidity("Escolha uma cidade da lista."); campoLugar.reportValidity(); campoLugar.setCustomValidity(""); return; }
+    form.elements.namedItem("empresa").value = "";   // procurar sai da página da empresa
+    const q = new URLSearchParams();
+    for (const [k, v] of new FormData(form)) if (v && k !== "lugar") q.set(k, v);
+    location.href = `/contratos${q.size ? `?${q}` : ""}`;
+  });
+
+  /** O topo da página assume o que foi escolhido: a cidade, o estado ou a empresa. */
+  function topo(titulo_, frase, sobretitulo) {
+    document.querySelector("[data-titulo]").textContent = titulo_;
+    const p = document.querySelector("[data-frase]"); if (p) p.innerHTML = frase;
+    const s = document.querySelector("[data-sobretitulo]"); s.hidden = !sobretitulo; s.textContent = sobretitulo || "";
+    document.querySelector("[data-voltar]").hidden = false;
+    document.querySelector("[data-exemplos]")?.setAttribute("hidden", "");
+    document.title = `${titulo_} · Contratos · Orçamento Brasileiro`;
+  }
   if (ARQ && pergunta && saida) iniciar();
 
   const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -215,10 +261,19 @@ const tem = (e: string) => !!r?.esferas[e];
     // O arquivo é lido uma vez; trocar o agrupamento ou ver mais linhas consulta só o que foi achado.
     await consulta(`CREATE OR REPLACE TEMP TABLE r AS SELECT * FROM c ${filtro.where}`, filtro.v);
     const where = "", v = [];
-    const [s] = await consulta(`SELECT count(*)::INTEGER AS n, coalesce(sum(valor), 0) AS valor, count(DISTINCT coalesce(nullif(ente, ''), quem))::INTEGER AS lugares FROM r`);
+    const [s] = await consulta(`SELECT count(*)::INTEGER AS n, coalesce(sum(valor), 0) AS valor, count(DISTINCT coalesce(nullif(ente, ''), quem))::INTEGER AS lugares, count(DISTINCT fornecedor)::INTEGER AS fornecedores FROM r`);
     const ente = params.get("ente");
+    const outros = ["q", "uf", "esfera", "tipo", "min"].some((k) => params.get(k));
     let titulo_ = "Contratos encontrados";
-    if (ente && s.n) { const [q] = await consulta(`SELECT quem FROM r LIMIT 1`); titulo_ = `Os contratos: ${q.quem}`; }
+    if (ente) {
+      const [q] = await consulta(`SELECT quem FROM c WHERE ente = ? LIMIT 1`, [ente]);
+      const quem = q?.quem || (await carregarLugares()).porCodigo.get(ente) || "Este lugar";
+      topo(quem, outros
+        ? `Contratos ${quem.startsWith("Governo") ? "do governo" : "da prefeitura"} assinados em ${raiz.dataset.ano}, com os filtros escolhidos abaixo.`
+        : `Os contratos que ${quem.startsWith("Governo") ? "o governo" : "a prefeitura"} assinou em ${raiz.dataset.ano} e publicou no Portal Nacional de Contratações Públicas. Procure dentro deles pelo que foi comprado ou pela empresa.`,
+        quem.startsWith("Governo") ? "Contratos do governo estadual" : "Contratos da prefeitura");
+      titulo_ = outros ? "Com estes filtros" : "Todos os contratos";
+    }
     let por = "contrato", pagina = 0;
     const desenhar = async () => {
       let corpo;
@@ -235,7 +290,7 @@ const tem = (e: string) => !!r?.esferas[e];
       }
       saida.innerHTML = `
         <h2>${esc(titulo_)}</h2>
-        <div class="numeros"><div><span>Contratos</span><strong>${nf0.format(s.n)}</strong></div><div><span>Somam</span><strong>${curto(s.valor)}</strong></div><div><span>Em</span><strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong></div></div>
+        <div class="numeros"><div><span>Contratos</span><strong>${nf0.format(s.n)}</strong></div><div><span>Somam</span><strong>${curto(s.valor)}</strong></div>${ente ? `<div><span>Fornecedores</span><strong>${nf0.format(s.fornecedores)}</strong></div>` : `<div><span>Em</span><strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong></div>`}</div>
         ${s.n ? `<div class="agrupar"><span>Agrupar por:</span>${[["contrato", "Contrato"], ["lugar", "Quem contratou"], ["empresa", "Fornecedor"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar estes contratos (planilha)</button></div>${corpo}` : `<p>Nenhum contrato com esses filtros.</p>`}
         <p class="menor">A busca procura as palavras no texto do contrato e no nome do fornecedor, com e sem acento; separe alternativas com “ou”. Contratos descritos de outro jeito podem ficar de fora.</p>`;
       saida.querySelectorAll("[data-por]").forEach((b) => b.addEventListener("click", () => { por = b.dataset.por; pagina = 0; desenhar(); }));
@@ -269,10 +324,9 @@ const tem = (e: string) => !!r?.esferas[e];
     const contratos = await consulta(`SELECT id, quem, ente, uf, objeto, fornecedor, pessoa, cnpj, data, valor, teto FROM e ORDER BY valor DESC LIMIT 30`);
     const maior = ufs[0]?.valor || 1;
     const raizCnpj = (s.cnpj || "").slice(0, 8);
+    topo(titulo(s.nome), `Em ${raiz.dataset.ano}, <strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong> assinaram com ela <strong>${nf0.format(s.n)} ${s.n === 1 ? "contrato" : "contratos"}</strong>, que somam ${curto(s.valor)}.`,
+      `Empresa · CNPJ ${raizCnpj.replace(/^(\d{2})(\d{3})(\d{3})$/, "$1.$2.$3")}`);
     saida.innerHTML = `
-      <span class="sobretitulo">Empresa · CNPJ ${esc(raizCnpj.replace(/^(\d{2})(\d{3})(\d{3})$/, "$1.$2.$3"))}</span>
-      <h2 class="grande">${esc(titulo(s.nome))}</h2>
-      <p class="frase">Em ${raiz.dataset.ano}, <strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong> assinaram com ela <strong>${nf0.format(s.n)} ${s.n === 1 ? "contrato" : "contratos"}</strong>, que somam ${curto(s.valor)}.</p>
       <div class="duas">
         <section><h3>Por estado</h3><ol class="barras">${ufs.map((x) => `<li><span>${esc(x.uf)}</span><i style="width:${(x.valor / maior) * 100}%"></i><strong>${curto(x.valor)}</strong></li>`).join("")}</ol></section>
         <section><h3>Quem mais contratou</h3><ol class="lista">${quem.map((x) => `<li><span>${x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.quem)}</a>` : esc(x.quem)}</span><span>${nf0.format(x.n)} · ${curto(x.valor)}</span></li>`).join("")}</ol></section>
@@ -289,6 +343,8 @@ const tem = (e: string) => !!r?.esferas[e];
 
   .topo { padding: 44px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
   .topo h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
+  .voltar { font-size: 14px; }
+  .busca input[type="search"]:not(.campo-grande input) { font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 190px; }
   .topo p { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); }
   .topo strong { color: var(--tinta); }
   .busca { border-top: 2px solid var(--tinta); padding: 24px 0; display: flex; flex-direction: column; gap: 14px; }
