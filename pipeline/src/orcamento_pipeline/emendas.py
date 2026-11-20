@@ -15,7 +15,7 @@ Saída em site/public/data/indicadores/emendas.json:
     {"fonte", "anos": [...],
      "mun": {ibge: {ano: [total, prefeitura, entidades e empresas, estado e outros]}},
      "uf":  {código: {ano: [...]}},                  # soma das cidades do estado
-     "autores": {ibge|código: {ano: [[autor, valor], ...]}},   # os 5 maiores, nos dois últimos anos
+     "autores": {ibge|código: {ano: [[autor, valor], ...]}},   # os 5 maiores, nos dois últimos anos (na cidade, sem os órgãos estaduais e federais)
      "areas":   {ibge|código: {ano: [[área, valor], ...]}}}    # as 3 maiores, nos dois últimos anos
 """
 
@@ -88,6 +88,10 @@ def main() -> None:
             t = mun[chave][ano]
             t[0] += v
             t[g] += v
+            # Órgãos estaduais e federais ficam quase sempre na capital e atendem o estado inteiro: entram
+            # nos autores e áreas do estado, não nos da cidade onde têm sede.
+            if g == 3 and len(chave) == 7:
+                continue
             por_autor[chave][ano][r["Nome do Autor da Emenda"].strip() or "Sem informação"] += v
             por_area[chave][ano][area_da_emenda.get(r["Código da Emenda"], "") or "Sem informação"] += v
 

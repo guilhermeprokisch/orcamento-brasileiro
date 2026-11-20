@@ -36,7 +36,7 @@ const quem = ehDF ? "o Governo do Distrito Federal" : `a prefeitura de ${c.nome}
 const [emp] = c.total ?? [0, 0];
 const perCapita = temDados ? emp / c.pop : 0;
 // "cidades de 5 a 10 mil habitantes", mas "cidades com até 5 mil" e "cidades com mais de 500 mil".
-const rotuloFaixa = c.faixa !== undefined && !ehDF ? doc.faixas[c.faixa] : null;
+const rotuloFaixa = c.faixa !== undefined && !ehDF ? doc.faixas[c.faixa].replace(/habitantes$/, "moradores") : null;
 const faixa = rotuloFaixa && /^(até|mais)\b/.test(rotuloFaixa) ? `com ${rotuloFaixa}` : rotuloFaixa;
 
 // As partes que mudam com o ano: montadas aqui com o ano mais recente e, no navegador, com o ano escolhido.
@@ -57,7 +57,7 @@ const SUMARIO: GrupoDaPagina[] = [
   { id: "como-esta", n: 4, titulo: "Como está a cidade", itens: [["educacao", "Educação: gasto por aluno e nota das escolas"], ["saude", "Saúde: mortalidade infantil"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
 ];
 const descricao = temDados
-  ? `Quanto ${quem} gastou em ${c.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por habitante, por área (saúde, educação…).`
+  ? `Quanto ${quem} gastou em ${c.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por morador, por área (saúde, educação…).`
   : `Gastos de ${c.nome} (${c.uf}).`;
 ---
 
@@ -99,21 +99,21 @@ const descricao = temDados
 
     {ctx && <p class="grupo-pagina" id="contas" data-grupo="contas">2 · As contas fecham</p>}
     {ctx && <div class="ficha" id="receitas" data-parte="receitas" set:html={contasHtml(ctx, "receitas")} />}
-    {!ehDF && <div id="divida" data-so-padrao="a dívida da prefeitura"><DividaEstado ibge={c.ibge} esfera="mun" quem={quem} ano={c.ano} grupo={faixa ? `das cidades ${faixa}` : "das prefeituras"} /></div>}
-    {!ehDF && <div id="capag"><CapagNota ente={c} esfera="mun" quem={quem} grupo={faixa ? `das cidades ${faixa}` : null} /></div>}
+    {!ehDF && <div id="divida" data-so-padrao="a dívida da prefeitura"><DividaEstado ibge={c.ibge} esfera="mun" quem={quem} ano={c.ano} grupo={faixa ? "das cidades parecidas" : "das prefeituras"} /></div>}
+    {!ehDF && <div id="capag"><CapagNota ente={c} esfera="mun" quem={quem} grupo={faixa ? "das cidades parecidas" : null} /></div>}
     {temDados && <div id="ano-atual"><AnoEmAndamento ente={c} esfera="mun" quem={quem} /></div>}
 
     {ctx && <p class="grupo-pagina" id="chega-e-sai" data-grupo="chega-e-sai">3 · O que chega e o que sai daqui</p>}
     {ctx && <div class="ficha" id="beneficios" data-parte="inss" set:html={contasHtml(ctx, "inss")} />}
-    {temDados && <div id="ir" data-so-padrao="o imposto de renda dos moradores"><IrMoradores cidade={c} deOnde={ehDF ? "do Distrito Federal" : `de ${c.nome}`} grupo={!ehDF && faixa ? `das cidades ${faixa}` : null} /></div>}
-    {temDados && <div id="emendas" data-so-padrao="as emendas parlamentares"><EmendasResultado ente={c} esfera="mun" paraOnde={ehDF ? "para o Distrito Federal" : `para ${c.nome}`} grupo={!ehDF && faixa ? `das cidades ${faixa}` : null} /></div>}
+    {temDados && <div id="ir" data-so-padrao="o imposto de renda dos moradores"><IrMoradores cidade={c} deOnde={ehDF ? "do Distrito Federal" : `de ${c.nome}`} grupo={!ehDF && faixa ? "das cidades parecidas" : null} /></div>}
+    {temDados && <div id="emendas" data-so-padrao="as emendas parlamentares"><EmendasResultado ente={c} esfera="mun" paraOnde={ehDF ? "para o Distrito Federal" : `para ${c.nome}`} grupo={!ehDF && faixa ? "das cidades parecidas" : null} /></div>}
     {!ehDF && <div id="estado-aqui" data-so-padrao="o gasto do governo do estado aqui"><GastoEstadualAqui cidade={c} /></div>}
 
     {temDados && !ehDF && <p class="grupo-pagina" id="como-esta" data-grupo="como-esta">4 · Como está a cidade</p>}
     {temDados && !ehDF && <div id="educacao" data-so-padrao="a nota das escolas (Ideb)"><EducacaoResultado cidade={c} faixa={faixa} /></div>}
-    {temDados && !ehDF && <div id="saude" data-so-padrao="a mortalidade infantil"><SaudeResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? `das cidades ${faixa}` : null} onde={onde} /></div>}
-    {temDados && !ehDF && <div id="seguranca" data-so-padrao="os homicídios"><SegurancaEstado estado={c} esfera="mun" quem={quem} onde={onde} grupo={faixa ? `das cidades ${faixa}` : "das cidades"} /></div>}
-    {temDados && !ehDF && <div id="saneamento" data-so-padrao="a água e o esgoto"><SaneamentoResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? `das cidades ${faixa}` : null} onde={onde} /></div>}
+    {temDados && !ehDF && <div id="saude" data-so-padrao="a mortalidade infantil"><SaudeResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? "das cidades parecidas" : null} onde={onde} /></div>}
+    {temDados && !ehDF && <div id="seguranca" data-so-padrao="os homicídios"><SegurancaEstado estado={c} esfera="mun" quem={quem} onde={onde} grupo={faixa ? "das cidades parecidas" : "das cidades"} /></div>}
+    {temDados && !ehDF && <div id="saneamento" data-so-padrao="a água e o esgoto"><SaneamentoResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? "das cidades parecidas" : null} onde={onde} /></div>}
 
     <section class="unidade">
       <h2>E a escola ou o posto de saúde do meu bairro?</h2>
@@ -132,7 +132,7 @@ const descricao = temDados
     </section>
 
     <p class="nota">
-      Fonte: Declaração de Contas Anuais (DCA, Anexo I-E) entregue por {ehDF ? "o GDF" : "a prefeitura"} ao Tesouro Nacional
+      Fonte: Declaração de Contas Anuais (DCA, Anexo I-E) entregue {ehDF ? "pelo GDF" : "pela prefeitura"} ao Tesouro Nacional
       pelo SICONFI. Os números são os declarados pelo próprio ente. Empenhado é o gasto comprometido no ano, incluindo a Câmara
       Municipal; não inclui despesas intraorçamentárias. Mediana calculada entre as cidades do mesmo porte que entregaram a DCA de <span data-ano-texto>{c.ano}</span>.
       {ehDF && " O DF acumula funções de estado e de município e por isso não é comparado com outras cidades."}

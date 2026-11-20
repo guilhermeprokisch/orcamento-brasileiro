@@ -15,24 +15,24 @@ const anos = [...new Set(linhas.map((l) => l.e.ano))].sort();
 const mediana = doc?.medianas[String(doc.anos.at(-1))]?.[0]?.total ?? null;
 ---
 
-<Base title="Estados · Orçamento Brasileiro" description="Quanto cada governo estadual gastou em saúde, educação, segurança e outras áreas, por habitante.">
+<Base title="Estados · Orçamento Brasileiro" description="Quanto cada governo estadual gastou em saúde, educação, segurança e outras áreas, por morador.">
   <div class="wrap">
     <section class="topo-lista">
       <div>
         <span class="sobretitulo verde">Novo · protótipo</span>
         <h1>Quanto cada estado gasta</h1>
         <p>
-          O gasto dos 26 governos estaduais e do Distrito Federal por habitante, em {anos.join(" e ")}.
-          {mediana && <> A mediana dos estados é <strong class="marca">{porPessoa(mediana)} por habitante</strong>.</>}
+          O gasto dos 26 governos estaduais e do Distrito Federal por morador, em {anos.join(" e ")}.
+          {mediana && <> A mediana dos estados é <strong class="marca">{porPessoa(mediana)} por morador</strong>.</>}
         </p>
       </div>
     </section>
 
-    <div class="tabela" role="table" aria-label="Gasto dos estados por habitante">
+    <div class="tabela" role="table" aria-label="Gasto dos estados por morador">
       <div class="linha cab" role="row">
         <span role="columnheader">Estado</span>
-        <span role="columnheader" class="so-largo">Gasto por habitante</span>
-        <span role="columnheader" class="d">Por hab.</span>
+        <span role="columnheader" class="so-largo">Gasto por morador</span>
+        <span role="columnheader" class="d">Por morador</span>
         <span role="columnheader" class="d so-largo">Saúde</span>
         <span role="columnheader" class="d so-largo">Educação</span>
         <span role="columnheader" class="d so-largo">Segurança</span>
@@ -53,7 +53,7 @@ const mediana = doc?.medianas[String(doc.anos.at(-1))]?.[0]?.total ?? null;
     <p class="nota">
       Fonte: SICONFI/Tesouro Nacional, Declaração de Contas Anuais (DCA). Valores empenhados no ano, declarados pelos estados,
       incluindo Legislativo, Judiciário e Ministério Público estaduais. Estados com pouca população e muito repasse federal
-      (Fundo de Participação dos Estados) tendem a gastar mais por habitante.
+      (Fundo de Participação dos Estados) tendem a gastar mais por morador.
       * O Distrito Federal acumula funções de estado e de município.
     </p>
   </div>

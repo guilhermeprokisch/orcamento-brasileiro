@@ -3,6 +3,7 @@
  * rede (pipeline/…/ideb.py). Lido no build; sem o arquivo, tudo vem null.
  */
 import { docCidades, docEstados, type Cidade } from "./cidades";
+import { nomeAutor } from "./autores-emendas";
 
 interface DocIdeb {
   edicao: number;
@@ -404,7 +405,7 @@ export interface IrMoradores {
   declarantes: number;
   valor: number;
   porHab: number;
-  /** Mediana por habitante das cidades do mesmo porte. */
+  /** Mediana por morador das cidades do mesmo porte. */
   mediana: number | null;
 }
 const medianasIr = new Map<string, number | null>();
@@ -518,7 +519,7 @@ export interface Emendas {
   entidades: number;
   estadoEOutros: number;
   porHab: number;
-  /** Mediana por habitante das cidades do mesmo porte (ou dos estados). */
+  /** Mediana por morador das cidades do mesmo porte (ou dos estados). */
   mediana: number | null;
   autores: [string, number][];
   areas: [string, number][];
@@ -534,23 +535,26 @@ export function emendasDe(c: Cidade, esfera: "mun" | "uf"): Emendas | null {
   // O último ano fechado: o ano corrente ainda está em andamento.
   const ano = docEmendas.anos.filter((a) => a < anoAtual).at(-1);
   if (!ano) return null;
+  // Na cidade, o total deixa de fora os órgãos estaduais e federais com sede nela (quase sempre a
+  // capital): eles atendem o estado inteiro e já contam na página do estado.
+  const totalDe = (x: number[] | undefined) => (!x ? 0 : esfera === "mun" ? x[1] + x[2] : x[0]);
   const v = porAno[String(ano)] ?? [0, 0, 0, 0];
   const comparaveis = esfera === "uf"
     ? (docEstados?.cidades ?? []).filter((x) => x.ibge !== 53)
     : (docCidades?.cidades ?? []).filter((x) => x.faixa === c.faixa);
-  const valores = comparaveis.filter((x) => x.pop).map((x) => (docEmendas[esfera][String(x.ibge)]?.[String(ano)]?.[0] ?? 0) / x.pop);
+  const valores = comparaveis.filter((x) => x.pop).map((x) => totalDe(docEmendas[esfera][String(x.ibge)]?.[String(ano)]) / x.pop);
   return {
-    fonte: docEmendas.fonte, ano, total: v[0], prefeitura: v[1], entidades: v[2], estadoEOutros: v[3],
-    porHab: v[0] / c.pop, mediana: mediana(valores),
+    fonte: docEmendas.fonte, ano, total: totalDe(v), prefeitura: v[1], entidades: v[2], estadoEOutros: v[3],
+    porHab: totalDe(v) / c.pop, mediana: mediana(valores),
     autores: docEmendas.autores[String(c.ibge)]?.[String(ano)] ?? [],
     areas: docEmendas.areas[String(c.ibge)]?.[String(ano)] ?? [],
-    serie: docEmendas.anos.map((a) => ({ ano: a, valor: (porAno[String(a)]?.[0] ?? 0) / 1e6, preliminar: a >= anoAtual })),
+    serie: docEmendas.anos.map((a) => ({ ano: a, valor: totalDe(porAno[String(a)]) / 1e6, preliminar: a >= anoAtual })),
   };
 }
 
 /**
  * Para o mapa (/data/mapa/emendas.json): as emendas do último ano fechado de cada cidade e estado,
- * [total, prefeitura, entidades e empresas, estado e outros, por habitante], e os 3 maiores autores.
+ * [total, prefeitura, entidades e empresas, estado e outros, por morador], e os 3 maiores autores.
  */
 export function emendasParaMapa() {
   if (!docEmendas) return null;
@@ -560,10 +564,14 @@ export function emendasParaMapa() {
   const pop = new Map([...(docCidades?.cidades ?? []), ...(docEstados?.cidades ?? [])].map((x) => [String(x.ibge), x.pop]));
   const linhas = (esfera: "mun" | "uf") => Object.fromEntries(Object.entries(docEmendas[esfera])
     .filter(([k, v]) => v[a] && pop.get(k))
-    .map(([k, v]) => [k, [...v[a], Math.round((v[a][0] / pop.get(k)!) * 100) / 100]]));
+    .map(([k, v]) => {
+      // Cidade: sem os órgãos estaduais e federais com sede nela (ver emendasDe).
+      const x = esfera === "mun" ? [v[a][1] + v[a][2], v[a][1], v[a][2], 0] : v[a];
+      return [k, [...x, Math.round((x[0] / pop.get(k)!) * 100) / 100]];
+    }));
   // Os nomes dos autores vão uma vez só, numa lista; cada lugar guarda [índice do nome, valor].
   const nomesAutores: string[] = [], indice = new Map<string, number>();
-  const idx = (n: string) => { if (!indice.has(n)) { indice.set(n, nomesAutores.length); nomesAutores.push(n); } return indice.get(n)!; };
+  const idx = (n: string) => { if (!indice.has(n)) { indice.set(n, nomesAutores.length); nomesAutores.push(nomeAutor(n)); } return indice.get(n)!; };
   const autores = Object.fromEntries(Object.entries(docEmendas.autores)
     .map(([k, v]) => [k, (v[a] ?? []).slice(0, 3).map(([n, valor]) => [idx(n), valor])])
     .filter(([, v]) => v.length));

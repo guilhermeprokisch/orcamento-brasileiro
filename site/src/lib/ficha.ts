@@ -34,7 +34,7 @@ export interface Ficha extends Gasto {
 export interface Pacote {
   ano: number;
   faixas: string[];
-  /** faixa → (função | "total" → mediana por habitante) e "n" */
+  /** faixa → (função | "total" → mediana por morador) e "n" */
   medianas: Record<string, number>[];
   funcoes: Record<string, string>;
   subfuncoes: Record<string, string>;

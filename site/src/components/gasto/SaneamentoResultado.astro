@@ -1,6 +1,6 @@
 ---
 /**
- * Saneamento: o gasto por habitante ao lado de quantos moradores têm água da rede e esgoto
+ * Saneamento: o gasto por morador ao lado de quantos moradores têm água da rede e esgoto
  * ligado à rede (Censo 2022), com a mediana dos comparáveis e o Brasil.
  */
 import { moedaCurta } from "../../lib/formato";
@@ -40,7 +40,7 @@ const comparaveis = esfera === "uf" ? "Mediana dos estados" : "Cidades parecidas
       </p>
       <p>
         {porHab !== null
-          ? <>Em {ente.ano}, {quem} gastou <strong>{porPessoa(porHab)} por habitante</strong> em saneamento ({moedaCurta(gasto)}).{medGasto !== null && grupo && <> A mediana {grupo} é {porPessoa(medGasto)}.</>}</>
+          ? <>Em {ente.ano}, {quem} gastou <strong>{porPessoa(porHab)} por morador</strong> em saneamento ({moedaCurta(gasto)}).{medGasto !== null && grupo && <> A mediana {grupo} é {porPessoa(medGasto)}.</>}</>
           : <>Em {ente.ano}, {quem} não registrou gasto em saneamento.</>}
       </p>
       <p class="menor">
