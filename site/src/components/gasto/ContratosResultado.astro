@@ -100,7 +100,7 @@ const maiorTipo = k ? Math.max(...k.porTipo.map(([, v]) => v)) : 1;
         </div>
       )}
     </div>
-    <p class="fonte">Fonte: {k.fonte}, assinados em {k.ano}.</p>
+    <p class="fonte"><a href={`/contratos?ente=${cidade.ibge}`}><strong>Ver todos os {nf0.format(k.n)} contratos {mun ? `de ${cidade.nome}` : "do estado"} →</strong></a> · Fonte: {k.fonte}, assinados em {k.ano}.</p>
   </section>
 )}
 

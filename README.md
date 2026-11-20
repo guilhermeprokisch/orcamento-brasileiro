@@ -13,6 +13,7 @@ Projeto independente, sem vínculo com o governo.
   2. *As contas fecham*: de onde vem o dinheiro, o que sobrou, a dívida e o gasto com pessoal frente aos limites da Lei de Responsabilidade Fiscal, a nota do Tesouro (CAPAG), o ano em andamento;
   3. *O que chega e o que sai*: aposentadorias do INSS, imposto de renda dos moradores, emendas parlamentares, o gasto do estado na cidade;
   4. *Como está a cidade*: educação (Ideb), mortalidade infantil, homicídios, água e esgoto, sempre ao lado do gasto na área.
+- **Contratos** (`/contratos`): busca nos contratos publicados no PNCP, por lugar, empresa ou palavra, consultando no navegador (DuckDB) um Parquet guardado no bucket público.
 - **Mapa** (`/mapa`): compara todas as cidades ou estados numa pergunta por vez (gasto, receita, saldo, dependência de repasses, dinheiro federal, emendas, impostos, situação), com as linhas de dinheiro saindo de Brasília. É um documento independente do layout do site (`site/src/mapa/pagina.html`).
 - **Explorer, Órgãos, Aprenda e Glossário**: o orçamento federal por órgão, programa e ação, de 2014 em diante, e as explicações.
 
@@ -27,7 +28,7 @@ Tudo vem de dados abertos oficiais. Os arquivos das fontes, como vieram, e os JS
 | SICONFI (Tesouro) | Contas anuais (DCA) de estados e prefeituras; relatórios fiscais (RGF: dívida e pessoal; RREO: o ano em andamento) | `cidades`, `mapa`, `divida`, `rreo` |
 | FINBRA (Tesouro) | Histórico das prefeituras desde 2013 (baixado à mão por causa do captcha) | `finbra`, `semente` |
 | Tesouro Nacional | Nota CAPAG; tabela de municípios do SIAFI | `capag` |
-| PNCP | Contratos publicados por prefeituras e estados | `contratos` |
+| PNCP | Contratos publicados por prefeituras, estados e União; o explorador `/contratos` | `contratos`, `explorador-contratos` |
 | Receita Federal | Arrecadação por estado e município; IR por município de residência | `rfb`, `irpf` |
 | Previdência Social | Benefícios do INSS pagos em cada município | `inss` |
 | DATASUS | Mortalidade (SIM) e nascidos vivos (SINASC) | `saude`, `seguranca` |

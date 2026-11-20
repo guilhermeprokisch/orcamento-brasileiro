@@ -7,6 +7,7 @@ Envia para b2://orcamento-brasileiro-dados:
 - brutos/      ← data/raw (os arquivos das fontes, como vieram)
 - tratados/    ← site/public/data (os JSONs que o site lê)
 - referencia/  ← pipeline/referencia (as cargas longas, resumidas)
+- explorador/  ← data/publico (o arquivo que o explorador de contratos consulta)
 - LEIA-ME.md   ← pipeline/espelho/LEIA-ME.md
 - indice.txt   o endereço de cada arquivo, um por linha (o bucket não deixa listar sem chave:
                com o índice dá para baixar tudo com `wget -x -nH -i indice.txt`)
@@ -40,6 +41,7 @@ PASTAS = [
     ("brutos", c.RAIZ / "data" / "raw"),
     ("tratados", c.RAIZ / "site" / "public" / "data"),
     ("referencia", c.RAIZ / "pipeline" / "referencia"),
+    ("explorador", c.RAIZ / "data" / "publico"),   # o Parquet do explorador de contratos (explorador_contratos.py)
 ]
 LEIAME = c.RAIZ / "pipeline" / "espelho" / "LEIA-ME.md"
 # Temporários que os pipelines escrevem e trocam de nome no fim.
