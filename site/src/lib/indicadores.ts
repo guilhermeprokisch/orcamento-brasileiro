@@ -622,3 +622,33 @@ export function contratosDe(c: Cidade, esfera: "mun" | "uf" = "mun"): Contratos 
     .filter(([, x]) => x > 0).sort((a, b) => b[1] - a[1]);
   return { ...v, fonte: docContratos.fonte, ano: docContratos.ano, porHab: v.total / c.pop, porTipo };
 }
+
+// Escolas da rede municipal (pipeline/…/escolas.py): Censo Escolar, Ideb por escola e PDDE.
+interface DocEscolas {
+  fonte: string;
+  censo: number;
+  ideb: number;
+  pdde: number;
+  /** escolas: [código INEP, nome, bairro, alunos, Ideb iniciais, Ideb finais, PDDE]; pdde: [total, conselhos, casado] */
+  mun: Record<string, { escolas: [string, string, string, number, number | null, number | null, number | null][]; estaduais: number; pdde: [number, number, number] }>;
+}
+const arquivosEscolas = import.meta.glob<DocEscolas>("../../public/data/indicadores/escolas.json", { eager: true, import: "default" });
+const docEscolas: DocEscolas | null = Object.values(arquivosEscolas)[0] ?? null;
+
+export interface Escola { inep: string; nome: string; bairro: string; alunos: number; ideb: [number | null, number | null]; pdde: number | null }
+export interface Escolas {
+  fonte: string; censo: number; edicaoIdeb: number; anoPdde: number;
+  escolas: Escola[]; alunos: number; estaduais: number;
+  pdde: { total: number; conselhos: number; casado: number };
+}
+
+export function escolasDe(c: Cidade): Escolas | null {
+  const v = docEscolas?.mun[String(c.ibge)];
+  if (!docEscolas || !v) return null;
+  const escolas = v.escolas.map(([inep, nome, bairro, alunos, i, f, pdde]) => ({ inep, nome, bairro, alunos, ideb: [i, f] as [number | null, number | null], pdde }));
+  return {
+    fonte: docEscolas.fonte, censo: docEscolas.censo, edicaoIdeb: docEscolas.ideb, anoPdde: docEscolas.pdde,
+    escolas, alunos: escolas.reduce((s, e) => s + e.alunos, 0), estaduais: v.estaduais,
+    pdde: { total: v.pdde[0], conselhos: v.pdde[1], casado: v.pdde[2] },
+  };
+}

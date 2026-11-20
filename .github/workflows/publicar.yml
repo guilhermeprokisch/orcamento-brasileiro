@@ -119,6 +119,12 @@ jobs:
 
       # Matrículas por município (Censo Escolar). Como o Ideb, usa a cópia versionada em
       # pipeline/referencia quando o INEP derruba a conexão do servidor do GitHub.
+      # Escolas da rede municipal: Censo Escolar, Ideb por escola e PDDE. O INEP recusa conexões de
+      # fora do país: sem o download, a saída vem de pipeline/referencia/escolas.json.
+      - name: Pipeline das escolas
+        continue-on-error: true
+        run: uv run --project pipeline escolas
+
       - name: Pipeline das matrículas
         continue-on-error: true
         run: uv run --project pipeline matriculas
