@@ -4,6 +4,7 @@
  * cidades do mesmo porte. Mostra os dois números juntos, sem concluir que um causa o outro.
  */
 import { moedaCurta, pct } from "../../lib/formato";
+import Termo from "../Termo.astro";
 import { docCidades, medianaDa, porPessoa, type Cidade } from "../../lib/cidades";
 import { idebDe, porAlunoDe, type NotaIdeb } from "../../lib/indicadores";
 import SerieAnos from "./SerieAnos.astro";
@@ -67,7 +68,7 @@ const linhas = ideb
       )}
       {municipal ? (
         <p>
-          No Ideb de {ideb.edicao}, as escolas da prefeitura tiveram{" "}
+          No <Termo id="ideb" /> de {ideb.edicao}, as escolas da prefeitura tiveram{" "}
           {ideb.mi?.nota != null && <><strong>{n(ideb.mi.nota)}</strong> nos anos iniciais</>}
           {ideb.mi?.nota != null && ideb.mf?.nota != null && " e "}
           {ideb.mf?.nota != null && <><strong>{n(ideb.mf.nota)}</strong> nos anos finais</>}, numa escala de 0 a 10.

@@ -101,6 +101,42 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
         <span>Projeto independente, sem vínculo com o Governo Federal.</span>
       </footer>
     </div>
+    <script>
+      // Balões das palavras técnicas (components/Termo.astro): abrem com o mouse, o teclado ou um toque,
+      // fecham com Esc ou tocando fora, e são empurrados para dentro da tela quando passariam da borda.
+      const posicionar = (t: HTMLElement) => requestAnimationFrame(() => {
+        const b = t.querySelector<HTMLElement>(".balao");
+        if (!b) return;
+        t.classList.remove("abaixo");
+        t.style.removeProperty("--desvio");
+        const r = b.getBoundingClientRect();
+        if (!r.width) return;
+        if (r.top < 8) t.classList.add("abaixo");
+        const d = r.left < 8 ? 8 - r.left : r.right > innerWidth - 8 ? innerWidth - 8 - r.right : 0;
+        if (d) t.style.setProperty("--desvio", `${d}px`);
+      });
+      const termo = (alvo: EventTarget | null) => (alvo instanceof Element ? alvo.closest<HTMLElement>(".termo") : null);
+      const abrir = (ev: Event) => {
+        const t = termo(ev.target);
+        if (t) { t.classList.remove("fechado"); posicionar(t); }
+      };
+      document.addEventListener("mouseover", abrir);
+      document.addEventListener("focusin", abrir);
+      document.addEventListener("click", (ev) => {
+        const t = termo(ev.target);
+        if (ev.target instanceof Element && ev.target.closest(".balao")) return;   // o link do glossário
+        document.querySelectorAll<HTMLElement>(".termo.aberto").forEach((o) => { if (o !== t) o.classList.remove("aberto"); });
+        if (!t) return;
+        const abre = !t.classList.contains("aberto");
+        t.classList.toggle("aberto", abre);
+        t.classList.toggle("fechado", !abre);
+        if (abre) posicionar(t);
+      });
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Escape") return;
+        document.querySelectorAll<HTMLElement>(".termo").forEach((t) => { t.classList.remove("aberto"); t.classList.add("fechado"); });
+      });
+    </script>
   </body>
 </html>
 

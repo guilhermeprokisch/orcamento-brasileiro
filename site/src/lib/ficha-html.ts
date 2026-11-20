@@ -6,6 +6,7 @@
  */
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "./formato";
 import { corDaRampa } from "./cores";
+import { termoHtml } from "./glossario";
 import type { Ficha, Pacote } from "./ficha";
 
 export interface Contexto {
@@ -62,8 +63,8 @@ function comparar(v: number, m: number | null): string | null {
 export function fraseHtml(ctx: Contexto): string {
   const { f, mediana, grupo, municipal } = comum(ctx);
   const emp = f.total[0], porHab = emp / f.pop, med = mediana("total"), comp = comparar(porHab, med);
-  return `<p class="ficha-frase">Em ${ctx.ano}, ${esc(ctx.quem)} comprometeu <strong class="marca">${moedaExtenso(emp)}</strong> em gastos,
-    ou <strong>${porPessoa(porHab)} por morador</strong>.${comp && grupo ? ` Isso fica ${comp} da mediana ${grupo} (${porPessoa(med!)})${municipal ? ", que no resto da página chamamos de cidades parecidas" : ""}.` : ""}</p>`;
+  return `<p class="ficha-frase">Em ${ctx.ano}, ${esc(ctx.quem)} ${termoHtml("empenho", "comprometeu")} <strong class="marca">${moedaExtenso(emp)}</strong> em gastos,
+    ou <strong>${porPessoa(porHab)} por morador</strong>.${comp && grupo ? ` Isso fica ${comp} da ${termoHtml("mediana", "mediana")} ${grupo} (${porPessoa(med!)})${municipal ? ", que no resto da página chamamos de cidades parecidas" : ""}.` : ""}</p>`;
 }
 
 /** Os quatro números grandes: empenhado, pago, por morador e a variação frente ao ano anterior. */
@@ -148,9 +149,9 @@ export function areasHtml(ctx: Contexto): string {
   </section>`;
 }
 
-const barras = (itens: { rotulo: string; dica?: string; valor: string; titulo?: string; largura: number; cor: string }[]) =>
+const barras = (itens: { rotulo: string; termo?: string; dica?: string; valor: string; titulo?: string; largura: number; cor: string }[]) =>
   `<ul class="barras">${itens.map((i) => `<li>
-    <span class="lb-linha"><span>${esc(i.rotulo)}${i.dica ? `<small class="so-largo"> · ${esc(i.dica)}</small>` : ""}</span><strong class="num"${i.titulo ? ` title="${i.titulo}"` : ""}>${i.valor}</strong></span>
+    <span class="lb-linha"><span>${i.termo ? termoHtml(i.termo, i.rotulo) : esc(i.rotulo)}${i.dica ? `<small class="so-largo"> · ${esc(i.dica)}</small>` : ""}</span><strong class="num"${i.titulo ? ` title="${i.titulo}"` : ""}>${i.valor}</strong></span>
     <span class="lb-barra" style="width:${i.largura}%;background:${i.cor}"></span>
   </li>`).join("")}</ul>`;
 
@@ -204,13 +205,13 @@ export function contasHtml(ctx: Contexto, quais: "tudo" | "natureza" | "receitas
       { rotulo: "Arrecadação própria", dica: municipal ? "ISS, IPTU, taxas e outras receitas da prefeitura" : ehDF ? "ICMS, IPVA, ISS, IPTU e outras receitas do DF" : "ICMS, IPVA e outras receitas do estado", v: contas.propria },
       { rotulo: "Repasses da União", dica: municipal ? "FPM, SUS e outros" : "FPE, SUS e outros", v: contas.uniao },
       { rotulo: municipal ? "Repasses do governo estadual" : "Repasses de outros estados", dica: municipal ? "parte do ICMS e do IPVA, entre outros" : "", v: contas.estado },
-      { rotulo: "FUNDEB", dica: "fundo da educação básica, com dinheiro de estados, municípios e União", v: contas.fundeb },
+      { rotulo: "FUNDEB", termo: "fundeb", dica: "fundo da educação básica, com dinheiro de estados, municípios e União", v: contas.fundeb },
       { rotulo: "Empréstimos", dica: "dinheiro que terá de ser devolvido", v: contas.credito },
     ].filter((o) => o.v > contas.receita * 0.0005).sort((a, b) => b.v - a.v);
     const maior = Math.max(1, ...origens.map((o) => o.v));
     const emCem = Math.round((contas.propria / contas.receita) * 100);
     const tributos = municipal
-      ? ([["ISS (imposto sobre serviços)", contas.iss], ["IPTU", contas.iptu], ["ITBI (compra de imóveis)", contas.itbi],
+      ? ([[termoHtml("iss"), contas.iss], [termoHtml("iptu"), contas.iptu], [`${termoHtml("itbi")} (compra de imóveis)`, contas.itbi],
           ["taxas", contas.taxas], ["contribuição de iluminação pública", contas.cosip]] as [string, number][]).filter((t) => t[1] > 0).sort((a, b) => b[1] - a[1])
       : [];
     partes.push(`<section class="bloco">
@@ -222,7 +223,7 @@ export function contasHtml(ctx: Contexto, quais: "tudo" | "natureza" | "receitas
           o resto veio de fora.</p>
         ${tributos.length ? `<p class="menor">Direto à prefeitura, moradores e empresas pagaram ${lista.format(tributos.map(([nome, v]) => `${moedaCurta(v)} de ${nome}`))}.</p>` : ""}
       </div>
-      ${barras(origens.map((o, k) => ({ rotulo: o.rotulo, dica: o.dica, valor: `${moedaCurta(o.v)} · ${pct(o.v / contas.receita)}`, titulo: moedaCompleta(o.v), largura: (o.v / maior) * 100, cor: corDaRampa(Math.min(1, k / 4)) })))}
+      ${barras(origens.map((o, k) => ({ rotulo: o.rotulo, termo: o.termo, dica: o.dica, valor: `${moedaCurta(o.v)} · ${pct(o.v / contas.receita)}`, titulo: moedaCompleta(o.v), largura: (o.v / maior) * 100, cor: corDaRampa(Math.min(1, k / 4)) })))}
     </section>`);
 
     const sobrou = contas.saldo >= 0;
@@ -263,7 +264,7 @@ export function contasHtml(ctx: Contexto, quais: "tudo" | "natureza" | "receitas
         <h2>O que tinha e o que devia</h2>
         <p>Em 31 de dezembro de ${balanco.ano}, ${quem} tinha <strong>${moedaExtenso(balanco.caixa)}</strong> em caixa
           ${balanco.emprestimos > 0 ? `e devia <strong>${moedaExtenso(balanco.emprestimos)}</strong> em empréstimos e financiamentos.` : "e não declarou dívida com empréstimos."}</p>
-        <p class="menor">Números do balanço patrimonial, o retrato do fim do ano. A sobra acumulada é o que explica como
+        <p class="menor">Números do ${termoHtml("balanco-patrimonial", "balanço patrimonial")}, o retrato do fim do ano. A sobra acumulada é o que explica como
           um governo consegue gastar mais do que recebe num ano: ele usa o que guardou nos anteriores.
           Aqui a dívida é só a de empréstimos e financiamentos; a dívida da Lei de Responsabilidade Fiscal, mais abaixo,
           soma também precatórios e parcelamentos e desconta o dinheiro em caixa, por isso dá outro número.</p>

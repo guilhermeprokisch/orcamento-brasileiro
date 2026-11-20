@@ -5,6 +5,7 @@
  * vezes a receita corrente líquida.
  */
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import Termo from "../Termo.astro";
 import { alerta, dividaDe, LIMITES } from "../../lib/divida";
 
 interface Props {
@@ -36,7 +37,7 @@ const situacao = (r: number) => (r >= LIMITE ? "acima" : r >= ALERTA ? "alerta" 
       {u.liquida > 0 ? (
         <p>
           No fim de {u.ano}, {quem} devia <strong>{moedaExtenso(u.liquida)}</strong>, já descontado o que tinha em caixa.
-          É <strong class={situacao(u.razao) === "dentro" ? "" : "marca"}>{pct(u.razao)} da receita corrente líquida</strong>,{" "}
+          É <strong class={situacao(u.razao) === "dentro" ? "" : "marca"}>{pct(u.razao)} da <Termo id="receita-corrente-liquida">receita corrente líquida</Termo></strong>,{" "}
           {u.razao >= LIMITE
             ? <>acima do limite de {pct(LIMITE)} fixado pelo Senado.</>
             : u.razao >= ALERTA
@@ -52,9 +53,9 @@ const situacao = (r: number) => (r >= LIMITE ? "acima" : r >= ALERTA ? "alerta" 
         </p>
       )}
       <p class="menor">
-        Dívida consolidada líquida é tudo o que {ente} deve a prazo maior que um ano, menos o dinheiro em caixa e aplicações.
+        <Termo id="divida-consolidada-liquida" /> é tudo o que {ente} deve a prazo maior que um ano, menos o dinheiro em caixa e aplicações.
         {u.bruta > 0 && <>Sem descontar o caixa, a dívida era {moedaCurta(u.bruta)}, {pct(u.bruta / u.rcl)} da receita corrente líquida: é essa a conta da nota do Tesouro, mais abaixo. Ela inclui empréstimos, precatórios (dívidas reconhecidas na Justiça) e parcelamentos, por isso costuma ser maior que a dívida com empréstimos do balanço, acima.{" "}</>}
-        A Lei de Responsabilidade Fiscal limita a dívida líquida a {esfera === "mun" ? "1,2 vez" : "duas vezes"} a receita corrente líquida
+        A <Termo id="lrf" /> limita a dívida líquida a {esfera === "mun" ? "1,2 vez" : "duas vezes"} a receita corrente líquida
         (a receita do dia a dia, sem o que é só de passagem). Acima do limite, {ente} não pode contratar novos empréstimos até voltar a ele.
         {esfera === "mun" && <> A maioria das prefeituras deve pouco: metade deve menos de 5% da receita, e muitas têm mais dinheiro em caixa do que dívidas. As cidades grandes costumam dever mais, mas as poucas que passam do limite são cidades pequenas e médias.</>}
       </p>
