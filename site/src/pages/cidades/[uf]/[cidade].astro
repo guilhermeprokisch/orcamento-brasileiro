@@ -17,6 +17,7 @@ import NestaPagina, { type GrupoDaPagina } from "../../../components/NestaPagina
 import { moedaExtenso } from "../../../lib/formato";
 import { caminhoCidade, caminhoEstado, deUf, docCidades, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../../lib/cidades";
 import { anosDe, fichaDe, pacoteDe } from "../../../lib/ficha";
+import { emendasPorAno } from "../../../lib/indicadores";
 import { areasHtml, contasHtml, fraseHtml, numerosHtml, type Contexto } from "../../../lib/ficha-html";
 import type { BaseDaPagina } from "../../../lib/troca-de-ano";
 import "../../../styles/ficha.css";
@@ -46,10 +47,11 @@ const onde = ehDF ? "no Distrito Federal" : `em ${c.nome}`;
 const destaques = [{ cod: "10", titulo: "Saúde" }, { cod: "12", titulo: "Educação" }];
 const ficha = temDados ? await fichaDe(c, "mun", c.ano!) : null;
 const pacote = temDados ? pacoteDe("mun", c.ano!) : null;
-const ctx: Contexto | null = ficha && pacote ? { ano: c.ano!, esfera: "mun", ibge: c.ibge, nome: c.nome, uf: c.uf, quem, onde, destaques, ficha, pacote } : null;
+const emendas = emendasPorAno(c);
+const ctx: Contexto | null = ficha && pacote ? { ano: c.ano!, esfera: "mun", ibge: c.ibge, nome: c.nome, uf: c.uf, quem, onde, destaques, emendas, ficha, pacote } : null;
 const anos = anosDe(c);
 const base: BaseDaPagina | null = ctx
-  ? { ibge: c.ibge, nome: c.nome, uf: c.uf, esfera: "mun", quem, onde, destaques, anos, padrao: c.ano!, grupo: c.uf.toLowerCase() }
+  ? { ibge: c.ibge, nome: c.nome, uf: c.uf, esfera: "mun", quem, onde, destaques, anos, padrao: c.ano!, grupo: c.uf.toLowerCase(), emendas }
   : null;
 // A lista "Nesta página": os grupos na ordem em que aparecem; um item sem conteúdo some no navegador.
 const SUMARIO: GrupoDaPagina[] = [
