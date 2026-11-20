@@ -150,6 +150,10 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline saneamento
 
+      - name: Pipeline das emendas parlamentares (CGU)
+        continue-on-error: true
+        run: uv run --project pipeline emendas
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
