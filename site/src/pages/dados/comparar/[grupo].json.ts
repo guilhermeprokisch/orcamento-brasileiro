@@ -1,5 +1,5 @@
 /**
- * RASCUNHO (página /comparar). Os indicadores que não mudam com o ano das contas, para comparar
+ * Para a página /comparar: os indicadores que não mudam com o ano das contas, para comparar
  * dois lugares no navegador: /dados/comparar/{uf}.json com as cidades de um estado e
  * /dados/comparar/estados.json com os 27 governos estaduais. O gasto, a receita e o saldo de cada
  * ano vêm das fichas (/dados/fichas/{ano}/{grupo}.json), que já existem para a troca de ano.

@@ -1,13 +1,12 @@
 /**
- * RASCUNHO da página /comparar: dois lugares lado a lado (duas cidades ou dois estados).
+ * A página /comparar: dois lugares lado a lado (duas cidades ou dois estados).
  *
  * Tudo roda no navegador. O gasto, a receita e o saldo de cada ano vêm das fichas
  * (/dados/fichas/{ano}/{grupo}.json, as mesmas da troca de ano); dívida, Ideb, mortalidade
  * infantil, emendas e homicídios vêm de /dados/comparar/{grupo}.json.
  *
- * Os números viram um modelo (blocos com linhas, cada linha com o valor de A e de B) e o modelo é
- * desenhado em três variações de layout, escolhidas por ?variante=, para o dono do projeto
- * escolher uma. Depois da escolha, as outras duas saem daqui.
+ * Os números viram um modelo (blocos com linhas, cada linha com o valor de A e de B), desenhado
+ * frente a frente: o nome da linha no meio, a barra de A cresce para a esquerda e a de B para a direita.
  */
 import { moedaCompleta, moedaCurta, pct } from "./formato";
 import type { Ficha, Pacote } from "./ficha";
@@ -158,8 +157,8 @@ export interface Comparacao {
   resumo: string[];
 }
 
-/** A diferença em poucas palavras, para as tabelas: qual lado tem mais e quanto. */
-export function diferenca(linha: Linha): { lado: "a" | "b" | null; texto: string } | null {
+/** A diferença em poucas palavras: qual lado tem mais e quanto. */
+function diferenca(linha: Linha): { lado: "a" | "b" | null; texto: string } | null {
   const { a, b } = linha;
   if (a === null || b === null) return null;
   // Sobra ou falta (com sinal): a diferença em vezes não faz sentido.
@@ -395,9 +394,6 @@ export function montar(la: Lado, lb: Lado, ano: number): Comparacao {
 
 // ----- desenho -----
 
-export type Variante = "colunas" | "espelho" | "frases";
-export const VARIANTES: [Variante, string][] = [["colunas", "Duas colunas"], ["espelho", "Frente a frente"], ["frases", "Frases primeiro"]];
-
 const titulo = (v: number | null, fmt: Formato) => (v !== null && (fmt === "moeda" || fmt === "porMorador") ? ` title="${moedaCompleta(v)}"` : "");
 const melhorLado = (l: Linha): "a" | "b" | null => {
   if (!l.bom || l.a === null || l.b === null || l.a === l.b) return null;
@@ -406,102 +402,40 @@ const melhorLado = (l: Linha): "a" | "b" | null => {
 const rotuloHtml = (l: Linha) => `<span class="cp-rotulo">${esc(l.rotulo)}${l.dica ? `<small>${esc(l.dica)}</small>` : ""}</span>`;
 const largura = (v: number | null, max: number) => (v === null || max <= 0 ? 0 : (Math.abs(v) / max) * 100);
 const maxDe = (l: Linha) => Math.max(Math.abs(l.a ?? 0), Math.abs(l.b ?? 0));
-
-function difHtml(l: Linha, c: Comparacao): string {
-  const d = diferenca(l);
-  if (!d) return `<span class="cp-dif"></span>`;
-  if (d.lado === null) return `<span class="cp-dif">${d.texto}</span>`;
-  return `<span class="cp-dif"><b class="cp-${d.lado}">${esc((d.lado === "a" ? c.A : c.B).curto)}</b> ${d.texto}</span>`;
-}
-
 const frasesHtml = (fr: string[]) => (fr.length ? `<ul class="cp-frases">${fr.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : "");
 
-/** Divide as linhas em visíveis e as que ficam num "ver todas". */
-function emDuas(bl: Bloco, desenhar: (l: Linha) => string, sufixo = ""): string {
+/** Uma linha: o valor de A e a barra dele à esquerda, o nome no meio, B à direita. */
+function linhaHtml(l: Linha): string {
+  const max = maxDe(l), bom = melhorLado(l);
+  const lado = (s: "a" | "b") => {
+    const v = l[s];
+    return `<div class="cp-esp cp-${s}${bom === s ? " cp-bom" : ""}">
+      <span class="cp-trilho"><span class="cp-barra${v !== null && v < 0 ? " neg" : ""}" style="width:${largura(v, max)}%"></span></span>
+      <strong class="num"${titulo(v, l.fmt)}>${valor(l.fmt, v)}</strong>
+    </div>`;
+  };
+  return `<div class="cp-linha-esp">${lado("a")}${rotuloHtml(l)}${lado("b")}</div>`;
+}
+
+/** As linhas do bloco; as que passam de `recolher` ficam num "ver as outras". */
+function linhasHtml(bl: Bloco): string {
   const vis = bl.recolher ? bl.linhas.slice(0, bl.recolher) : bl.linhas;
   const resto = bl.recolher ? bl.linhas.slice(bl.recolher) : [];
-  return vis.map(desenhar).join("") + (resto.length
-    ? `<details class="cp-mais${sufixo}"><summary>Ver as outras ${resto.length} áreas</summary>${resto.map(desenhar).join("")}</details>` : "");
+  return vis.map(linhaHtml).join("") + (resto.length
+    ? `<details class="cp-mais cp-centro"><summary>Ver as outras ${resto.length} áreas</summary>${resto.map(linhaHtml).join("")}</details>` : "");
 }
 
-/** Variante 1: duas colunas, um lugar em cada, com os números alinhados linha a linha. */
-function colunas(c: Comparacao): string {
-  const linha = (l: Linha) => {
-    const max = maxDe(l), bom = melhorLado(l);
-    const cel = (lado: "a" | "b") => {
-      const v = l[lado];
-      return `<div class="cp-cel cp-${lado}${bom === lado ? " cp-bom" : ""}">
-        <strong class="num"${titulo(v, l.fmt)}>${valor(l.fmt, v)}</strong>
-        <span class="cp-barra${v !== null && v < 0 ? " neg" : ""}" style="width:${largura(v, max)}%"></span>
-      </div>`;
-    };
-    return `<div class="cp-linha">${rotuloHtml(l)}${cel("a")}${cel("b")}${difHtml(l, c)}</div>`;
-  };
-  return `<div class="cp-colunas">
-    <div class="cp-cabeca"><span></span><h2 class="cp-a">${esc(c.A.curto)}</h2><h2 class="cp-b">${esc(c.B.curto)}</h2></div>
-    ${c.blocos.map((bl) => `<section class="cp-bloco" id="cp-${bl.id}">
-      <div class="cp-bloco-topo"><h3>${esc(bl.titulo)}</h3>${bl.nota ? `<p class="cp-nota">${esc(bl.nota)}</p>` : ""}</div>
-      ${frasesHtml(bl.frases)}
-      ${emDuas(bl, linha)}
-    </section>`).join("")}
-  </div>`;
-}
-
-/** Variante 2: frente a frente. O nome da linha no meio, A cresce para a esquerda e B para a direita. */
-function espelho(c: Comparacao): string {
-  const linha = (l: Linha) => {
-    const max = maxDe(l), bom = melhorLado(l);
-    const lado = (s: "a" | "b") => {
-      const v = l[s];
-      return `<div class="cp-esp cp-${s}${bom === s ? " cp-bom" : ""}">
-        <span class="cp-trilho"><span class="cp-barra${v !== null && v < 0 ? " neg" : ""}" style="width:${largura(v, max)}%"></span></span>
-        <strong class="num"${titulo(v, l.fmt)}>${valor(l.fmt, v)}</strong>
-      </div>`;
-    };
-    return `<div class="cp-linha-esp">${lado("a")}${rotuloHtml(l)}${lado("b")}</div>`;
-  };
-  return `<div class="cp-espelho">
+export function desenhar(c: Comparacao): string {
+  return `<section class="cp-resumo" aria-label="As maiores diferenças">
+    <h2>Em ${c.ano}, as diferenças que mais chamam a atenção</h2>
+    <ul>${c.resumo.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
+  </section>
+  <div class="cp-espelho">
     <div class="cp-cabeca-esp"><h2 class="cp-a">${esc(c.A.curto)}</h2><span>×</span><h2 class="cp-b">${esc(c.B.curto)}</h2></div>
     ${c.blocos.map((bl) => `<section class="cp-bloco" id="cp-${bl.id}">
       <div class="cp-bloco-topo cp-centro"><h3>${esc(bl.titulo)}</h3>${bl.nota ? `<p class="cp-nota">${esc(bl.nota)}</p>` : ""}</div>
       ${frasesHtml(bl.frases)}
-      ${emDuas(bl, linha, " cp-centro")}
+      ${linhasHtml(bl)}
     </section>`).join("")}
   </div>`;
-}
-
-/** Variante 3: primeiro as frases, uma por linha, com os dois números ao lado; a tabela fica para quem abrir. */
-function frases(c: Comparacao): string {
-  const item = (l: Linha) => {
-    const f = fraseDe(l, c.A, c.B);
-    const bom = melhorLado(l);
-    const par = `<span class="cp-par"><span class="cp-a${bom === "a" ? " cp-bom" : ""}">${valor(l.fmt, l.a)}</span><span class="cp-b${bom === "b" ? " cp-bom" : ""}">${valor(l.fmt, l.b)}</span></span>`;
-    return `<li><span>${f ? esc(f) : `<strong>${esc(l.rotulo)}</strong>`}</span>${par}</li>`;
-  };
-  const tabela = (bl: Bloco) => `<details class="cp-tabela"><summary>Ver todos os números</summary>
-    <table><thead><tr><th></th><th class="cp-a">${esc(c.A.curto)}</th><th class="cp-b">${esc(c.B.curto)}</th></tr></thead>
-    <tbody>${bl.linhas.map((l) => `<tr><th scope="row">${esc(l.rotulo)}${l.dica ? `<small>${esc(l.dica)}</small>` : ""}</th>
-      <td class="num">${valor(l.fmt, l.a)}</td><td class="num">${valor(l.fmt, l.b)}</td></tr>`).join("")}</tbody></table></details>`;
-  return `<div class="cp-frases-var">
-    <div class="cp-legenda"><span class="cp-a">${esc(c.A.curto)}</span><span class="cp-b">${esc(c.B.curto)}</span></div>
-    ${c.blocos.map((bl) => {
-      // As linhas com frase que vale a pena ler: as principais e as com diferença grande.
-      const comFrase = bl.linhas.filter((l) => l.frase.tipo !== "nenhuma" && (l.principal || (diferenca(l)?.lado ?? null) !== null)).slice(0, 5);
-      return `<section class="cp-bloco" id="cp-${bl.id}">
-        <div class="cp-bloco-topo"><h3>${esc(bl.titulo)}</h3>${bl.nota ? `<p class="cp-nota">${esc(bl.nota)}</p>` : ""}</div>
-        ${bl.id === "saldo" || bl.id === "divida" ? frasesHtml(bl.frases) : ""}
-        <ul class="cp-lista">${comFrase.map(item).join("")}</ul>
-        ${tabela(bl)}
-      </section>`;
-    }).join("")}
-  </div>`;
-}
-
-export function desenhar(c: Comparacao, variante: Variante): string {
-  const resumo = `<section class="cp-resumo" aria-label="As maiores diferenças">
-    <h2>Em ${c.ano}, as diferenças que mais chamam a atenção</h2>
-    <ul>${c.resumo.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
-  </section>`;
-  const corpo = variante === "espelho" ? espelho(c) : variante === "frases" ? frases(c) : colunas(c);
-  return resumo + corpo;
 }

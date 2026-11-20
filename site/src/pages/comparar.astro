@@ -1,9 +1,8 @@
 ---
 /**
- * RASCUNHO: comparar dois lugares lado a lado (/comparar?a=<IBGE>&b=<IBGE>), duas cidades ou dois
- * estados. Três variações de layout (?variante=colunas|espelho|frases) e uma barrinha flutuante
- * para trocar entre elas, para o dono do projeto escolher uma. Ainda não há link para cá nas
- * páginas de cidade e de estado. A lógica fica em lib/comparar.ts.
+ * Comparar dois lugares lado a lado (/comparar?a=<IBGE>&b=<IBGE>), duas cidades ou dois
+ * estados, frente a frente. Ainda não há link para cá nas páginas de cidade e de estado.
+ * A lógica fica em lib/comparar.ts.
  */
 import Base from "../layouts/Base.astro";
 import "../styles/onde.css";
@@ -21,7 +20,6 @@ const campo = (lado: "a" | "b", rotulo: string) => (
 
 <Base title="Comparar dois lugares · Orçamento Brasileiro" description="Duas cidades ou dois estados lado a lado: quanto gastam por morador, em quê, de onde vem o dinheiro, a dívida, a nota das escolas e a mortalidade infantil.">
   <div class="wrap comparar">
-    <p class="cp-rascunho" role="note"><strong>Rascunho</strong> · página em teste, ainda sem link no resto do site. Os números são reais.</p>
 
     <section class="cp-topo">
       <h1>Comparar</h1>
@@ -61,16 +59,10 @@ const campo = (lado: "a" | "b", rotulo: string) => (
     </p>
   </div>
 
-  <nav class="cp-variantes" aria-label="Variações de layout (rascunho)">
-    <span>Rascunho<i> · layout</i></span>
-    <a href="?variante=colunas" data-variante="colunas">1<i> · Duas colunas</i></a>
-    <a href="?variante=espelho" data-variante="espelho">2<i> · Frente a frente</i></a>
-    <a href="?variante=frases" data-variante="frases">3<i> · Frases primeiro</i></a>
-  </nav>
 </Base>
 
 <script>
-  import { anosEmComum, carregarLado, desenhar, montar, VARIANTES, type Escolhido, type Variante } from "../lib/comparar";
+  import { anosEmComum, carregarLado, desenhar, montar, type Escolhido } from "../lib/comparar";
 
   type Onde = { definir(codigo: string): Promise<Escolhido | undefined>; escolhido: Escolhido | null };
   // public/explorador/onde.js fica fora do bundle (é servido como está); o endereço completo evita
@@ -83,7 +75,6 @@ const campo = (lado: "a" | "b", rotulo: string) => (
   const params = new URLSearchParams(location.search);
   const lados: Record<"a" | "b", Escolhido | null> = { a: null, b: null };
   let ano: number | null = Number(params.get("ano")) || null;
-  let variante: Variante = (VARIANTES.map(([v]) => v) as string[]).includes(params.get("variante") ?? "") ? (params.get("variante") as Variante) : "colunas";
 
   const resultado = document.getElementById("cp-resultado")!;
   const aviso = document.getElementById("cp-aviso")!;
@@ -96,15 +87,7 @@ const campo = (lado: "a" | "b", rotulo: string) => (
     const url = new URL(location.href);
     for (const k of ["a", "b"] as const) lados[k] ? url.searchParams.set(k, lados[k]!.codigo) : url.searchParams.delete(k);
     ano ? url.searchParams.set("ano", String(ano)) : url.searchParams.delete("ano");
-    variante === "colunas" ? url.searchParams.delete("variante") : url.searchParams.set("variante", variante);
     history.replaceState(null, "", url);
-    // A barrinha mantém o par escolhido ao trocar de variação.
-    document.querySelectorAll<HTMLAnchorElement>("[data-variante]").forEach((a) => {
-      const u = new URL(url);
-      a.dataset.variante === "colunas" ? u.searchParams.delete("variante") : u.searchParams.set("variante", a.dataset.variante!);
-      a.href = u.search || "?";
-      a.toggleAttribute("aria-current", a.dataset.variante === variante);
-    });
   }
 
   let vez = 0;
@@ -136,7 +119,7 @@ const campo = (lado: "a" | "b", rotulo: string) => (
     resultado.removeAttribute("aria-busy");
     if (!la || !lb) { resultado.innerHTML = ""; avisar("Não foi possível carregar os números. Tente de novo."); return; }
     if (ano !== anos[0]) avisar(`Mostrando ${ano}. Dívida, escolas, saúde e emendas são sempre do ano mais recente.`);
-    resultado.innerHTML = desenhar(montar(la, lb, ano), variante);
+    resultado.innerHTML = desenhar(montar(la, lb, ano));
   }
 
   const campos: Record<"a" | "b", Onde> = { a: null!, b: null! };
@@ -160,11 +143,6 @@ const campo = (lado: "a" | "b", rotulo: string) => (
     }
     atualizar();
   });
-  document.querySelectorAll<HTMLAnchorElement>("[data-variante]").forEach((el) => el.addEventListener("click", (ev) => {
-    ev.preventDefault();
-    variante = el.dataset.variante as Variante;
-    atualizar();
-  }));
 
   // O par que veio no endereço.
   for (const k of ["a", "b"] as const) {

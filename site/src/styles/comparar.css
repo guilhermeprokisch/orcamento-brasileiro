@@ -1,13 +1,11 @@
 /*
- * RASCUNHO: estilos da página /comparar (lib/comparar.ts). Globais porque o HTML é montado no
+ * Estilos da página /comparar (lib/comparar.ts). Globais porque o HTML é montado no
  * navegador; tudo sob .comparar ou com o prefixo cp-.
  * A cor de cada lado: A em verde, B em terracota.
  */
-.comparar { --cor-a: #0e6b3b; --cor-a-clara: #8fc1a3; --cor-b: #a8461f; --cor-b-clara: #e3a98c; padding-bottom: 96px; }
+.comparar { --cor-a: #0e6b3b; --cor-a-clara: #8fc1a3; --cor-b: #a8461f; --cor-b-clara: #e3a98c; padding-bottom: 40px; }
 .comparar .cp-a { color: var(--cor-a); }
 .comparar .cp-b { color: var(--cor-b); }
-
-.cp-rascunho { margin: 16px 0 0; padding: 8px 12px; font-size: 13px; background: var(--marca-texto-fundo); border: 1px dashed var(--tinta); }
 
 .cp-topo { padding: 32px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
 .cp-topo h1 { font-size: 64px; line-height: 1; }
@@ -56,17 +54,7 @@
 .cp-bom strong { background: var(--marca-texto-fundo); box-shadow: 0 0 0 3px var(--marca-texto-fundo); }
 .cp-mais summary { cursor: pointer; padding: 10px 0; font-size: 14px; color: var(--texto-3); text-decoration: underline; }
 
-/* 1 · Duas colunas */
-.cp-cabeca, .cp-linha { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr); gap: 4px 24px; align-items: center; }
-.cp-cabeca { position: sticky; top: 0; z-index: 5; background: var(--papel); padding: 10px 0; border-bottom: 1px solid var(--tinta); }
-.cp-cabeca h2 { font-size: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cp-linha { padding: 9px 0; border-bottom: 1px solid var(--regra-leve); }
-.cp-cel { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.cp-cel strong { font-family: var(--serifa); font-size: 22px; font-weight: 700; color: var(--tinta); white-space: nowrap; align-self: flex-start; }
-.cp-dif { font-size: 13px; color: var(--texto-3); }
-.cp-dif b { font-weight: 600; }
-
-/* 2 · Frente a frente */
+/* frente a frente: o nome da linha no meio, A à esquerda, B à direita */
 .cp-cabeca-esp, .cp-linha-esp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, 230px) minmax(0, 1fr); gap: 4px 16px; align-items: center; }
 .cp-cabeca-esp { position: sticky; top: 0; z-index: 5; background: var(--papel); padding: 10px 0; border-bottom: 1px solid var(--tinta); }
 .cp-cabeca-esp h2 { font-size: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -85,32 +73,7 @@
 .cp-esp.cp-a .cp-trilho { justify-content: flex-end; }
 .cp-trilho .cp-barra { height: 16px; }
 
-/* 3 · Frases primeiro */
-.cp-legenda { display: flex; gap: 20px; padding: 0 0 14px; font-family: var(--serifa); font-size: 22px; font-weight: 700; }
-.cp-legenda span::before { content: ""; display: inline-block; width: 14px; height: 14px; margin-right: 8px; background: currentColor; }
-.cp-lista { margin: 0; padding: 0; list-style: none; }
-.cp-lista li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 24px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 17px; line-height: 1.45; }
-.cp-par { display: inline-flex; gap: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 16px; }
-.cp-par .cp-bom { background: var(--marca-texto-fundo); }
-.cp-tabela summary { cursor: pointer; padding: 10px 0 0; font-size: 14px; color: var(--texto-3); text-decoration: underline; }
-.cp-tabela table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 15px; }
-.cp-tabela th, .cp-tabela td { padding: 7px 8px; border-bottom: 1px solid var(--regra-leve); text-align: right; }
-.cp-tabela th[scope="row"] { text-align: left; font-weight: 600; }
-.cp-tabela th[scope="row"] small { display: block; font-weight: 400; font-size: 12px; color: var(--texto-3); }
-
 .cp-fonte { margin: 24px 0 0; font-size: 12px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
-
-/* a barrinha flutuante das variações (só no rascunho) */
-.cp-variantes {
-  position: fixed; z-index: 30; left: 50%; bottom: 16px; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 4px; padding: 6px; max-width: calc(100vw - 16px); overflow-x: auto;
-  background: var(--tinta); color: var(--papel); box-shadow: 4px 4px 0 var(--marca-texto); font-size: 13px;
-}
-.cp-variantes span { padding: 0 8px; color: var(--marca-texto); font-weight: 600; white-space: nowrap; }
-.cp-variantes a { color: var(--papel); text-decoration: none; padding: 7px 10px; white-space: nowrap; }
-.cp-variantes a:hover { background: rgb(255 255 255 / 0.12); }
-.cp-variantes i { font-style: normal; }
-.cp-variantes a[aria-current] { background: var(--marca-texto); color: var(--tinta); font-weight: 700; }
 
 @media (max-width: 760px) {
   .cp-topo h1 { font-size: 42px; }
@@ -125,25 +88,10 @@
   .cp-bloco-topo h3 { font-size: 23px; }
   .cp-frases li { font-size: 15px; }
 
-  /* duas colunas: o nome da linha em cima, os dois valores lado a lado embaixo */
-  .cp-cabeca, .cp-linha { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 14px; }
-  .cp-cabeca > span:first-child { display: none; }
-  .cp-cabeca h2 { font-size: 19px; }
-  .cp-linha .cp-rotulo, .cp-linha .cp-dif { grid-column: 1 / -1; }
-  .cp-linha .cp-dif:empty { display: none; }
-  .cp-cel strong { font-size: 19px; }
-
   /* frente a frente: o nome em cima, as barras embaixo, uma para cada lado */
   .cp-cabeca-esp { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
   .cp-cabeca-esp h2 { font-size: 19px; }
   .cp-linha-esp { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .cp-linha-esp .cp-rotulo { grid-column: 1 / -1; grid-row: 1; }
   .cp-esp strong { font-size: 16px; min-width: 0; }
-
-  .cp-lista li { flex-direction: column; gap: 4px; font-size: 15px; }
-  .cp-tabela table { font-size: 14px; }
-
-  .cp-variantes { left: 0; right: 0; bottom: 0; transform: none; max-width: none; box-shadow: none; justify-content: center; }
-  /* no celular, só o número da variação; a escolhida mostra o nome */
-  .cp-variantes span i, .cp-variantes a:not([aria-current]) i { display: none; }
 }
