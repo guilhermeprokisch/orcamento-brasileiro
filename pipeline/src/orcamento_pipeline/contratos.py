@@ -96,7 +96,8 @@ def resumir_registro(x: dict) -> list | None:
         return None
     cat = (x.get("categoriaProcesso") or {}).get("id")
     return [x.get("numeroControlePNCP"), chave, (x.get("dataAssinatura") or "")[:4], cat,
-            x.get("tipoPessoa"), (x.get("niFornecedor") or "")[:8], (x.get("nomeRazaoSocialFornecedor") or "").strip(),
+            x.get("tipoPessoa"), (x.get("niFornecedor") or "")[:8] if x.get("tipoPessoa") == "PJ" else "",   # nunca o CPF
+            (x.get("nomeRazaoSocialFornecedor") or "").strip(),
             re.sub(r"\s+", " ", x.get("objetoContrato") or "").strip()[:220], x.get("valorGlobal") or 0]
 
 
@@ -200,6 +201,25 @@ def agregar(ano: int) -> dict:
             "uf": {k: v for k, v in sorted(saida.items()) if len(k) == 2}}
 
 
+def limpar_cpf() -> None:
+    """Tira de data/raw/pncp/contratos os 8 primeiros dígitos do CPF que os downloads antigos guardavam
+    para pessoa física. Roda sempre (também na publicação, com o cache do GitHub), antes do espelho."""
+    limpos = 0
+    for arquivo in sorted(PASTA.glob("*.json.gz")):
+        linhas = json.loads(gzip.decompress(arquivo.read_bytes()))
+        if not any(r[4] != "PJ" and r[5] for r in linhas):
+            continue
+        for r in linhas:
+            if r[4] != "PJ":
+                r[5] = ""
+        tmp = arquivo.with_name(arquivo.name + ".tmp")
+        tmp.write_bytes(gzip.compress(json.dumps(linhas, ensure_ascii=False, separators=(",", ":")).encode("utf-8"), mtime=0))
+        tmp.replace(arquivo)
+        limpos += 1
+    if limpos:
+        print(f"{limpos} dias sem o CPF de pessoa física em {PASTA.relative_to(c.RAIZ)}", flush=True)
+
+
 def main() -> None:
     hoje = dt.date.today()
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -209,6 +229,7 @@ def main() -> None:
     p.add_argument("--sem-baixar", action="store_true", help="só copiar a referência versionada para o site (publicação automática)")
     p.add_argument("--todos", action="store_true", help="baixar todas as esferas, inclusive a federal, para o explorador (data/raw/pncp/contratos-todos)")
     args = p.parse_args()
+    limpar_cpf()
     if args.sem_baixar:
         if REFERENCIA.exists():
             SAIDA.parent.mkdir(parents=True, exist_ok=True)
