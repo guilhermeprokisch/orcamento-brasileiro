@@ -22,6 +22,8 @@ export interface BaseDaPagina {
   padrao: number;
   /** O arquivo de cada ano: a sigla do estado (cidades) ou "estados". */
   grupo: string;
+  /** Só nas cidades: as emendas de cada ano, [à prefeitura, a entidades e empresas]. */
+  emendas?: Record<string, [number, number]>;
 }
 export type ArquivoDoAno = Pacote & { entes: Record<string, Ficha> };
 
