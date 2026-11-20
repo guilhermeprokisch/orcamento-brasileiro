@@ -125,6 +125,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline escolas
 
+      # Postos e hospitais (CNES) e internações pelo SUS por hospital (SIH): ~1 GB de arquivos do
+      # DATASUS, baixados à mão; aqui só a cópia em pipeline/referencia/ vai para o site.
+      - name: Postos e hospitais
+        continue-on-error: true
+        run: uv run --project pipeline unidades-saude --sem-baixar
+
       - name: Pipeline das matrículas
         continue-on-error: true
         run: uv run --project pipeline matriculas
