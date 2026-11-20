@@ -653,20 +653,21 @@ export function escolasDe(c: Cidade): Escolas | null {
   };
 }
 
-// Postos, UPAs e hospitais (pipeline/…/unidades_saude.py): CNES e internações do SIH/SUS.
+// Postos, UPAs e hospitais (pipeline/…/unidades_saude.py): CNES, internações do SIH/SUS e atendimentos do SIA/SUS.
 interface DocUnidadesSaude {
   fonte: string;
   ano: number;
   cnes: string;
-  /** unidades: [CNES, nome, grupo, bairro]; hospitais: [CNES, nome, quem administra, internações, valor, bairro] */
-  mun: Record<string, { unidades: [string, string, string, string][]; hospitais: [string, string, string, number, number, string][] }>;
+  /** unidades: [CNES, nome, grupo, bairro, atendimentos, exames, cirurgias, valor]; hospitais: [CNES, nome, quem administra, internações, valor, bairro] */
+  mun: Record<string, { unidades: [string, string, string, string, number?, number?, number?, number?][]; hospitais: [string, string, string, number, number, string][] }>;
 }
 const arquivosUnidades = import.meta.glob<DocUnidadesSaude>("../../public/data/indicadores/unidades-saude.json", { eager: true, import: "default" });
 const docUnidades: DocUnidadesSaude | null = Object.values(arquivosUnidades)[0] ?? null;
 
 export interface UnidadesSaude {
   fonte: string; ano: number; mesCnes: string;
-  unidades: { cnes: string; nome: string; grupo: string; bairro: string }[];
+  /** atendimentos, exames e cirurgias sem internação no ano, e o valor pago pela tabela do SUS (SIA) */
+  unidades: { cnes: string; nome: string; grupo: string; bairro: string; atendimentos: number; exames: number; cirurgias: number; valor: number }[];
   porGrupo: [string, number][];
   hospitais: { cnes: string; nome: string; quem: string; internacoes: number; valor: number; bairro: string }[];
 }
@@ -677,7 +678,7 @@ export function unidadesSaudeDe(c: Cidade): UnidadesSaude | null {
   // Primeiro o que a pessoa mais procura: o posto, a urgência, o hospital.
   const ORDEM = ["Posto ou unidade básica", "Urgência", "Hospital", "Especialidades", "Saúde mental (CAPS)", "Exames", "Vacinação", "Atenção domiciliar", "Vigilância em saúde", "Academia da saúde"];
   const ordem = (g: string) => (ORDEM.indexOf(g) + 1 || 99);
-  const unidades = v.unidades.map(([cnes, nome, grupo, bairro]) => ({ cnes, nome, grupo, bairro }))
+  const unidades = v.unidades.map(([cnes, nome, grupo, bairro, atendimentos = 0, exames = 0, cirurgias = 0, valor = 0]) => ({ cnes, nome, grupo, bairro, atendimentos, exames, cirurgias, valor }))
     .sort((x, y) => ordem(x.grupo) - ordem(y.grupo) || x.nome.localeCompare(y.nome, "pt-BR"));
   const conta = new Map<string, number>();
   for (const u of unidades) conta.set(u.grupo, (conta.get(u.grupo) ?? 0) + 1);

@@ -1,7 +1,8 @@
 ---
 /**
- * Os postos, UPAs e hospitais da cidade: as unidades da prefeitura (CNES) e quantas internações pelo
- * SUS cada hospital fez no ano, com o valor pago pela tabela do SUS (SIH). Fonte: pipeline/…/unidades_saude.py.
+ * Os postos, UPAs e hospitais da cidade: as unidades da prefeitura (CNES), com os atendimentos sem
+ * internação de cada uma (SIA), e quantas internações pelo SUS cada hospital fez no ano, com o valor
+ * pago pela tabela do SUS (SIH). Fonte: pipeline/…/unidades_saude.py.
  */
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import { unidadesSaudeDe } from "../../lib/indicadores";
@@ -45,6 +46,15 @@ const lista = (grupos: [string, number][]) => {
   return partes.length > 1 ? `${partes.slice(0, -1).join(", ")} e ${partes.at(-1)}` : partes[0];
 };
 const VISIVEIS = 15;
+// Os atendimentos sem internação das unidades da prefeitura (SIA): a soma e a linha de cada uma.
+const amb = (u?.unidades ?? []).reduce((s, x) => ({ a: s.a + x.atendimentos, e: s.e + x.exames, c: s.c + x.cirurgias, v: s.v + x.valor }), { a: 0, e: 0, c: 0, v: 0 });
+const contagem = (n: number, um: string, varios: string) => `${nf0.format(n)} ${n === 1 ? um : varios}`;
+const producao = (x: { atendimentos: number; exames: number; cirurgias: number; valor: number }) => {
+  const partes = ([[x.atendimentos, "procedimento", "procedimentos"], [x.exames, "exame", "exames"], [x.cirurgias, "cirurgia", "cirurgias"]] as [number, string, string][])
+    .filter(([n]) => n > 0).sort((a, b) => b[0] - a[0]).slice(0, 2).map(([n, um, varios]) => contagem(n, um, varios));
+  if (!partes.length && x.valor <= 0) return "";
+  return [partes.join(" e "), x.valor > 0 ? moedaCurta(x.valor) : ""].filter(Boolean).join(" · ");
+};
 ---
 
 {u && (u.unidades.length > 0 || u.hospitais.length > 0) && (
@@ -58,6 +68,14 @@ const VISIVEIS = 15;
           {" "}em funcionamento: {lista(u.porGrupo)}.
         </p>
       )}
+      {amb.v > 0 && (
+        <p>
+          Sem contar as internações, as unidades da prefeitura registraram em {u.ano}{" "}
+          <strong>{([[amb.a, "procedimento", "procedimentos"], [amb.e, "exame", "exames"], [amb.c, "cirurgia sem internação", "cirurgias sem internação"]] as [number, string, string][])
+            .filter(([n]) => n > 0).map(([n, um, varios]) => contagem(n, um, varios)).reduce((s, t, i, l) => s + (i === 0 ? "" : i === l.length - 1 ? " e " : ", ") + t, "")}</strong>,
+          pelos quais o SUS pagou {moedaExtenso(amb.v)} pela tabela.
+        </p>
+      )}
       {u.hospitais.length > 0 && (
         <p>
           Em {u.ano}, {u.hospitais.length === 1 ? "o hospital da cidade fez" : `os ${nf0.format(u.hospitais.length)} hospitais da cidade que atendem pelo SUS fizeram`}{" "}
@@ -67,9 +85,10 @@ const VISIVEIS = 15;
       )}
       <p class="menor">
         O valor das internações é o que o SUS paga por procedimento, pela tabela nacional; não é o custo do hospital,
-        que tem salários e outras despesas pagas por fora, sobretudo nos hospitais públicos. Postos e unidades básicas
-        não aparecem com valor porque o SUS os paga pelo número de moradores atendidos, não por consulta. Os nomes vêm do
-        cadastro, às vezes sem acentos.
+        que tem salários e outras despesas pagas por fora, sobretudo nos hospitais públicos. O mesmo vale para os
+        procedimentos das unidades. Um atendimento costuma gerar vários procedimentos (a consulta, o remédio aplicado, a
+        medição da pressão), por isso os números são altos. Postos e unidades básicas aparecem com poucos ou nenhum: o SUS os paga
+        pelo número de moradores, e as consultas deles são registradas em outro sistema. Os nomes vêm do cadastro, às vezes sem acentos.
       </p>
     </div>
     <div class="lado">
@@ -105,14 +124,14 @@ const VISIVEIS = 15;
           <ul class="lista">
             {u.unidades.map((x, i) => (
               <li class:list={{ escondida: i >= VISIVEIS }} data-busca={`${x.nome} ${x.bairro} ${x.grupo}`.toLowerCase()}>
-                <span>{titulo(x.nome)}<small>{x.grupo}{x.bairro && ` · ${titulo(x.bairro)}`}</small></span>
+                <span>{titulo(x.nome)}<small>{x.grupo}{x.bairro && ` · ${titulo(x.bairro)}`}</small>{producao(x) && <small class="producao">{producao(x)}</small>}</span>
               </li>
             ))}
           </ul>
           {u.unidades.length > VISIVEIS && <button type="button" class="mais" data-mais>Mostrar as {nf0.format(u.unidades.length)} unidades</button>}
         </div>
       )}
-      <p class="fonte">Fonte: {u.fonte}. Cadastro de {quando}; internações de {u.ano}.</p>
+      <p class="fonte">Fonte: {u.fonte}. Cadastro de {quando}; internações e atendimentos de {u.ano}.</p>
     </div>
   </section>
 )}
@@ -150,6 +169,7 @@ const VISIVEIS = 15;
   .d { text-align: right; }
   .nome, .lista li span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   small { font-size: 12px; color: var(--texto-3); }
+  .producao { color: var(--texto-2); font-variant-numeric: tabular-nums; }
   .busca { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--texto-3); }
   .busca input { font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--tinta); background: var(--papel, #fff); color: var(--tinta); }
   .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; }
