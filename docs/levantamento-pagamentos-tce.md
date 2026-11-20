@@ -71,6 +71,8 @@ Em ordem de quantas prefeituras cada passo traz. Os pedidos pela Lei de Acesso �
 5. **Capital de São Paulo:** criar uma conta gratuita na APILib da prefeitura (`apilib.prefeitura.sp.gov.br`) e gerar a chave da API-SOF. Antes de usar, falta confirmar se ela traz o credor.
 6. **Nome do credor no RJ, RN e MA:** não precisa pedir nada. Cruzar o CNPJ com o cadastro aberto de CNPJ da Receita Federal (`arquivos.receitafederal.gov.br`), que tem a razão social. Pessoas físicas ficam sem nome.
 
+**Pedidos enviados em 20/11/2026**, por e-mail às ouvidorias (o prazo de 20 dias vence por volta de 10/12/2026): chave da API ao TCM-GO e pedido pela LAI ao TCM-BA, TCE-SC, TCM-PA, TCE-MT, TCE-AL, TCE-MS, TCE-RO, TCE-AP e TCE-RR. O do TCE-SE não saiu: o servidor de e-mail não conseguiu entregar e precisa ser reenviado.
+
 Modelo de pedido (trocar o tribunal e o estado):
 
 > Com base na Lei 12.527/2011, solicito os dados de execução da despesa de todos os municípios do estado, que este Tribunal recebe das prefeituras e câmaras: empenhos, liquidações e pagamentos, com número do empenho, data, órgão, elemento de despesa, nome e CPF/CNPJ do credor e valores empenhado, liquidado e pago, de 2021 até hoje, em formato aberto (CSV ou API), por município ou para o estado inteiro. Se já houver um endereço público para baixar esses dados, peço que o informem. Os dados serão usados no site orcamentobrasileiro.com.br, que mostra de forma simples para onde vai o dinheiro público, com a devida citação da fonte.
