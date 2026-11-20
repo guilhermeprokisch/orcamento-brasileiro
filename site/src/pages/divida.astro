@@ -8,6 +8,7 @@ import Base from "../layouts/Base.astro";
 import Termo from "../components/Termo.astro";
 import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
 import { linkExplorer } from "../lib/perfis";
+import { docEstados, NOMES_UF } from "../lib/cidades";
 import {
   DETENTORES, INDEXADORES, docDivida as d, fatias, gastoNoOrcamento, mesCurto, mesExtenso, pontos, ultimoMes, type DocDividaFederal,
 } from "../lib/divida-federal";
@@ -19,6 +20,27 @@ const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
 const bi = (v: number | null) => (v ?? 0) * 1e9;
 /** "4 vezes", "1,5 vez" */
 const vezes = (v: number) => (v >= 1.95 ? `${nf0.format(Math.round(v))} vezes` : `${nf1.format(v)} vez`);
+
+/** A dívida dos estados ao lado da federal, no fim do mesmo ano. */
+function compararEstados(d: DocDividaFederal) {
+  const e = d.estados;
+  const iDez = e ? d.meses.indexOf(`${e.ano}-12`) : -1;
+  if (!e || iDez < 0 || d.dpf[iDez] === null) return null;
+  const siglaDe = new Map((docEstados?.cidades ?? []).map((x) => [String(x.ibge), x.uf]));
+  const linhas = Object.entries(e.uf).map(([ibge, [dc, uniao, dcl, rcl]]) => {
+    const uf = siglaDe.get(ibge) ?? ibge;
+    return { ibge, uf, nome: NOMES_UF[uf] ?? uf, dc, uniao, razao: rcl > 0 ? dcl / rcl : null };
+  }).sort((a, b) => b.dc - a.dc);
+  const total = linhas.reduce((t, l) => t + l.dc, 0);
+  const uniao = linhas.reduce((t, l) => t + l.uniao, 0);
+  const federal = bi(d.dpf[iDez]);
+  const pib = bi(d.pib12[iDez]);
+  const quatro = linhas.slice(0, 4);
+  return {
+    ano: e.ano, fonte: e.fonte, linhas, total, uniao, federal, pibEstados: total / pib, pibFederal: federal / pib,
+    quatro, parteQuatro: quatro.reduce((t, l) => t + l.dc, 0) / total, maxDc: linhas[0]?.dc ?? 1,
+  };
+}
 
 function calcular(d: DocDividaFederal) {
   const iU = ultimoMes(d);
@@ -82,7 +104,7 @@ function calcular(d: DocDividaFederal) {
     pts, det, ind, detU, indU, ind0, mudancas, maiorDet, totalDet: bi(d.detentores.total[iU]),
     vence, venceParte, prazo, vencimentos, maxParte,
     custo: d.custo_medio[iU], anoComp, orc, jurosComp, comparacao, maxComp, jurosAnos, maxJurosPib,
-    fatores, somaF, maxF, anosVendeuMais,
+    fatores, somaF, maxF, anosVendeuMais, estados: compararEstados(d),
   };
 }
 const dados = d ? calcular(d) : null;
@@ -127,6 +149,7 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
           <a href="#tipo">De que tipo</a>
           <a href="#vence">Quando vence</a>
           <a href="#custo">Quanto custa</a>
+          {dados.estados && <a href="#estados">E os estados?</a>}
         </nav>
 
         <!-- 1. Quanto é -->
@@ -379,6 +402,74 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
           </div>
         </section>
 
+        <!-- 6. E os estados? -->
+        {dados.estados && (() => {
+          const e = dados.estados;
+          return (
+            <section class="bloco" id="estados">
+              <div class="texto">
+                <h2>E os estados?</h2>
+                <p>
+                  No fim de {e.ano}, os 26 governos estaduais e o do Distrito Federal deviam, juntos, <strong>{moedaExtenso(e.total)}</strong>,{" "}
+                  {pct0(e.pibEstados)} do PIB. A dívida federal, no mesmo dia, era de {moedaExtenso(e.federal)}, {pct0(e.pibFederal)} do PIB:{" "}
+                  {vezes(e.federal / e.total)} maior.
+                </p>
+                <p>
+                  Boa parte do que os estados devem, devem à própria União. Nos anos 1990, o governo federal assumiu as dívidas dos estados
+                  com bancos e com o mercado e as renegociou em parcelas longas; depois, vieram outras renegociações. Pelo menos{" "}
+                  <strong>{moedaExtenso(e.uniao)} ({pct0(e.uniao / e.total)})</strong> da dívida dos estados é essa dívida com a União.
+                  Para emprestar, a União também se endividou: quando um estado deixa de pagar, é o Tesouro que fica sem receber.
+                </p>
+                <p>
+                  A dívida estadual está concentrada: {e.quatro.slice(0, -1).map((l) => l.nome).join(", ")} e {e.quatro.at(-1)!.nome} respondem
+                  por {pct0(e.parteQuatro)} do total.
+                </p>
+                <p class="menor">
+                  "Pelo menos" porque alguns estados lançam a dívida com a União em outra linha do relatório fiscal: o Rio Grande do Sul, por exemplo,
+                  a põe em empréstimos internos. A conta dos estados é a dívida consolidada do Relatório de Gestão Fiscal (empréstimos,
+                  renegociações, precatórios vencidos); a federal é a dívida pública federal do Tesouro. As duas medem coisas parecidas, não idênticas.
+                  Ao lado de cada estado, a <Termo id="divida-consolidada-liquida">dívida líquida</Termo> como parte da{" "}
+                  <Termo id="receita-corrente-liquida">receita corrente líquida</Termo>; o limite da <Termo id="lrf" /> é 200%.
+                </p>
+              </div>
+              <div class="grafico">
+                <div class="comparacao" aria-label={`Dívida federal e dívida dos estados no fim de ${e.ano}`}>
+                  <h3>No fim de {e.ano}</h3>
+                  <div class="item">
+                    <span class="nome">Governo federal</span>
+                    <span class="trilho grosso"><span class="barra" style="width:100%;background:var(--tinta)"></span></span>
+                    <strong class="num">{moedaCurta(e.federal)}</strong>
+                  </div>
+                  <div class="item">
+                    <span class="nome">Os 27 estados</span>
+                    <span class="trilho grosso estados-total">
+                      <span class="seg uniao" style={`width:${(e.uniao / e.federal) * 100}%`}></span>
+                      <span class="seg resto" style={`width:${((e.total - e.uniao) / e.federal) * 100}%`}></span>
+                    </span>
+                    <strong class="num">{moedaCurta(e.total)}</strong>
+                  </div>
+                  <ul class="legenda-curta" aria-hidden="true">
+                    <li><span class="cor uniao"></span>Devido à União (pelo menos)</li>
+                    <li><span class="cor resto"></span>Bancos, organismos internacionais, precatórios e outros</li>
+                  </ul>
+                </div>
+                <h3>Quanto deve cada estado</h3>
+                <ol class="linhas estados" aria-label={`Dívida consolidada de cada governo estadual no fim de ${e.ano}`}>
+                  <li class="cabeca-linhas" aria-hidden="true"><span></span><span></span><span>dívida · % da receita</span></li>
+                  {e.linhas.slice(0, 10).map((l) => (
+                    <li title={`${l.nome}: ${moedaCurta(l.dc)}${l.razao !== null ? `; dívida líquida de ${pct0(l.razao)} da receita corrente líquida` : ""}`}>
+                      <a class="rotulo" href={`/estados/${l.uf.toLowerCase()}`}>{l.nome}</a>
+                      <span class="trilho"><span class="barra" style={`width:${(l.dc / e.maxDc) * 100}%`}></span></span>
+                      <span class="num valor"><strong>{moedaCurta(l.dc)}</strong> <span class:list={{ acima: l.razao !== null && l.razao >= 2 }}>{l.razao !== null ? pct0(Math.max(0, l.razao)) : "—"}</span></span>
+                    </li>
+                  ))}
+                </ol>
+                <p class="menor-grafico">Os outros {e.linhas.length - 10} estados devem, juntos, {moedaCurta(e.linhas.slice(10).reduce((t, l) => t + l.dc, 0))}. <a href="/estados">Veja todos os estados →</a></p>
+              </div>
+            </section>
+          );
+        })()}
+
         <section class="fontes">
           <h2>De onde vêm os números</h2>
           <ul>
@@ -391,6 +482,7 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
               juros nominais do governo federal (4607 e 5751) e PIB dos últimos 12 meses (4382).
             </li>
             <li>Saúde, educação e juros pagos no orçamento: Portal da Transparência (CGU), os mesmos dados do <a href="/explorer">Explorer</a>.</li>
+            {d.estados && <li>Dívida dos estados: {d.estados.fonte} de {d.estados.ano}, pela API do SICONFI.</li>}
           </ul>
           <p class="menor">
             A dívida em % do PIB é calculada aqui: o estoque do fim do mês dividido pelo PIB dos 12 meses anteriores.
@@ -458,6 +550,15 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
   .legenda-curta { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--texto-3); }
   .legenda-curta li { display: flex; align-items: center; gap: 6px; }
   .legenda-curta .cor { width: 14px; height: 14px; display: inline-block; border: 1px solid var(--tinta); }
+  .estados-total { display: flex; }
+  .seg.uniao, .legenda-curta .uniao { background: var(--verde); }
+  .seg.resto, .legenda-curta .resto { background: #b3dfc4; }
+  .linhas.estados li { grid-template-columns: 150px minmax(0, 1fr) 160px; }
+  .linhas .cabeca-linhas span { white-space: nowrap; }
+  .linhas.estados .rotulo { color: var(--tinta); text-decoration: none; }
+  .linhas.estados .rotulo:hover { text-decoration: underline; }
+  .linhas .valor .acima { color: #a3401a; font-weight: 600; }
+  .menor-grafico { margin: 0; font-size: 14px; color: var(--texto-3); }
   .dentro { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--tinta); }
 
   /* Legenda com a fatia do último mês */
@@ -497,6 +598,7 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
     .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
     .texto h2 { font-size: 28px; }
     .linhas li { grid-template-columns: 62px minmax(0, 1fr) 112px; gap: 10px; }
+    .linhas.estados li { grid-template-columns: 112px minmax(0, 1fr) 140px; }
     .pilhas li { grid-template-columns: 62px minmax(0, 1fr); gap: 10px; }
     .comparacao .item { grid-template-columns: 1fr auto; }
     .comparacao .item .trilho { grid-column: 1 / -1; grid-row: 2; }

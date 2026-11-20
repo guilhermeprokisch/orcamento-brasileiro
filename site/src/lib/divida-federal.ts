@@ -29,6 +29,9 @@ export interface DocDividaFederal {
   fatores?: Record<string, [number, number, number]>;
   /** último mês somado em "fatores" (o ano em andamento vai até ele) */
   fatores_ate?: string;
+  /** Dívida dos governos estaduais no fim de `ano` (RGF, Anexo 2): código IBGE → [dívida consolidada,
+   * renegociada com a União (como o estado declara), dívida consolidada líquida, receita corrente líquida ajustada], reais */
+  estados?: { ano: number; fonte: string; uf: Record<string, [number, number, number, number]> };
 }
 
 const arquivos = import.meta.glob<DocDividaFederal>("../../public/data/federal/divida.json", { eager: true, import: "default" });

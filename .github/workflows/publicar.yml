@@ -148,8 +148,9 @@ jobs:
         run: uv run --project pipeline divida --prefeituras --max-chamadas 0
 
       # Dívida pública federal (/divida): o anexo do Relatório Mensal da Dívida do Tesouro (~4 MB, sai uma
-      # vez por mês) e cinco séries do Banco Central, ~15 segundos. Se o download falhar, o comando usa
-      # sozinho a cópia em pipeline/referencia/divida-federal.json (a mesma do --sem-baixar).
+      # vez por mês), cinco séries do Banco Central e o RGF dos 27 estados (27 consultas ao SICONFI), ~40
+      # segundos. Se o download falhar, o comando usa sozinho a cópia em pipeline/referencia/divida-federal.json
+      # (a mesma do --sem-baixar).
       - name: Pipeline da dívida federal
         continue-on-error: true
         run: uv run --project pipeline divida-federal

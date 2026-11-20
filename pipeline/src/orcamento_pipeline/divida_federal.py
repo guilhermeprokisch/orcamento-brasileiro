@@ -20,6 +20,9 @@ Fontes (ver docs/divida-federal.md):
     4607   juros nominais do Governo Federal, fluxo do mês, R$ milhões (NFSP sem desvalorização cambial)
     5751   os mesmos juros, acumulados em 12 meses, % do PIB
     4382   PIB acumulado em 12 meses, R$ milhões (para pôr a DPF em % do PIB)
+- Tesouro Nacional, Relatório de Gestão Fiscal (RGF) de cada governo estadual, Anexo 2, fim do último ano
+  fechado (API do SICONFI, 27 consultas): a dívida consolidada e, dentro dela, a "Reestruturação da Dívida
+  de Estados e Municípios", que é a dívida renegociada com a União. Para comparar com a dívida federal.
 
 Cache do anexo em data/raw/tesouro/rmd/. Saída em site/public/data/federal/divida.json, com cópia
 versionada em pipeline/referencia/divida-federal.json (usada com --sem-baixar ou se o download falhar):
@@ -30,6 +33,9 @@ versionada em pipeline/referencia/divida-federal.json (usada com --sem-baixar ou
      "juros": {"2025": [R$ bi, % do PIB], …}, "juros_12m": {"ate": "2026-09", "valor": R$ bi, "pib": %},
      "fatores": {"2025": [vendidos menos pagos, juros apropriados, Banco Central], …}, "fatores_ate": "2026-09"}
 O ano em andamento entra em "fatores" com os meses até "fatores_ate".
+Mais "estados": {"ano": 2025, "fonte": …, "uf": {"35": [dívida consolidada, renegociada com a União,
+dívida consolidada líquida, receita corrente líquida ajustada]}} (reais). Se a API do SICONFI falhar,
+fica o bloco da cópia versionada.
 As listas mensais seguem "meses" (de janeiro de 2014 ao mês do último RMD); null onde falta o dado.
 """
 
@@ -195,6 +201,47 @@ def sgs(serie: int) -> dict[str, float]:
 
 # ── Montagem ─────────────────────────────────────────────────────────────────────────────────────
 
+UFS = (11, 12, 13, 14, 15, 16, 17, 21, 22, 23, 24, 25, 26, 27, 28, 29, 31, 32, 33, 35, 41, 42, 43, 50, 51, 52, 53)
+FONTE_ESTADOS = "Tesouro Nacional, Relatório de Gestão Fiscal dos estados (Anexo 2), 3º quadrimestre"
+FIM_DO_ANO = re.compile(r"(3º|3°|3o)\s*quadrimestre", re.I)
+
+
+def _rgf_estado(ano: int, ibge: int) -> list[float] | None:
+    """[DC, renegociada com a União, DCL, RCL ajustada] no fim do ano; None se o estado não entregou."""
+    d = c._get("rgf", {"an_exercicio": ano, "in_periodicidade": "Q", "nr_periodo": 3, "co_tipo_demonstrativo": "RGF",
+                       "no_anexo": "RGF-Anexo 02", "co_esfera": "E", "co_poder": "E", "id_ente": ibge})
+    v: dict[str, float] = {}
+    for i in d.get("items", []):
+        if not FIM_DO_ANO.search(i.get("coluna") or ""):
+            continue
+        conta, valor = c._so_letras(i["conta"]), float(i.get("valor") or 0)
+        if conta.startswith("dividaconsolidadaliquida"):
+            v.setdefault("dcl", valor)
+        elif conta.startswith("dividaconsolidada"):
+            v.setdefault("dc", valor)
+        elif conta.startswith("reestruturacaodadivida"):
+            v.setdefault("uniao", valor)
+        elif conta.startswith("receitacorrenteliquidaajustada"):
+            v.setdefault("rcl", valor)
+    if "dc" not in v:
+        return None
+    return [round(v["dc"]), round(v.get("uniao", 0)), round(v.get("dcl", 0)), round(v.get("rcl", 0))]
+
+
+def estados() -> dict:
+    """A dívida de cada governo estadual no fim do último ano com o RGF de todos (ou quase todos) os estados."""
+    for ano in (date.today().year - 1, date.today().year - 2):
+        uf = {}
+        for ibge in UFS:
+            if (linha := _rgf_estado(ano, ibge)) is not None:
+                uf[str(ibge)] = linha
+        if len(uf) >= 25:
+            print(f"  estados: RGF de {ano}, {len(uf)} de 27", flush=True)
+            return {"ano": ano, "fonte": FONTE_ESTADOS, "uf": uf}
+        print(f"  estados: só {len(uf)} RGFs de {ano}; tentando o ano anterior", flush=True)
+    raise ValueError("RGF dos estados incompleto")
+
+
 def montar(anexo: dict, bc: dict[int, dict[str, float]], nome: str, url: str) -> dict:
     ultimo = max(anexo["indexador"])
     a0, m0 = PRIMEIRO_ANO, 1
@@ -290,6 +337,13 @@ def main() -> None:
             return
         raise
     doc = montar(anexo, bc, nome, url)
+    try:
+        doc["estados"] = estados()
+    except Exception as erro:   # a API do SICONFI às vezes falha: fica o bloco da cópia versionada
+        anterior = json.loads(REFERENCIA.read_text(encoding="utf-8")).get("estados") if REFERENCIA.exists() else None
+        print(f"  aviso: RGF dos estados falhou ({erro}); {'mantendo o da cópia versionada' if anterior else 'sem o bloco'}", flush=True)
+        if anterior:
+            doc["estados"] = anterior
     print(resumo(doc), flush=True)
     texto = json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
     for destino in (SAIDA, REFERENCIA):

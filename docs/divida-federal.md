@@ -48,6 +48,19 @@ Os códigos foram achados no portal de dados abertos do BC (`dadosabertos.bcb.go
 Escolhemos os juros do **Governo Federal** (4607), e não os do "Governo Federal e Banco Central"
 (4606) nem os do setor público consolidado (4616), porque a página fala da dívida do Tesouro.
 
+### Dívida dos estados (bloco "E os estados?")
+
+API do SICONFI, `rgf` com `no_anexo=RGF-Anexo 02`, `co_esfera=E`, 3º quadrimestre do último ano fechado,
+uma consulta por estado (27). Guardamos a dívida consolidada, a linha "Reestruturação da Dívida de
+Estados e Municípios" (a dívida renegociada com a União, Lei 9.496/1997 e seguintes), a dívida
+consolidada líquida e a receita corrente líquida ajustada. Fim de 2025: R$ 1.255,9 bi de dívida
+consolidada (o mesmo total de `site/public/data/estados/divida.json`), dos quais R$ 768,2 bi (61%) na
+linha de reestruturação. Cuidado: nem todo estado usa essa linha. O Rio Grande do Sul lança a dívida
+com a União em "Empréstimos internos" (R$ 108 bi), por isso a página diz "pelo menos" e não mostra a
+divisão estado a estado. Os conjuntos do CKAN com a dívida dos estados por credor
+(`estoque-da-divida-de-estados-e-do-distrito-federal`, `saldos-devedores-e-fluxo-de-recebimentos-de-haveres-financeiros-por-mutuario`)
+pararam em 2017 e 2019.
+
 ### Orçamento (saúde, educação e juros pagos)
 
 Dos arquivos do Explorer (`site/public/data/explorer/<ano>.json`, Portal da Transparência), no build:
