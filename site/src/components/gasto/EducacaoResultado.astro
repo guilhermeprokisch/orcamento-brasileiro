@@ -55,14 +55,14 @@ const linhas = ideb
         <p>
           Em {cidade.ano}, a prefeitura gastou <strong>{porPessoa(aluno.porAluno)} por aluno</strong> das escolas dela
           ({nf0.format(aluno.alunos)} alunos), {moedaCurta(gasto)} no total{total > 0 && <>, {pct(gasto / total)} de tudo o que gastou</>}.
-          {aluno.mediana !== null && faixa && <> A mediana das cidades {faixa} é {porPessoa(aluno.mediana)} por aluno.</>}
-          {porHab !== null && <> Por habitante, são {porPessoa(porHab)}.</>}
+          {aluno.mediana !== null && faixa && <> A mediana das cidades parecidas é {porPessoa(aluno.mediana)} por aluno.</>}
+          {porHab !== null && <> Por morador, são {porPessoa(porHab)}.</>}
         </p>
       ) : porHab !== null && (
         <p>
-          Em {cidade.ano}, a prefeitura gastou <strong>{porPessoa(porHab)} por habitante</strong> em educação
+          Em {cidade.ano}, a prefeitura gastou <strong>{porPessoa(porHab)} por morador</strong> em educação
           ({moedaCurta(gasto)}{total > 0 && <>, {pct(gasto / total)} de tudo o que gastou</>}).
-          {medianaGasto !== null && faixa && <> A mediana das cidades {faixa} é {porPessoa(medianaGasto)}.</>}
+          {medianaGasto !== null && faixa && <> A mediana das cidades parecidas é {porPessoa(medianaGasto)}.</>}
         </p>
       )}
       {municipal ? (
@@ -81,7 +81,7 @@ const linhas = ideb
         gastar mais para chegar à mesma nota.
         {aluno
           ? <> O gasto por aluno divide tudo o que a prefeitura gastou em educação (inclusive merenda, transporte e salários) pelas matrículas das escolas dela no Censo Escolar de {aluno.ano}, da creche ao ensino fundamental. Creches conveniadas, pagas pela prefeitura mas registradas como escolas privadas, não entram nas matrículas; nas cidades que usam muito esse modelo, como São Paulo, e nas que pagam aposentadorias de professores com o dinheiro da educação, o valor por aluno fica mais alto.</>
-          : <> O gasto é por habitante, não por aluno.</>}
+          : <> O gasto é por morador, não por aluno.</>}
       </p>
     </div>
     <div class="dados">

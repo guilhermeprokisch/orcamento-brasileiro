@@ -106,6 +106,6 @@ export function subfuncoesDa(c: Cidade, funcao: string, doc: DocCidades | null =
 }
 
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
-export const habitantes = (n: number) => `${nf0.format(n)} habitantes`;
+export const habitantes = (n: number) => `${nf0.format(n)} moradores`;
 /** "R$ 1.234" por pessoa (sem centavos). */
 export const porPessoa = (v: number) => `R$ ${nf0.format(Math.round(v))}`;

@@ -24,7 +24,7 @@ const gastoDaPrefeitura = cidade.total?.[0] ?? 0;
       <h2>O que o governo do estado gastou aqui</h2>
       <p>
         Em {g.ano}, o governo {deUf(cidade.uf)} {g.texto?.resumo ?? "comprometeu"} <strong>{moedaExtenso(g.local)}</strong>{" "}
-        {g.texto?.onde ?? "em obras, serviços e compras registrados em"} {cidade.nome}, ou {porPessoa(g.local / cidade.pop)} por habitante.
+        {g.texto?.onde ?? "em obras, serviços e compras registrados em"} {cidade.nome}, ou {porPessoa(g.local / cidade.pop)} por morador.
         {gastoDaPrefeitura > 0 && <> A prefeitura gastou {moedaExtenso(gastoDaPrefeitura)} no mesmo ano.</>}
       </p>
       {g.texto ? (

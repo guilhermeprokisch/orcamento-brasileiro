@@ -45,6 +45,7 @@
 }
 .ficha .areas .d { text-align: right; }
 .ficha .areas .nome { font-weight: 600; min-width: 0; }
+.ficha .areas .nome small { display: block; font-size: 12px; font-weight: 400; color: var(--texto-3); }
 .ficha .areas .trilho { position: relative; display: block; height: 14px; }
 .ficha .areas .barra { display: block; height: 100%; min-width: 2px; }
 .ficha .areas .mediana { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tinta); }

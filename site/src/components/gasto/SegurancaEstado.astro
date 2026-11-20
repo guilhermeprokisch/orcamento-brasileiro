@@ -1,6 +1,6 @@
 ---
 /**
- * Segurança pública no estado: o gasto por habitante ao lado dos homicídios por 100 mil
+ * Segurança pública no estado: o gasto por morador ao lado dos homicídios por 100 mil
  * habitantes, com a mediana dos estados (ou das cidades do mesmo porte) e o Brasil. Segurança é
  * tarefa principal dos estados (polícias militar e civil); nas cidades, a seção aparece a partir
  * de 100 mil habitantes, com o gasto da prefeitura (guarda municipal, iluminação, prevenção).
@@ -43,7 +43,7 @@ const muitasIndeterminadas = h ? h.indeterminadas > h.homicidios * 0.4 : false;
       <h2>Segurança: quanto se gasta e quantas pessoas são vítimas de homicídio</h2>
       {porHab !== null && (
         <p>
-          Em {e.ano}, {quem} gastou <strong>{porPessoa(porHab)} por habitante</strong> em segurança pública
+          Em {e.ano}, {quem} gastou <strong>{porPessoa(porHab)} por morador</strong> em segurança pública
           ({moedaCurta(gasto)}{total > 0 && gasto / total >= 0.001 && <>, {pct(gasto / total)} de tudo o que gastou</>}).
           {medGasto !== null && <> A mediana {grupo} é {porPessoa(medGasto)}.</>}
         </p>

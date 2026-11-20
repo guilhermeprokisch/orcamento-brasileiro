@@ -1,6 +1,6 @@
 ---
 /**
- * Saúde: o gasto por habitante ao lado da mortalidade infantil, com a mediana dos comparáveis
+ * Saúde: o gasto por morador ao lado da mortalidade infantil, com a mediana dos comparáveis
  * (cidades do mesmo porte ou os estados). Mostra os dois números juntos, sem concluir que um
  * causa o outro.
  */
@@ -38,7 +38,7 @@ const frente = m && m.taxa !== null && m.mediana !== null ? m.taxa / m.mediana -
       <h2>Saúde: quanto se gasta e quantos bebês sobrevivem</h2>
       {porHab !== null && (
         <p>
-          Em {ente.ano}, {quem} gastou <strong>{porPessoa(porHab)} por habitante</strong> em saúde
+          Em {ente.ano}, {quem} gastou <strong>{porPessoa(porHab)} por morador</strong> em saúde
           ({moedaCurta(gasto)}{total > 0 && <>, {pct(gasto / total)} de tudo o que gastou</>}).
           {medGasto !== null && grupo && <> A mediana {grupo} é {porPessoa(medGasto)}.</>}
         </p>

@@ -54,13 +54,13 @@ PRIMEIRO_ANO = 2014  # a DCA de 2013 vem vazia na API
 
 # Faixas de população para comparar cada cidade com as de porte parecido.
 FAIXAS = [
-    (5_000, "até 5 mil habitantes"),
-    (10_000, "de 5 a 10 mil habitantes"),
-    (20_000, "de 10 a 20 mil habitantes"),
-    (50_000, "de 20 a 50 mil habitantes"),
-    (100_000, "de 50 a 100 mil habitantes"),
-    (500_000, "de 100 a 500 mil habitantes"),
-    (None, "mais de 500 mil habitantes"),
+    (5_000, "até 5 mil moradores"),
+    (10_000, "de 5 a 10 mil moradores"),
+    (20_000, "de 10 a 20 mil moradores"),
+    (50_000, "de 20 a 50 mil moradores"),
+    (100_000, "de 50 a 100 mil moradores"),
+    (500_000, "de 100 a 500 mil moradores"),
+    (None, "mais de 500 mil moradores"),
 ]
 
 
