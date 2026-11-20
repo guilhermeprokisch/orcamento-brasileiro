@@ -147,6 +147,13 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline divida --prefeituras --max-chamadas 0
 
+      # Dívida pública federal (/divida): o anexo do Relatório Mensal da Dívida do Tesouro (~4 MB, sai uma
+      # vez por mês) e cinco séries do Banco Central, ~15 segundos. Se o download falhar, o comando usa
+      # sozinho a cópia em pipeline/referencia/divida-federal.json (a mesma do --sem-baixar).
+      - name: Pipeline da dívida federal
+        continue-on-error: true
+        run: uv run --project pipeline divida-federal
+
       # Contratos das prefeituras (PNCP): baixar um ano leva horas e o portal limita os pedidos, então a
       # carga é feita à mão e fica em pipeline/referencia/contratos.json; aqui só vai para o site.
       - name: Contratos das prefeituras

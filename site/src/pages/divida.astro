@@ -1,0 +1,439 @@
+---
+/**
+ * A dívida pública federal explicada para quem não é da área: quanto é, quem empresta, de que tipo,
+ * quando vence e quanto custa. Dados de pipeline/…/divida_federal.py (Relatório Mensal da Dívida do
+ * Tesouro e séries do Banco Central) e, para saúde e educação, do Explorer.
+ */
+import Base from "../layouts/Base.astro";
+import Termo from "../components/Termo.astro";
+import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
+import { linkExplorer } from "../lib/perfis";
+import {
+  DETENTORES, INDEXADORES, docDivida as d, fatias, gastoNoOrcamento, mesExtenso, pontos, ultimoMes, type DocDividaFederal,
+} from "../lib/divida-federal";
+
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
+const bi = (v: number | null) => (v ?? 0) * 1e9;
+/** "4 vezes", "1,5 vez" */
+const vezes = (v: number) => (v >= 1.95 ? `${nf0.format(Math.round(v))} vezes` : `${nf1.format(v)} vez`);
+
+function calcular(d: DocDividaFederal) {
+  const iU = ultimoMes(d);
+  const mesU = d.meses[iU];
+  const pts = pontos(d).filter((p) => p.i <= iU && d.dpf[p.i] !== null);
+  const p0 = pts[0];
+  const pib = (i: number) => (d.dpf[i] ?? 0) / (d.pib12[i] ?? Infinity);
+
+  // Quanto é: estoque e % do PIB, no fim de cada ano.
+  const estoque = pts.map((p) => ({ ...p, valor: bi(d.dpf[p.i]), pib: pib(p.i) }));
+  const maxPib = Math.max(...estoque.map((e) => e.pib));
+
+  // Quem empresta (só os títulos vendidos no país, a DPMFi) e de que tipo (toda a dívida).
+  const chavesDet = DETENTORES.map((x) => x.chave);
+  const chavesInd = INDEXADORES.map((x) => x.chave);
+  const det = (i: number) => fatias(d.detentores, chavesDet, d.detentores.total[i] ?? 1, i);
+  const ind = (i: number) => fatias(d.indexador, chavesInd, d.dpf[i] ?? 1, i);
+  const detU = det(iU), det0 = det(p0.i);
+  const indU = ind(iU), ind0 = ind(p0.i);
+  const mudancas = DETENTORES.map((x) => ({ ...x, antes: det0[x.chave], agora: detU[x.chave] }))
+    .sort((a, b) => (b.agora - b.antes) - (a.agora - a.antes));
+  const maiorDet = [...DETENTORES].sort((a, b) => detU[b.chave] - detU[a.chave]);
+
+  // Quando vence.
+  const vence = bi(d.vence_12m[iU]);
+  const venceParte = vence / bi(d.dpf[iU]);
+  const prazo = d.prazo_medio[iU] ?? 0;
+  const vencimentos = pts.map((p) => ({ ...p, parte: (d.vence_12m[p.i] ?? 0) / (d.dpf[p.i] ?? 1), prazo: d.prazo_medio[p.i] }));
+  const maxParte = Math.max(...vencimentos.map((v) => v.parte));
+
+  // Quanto custa: juros do governo federal (Banco Central) frente ao que o orçamento pagou em saúde e educação.
+  const anosJuros = Object.keys(d.juros).map(Number).sort((a, b) => a - b);
+  const anoComp = [...anosJuros].reverse().find((a) => gastoNoOrcamento(a)) ?? null;
+  const orc = anoComp ? gastoNoOrcamento(anoComp) : null;
+  const jurosComp = anoComp ? bi(d.juros[String(anoComp)][0]) : 0;
+  const comparacao = orc
+    ? [
+        { nome: "Juros da dívida federal", valor: jurosComp, cor: "var(--tinta)" },
+        { nome: "Saúde", valor: orc.saude, cor: "var(--verde)" },
+        { nome: "Educação", valor: orc.educacao, cor: "#4fae73" },
+      ]
+    : [];
+  const maxComp = Math.max(1, ...comparacao.map((c) => c.valor));
+  const jurosAnos = anosJuros.map((a) => ({ ano: a, valor: bi(d.juros[String(a)][0]), pib: d.juros[String(a)][1] }));
+  const maxJurosPib = Math.max(...jurosAnos.map((j) => j.pib ?? 0));
+
+  return {
+    iU, mesU, p0, estoque, maxPib, pibU: pib(iU), pib0: pib(p0.i), dpfU: bi(d.dpf[iU]), dpf0: bi(d.dpf[p0.i]),
+    dbggPib: d.dbgg_pib[iU], dbgg: bi(d.dbgg[iU]),
+    pts, det, ind, detU, indU, ind0, mudancas, maiorDet, totalDet: bi(d.detentores.total[iU]),
+    vence, venceParte, prazo, vencimentos, maxParte,
+    custo: d.custo_medio[iU], anoComp, orc, jurosComp, comparacao, maxComp, jurosAnos, maxJurosPib,
+  };
+}
+const dados = d ? calcular(d) : null;
+
+const descricao = dados
+  ? `Em ${mesExtenso(dados.mesU)}, o governo federal devia ${moedaExtenso(dados.dpfU)}, ${pct0(dados.pibU)} do PIB. Quem empresta, de que tipo é a dívida, quando vence e quanto custa.`
+  : "Quanto o governo federal deve, a quem, de que tipo, quando vence e quanto custa.";
+const explorerRefin = linkExplorer([{ dim: "gnd", cod: "6" }]);
+const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoComp ?? undefined);
+---
+
+<Base title="A dívida do governo federal · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap pagina-divida">
+    {!d || !dados ? (
+      <section class="cabeca"><div><h1>A dívida do governo federal</h1><p>Os dados da dívida ainda não foram carregados.</p></div></section>
+    ) : (
+      <>
+        <section class="cabeca">
+          <div>
+            <span class="sobretitulo">Governo federal · dados de {mesExtenso(dados.mesU)}</span>
+            <h1>A dívida do governo federal</h1>
+            <p>
+              Quando gasta mais do que arrecada, o governo federal pega dinheiro emprestado. Quase sempre faz isso vendendo{" "}
+              <Termo id="titulo-publico">títulos públicos</Termo>: quem compra empresta ao governo e recebe o dinheiro de volta, com juros, numa data marcada.
+              Em {mesExtenso(dados.mesU)}, a <Termo id="divida-publica-federal">dívida pública federal</Termo> era de{" "}
+              <strong class="marca">{moedaExtenso(dados.dpfU)}</strong>.
+            </p>
+          </div>
+        </section>
+
+        <section class="numeros" aria-label="A dívida em quatro números">
+          <div><span>Quanto deve</span><strong class="num">{moedaCurta(dados.dpfU)}</strong><small>{pct0(dados.pibU)} do PIB</small></div>
+          <div><span>Vence em 12 meses</span><strong class="num">{moedaCurta(dados.vence)}</strong><small>{pct(dados.venceParte)} do total</small></div>
+          <div><span>Prazo médio</span><strong class="num">{nf1.format(dados.prazo)} anos</strong><small>até vencer, em média</small></div>
+          <div><span>Juros em 12 meses</span><strong class="num">{moedaCurta(bi(d.juros_12m.valor))}</strong><small>{d.juros_12m.pib !== null ? `${nf1.format(d.juros_12m.pib)}% do PIB` : ""}</small></div>
+        </section>
+
+        <nav class="indice" aria-label="Nesta página">
+          <a href="#quanto">Quanto é</a>
+          <a href="#quem">Quem empresta</a>
+          <a href="#tipo">De que tipo</a>
+          <a href="#vence">Quando vence</a>
+          <a href="#custo">Quanto custa</a>
+        </nav>
+
+        <!-- 1. Quanto é -->
+        <section class="bloco" id="quanto">
+          <div class="texto">
+            <h2>Quanto é</h2>
+            <p>
+              Em {mesExtenso(dados.mesU)}, o governo federal devia <strong>{moedaExtenso(dados.dpfU)}</strong>, o equivalente a{" "}
+              <strong>{pct0(dados.pibU)} do <Termo id="pib" /></strong>, tudo o que o país produz em um ano.
+              No fim de {dados.p0.rotulo}, devia {moedaExtenso(dados.dpf0)}, {pct0(dados.pib0)} do PIB.
+              Em reais, a dívida ficou {vezes(dados.dpfU / dados.dpf0)} maior; frente à economia, que também cresceu, passou de {pct0(dados.pib0)} para {pct0(dados.pibU)}.
+            </p>
+            <p>
+              A dívida cresce de dois jeitos: quando o governo gasta mais do que arrecada (o déficit do{" "}
+              <Termo id="resultado-primario">resultado primário</Termo>) e quando os juros se somam ao que ele já devia.
+            </p>
+            {dados.dbggPib !== null && (
+              <p class="menor">
+                Há uma conta mais larga, a da <Termo id="dbgg">dívida bruta do governo geral</Termo>, feita pelo Banco Central: soma também
+                as dívidas dos estados e das prefeituras e os títulos que o Banco Central usa para controlar os juros. Em {mesExtenso(dados.mesU)},
+                ela era de {moedaExtenso(dados.dbgg)}, <strong>{nf1.format(dados.dbggPib)}% do PIB</strong>. É o número usado para comparar países.
+              </p>
+            )}
+          </div>
+          <ol class="linhas" aria-label="Dívida pública federal no fim de cada ano, em reais e em % do PIB">
+            {dados.estoque.map((e) => (
+              <li class:list={{ atual: !e.fimDeAno }} title={`${e.rotulo}: ${moedaCurta(e.valor)}, ${pct(e.pib)} do PIB`}>
+                <span class="num rotulo">{e.rotulo}</span>
+                <span class="trilho"><span class="barra" style={`width:${(e.pib / dados.maxPib) * 100}%`}></span></span>
+                <span class="num valor"><strong>{pct0(e.pib)}</strong> <span>{moedaCurta(e.valor)}</span></span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <!-- 2. Quem empresta -->
+        <section class="bloco" id="quem">
+          <div class="texto">
+            <h2>Quem empresta</h2>
+            <p>
+              Quem compra os títulos do governo são, sobretudo, instituições que guardam o dinheiro de outras pessoas.
+              Os maiores credores são {dados.maiorDet.slice(0, 3).map((x, k) => (
+                <>{k === 2 ? " e " : k === 1 ? ", " : ""}<strong>{x.o}</strong> ({pct0(dados.detU[x.chave])})</>
+              ))}.
+              Quem tem dinheiro aplicado num fundo, numa previdência privada ou num banco empresta ao governo sem saber.
+            </p>
+            <p>
+              Desde {dados.p0.rotulo}, o grupo que mais ganhou espaço foi o {dados.mudancas[0].de} (de {pct0(dados.mudancas[0].antes)} para{" "}
+              {pct0(dados.mudancas[0].agora)}); o que mais perdeu foi o {dados.mudancas.at(-1)!.de} (de {pct0(dados.mudancas.at(-1)!.antes)} para{" "}
+              {pct0(dados.mudancas.at(-1)!.agora)}).
+            </p>
+            <p class="menor">
+              A conta inclui só os títulos vendidos no Brasil, {moedaExtenso(dados.totalDet)} em {mesExtenso(dados.mesU)}, quase toda a dívida;
+              o resto é dívida no exterior. Pelo <Termo id="tesouro-direto" />, qualquer pessoa pode comprar títulos.
+            </p>
+          </div>
+          <div class="grafico">
+            <ul class="legenda">
+              {DETENTORES.map((x) => (
+                <li>
+                  <span class="cor" style={`background:${x.cor}`}></span>
+                  <span class="nome"><strong>{x.nome}</strong> <span>{x.explica}</span></span>
+                  <span class="num">{pct(dados.detU[x.chave])}</span>
+                </li>
+              ))}
+            </ul>
+            <ol class="pilhas" aria-label="Fatia de cada grupo de credores no fim de cada ano">
+              {dados.pts.map((p) => {
+                const f = dados.det(p.i);
+                return (
+                  <li class:list={{ atual: !p.fimDeAno }}>
+                    <span class="num rotulo">{p.rotulo}</span>
+                    <span class="pilha" title={DETENTORES.map((x) => `${x.nome}: ${pct(f[x.chave])}`).join(" · ")}>
+                      {DETENTORES.map((x) => <span style={`width:${f[x.chave] * 100}%;background:${x.cor}`}></span>)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </section>
+
+        <!-- 3. De que tipo -->
+        <section class="bloco" id="tipo">
+          <div class="texto">
+            <h2>De que tipo</h2>
+            <p>
+              Cada título tem uma regra para os juros. Em {mesExtenso(dados.mesU)}, <strong>{pct0(dados.indU.selic)}</strong> da dívida
+              pagava juros que seguem a <Termo id="selic" />; {pct0(dados.indU.inflacao)} pagava a inflação mais uma taxa;{" "}
+              {pct0(dados.indU.prefixado)} tinha <Termo id="prefixado">juros fixos</Termo>; e {pct0(dados.indU.cambio)} estava em dólar ou euro.
+            </p>
+            <p>
+              Em {dados.p0.rotulo}, a parte ligada à Selic era {pct0(dados.ind0.selic)}.
+              {dados.indU.selic > dados.ind0.selic
+                ? <> Hoje é bem maior. Por isso, quando o Banco Central sobe a Selic para segurar a inflação, a conta de juros do governo sobe quase na mesma hora.</>
+                : <> Quanto maior essa parte, mais rápido a conta de juros do governo sobe quando o Banco Central aumenta a Selic.</>}
+            </p>
+            <p class="menor">
+              Os títulos com juros fixos dão ao governo uma conta previsível, mas quem compra pede uma taxa maior para correr o risco.
+              Os ligados à Selic saem mais baratos na venda, mas deixam o governo exposto a cada alta de juros.
+            </p>
+          </div>
+          <div class="grafico">
+            <ul class="legenda">
+              {INDEXADORES.map((x) => (
+                <li>
+                  <span class="cor" style={`background:${x.cor}`}></span>
+                  <span class="nome"><strong>{x.nome}</strong> <span>{x.explica}</span></span>
+                  <span class="num">{pct(dados.indU[x.chave])}</span>
+                </li>
+              ))}
+            </ul>
+            <ol class="pilhas" aria-label="Fatia de cada tipo de título no fim de cada ano">
+              {dados.pts.map((p) => {
+                const f = dados.ind(p.i);
+                return (
+                  <li class:list={{ atual: !p.fimDeAno }}>
+                    <span class="num rotulo">{p.rotulo}</span>
+                    <span class="pilha" title={INDEXADORES.map((x) => `${x.nome}: ${pct(f[x.chave])}`).join(" · ")}>
+                      {INDEXADORES.map((x) => <span style={`width:${f[x.chave] * 100}%;background:${x.cor}`}></span>)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </section>
+
+        <!-- 4. Quando vence -->
+        <section class="bloco" id="vence">
+          <div class="texto">
+            <h2>Quando vence</h2>
+            <p>
+              Nos 12 meses seguintes a {mesExtenso(dados.mesU)} vencem <strong>{moedaExtenso(dados.vence)}</strong>, {pct(dados.venceParte)} da dívida.
+              Em média, faltam <strong>{nf1.format(dados.prazo).replace(",0", "")} anos</strong> para cada real devido vencer (o <Termo id="prazo-medio">prazo médio</Termo>).
+            </p>
+            <p>
+              O governo não paga o que vence com o dinheiro dos impostos: vende títulos novos para pagar os antigos e,
+              assim, empurra a dívida para a frente. Esse é o <Termo id="refinanciamento">refinanciamento da dívida</Termo>, a maior linha
+              do orçamento federal. <a href={explorerRefin}>Veja no Explorer →</a>
+            </p>
+            <p class="menor">
+              Quanto menos vence de uma vez, menor o risco de o governo ter de vender muitos títulos num momento ruim, de juros altos ou de desconfiança.
+            </p>
+          </div>
+          <div class="grafico">
+            <ol class="linhas" aria-label="Parte da dívida que vence em 12 meses e prazo médio, no fim de cada ano">
+              <li class="cabeca-linhas" aria-hidden="true"><span></span><span>vence em 12 meses</span><span>prazo médio</span></li>
+              {dados.vencimentos.map((v) => (
+                <li class:list={{ atual: !v.fimDeAno }} title={`${v.rotulo}: ${pct(v.parte)} vence em 12 meses; prazo médio de ${v.prazo !== null ? nf2.format(v.prazo) : "—"} anos`}>
+                  <span class="num rotulo">{v.rotulo}</span>
+                  <span class="trilho"><span class="barra clara" style={`width:${(v.parte / dados.maxParte) * 100}%`}></span><span class="num dentro">{pct0(v.parte)}</span></span>
+                  <span class="num valor"><strong>{v.prazo !== null ? nf1.format(v.prazo) : "—"}</strong> <span>anos</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <!-- 5. Quanto custa -->
+        <section class="bloco" id="custo">
+          <div class="texto">
+            <h2>Quanto custa</h2>
+            <p>
+              Nos 12 meses até {mesExtenso(d.juros_12m.ate)}, os juros da dívida do governo federal somaram{" "}
+              <strong>{moedaExtenso(bi(d.juros_12m.valor))}</strong>{d.juros_12m.pib !== null && <>, {nf1.format(d.juros_12m.pib)}% do PIB</>}.
+              {dados.custo !== null && <> Em média, o governo pagou <strong>{nf2.format(dados.custo)}% ao ano</strong> a quem lhe emprestou (o <Termo id="custo-medio">custo médio</Termo>).</>}
+            </p>
+            {dados.orc && dados.anoComp && (
+              <p>
+                Em {dados.anoComp}, os juros foram de {moedaExtenso(dados.jurosComp)}: {vezes(dados.jurosComp / dados.orc.saude)} o que o governo
+                federal pagou em saúde ({moedaCurta(dados.orc.saude)}) e {vezes(dados.jurosComp / dados.orc.educacao)} o que pagou em educação ({moedaCurta(dados.orc.educacao)}).
+              </p>
+            )}
+            {dados.orc && dados.anoComp && (
+              <p class="menor">
+                Os juros aqui são os <Termo id="juros-nominais">juros nominais</Termo> do Banco Central: tudo o que a dívida acumulou no ano, pago ou não.
+                No orçamento, a linha de juros da dívida mostra {moedaCurta(dados.orc.juros)} pagos em {dados.anoComp}{" "}
+                (<a href={explorerJuros}>no Explorer</a>), porque conta só o que saiu do caixa naquele ano, e parte dos juros entra lá
+                como pagamento da própria dívida. Saúde e educação são o que o governo federal pagou nessas áreas, inclusive o que repassa a estados e prefeituras.
+              </p>
+            )}
+          </div>
+          <div class="grafico">
+            {dados.comparacao.length > 0 && (
+              <div class="comparacao" aria-label={`Juros, saúde e educação em ${dados.anoComp}`}>
+                <h3>Em {dados.anoComp}</h3>
+                {dados.comparacao.map((c) => (
+                  <div class="item">
+                    <span class="nome">{c.nome}</span>
+                    <span class="trilho grosso"><span class="barra" style={`width:${(c.valor / dados.maxComp) * 100}%;background:${c.cor}`}></span></span>
+                    <strong class="num">{moedaCurta(c.valor)}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+            <h3>Juros por ano, em % do PIB</h3>
+            <ol class="linhas" aria-label="Juros da dívida do governo federal por ano, em % do PIB">
+              {dados.jurosAnos.map((j) => (
+                <li title={`${j.ano}: ${moedaCurta(j.valor)}${j.pib !== null ? `, ${nf2.format(j.pib)}% do PIB` : ""}`}>
+                  <span class="num rotulo">{j.ano}</span>
+                  <span class="trilho"><span class="barra escura" style={`width:${((j.pib ?? 0) / dados.maxJurosPib) * 100}%`}></span></span>
+                  <span class="num valor"><strong>{j.pib !== null ? `${nf1.format(j.pib)}%` : "—"}</strong> <span>{moedaCurta(j.valor)}</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section class="fontes">
+          <h2>De onde vêm os números</h2>
+          <ul>
+            <li>
+              Tesouro Nacional, <a href={d.rmd.url}>{d.rmd.titulo}</a> (planilha anexa): estoque da dívida pública federal em poder do público,
+              detentores dos títulos vendidos no país, composição por tipo, vencimentos, prazo médio e custo médio.
+            </li>
+            <li>
+              Banco Central, Sistema Gerenciador de Séries Temporais (SGS): dívida bruta do governo geral (séries 13761 e 13762),
+              juros nominais do governo federal (4607 e 5751) e PIB dos últimos 12 meses (4382).
+            </li>
+            <li>Saúde, educação e juros pagos no orçamento: Portal da Transparência (CGU), os mesmos dados do <a href="/explorer">Explorer</a>.</li>
+          </ul>
+          <p class="menor">
+            A dívida em % do PIB é calculada aqui: o estoque do fim do mês dividido pelo PIB dos 12 meses anteriores.
+            <a href="/data/federal/divida.json">Baixe os dados desta página</a> (JSON).
+          </p>
+        </section>
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .cabeca { padding: 40px 0 32px; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 880px; }
+  .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .cabeca p strong { color: var(--tinta); }
+
+  .numeros {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra);
+  }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 36px; font-weight: 700; }
+  .numeros small { font-size: 14px; color: var(--texto-3); }
+
+  .indice { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 16px 0; font-size: 15px; border-bottom: 1px solid var(--regra); }
+
+  .bloco { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 40px; scroll-margin-top: 12px; }
+  .indice + .bloco { border-top: 0; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .bloco > .linhas, .grafico { grid-column: span 7; }
+  .grafico { display: flex; flex-direction: column; gap: 18px; }
+  .grafico h3 { font-size: 18px; }
+
+  /* Linhas: rótulo | barra | valor */
+  .linhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; align-self: start; }
+  .linhas li { display: grid; grid-template-columns: 70px minmax(0, 1fr) 130px; gap: 12px; align-items: center; font-size: 14px; }
+  .linhas .rotulo { color: var(--texto-3); }
+  .linhas .valor { text-align: right; white-space: nowrap; }
+  .linhas .valor span { color: var(--texto-3); font-size: 13px; }
+  .linhas .atual .rotulo { color: var(--tinta); font-weight: 700; }
+  .cabeca-linhas { font-size: 12px !important; color: var(--texto-3); }
+  .cabeca-linhas span:last-child { text-align: right; }
+  .trilho { position: relative; display: block; height: 14px; }
+  .trilho.grosso { height: 26px; }
+  .barra { display: block; height: 100%; background: var(--verde); }
+  .barra.clara { background: var(--areia); }
+  .barra.escura { background: var(--tinta); }
+  .atual .barra { background: var(--verde-escuro); }
+  .atual .barra.clara { background: #a39a83; }
+  .dentro { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--tinta); }
+
+  /* Legenda com a fatia do último mês */
+  .legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--regra); }
+  .legenda li { display: grid; grid-template-columns: 14px minmax(0, 1fr) 64px; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--regra-leve); font-size: 14px; }
+  .legenda .cor { width: 14px; height: 14px; align-self: center; border: 1px solid rgba(0, 0, 0, 0.15); }
+  .legenda .nome span { color: var(--texto-3); font-size: 13px; }
+  .legenda .num { text-align: right; font-family: var(--serifa); font-size: 18px; font-weight: 700; }
+
+  /* Barras empilhadas, uma por ano */
+  .pilhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+  .pilhas li { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; align-items: center; font-size: 14px; }
+  .pilhas .rotulo { color: var(--texto-3); }
+  .pilhas .atual .rotulo { color: var(--tinta); font-weight: 700; }
+  .pilha { display: flex; height: 16px; }
+  .pilha span { display: block; height: 100%; }
+  .pilhas .atual .pilha { outline: 1px solid var(--tinta); outline-offset: 2px; }
+
+  .comparacao { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--regra); }
+  .comparacao .item { display: grid; grid-template-columns: 180px minmax(0, 1fr) 130px; gap: 12px; align-items: center; font-size: 15px; }
+  .comparacao strong { text-align: right; font-family: var(--serifa); font-size: 20px; white-space: nowrap; }
+
+  .fontes { border-top: 2px solid var(--tinta); padding: 32px 0 0; display: flex; flex-direction: column; gap: 12px; max-width: 880px; }
+  .fontes h2 { font-size: 26px; }
+  .fontes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
+  .fontes .menor { margin: 0; font-size: 14px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .cabeca { padding: 28px 0 24px; }
+    .cabeca h1 { font-size: 40px; }
+    .cabeca p { font-size: 17px; }
+    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(2n) { border-right: 0; }
+    .numeros div:nth-child(2n + 1) { padding-left: 0; }
+    .numeros strong { font-size: 26px; }
+    .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; }
+    .linhas li { grid-template-columns: 62px minmax(0, 1fr) 112px; gap: 10px; }
+    .pilhas li { grid-template-columns: 62px minmax(0, 1fr); gap: 10px; }
+    .comparacao .item { grid-template-columns: 1fr auto; }
+    .comparacao .item .trilho { grid-column: 1 / -1; grid-row: 2; }
+  }
+</style>
