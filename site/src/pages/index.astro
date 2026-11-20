@@ -137,7 +137,7 @@ const fmtPct = (p: number) => Math.round(p);
       <section class="cem so-largo">
         <div class="cem-topo">
           <h2>De cada R$ 100 do orçamento</h2>
-          <span class="muted">dotação de {anoBase}, sem o refinanciamento da dívida</span>
+          <span class="muted">dotação de {anoBase}, sem o refinanciamento da <a href="/divida">dívida</a></span>
         </div>
         <div class="cem-barra" role="img" aria-label="Distribuição de cada 100 reais por área">
           {cem.map((c) => <a href={c.href} style={`flex: ${c.pct} 1 0; background: ${c.cor}`} aria-label={`${c.rotulo}: ${fmtPct(c.pct)}%`}></a>)}

@@ -50,6 +50,16 @@ export const GLOSSARIO: Termo[] = [
   { id: "pncp", termo: "PNCP", definicao: "Portal Nacional de Contratações Públicas, onde União, estados e prefeituras devem publicar licitações e contratos desde a nova lei de licitações (Lei 14.133/2021)." },
   { id: "credenciamento", termo: "Credenciamento", definicao: "Contratação em que o governo aceita todos os fornecedores que cumprem as condições, como clínicas para exames. O valor publicado é o máximo que se pode gastar, não o gasto." },
   { id: "mediana", termo: "Mediana", definicao: "O valor do meio: metade das cidades (ou dos estados) fica acima dele e metade abaixo. Diferente da média, não é puxada por uns poucos casos muito altos ou muito baixos." },
+  { id: "titulo-publico", termo: "Título público", definicao: "Papel que o governo vende para pegar dinheiro emprestado. Quem compra empresta ao governo e recebe o valor de volta, com juros, numa data marcada: o vencimento." },
+  { id: "divida-publica-federal", termo: "Dívida pública federal", definicao: "Tudo o que o governo federal deve a quem lhe emprestou: os títulos públicos vendidos no país e no exterior e os contratos com bancos e organismos internacionais. Não conta os títulos que estão com o Banco Central." },
+  { id: "dbgg", termo: "Dívida bruta do governo geral", definicao: "Conta do Banco Central que soma as dívidas do governo federal, dos estados e das prefeituras, mais os títulos que o Banco Central usa para controlar os juros. É a medida usada para comparar países." },
+  { id: "selic", termo: "Selic", definicao: "A taxa básica de juros da economia, decidida pelo Banco Central a cada 45 dias. Quando ela sobe, o crédito fica mais caro e a parte da dívida federal ligada a ela passa a pagar mais juros." },
+  { id: "pib", termo: "PIB", definicao: "Produto Interno Bruto: o valor de tudo o que o país produz em um ano. Dividir a dívida pelo PIB mostra o tamanho dela frente à economia, sem o efeito da inflação." },
+  { id: "prefixado", termo: "Título prefixado", definicao: "Título com juros combinados na venda, que não mudam até o vencimento. Quem compra sabe desde o começo quanto vai receber." },
+  { id: "tesouro-direto", termo: "Tesouro Direto", definicao: "Programa do Tesouro Nacional que vende títulos públicos a pessoas, pela internet, por meio de bancos e corretoras." },
+  { id: "prazo-medio", termo: "Prazo médio da dívida", definicao: "Quanto tempo falta, em média, para a dívida vencer. Um prazo longo dá mais tempo ao governo e o deixa menos exposto a momentos de juros altos." },
+  { id: "custo-medio", termo: "Custo médio da dívida", definicao: "Os juros que a dívida rendeu a quem emprestou nos últimos 12 meses, em porcentagem do valor devido: a taxa média que o governo paga." },
+  { id: "juros-nominais", termo: "Juros nominais", definicao: "Todos os juros que a dívida acumulou no período, pagos ou não, inclusive a parte que só repõe a inflação. É a conta do Banco Central para o custo da dívida." },
   { id: "balanco-patrimonial", termo: "Balanço patrimonial", definicao: "O retrato das contas no último dia do ano: o que o governo tem (dinheiro, aplicações, imóveis) e o que deve (fornecedores, empréstimos, aposentadorias futuras)." },
 ];
 

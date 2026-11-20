@@ -55,6 +55,12 @@ const descricao = existeNoBase
         ) : (
           <p>Este órgão não tem valores em {anoBase}; ele aparece no orçamento de {anoCorrente}, ainda em execução.</p>
         )}
+        {cod === "25000" && (
+          <p class="nota-divida">
+            Quase todo esse dinheiro é da dívida pública: os juros e o refinanciamento, a troca dos títulos que vencem por títulos novos.{" "}
+            <a href="/divida">Entenda a dívida do governo federal →</a>
+          </p>
+        )}
       </div>
       <a class="botao" href={explorerOrgao}>Abrir no Explorer →</a>
     </section>
@@ -107,6 +113,7 @@ const descricao = existeNoBase
   .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
   .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
   .cabeca p strong { color: var(--tinta); }
+  .cabeca .nota-divida { font-size: 16px; color: var(--texto-3); }
   .cabeca .botao { flex: none; height: 48px; padding: 0 22px; }
 
   .numeros {
