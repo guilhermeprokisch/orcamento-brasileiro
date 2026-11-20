@@ -32,10 +32,12 @@ const TIPOS: [string, string, string][] = [
 
 <Base title="Emendas parlamentares · Orçamento Brasileiro" description="Quem mandou emendas parlamentares, para onde, para quem e para quê: deputados, senadores, bancadas e comissões.">
   <div class="wrap explorador" data-emendas data-pagamentos={r?.pagamentos} data-textos={r?.textos} data-ano={r?.ano}>
-    <section class="topo">
-      <h1>As emendas parlamentares</h1>
+    <section class="topo" data-topo>
+      <a class="voltar" href="/emendas" data-voltar hidden>← Todas as emendas</a>
+      <span class="sobretitulo" data-sobretitulo hidden></span>
+      <h1 data-titulo>As emendas parlamentares</h1>
       {r && (
-        <p>
+        <p data-frase>
           Em {r.ano}, deputados, senadores, bancadas e comissões do Congresso mandaram <strong>{moedaExtenso(r.total)}</strong> em
           emendas que foram de fato pagos. Veja quem mandou, para onde, para quem e para fazer o quê.
         </p>
@@ -51,7 +53,11 @@ const TIPOS: [string, string, string][] = [
         <label><span>Ano</span>
           <select name="ano"><option value="">Todos os anos</option>{r?.anos.slice().reverse().map((a) => <option value={a}>{a}</option>)}</select>
         </label>
-        <label><span>Onde</span>
+        <label><span>Cidade ou estado</span>
+          <input type="search" name="lugar" list="lista-lugares" placeholder="Ex.: Petrópolis, Ceará" autocomplete="off" data-lugar />
+          <datalist id="lista-lugares"></datalist>
+        </label>
+        <label><span>Estado</span>
           <select name="uf"><option value="">Todo o Brasil</option>{ufs.map(([sigla, n]) => <option value={sigla}>{n}</option>)}</select>
         </label>
         <label><span>Onde procurar o texto</span>
@@ -65,7 +71,7 @@ const TIPOS: [string, string, string][] = [
         <input type="hidden" name="autor" /><input type="hidden" name="entidade" /><input type="hidden" name="ente" />
         <button type="submit">Procurar</button>
       </div>
-      <p class="exemplos">Exemplos: <a href="/emendas?autor=Romario">Romário</a> · <a href="/emendas?q=pavimentação&fonte=Plano de emenda Pix">pavimentação nas emendas Pix</a> · <a href="/emendas?q=ambulância">ambulância</a> · <a href="/emendas?q=show">shows</a></p>
+      <p class="exemplos" data-exemplos>Exemplos: <a href="/emendas?autor=Romario">Romário</a> · <a href="/emendas?q=pavimentação&fonte=Plano de emenda Pix">pavimentação nas emendas Pix</a> · <a href="/emendas?q=ambulância">ambulância</a> · <a href="/emendas?q=show">shows</a></p>
     </form>
 
     <section class="resultado" data-resultado hidden aria-live="polite"></section>
@@ -115,7 +121,54 @@ const TIPOS: [string, string, string][] = [
   for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
   const saida = document.querySelector("[data-resultado]");
   const pergunta = ["q", "autor", "entidade", "ente", "uf", "fonte"].some((k) => params.get(k));
-  if (PAG && pergunta && saida) iniciar();
+
+  // O campo "Cidade": sugestões ao digitar e, ao procurar, abre a página das emendas da cidade.
+  const campoLugar = document.querySelector("[data-lugar]");
+  let lugares = null;
+  const carregarLugares = async () => {
+    if (lugares) return lugares;
+    const nomes = await fetch("/data/mapa/nomes.json").then((x) => x.json());
+    lugares = { porNome: new Map(), porCodigo: new Map(), sigla: new Map() };
+    const opcoes = [];
+    // Os estados: tudo o que foi pago a quem fica nele (prefeituras, governo, entidades).
+    for (const [cod, [nome, sigla]] of Object.entries(nomes.uf)) {
+      const rotulo = `${nome} (estado)`;
+      lugares.porNome.set(sem(rotulo), cod); lugares.porNome.set(sem(nome), cod);
+      lugares.porCodigo.set(cod, rotulo); lugares.sigla.set(cod, sigla);
+      opcoes.push(`<option value="${esc(rotulo)}"></option>`);
+    }
+    for (const [ibge, [nome, uf]] of Object.entries(nomes.mun)) {
+      const rotulo = `${nome} (${uf})`;
+      lugares.porNome.set(sem(rotulo), ibge); if (!lugares.porNome.has(sem(nome))) lugares.porNome.set(sem(nome), ibge);
+      lugares.porCodigo.set(ibge, rotulo);
+      opcoes.push(`<option value="${esc(rotulo)}"></option>`);
+    }
+    document.getElementById("lista-lugares").innerHTML = opcoes.join("");
+    return lugares;
+  };
+  campoLugar?.addEventListener("focus", carregarLugares, { once: true });
+  if (params.get("ente")) carregarLugares().then((l) => { const r = l.porCodigo.get(params.get("ente")); if (r) campoLugar.value = r; });
+  form?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const texto = campoLugar.value.trim();
+    const ente = texto ? (await carregarLugares()).porNome.get(sem(texto)) : "";
+    if (texto && !ente) { campoLugar.setCustomValidity("Escolha uma cidade ou um estado da lista."); campoLugar.reportValidity(); campoLugar.setCustomValidity(""); return; }
+    const q = new URLSearchParams();
+    for (const [k, v] of new FormData(form)) if (v && !["lugar", "autor", "entidade", "ente"].includes(k)) q.set(k, v);
+    // Só a cidade (e o ano): a página da cidade. Com palavras: a busca, na cidade.
+    if (ente) q.set("ente", ente);
+    location.href = `/emendas${q.size ? `?${q}` : ""}`;
+  });
+
+  /** O topo da página assume o que foi escolhido: o parlamentar, a entidade ou a cidade. */
+  function topo(titulo_, frase, sobretitulo) {
+    document.querySelector("[data-titulo]").textContent = titulo_;
+    const p = document.querySelector("[data-frase]"); if (p) p.innerHTML = frase;
+    const s = document.querySelector("[data-sobretitulo]"); s.hidden = !sobretitulo; s.textContent = sobretitulo || "";
+    document.querySelector("[data-voltar]").hidden = false;
+    document.querySelector("[data-exemplos]")?.setAttribute("hidden", "");
+    document.title = `${titulo_} · Emendas · Orçamento Brasileiro`;
+  }
 
   const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
   const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -128,9 +181,17 @@ const TIPOS: [string, string, string][] = [
   const linkAutor = (a, ano) => `<a href="/emendas?autor=${encodeURIComponent(a)}${ano ? `&ano=${ano}` : ""}">${esc(a)}</a>`;
 
   let conn;
-  async function conectar() {
+  /** O painel de carregamento: o passo atual e uma barra em movimento, no lugar do resultado. */
+  function etapa(n, texto) {
     saida.hidden = false;
-    saida.innerHTML = `<p class="carregando">Preparando a consulta…</p>`;
+    saida.innerHTML = `<div class="carregando" role="status" aria-live="polite">
+      <div class="barra-carga" aria-hidden="true"><i></i></div>
+      <p><strong>${esc(texto)}</strong></p>
+      <p class="menor">Passo ${n} de 3. A primeira consulta baixa o motor de busca e a parte dos dados de que precisa; as seguintes são mais rápidas.</p>
+    </div>`;
+  }
+  async function conectar() {
+    etapa(1, "Preparando o motor de consulta…");
     const duckdb = await import("https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm");
     const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
     const url = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" }));
@@ -148,14 +209,27 @@ const TIPOS: [string, string, string][] = [
   };
   async function iniciar() {
     document.querySelector("[data-inicio]")?.setAttribute("hidden", "");
+    // Enquanto consulta: a busca fica travada e o título já diz o que está sendo carregado.
+    form.inert = true;
+    form.classList.add("travado");
+    const ente = params.get("ente");
+    if (params.get("autor")) topo(params.get("autor"), "Carregando as emendas…", "Parlamentar");
+    else if (params.get("entidade")) topo("Carregando…", "", "Quem recebeu");
+    else if (ente) {
+      topo("Carregando…", "", "Emendas");
+      carregarLugares().then((l) => { const r = l.porCodigo.get(ente); if (r && document.querySelector("[data-titulo]").textContent === "Carregando…") topo(r, "Carregando as emendas…", "Emendas"); });
+    }
     try {
       await conectar();
       if (params.get("autor")) await autor();
       else if (params.get("entidade")) await entidade();
-      else if (params.get("ente")) await lugar();
+      else if (params.get("ente") && !params.get("q")) await lugar();
       else await busca();
     } catch (erro) {
-      saida.innerHTML = `<p class="carregando">Não foi possível consultar as emendas agora (${esc(erro.message || erro)}). Tente de novo em instantes.</p>`;
+      saida.innerHTML = `<p class="erro">Não foi possível consultar as emendas agora (${esc(erro.message || erro)}). Tente de novo em instantes.</p>`;
+    } finally {
+      form.inert = false;
+      form.classList.remove("travado");
     }
   }
 
@@ -165,10 +239,12 @@ const TIPOS: [string, string, string][] = [
 
   async function autor() {
     const a = params.get("autor");
+    etapa(2, "Procurando as emendas…");
     const anos = (await consulta(`SELECT DISTINCT ano FROM p WHERE autor = ? ORDER BY ano`, [a])).map((x) => x.ano);
     if (!anos.length) { saida.innerHTML = `<p>Nenhuma emenda paga de “${esc(a)}”. Procure o nome como ele aparece no Congresso.</p>`; return; }
     const ano = Number(params.get("ano")) || (anos.includes(Number(raiz.dataset.ano)) ? Number(raiz.dataset.ano) : anos.at(-1));
     await consulta(`CREATE OR REPLACE TEMP TABLE x AS SELECT * FROM p WHERE autor = ? AND ano = ?`, [a, ano]);
+    etapa(3, "Organizando o resultado…");
     const [s] = await consulta(`SELECT count(DISTINCT emenda)::INTEGER AS emendas, sum(valor) AS valor, count(DISTINCT coalesce(nullif(ibge, ''), municipio || uf))::INTEGER AS lugares, sum(CASE WHEN tipo = 'Pix' THEN valor ELSE 0 END) AS pix, any_value(tipo) AS tipo FROM x`);
     const onde = await consulta(`SELECT municipio, uf, ibge, ${ano} AS ano, sum(valor) AS valor FROM x GROUP BY ALL ORDER BY valor DESC LIMIT 10`);
     const quem = await consulta(`SELECT grupo, sum(valor) AS valor FROM x GROUP BY grupo ORDER BY valor DESC`);
@@ -176,11 +252,10 @@ const TIPOS: [string, string, string][] = [
     const ent = await consulta(`SELECT favorecido, codigo, sum(valor) AS valor FROM x WHERE grupo IN ('Entidade sem fins lucrativos', 'Empresa') GROUP BY ALL ORDER BY valor DESC LIMIT 8`);
     const pix = await consulta(`SELECT beneficiario, objeto, valor FROM t WHERE autor = ? AND fonte = 'Plano de emenda Pix' AND ano = ? ORDER BY valor DESC LIMIT 10`, [a, ano]);
     const coletivo = /^(Bancada|Comissão|Relator)/.test(a);
+    topo(a, `Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> em ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, para <strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong>${s.pix > 0 ? `, ${curto(s.pix)} deles por emenda Pix` : ""}.`,
+      coletivo ? "Emendas coletivas" : "Parlamentar");
     saida.innerHTML = `
-      <span class="sobretitulo">${coletivo ? "Emendas coletivas" : "Parlamentar"}</span>
-      <h2 class="grande">${esc(a)}</h2>
       ${botoesAno(anos, ano, `/emendas?autor=${encodeURIComponent(a)}`)}
-      <p class="frase">Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> em ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, para <strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong>${s.pix > 0 ? `, ${curto(s.pix)} deles por emenda Pix` : ""}.</p>
       <div class="tres">
         <section><h3>Para onde</h3>${barras(onde, lugarRot)}</section>
         <section><h3>Para quem</h3>${barras(quem, (x) => esc(x.grupo))}</section>
@@ -195,16 +270,17 @@ const TIPOS: [string, string, string][] = [
 
   async function entidade() {
     const cod = params.get("entidade");
+    etapa(2, "Procurando os pagamentos…");
     await consulta(`CREATE OR REPLACE TEMP TABLE x AS SELECT * FROM p WHERE codigo = ?`, [cod]);
     const [s] = await consulta(`SELECT mode(favorecido) AS nome, any_value(municipio) AS municipio, any_value(uf) AS uf, sum(valor) AS valor, count(DISTINCT emenda)::INTEGER AS emendas FROM x`);
     if (!s.valor) { saida.innerHTML = `<p>Nenhum pagamento de emenda para esse CNPJ.</p>`; return; }
+    etapa(3, "Organizando o resultado…");
     const anos = await consulta(`SELECT ano, sum(valor) AS valor FROM x GROUP BY ano ORDER BY ano`);
     const autores = await consulta(`SELECT autor, sum(valor) AS valor FROM x GROUP BY autor ORDER BY valor DESC LIMIT 10`);
     const textos = await consulta(`SELECT fonte, ano, autor, objeto, valor FROM t WHERE codigo = ? ORDER BY valor DESC LIMIT 15`, [cod]);
+    topo(titulo(s.nome), `${esc(s.municipio)}${s.uf ? ` (${esc(s.uf)})` : ""}. Recebeu <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, somando todos os anos.`,
+      `Quem recebeu · CNPJ ${cod}`);
     saida.innerHTML = `
-      <span class="sobretitulo">Quem recebeu · CNPJ ${esc(cod)}</span>
-      <h2 class="grande">${esc(titulo(s.nome))}</h2>
-      <p class="frase">${esc(s.municipio)}${s.uf ? ` (${esc(s.uf)})` : ""}. Recebeu <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, somando todos os anos.</p>
       <div class="duas">
         <section><h3>Ano a ano</h3>${barras(anos, (x) => String(x.ano))}</section>
         <section><h3>Quem mandou</h3>${barras(autores, (x) => linkAutor(x.autor))}</section>
@@ -215,19 +291,26 @@ const TIPOS: [string, string, string][] = [
 
   async function lugar() {
     const ente = params.get("ente");
-    const anos = (await consulta(`SELECT DISTINCT ano FROM p WHERE ibge = ? ORDER BY ano`, [ente])).map((x) => x.ano);
+    // Um estado (código de 2 dígitos): tudo o que foi pago a quem fica nele, pela UF.
+    const estado = ente.length === 2 ? (await carregarLugares()).sigla.get(ente) : null;
+    const [col, val] = estado ? ["uf", estado] : ["ibge", ente];
+    etapa(2, "Procurando as emendas…");
+    const anos = (await consulta(`SELECT DISTINCT ano FROM p WHERE ${col} = ? ORDER BY ano`, [val])).map((x) => x.ano);
     if (!anos.length) { saida.innerHTML = `<p>Nenhuma emenda paga a quem fica neste lugar.</p>`; return; }
     const ano = Number(params.get("ano")) || (anos.includes(Number(raiz.dataset.ano)) ? Number(raiz.dataset.ano) : anos.at(-1));
-    await consulta(`CREATE OR REPLACE TEMP TABLE x AS SELECT * FROM p WHERE ibge = ? AND ano = ?`, [ente, ano]);
+    await consulta(`CREATE OR REPLACE TEMP TABLE x AS SELECT * FROM p WHERE ${col} = ? AND ano = ?`, [val, ano]);
+    etapa(3, "Organizando o resultado…");
     const [s] = await consulta(`SELECT any_value(municipio) AS municipio, any_value(uf) AS uf, sum(valor) AS valor, count(DISTINCT emenda)::INTEGER AS emendas FROM x`);
     const autores = await consulta(`SELECT autor, sum(valor) AS valor FROM x GROUP BY autor ORDER BY valor DESC LIMIT 10`);
     const quem = await consulta(`SELECT favorecido, codigo, grupo, sum(valor) AS valor FROM x GROUP BY ALL ORDER BY valor DESC LIMIT 10`);
     const area = await consulta(`SELECT coalesce(nullif(area, ''), 'Sem área') AS area, sum(valor) AS valor FROM x GROUP BY 1 ORDER BY valor DESC LIMIT 6`);
+    topo(estado ? (await carregarLugares()).porCodigo.get(ente).replace(/ \(estado\)$/, "") : `${s.municipio} (${s.uf})`,
+      estado
+        ? `Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} emendas a quem fica no estado: prefeituras, o governo estadual, entidades e empresas.`
+        : `Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} emendas a quem fica aqui: a prefeitura, entidades, empresas e órgãos estaduais e federais com sede na cidade.`,
+      estado ? "Emendas no estado" : "Emendas na cidade");
     saida.innerHTML = `
-      <span class="sobretitulo">Lugar</span>
-      <h2 class="grande">${esc(s.municipio)} (${esc(s.uf)})</h2>
       ${botoesAno(anos, ano, `/emendas?ente=${esc(ente)}`)}
-      <p class="frase">Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} emendas a quem fica aqui: a prefeitura, entidades, empresas e órgãos estaduais e federais com sede na cidade.</p>
       <div class="tres">
         <section><h3>Quem mandou</h3>${barras(autores, (x) => linkAutor(x.autor, ano))}</section>
         <section><h3>Quem recebeu</h3>${barras(quem, (x) => `${x.codigo ? `<a href="/emendas?entidade=${esc(x.codigo)}">${esc(titulo(x.favorecido))}</a>` : esc(titulo(x.favorecido))}<small>${esc(x.grupo)}</small>`)}</section>
@@ -242,11 +325,27 @@ const TIPOS: [string, string, string][] = [
     if (termos.length) { onde.push(`(${termos.map(() => "(strip_accents(lower(objeto)) LIKE ? OR strip_accents(lower(beneficiario)) LIKE ?)").join(" OR ")})`); termos.forEach((x) => v.push(`%${x}%`, `%${x}%`)); }
     for (const k of ["fonte", "uf"]) { const x = params.get(k); if (x) { onde.push(`${k} = ?`); v.push(x); } }
     const ano = Number(params.get("ano")); if (ano) { onde.push("ano = ?"); v.push(ano); }
-    saida.innerHTML = `<p class="carregando">Procurando…</p>`;
+    // Na cidade: os textos não trazem o código dela, então vale o nome (no município ou em quem recebeu) e o estado.
+    const ente = params.get("ente");
+    if (ente && ente.length === 2) {
+      const l = await carregarLugares();
+      onde.push("uf = ?"); v.push(l.sigla.get(ente));
+      topo(l.porCodigo.get(ente).replace(/ \(estado\)$/, ""), "Nos textos das emendas de quem fica no estado: planos das emendas Pix, convênios e parcerias.", "Busca no estado");
+    } else if (ente) {
+      const rotulo = (await carregarLugares()).porCodigo.get(ente) || "";
+      const [, nome, uf] = /^(.*) \((\w\w)\)$/.exec(rotulo) || [];
+      if (nome) {
+        onde.push("(strip_accents(lower(municipio)) = ? OR strip_accents(lower(beneficiario)) LIKE ?) AND uf = ?");
+        v.push(sem(nome), `%${sem(nome)}%`, uf);
+        topo(rotulo, `Nos textos das emendas de quem fica em ${esc(nome)}: planos das emendas Pix, convênios e parcerias.`, "Busca na cidade");
+      }
+    }
+    etapa(2, "Procurando nos textos das emendas…");
     // Parlamentares e entidades cujo nome bate com a busca, para ir direto à página deles.
     const nomes = termos.length ? (await fetch("/data/emendas-explorador/resumo.json").then((x) => x.json())).nomes.filter((n) => termos.some((t) => sem(n).includes(t))).slice(0, 8) : [];
     const ents = termos.length ? await consulta(`SELECT mode(favorecido) AS nome, codigo, sum(valor) AS valor FROM p WHERE codigo <> '' AND (${termos.map(() => "strip_accents(lower(favorecido)) LIKE ?").join(" OR ")}) GROUP BY codigo ORDER BY valor DESC LIMIT 6`, termos.map((x) => `%${x}%`)) : [];
     await consulta(`CREATE OR REPLACE TEMP TABLE r AS SELECT * FROM t ${onde.length ? `WHERE ${onde.join(" AND ")}` : ""}`, v);
+    etapa(3, "Organizando o resultado…");
     const [s] = await consulta(`SELECT count(*)::INTEGER AS n, coalesce(sum(valor), 0) AS valor, count(DISTINCT beneficiario)::INTEGER AS quem FROM r`);
     let por = "texto", pagina = 0;
     const desenhar = async () => {
@@ -280,13 +379,18 @@ const TIPOS: [string, string, string][] = [
     };
     await desenhar();
   }
+  // Por último: a busca usa as funções acima.
+  if (PAG && pergunta && saida) iniciar();
 </script>
 
 <style is:global>
   /* Global, mas só dentro do explorador: as páginas da busca são montadas no navegador, fora do escopo do Astro. */
+  @keyframes corre { from { left: -35%; } to { left: 100%; } }
   [data-emendas] {
     .topo { padding: 44px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
     .topo h1 { font-size: 56px; line-height: 1; letter-spacing: -0.025em; }
+    .voltar { font-size: 14px; }
+    .filtros input[type="search"] { font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 190px; }
     .topo p { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); }
     .topo strong { color: var(--tinta); }
     .busca { border-top: 2px solid var(--tinta); padding: 24px 0; display: flex; flex-direction: column; gap: 14px; }
@@ -297,6 +401,7 @@ const TIPOS: [string, string, string][] = [
     .filtros select { font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 170px; }
     .filtros button { font: inherit; font-size: 15px; font-weight: 600; padding: 10px 20px; background: var(--tinta); color: var(--papel, #f7f4ec); border: 0; cursor: pointer; }
     .exemplos { margin: 0; font-size: 14px; color: var(--texto-3); }
+    [hidden] { display: none !important; }   /* o display das seções abaixo não pode vencer o "escondido" */
     .inicio { display: flex; flex-direction: column; gap: 36px; padding-bottom: 32px; }
     .cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
     .cartao { display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid var(--tinta); background: #fff; }
@@ -317,7 +422,13 @@ const TIPOS: [string, string, string][] = [
     .col { display: flex; flex-direction: column; gap: 2px; }
     small { display: block; font-size: 12px; color: var(--texto-3); }
     .resultado { display: flex; flex-direction: column; gap: 18px; padding-bottom: 32px; }
-    .carregando { margin: 0; padding: 20px 0; font-size: 16px; color: var(--texto-2); }
+    .carregando { display: flex; flex-direction: column; gap: 8px; padding: 28px 24px; margin: 8px 0; background: #fff; border: 1px solid var(--regra); }
+    .carregando p { margin: 0; font-size: 17px; color: var(--tinta); }
+    .barra-carga { position: relative; height: 4px; overflow: hidden; background: var(--regra); }
+    .barra-carga i { position: absolute; top: 0; bottom: 0; width: 35%; background: var(--verde); animation: corre 1.2s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .barra-carga i { animation: none; left: 0; width: 100%; opacity: .5; } }
+    .erro { margin: 0; padding: 20px 0; font-size: 16px; color: #8f3d1d; }
+    .busca.travado { opacity: .55; }
     .sobretitulo { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
     .frase { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); max-width: 900px; }
     .frase strong { color: var(--tinta); }
