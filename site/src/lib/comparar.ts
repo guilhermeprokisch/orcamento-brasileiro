@@ -92,9 +92,12 @@ const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ESC[c]);
 
 interface Nome { curto: string; sujeito: string; em: string; de: string }
+/** Cidades que se dizem com artigo: "o Rio de Janeiro gasta", "no Rio de Janeiro". As outras vão sem. */
+const PREP_CIDADE: Record<string, "do" | "da"> = { "3304557": "do" };
+
 function nomeDe(l: Escolhido): Nome {
-  if (l.tipo === "mun") return { curto: l.nome, sujeito: l.nome, em: `em ${l.nome}`, de: `de ${l.nome}` };
-  const p = PREP_UF[l.sigla] ?? "de";
+  if (l.tipo === "mun" && !PREP_CIDADE[l.codigo]) return { curto: l.nome, sujeito: l.nome, em: `em ${l.nome}`, de: `de ${l.nome}` };
+  const p = l.tipo === "mun" ? PREP_CIDADE[l.codigo] : PREP_UF[l.sigla] ?? "de";
   const art = { do: "o ", da: "a ", de: "" }[p];
   return { curto: l.nome, sujeito: `${art}${l.nome}`, em: `${{ do: "no", da: "na", de: "em" }[p]} ${l.nome}`, de: `${p} ${l.nome}` };
 }
