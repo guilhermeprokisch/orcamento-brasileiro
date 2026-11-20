@@ -40,6 +40,7 @@ espelho = "orcamento_pipeline.espelho:main"
 conciliar = "orcamento_pipeline.conciliar:main"
 estado-pb = "orcamento_pipeline.estado_pb:main"
 estado-mg = "orcamento_pipeline.estado_mg:main"
+pagamentos = "orcamento_pipeline.pagamentos:main"
 receitas-uniao = "orcamento_pipeline.receitas_uniao:main"
 
 [build-system]

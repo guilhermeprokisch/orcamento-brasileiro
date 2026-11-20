@@ -1,0 +1,128 @@
+---
+/**
+ * Para quem a prefeitura pagou no ano, pelos empenhos que o Tribunal de Contas do estado publica: os
+ * maiores fornecedores, as pessoas físicas num total só (sem nomes) e, à parte, o que não é
+ * fornecedor (folha, previdência, dívida e repasses a outros órgãos). Por enquanto só a Paraíba.
+ * Fonte: pipeline/…/pagamentos.py.
+ */
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import Termo from "../Termo.astro";
+import type { Cidade } from "../../lib/cidades";
+import { pagamentosDe } from "../../lib/pagamentos";
+
+interface Props {
+  cidade: Cidade;
+  /** "a prefeitura de João Pessoa" */
+  quem: string;
+}
+const { cidade, quem } = Astro.props;
+const p = pagamentosDe(cidade);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct = (v: number) => `${nf0.format(Math.round(v * 100))}%`;
+
+const SIGLAS = new Set(["me", "epp", "eireli", "s/a", "s.a.", "sa", "ltda.", "cnpj", "sus", "ti"]);
+const pequenas = new Set(["de", "da", "do", "das", "dos", "e", "em", "para", "a", "o", "as", "os", "com", "no", "na", "nos", "nas"]);
+const caixaAlta = (s: string) => s === s.toUpperCase() && /[A-ZÀ-Ú]{4}/.test(s);
+/** "CONSTRUTORA BOA OBRA LTDA" → "Construtora Boa Obra Ltda" (como em ContratosResultado). */
+const empresa = (s: string) => (caixaAlta(s)
+  ? s.toLowerCase().split(" ").map((x, i) => (SIGLAS.has(x) && x !== "ltda." ? x.toUpperCase() : i > 0 && pequenas.has(x) ? x : x.charAt(0).toUpperCase() + x.slice(1))).join(" ")
+  : s);
+
+// Conferência com a prestação de contas ao Tesouro (DCA), quando é do mesmo ano. Algumas prefeituras
+// declaram as operações entre as próprias unidades, outras não: vale a mais próxima das duas contas.
+const dca = p && cidade.ano === p.ano && cidade.total ? cidade.total[1] : null;
+const diferenca = p && dca
+  ? [p.pago / dca - 1, (p.pago + p.intra) / dca - 1].sort((a, b) => Math.abs(a) - Math.abs(b))[0]
+  : 0;
+const maior = p ? Math.max(p.fornecedores, p.pessoas.valor, p.outros.total) : 1;
+---
+
+{p && (
+  <section class="pagamentos">
+    <div class="texto">
+      <span class="sobretitulo">Para quem pagou</span>
+      <h2>Para quem a prefeitura pagou</h2>
+      <p>
+        Em {p.ano}, {quem} pagou <strong>{moedaExtenso(p.pago)}</strong>, somando a prefeitura, a Câmara, os fundos e, onde
+        existe, o instituto de previdência. Desse total, <strong>{moedaExtenso(p.fornecedores)}</strong> ({pct(p.fornecedores / p.pago)})
+        foi para <strong>{nf0.format(p.nFornecedores)} fornecedores</strong>: empresas e entidades que venderam produtos,
+        fizeram obras ou prestaram serviços.
+      </p>
+      {p.fornecedores > 0 && p.credores.length >= 5 && (
+        <p>
+          Os 5 maiores fornecedores receberam <strong>{pct(p.cinco)}</strong> do que a prefeitura pagou a fornecedores.
+        </p>
+      )}
+      {Math.abs(diferenca) > 0.05 && (
+        <p class="aviso">
+          O total aqui fica {pct(Math.abs(diferenca))} {diferenca < 0 ? "abaixo" : "acima"} do que a prefeitura declarou ao
+          Tesouro como pago em {p.ano} ({moedaCurta(dca!)}). Parte dos pagamentos pode não ter chegado ao Tribunal de Contas
+          (em algumas cidades falta dezembro). Leia estes números com cuidado.
+        </p>
+      )}
+      <ul class="tipos">
+        <li><span>Fornecedores (empresas e entidades)</span><strong class="num">{moedaCurta(p.fornecedores)}</strong><i style={`width:${(p.fornecedores / maior) * 100}%`}></i></li>
+        <li><span>Pessoas físicas: {nf0.format(p.pessoas.n)} {p.pessoas.n === 1 ? "pessoa" : "pessoas"}</span><strong class="num">{moedaCurta(p.pessoas.valor)}</strong><i style={`width:${(p.pessoas.valor / maior) * 100}%`}></i></li>
+        <li class="fora"><span>Folha, previdência, dívida e repasses a outros órgãos</span><strong class="num">{moedaCurta(p.outros.total)}</strong><i style={`width:${(p.outros.total / maior) * 100}%`}></i></li>
+      </ul>
+      <p class="menor">
+        Na última linha, que não é fornecedor: folha de pagamento {moedaCurta(p.outros.folha)}, previdência (aposentadorias,
+        INSS e instituto de previdência) {moedaCurta(p.outros.previdencia)}, dívida e bancos {moedaCurta(p.outros.divida)} e
+        outros órgãos públicos (Receita Federal, Justiça, fundos da própria prefeitura, governo do estado) {moedaCurta(p.outros.orgaos)}.
+        Conta só o que foi <Termo id="pagamento">pago</Termo> de fato, não o que foi <Termo id="empenho">empenhado</Termo>.
+        Pessoas físicas (autônomos, aluguéis, auxílios, diárias) aparecem só no total, sem os nomes.
+      </p>
+    </div>
+    <div class="lado">
+      {p.credores.length > 0 && (
+        <div class="lista">
+          <h3>Os {p.credores.length} fornecedores que mais receberam</h3>
+          <ol>
+            {p.credores.map((x) => (
+              <li>
+                <div>
+                  <a href={`/contratos?empresa=${x.cnpj.slice(0, 8)}`} title="Ver os contratos desta empresa publicados no PNCP">{empresa(x.nome)}</a>
+                  <small>{nf0.format(x.empenhos)} {x.empenhos === 1 ? "empenho" : "empenhos"}</small>
+                </div>
+                <strong class="num">{moedaCurta(x.pago)}</strong>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+    <p class="fonte">
+      Fonte: {p.fonte}, valores pagos em {p.ano} pelas unidades do município. O nome de cada fornecedor leva aos contratos dele
+      no <Termo id="pncp">Portal Nacional de Contratações Públicas</Termo>.
+    </p>
+  </section>
+)}
+
+<style>
+  .pagamentos { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .texto .aviso { font-size: 15px; padding: 10px 12px; background: var(--marca-texto-fundo, #fdf3c4); color: var(--tinta); }
+  .tipos { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .tipos li { position: relative; display: flex; justify-content: space-between; gap: 16px; padding: 7px 0 11px; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .tipos li i { position: absolute; left: 0; bottom: 3px; height: 4px; background: var(--verde, #0e6b3b); }
+  .tipos li strong { white-space: nowrap; }
+  .tipos li.fora i { background: var(--texto-3); }
+  .lado { grid-column: span 6; display: flex; flex-direction: column; gap: 24px; }
+  .lista h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  .lista ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .lista li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .lista li div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .lista li a { color: var(--tinta); }
+  .lista li small { font-size: 13px; color: var(--texto-3); }
+  .lista li strong { white-space: nowrap; }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .pagamentos { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+  }
+</style>
