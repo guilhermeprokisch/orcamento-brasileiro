@@ -190,6 +190,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline explorador-emendas --sem-baixar
 
+      # Receitas da União (/receitas): os zips do Portal da Transparência (~25 MB) são baixados à mão
+      # (uv run receitas-uniao); aqui só a cópia em pipeline/referencia/ vai para o site.
+      - name: Receitas da União
+        continue-on-error: true
+        run: uv run --project pipeline receitas-uniao --sem-baixar
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24

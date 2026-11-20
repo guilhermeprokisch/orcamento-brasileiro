@@ -17,6 +17,10 @@ interface Props {
   /** "extremos": primeiro, selecionado e último ano; "todos": um rótulo por ano. */
   rotulos: "extremos" | "todos";
   onAno?: (ano: number) => void;
+  /** nome do valor no balão (padrão: o da métrica no orçamento da despesa) */
+  rotuloMetrica?: string;
+  /** texto ao lado do ano corrente no balão */
+  rotuloCorrente?: string;
 }
 
 /** Barras por ano no estilo editorial: areia, ano escolhido em verde, ano corrente hachurado. */
@@ -76,8 +80,8 @@ export default function BarrasAno(props: Props) {
           {(p) => (
             <div class="ba-tip" role="status"
               style={{ left: `${Math.min(Math.max(((idxFoco() + 0.5) / n()) * 100, 12), 88)}%` }}>
-              <strong>{p().ano}{p().ano === props.anoCorrente ? " (em execução)" : ""}</strong>
-              <span class="num">{ROTULO_METRICA[props.metrica]}: {moedaCurta(p().valores[props.metrica])}</span>
+              <strong>{p().ano}{p().ano === props.anoCorrente ? ` (${props.rotuloCorrente ?? "em execução"})` : ""}</strong>
+              <span class="num">{props.rotuloMetrica ?? ROTULO_METRICA[props.metrica]}: {moedaCurta(p().valores[props.metrica])}</span>
               <Show when={props.onAno && p().ano !== props.anoSelecionado}><span class="ba-dica">Clique para ver {p().ano}</span></Show>
             </div>
           )}
