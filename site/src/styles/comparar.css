@@ -1,0 +1,149 @@
+/*
+ * RASCUNHO: estilos da página /comparar (lib/comparar.ts). Globais porque o HTML é montado no
+ * navegador; tudo sob .comparar ou com o prefixo cp-.
+ * A cor de cada lado: A em verde, B em terracota.
+ */
+.comparar { --cor-a: #0e6b3b; --cor-a-clara: #8fc1a3; --cor-b: #a8461f; --cor-b-clara: #e3a98c; padding-bottom: 96px; }
+.comparar .cp-a { color: var(--cor-a); }
+.comparar .cp-b { color: var(--cor-b); }
+
+.cp-rascunho { margin: 16px 0 0; padding: 8px 12px; font-size: 13px; background: var(--marca-texto-fundo); border: 1px dashed var(--tinta); }
+
+.cp-topo { padding: 32px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
+.cp-topo h1 { font-size: 64px; line-height: 1; }
+.cp-topo p { margin: 0; font-size: 19px; line-height: 1.55; color: var(--texto-2); }
+
+/* os dois campos, o botão de trocar os lados e o ano */
+.cp-escolha { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 12px 16px; align-items: end; padding: 8px 0 24px; }
+.cp-escolha .cp-onde { min-width: 0; }
+.cp-escolha .cp-a { order: 1; } .cp-escolha .cp-inverter { order: 2; } .cp-escolha .cp-b { order: 3; } .cp-escolha .cp-ano { order: 4; }
+.cp-onde.cp-a .onde-campo { border-left: 6px solid var(--cor-a); }
+.cp-onde.cp-b .onde-campo { border-left: 6px solid var(--cor-b); }
+.cp-onde > span { color: var(--texto-3); }
+.cp-onde.cp-a .chip { background: var(--cor-a); }
+.cp-onde.cp-b .chip { background: var(--cor-b); }
+.cp-inverter { height: 40px; width: 40px; border: 1px solid var(--tinta); background: transparent; font-size: 18px; cursor: pointer; color: var(--tinta); }
+.cp-inverter:hover { background: var(--papel-escuro); }
+.cp-ano { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--texto-3); }
+.cp-ano select { height: 40px; font: inherit; font-size: 15px; padding: 0 8px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); }
+
+.cp-aviso { margin: 0 0 16px; padding: 10px 14px; border-left: 4px solid var(--marca-texto); background: var(--papel-escuro); font-size: 15px; }
+.cp-vazio { padding: 8px 0 32px; font-size: 17px; }
+.cp-vazio p { margin: 0 0 6px; color: var(--texto-3); }
+.cp-vazio ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+#cp-resultado[aria-busy="true"] { opacity: 0.4; transition: opacity 0.2s; }
+
+/* o resumo do topo */
+.cp-resumo { border-top: 2px solid var(--tinta); padding: 24px 0 32px; }
+.cp-resumo h2 { font-size: 28px; margin-bottom: 14px; }
+.cp-resumo ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; max-width: 900px; }
+.cp-resumo li { font-size: 19px; line-height: 1.45; padding-left: 22px; position: relative; color: var(--texto-2); }
+.cp-resumo li::before { content: ""; position: absolute; left: 0; top: 0.55em; width: 10px; height: 10px; background: var(--marca-texto); border: 1px solid var(--tinta); }
+
+/* um bloco (Quanto gasta, Para onde vai…) */
+.cp-bloco { border-top: 2px solid var(--tinta); padding: 22px 0 26px; }
+.cp-bloco-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 24px; flex-wrap: wrap; margin-bottom: 10px; }
+.cp-bloco-topo h3 { font-size: 28px; }
+.cp-nota { margin: 0; font-size: 13px; color: var(--texto-3); }
+.cp-frases { margin: 0 0 14px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.cp-frases li { font-size: 17px; line-height: 1.45; background: var(--marca-texto-fundo); padding: 6px 10px; }
+.cp-rotulo { font-weight: 600; font-size: 15px; min-width: 0; }
+.cp-rotulo small { display: block; font-size: 12px; font-weight: 400; color: var(--texto-3); }
+.cp-barra { display: block; height: 8px; min-width: 2px; }
+.cp-a .cp-barra { background: var(--cor-a-clara); }
+.cp-b .cp-barra { background: var(--cor-b-clara); }
+.cp-barra.neg { background: repeating-linear-gradient(45deg, var(--areia) 0 4px, transparent 4px 8px) !important; }
+.cp-bom strong { background: var(--marca-texto-fundo); box-shadow: 0 0 0 3px var(--marca-texto-fundo); }
+.cp-mais summary { cursor: pointer; padding: 10px 0; font-size: 14px; color: var(--texto-3); text-decoration: underline; }
+
+/* 1 · Duas colunas */
+.cp-cabeca, .cp-linha { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr); gap: 4px 24px; align-items: center; }
+.cp-cabeca { position: sticky; top: 0; z-index: 5; background: var(--papel); padding: 10px 0; border-bottom: 1px solid var(--tinta); }
+.cp-cabeca h2 { font-size: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-linha { padding: 9px 0; border-bottom: 1px solid var(--regra-leve); }
+.cp-cel { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cp-cel strong { font-family: var(--serifa); font-size: 22px; font-weight: 700; color: var(--tinta); white-space: nowrap; align-self: flex-start; }
+.cp-dif { font-size: 13px; color: var(--texto-3); }
+.cp-dif b { font-weight: 600; }
+
+/* 2 · Frente a frente */
+.cp-cabeca-esp, .cp-linha-esp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, 230px) minmax(0, 1fr); gap: 4px 16px; align-items: center; }
+.cp-cabeca-esp { position: sticky; top: 0; z-index: 5; background: var(--papel); padding: 10px 0; border-bottom: 1px solid var(--tinta); }
+.cp-cabeca-esp h2 { font-size: 26px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-cabeca-esp h2.cp-a { text-align: right; }
+.cp-cabeca-esp span { text-align: center; font-size: 22px; color: var(--texto-4); }
+.cp-centro { justify-content: center; text-align: center; }
+.cp-espelho .cp-frases li { text-align: center; }
+.cp-linha-esp { padding: 7px 0; border-bottom: 1px solid var(--regra-leve); }
+.cp-linha-esp .cp-rotulo { text-align: center; font-size: 14px; }
+.cp-esp { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cp-esp.cp-a { flex-direction: row-reverse; }
+.cp-esp strong { font-family: var(--serifa); font-size: 19px; font-weight: 700; color: var(--tinta); white-space: nowrap; min-width: 84px; }
+.cp-esp.cp-a strong { text-align: left; }
+.cp-esp.cp-b strong { text-align: right; }
+.cp-trilho { flex: 1; display: flex; min-width: 0; }
+.cp-esp.cp-a .cp-trilho { justify-content: flex-end; }
+.cp-trilho .cp-barra { height: 16px; }
+
+/* 3 · Frases primeiro */
+.cp-legenda { display: flex; gap: 20px; padding: 0 0 14px; font-family: var(--serifa); font-size: 22px; font-weight: 700; }
+.cp-legenda span::before { content: ""; display: inline-block; width: 14px; height: 14px; margin-right: 8px; background: currentColor; }
+.cp-lista { margin: 0; padding: 0; list-style: none; }
+.cp-lista li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 24px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 17px; line-height: 1.45; }
+.cp-par { display: inline-flex; gap: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 16px; }
+.cp-par .cp-bom { background: var(--marca-texto-fundo); }
+.cp-tabela summary { cursor: pointer; padding: 10px 0 0; font-size: 14px; color: var(--texto-3); text-decoration: underline; }
+.cp-tabela table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 15px; }
+.cp-tabela th, .cp-tabela td { padding: 7px 8px; border-bottom: 1px solid var(--regra-leve); text-align: right; }
+.cp-tabela th[scope="row"] { text-align: left; font-weight: 600; }
+.cp-tabela th[scope="row"] small { display: block; font-weight: 400; font-size: 12px; color: var(--texto-3); }
+
+.cp-fonte { margin: 24px 0 0; font-size: 12px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
+
+/* a barrinha flutuante das variações (só no rascunho) */
+.cp-variantes {
+  position: fixed; z-index: 30; left: 50%; bottom: 16px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 4px; padding: 6px; max-width: calc(100vw - 16px); overflow-x: auto;
+  background: var(--tinta); color: var(--papel); box-shadow: 4px 4px 0 var(--marca-texto); font-size: 13px;
+}
+.cp-variantes span { padding: 0 8px; color: var(--marca-texto); font-weight: 600; white-space: nowrap; }
+.cp-variantes a { color: var(--papel); text-decoration: none; padding: 7px 10px; white-space: nowrap; }
+.cp-variantes a:hover { background: rgb(255 255 255 / 0.12); }
+.cp-variantes i { font-style: normal; }
+.cp-variantes a[aria-current] { background: var(--marca-texto); color: var(--tinta); font-weight: 700; }
+
+@media (max-width: 760px) {
+  .cp-topo h1 { font-size: 42px; }
+  .cp-topo p { font-size: 16px; }
+  .cp-escolha { grid-template-columns: minmax(0, 1fr) auto; }
+  .cp-escolha .cp-a { order: 1; grid-column: 1 / -1; }
+  .cp-escolha .cp-b { order: 2; grid-column: 1 / -1; }
+  .cp-escolha .cp-ano { order: 3; }
+  .cp-escolha .cp-inverter { order: 4; }
+  .cp-resumo h2 { font-size: 22px; }
+  .cp-resumo li { font-size: 16px; }
+  .cp-bloco-topo h3 { font-size: 23px; }
+  .cp-frases li { font-size: 15px; }
+
+  /* duas colunas: o nome da linha em cima, os dois valores lado a lado embaixo */
+  .cp-cabeca, .cp-linha { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 14px; }
+  .cp-cabeca > span:first-child { display: none; }
+  .cp-cabeca h2 { font-size: 19px; }
+  .cp-linha .cp-rotulo, .cp-linha .cp-dif { grid-column: 1 / -1; }
+  .cp-linha .cp-dif:empty { display: none; }
+  .cp-cel strong { font-size: 19px; }
+
+  /* frente a frente: o nome em cima, as barras embaixo, uma para cada lado */
+  .cp-cabeca-esp { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  .cp-cabeca-esp h2 { font-size: 19px; }
+  .cp-linha-esp { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .cp-linha-esp .cp-rotulo { grid-column: 1 / -1; grid-row: 1; }
+  .cp-esp strong { font-size: 16px; min-width: 0; }
+
+  .cp-lista li { flex-direction: column; gap: 4px; font-size: 15px; }
+  .cp-tabela table { font-size: 14px; }
+
+  .cp-variantes { left: 0; right: 0; bottom: 0; transform: none; max-width: none; box-shadow: none; justify-content: center; }
+  /* no celular, só o número da variação; a escolhida mostra o nome */
+  .cp-variantes span i, .cp-variantes a:not([aria-current]) i { display: none; }
+}

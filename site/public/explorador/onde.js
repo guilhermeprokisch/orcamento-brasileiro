@@ -27,8 +27,12 @@ function marcar(nome, termo) {
 /**
  * Liga o campo. `raiz` é o elemento [data-onde] (com [data-onde-input], [data-onde-lista], [data-chip],
  * [data-chip-texto] e [data-chip-tirar]); `aoMudar(lugar)` é chamado a cada escolha ou remoção.
+ * `opcoes.aceita(lugar)` esconde das sugestões o que não serve (em /comparar: cidade só com cidade);
+ * `opcoes.prefixo` muda o id das sugestões, para dar para ter dois campos na mesma página.
  */
-export function ligarOnde(raiz, aoMudar) {
+export function ligarOnde(raiz, aoMudar, opcoes = {}) {
+  const aceita = opcoes.aceita ?? (() => true);
+  const pre = opcoes.prefixo ?? "onde";
   const campo = raiz.querySelector("[data-onde-input]");
   const lista = raiz.querySelector("[data-onde-lista]");
   const chip = raiz.querySelector("[data-chip]");
@@ -38,13 +42,13 @@ export function ligarOnde(raiz, aoMudar) {
   const desenhar = () => {
     const termos = sem(campo.value).trim().split(/\s+/).filter(Boolean);
     if (!termos.length || !lugares) { fechar(); return; }
-    const casa = (l) => termos.every((t) => l.chave.includes(t));
+    const casa = (l) => aceita(l) && termos.every((t) => l.chave.includes(t));
     const ordem = (a, b) => Number(!a.chave.startsWith(termos[0])) - Number(!b.chave.startsWith(termos[0])) || a.nome.localeCompare(b.nome, "pt-BR");
     const estados = lugares.lista.filter((l) => l.tipo === "uf" && casa(l)).sort(ordem).slice(0, 4);
     const cidades = lugares.lista.filter((l) => l.tipo === "mun" && casa(l)).sort(ordem).slice(0, 8);
     achados = [...estados, ...cidades];
     ativo = achados.length ? 0 : -1;
-    const item = (l, i) => `<button type="button" role="option" id="onde-${i}" class="${i === ativo ? "ativo" : ""}" data-i="${i}" aria-selected="${i === ativo}">
+    const item = (l, i) => `<button type="button" role="option" id="${pre}-${i}" class="${i === ativo ? "ativo" : ""}" data-i="${i}" aria-selected="${i === ativo}">
       <span>${marcar(l.nome, termos[0])}</span><small>${l.tipo === "uf" ? "estado" : l.sigla}</small></button>`;
     lista.innerHTML = achados.length
       ? `${estados.length ? `<div class="onde-grupo">Estados</div>${estados.map((l, i) => item(l, i)).join("")}` : ""}
@@ -52,13 +56,13 @@ export function ligarOnde(raiz, aoMudar) {
       : `<p class="onde-msg">Nenhuma cidade ou estado com “${esc(campo.value.trim())}”.</p>`;
     lista.hidden = false;
     campo.setAttribute("aria-expanded", "true");
-    campo.setAttribute("aria-activedescendant", ativo >= 0 ? `onde-${ativo}` : "");
+    campo.setAttribute("aria-activedescendant", ativo >= 0 ? `${pre}-${ativo}` : "");
   };
   const mover = (d) => {
     if (!achados.length) return;
     ativo = (ativo + d + achados.length) % achados.length;
     lista.querySelectorAll("[data-i]").forEach((b) => { const sim = Number(b.dataset.i) === ativo; b.classList.toggle("ativo", sim); b.setAttribute("aria-selected", String(sim)); if (sim) b.scrollIntoView({ block: "nearest" }); });
-    campo.setAttribute("aria-activedescendant", `onde-${ativo}`);
+    campo.setAttribute("aria-activedescendant", `${pre}-${ativo}`);
   };
   const escolher = (l) => {
     escolhido = l;

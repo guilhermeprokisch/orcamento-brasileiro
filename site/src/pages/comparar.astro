@@ -1,0 +1,177 @@
+---
+/**
+ * RASCUNHO: comparar dois lugares lado a lado (/comparar?a=<IBGE>&b=<IBGE>), duas cidades ou dois
+ * estados. Três variações de layout (?variante=colunas|espelho|frases) e uma barrinha flutuante
+ * para trocar entre elas, para o dono do projeto escolher uma. Ainda não há link para cá nas
+ * páginas de cidade e de estado. A lógica fica em lib/comparar.ts.
+ */
+import Base from "../layouts/Base.astro";
+import "../styles/onde.css";
+import "../styles/comparar.css";
+
+const EXEMPLOS = [
+  ["3525003", "3505708", "Jandira e Barueri (SP)"],
+  ["2504009", "2507507", "Campina Grande e João Pessoa (PB)"],
+  ["23", "25", "Ceará e Paraíba"],
+];
+const campo = (lado: "a" | "b", rotulo: string) => (
+  { lado, rotulo, placeholder: lado === "a" ? "Digite uma cidade ou um estado" : "Digite outra para comparar" }
+);
+---
+
+<Base title="Comparar dois lugares · Orçamento Brasileiro" description="Duas cidades ou dois estados lado a lado: quanto gastam por morador, em quê, de onde vem o dinheiro, a dívida, a nota das escolas e a mortalidade infantil.">
+  <div class="wrap comparar">
+    <p class="cp-rascunho" role="note"><strong>Rascunho</strong> · página em teste, ainda sem link no resto do site. Os números são reais.</p>
+
+    <section class="cp-topo">
+      <h1>Comparar</h1>
+      <p>Escolha duas cidades ou dois estados para ver lado a lado quanto gastam, em quê, de onde vem o dinheiro
+        e como estão as escolas e a saúde. Os valores são <strong>por morador</strong>, para dar para comparar lugares de tamanhos diferentes.</p>
+    </section>
+
+    <form class="cp-escolha" onsubmit="return false">
+      {[campo("a", "Um lugar"), campo("b", "Com outro")].map((c) => (
+        <div class={`onde cp-onde cp-${c.lado}`} data-onde data-lado={c.lado}>
+          <span id={`onde-rotulo-${c.lado}`}>{c.rotulo}</span>
+          <div class="onde-campo">
+            <span class="chip" data-chip hidden><span data-chip-texto></span><button type="button" aria-label="Tirar este lugar" data-chip-tirar>✕</button></span>
+            <input type="search" data-onde-input role="combobox" aria-labelledby={`onde-rotulo-${c.lado}`} aria-expanded="false" aria-controls={`onde-lista-${c.lado}`} aria-autocomplete="list" placeholder={c.placeholder} autocomplete="off" />
+          </div>
+          <div class="onde-lista" id={`onde-lista-${c.lado}`} role="listbox" data-onde-lista hidden></div>
+        </div>
+      ))}
+      <button type="button" class="cp-inverter" id="cp-inverter" title="Trocar os lados" aria-label="Trocar os lados">⇄</button>
+      <label class="cp-ano">Ano das contas
+        <select id="cp-ano" disabled><option>—</option></select>
+      </label>
+    </form>
+
+    <p class="cp-aviso" id="cp-aviso" hidden></p>
+
+    <section class="cp-vazio" id="cp-vazio">
+      <p>Experimente:</p>
+      <ul>{EXEMPLOS.map(([a, b, t]) => <li><a href={`/comparar?a=${a}&b=${b}`}>{t}</a></li>)}</ul>
+    </section>
+
+    <div id="cp-resultado" aria-live="polite"></div>
+
+    <p class="cp-fonte">
+      Fontes: contas declaradas ao Tesouro Nacional (DCA e RGF, pelo SICONFI); Ideb do INEP; nascimentos e mortes do DATASUS
+      (SINASC e SIM); emendas pagas, do Portal da Transparência (CGU). Cada número usa o ano mais recente que os dois lugares têm.
+    </p>
+  </div>
+
+  <nav class="cp-variantes" aria-label="Variações de layout (rascunho)">
+    <span>Rascunho<i> · layout</i></span>
+    <a href="?variante=colunas" data-variante="colunas">1<i> · Duas colunas</i></a>
+    <a href="?variante=espelho" data-variante="espelho">2<i> · Frente a frente</i></a>
+    <a href="?variante=frases" data-variante="frases">3<i> · Frases primeiro</i></a>
+  </nav>
+</Base>
+
+<script>
+  import { anosEmComum, carregarLado, desenhar, montar, VARIANTES, type Escolhido, type Variante } from "../lib/comparar";
+
+  type Onde = { definir(codigo: string): Promise<Escolhido | undefined>; escolhido: Escolhido | null };
+  // public/explorador/onde.js fica fora do bundle (é servido como está); o endereço completo evita
+  // que o Vite tente processá-lo no astro dev.
+  const caminhoOnde = new URL("/explorador/onde.js", location.origin).href;
+
+  async function iniciar() {
+  const { ligarOnde } = await import(/* @vite-ignore */ caminhoOnde);
+
+  const params = new URLSearchParams(location.search);
+  const lados: Record<"a" | "b", Escolhido | null> = { a: null, b: null };
+  let ano: number | null = Number(params.get("ano")) || null;
+  let variante: Variante = (VARIANTES.map(([v]) => v) as string[]).includes(params.get("variante") ?? "") ? (params.get("variante") as Variante) : "colunas";
+
+  const resultado = document.getElementById("cp-resultado")!;
+  const aviso = document.getElementById("cp-aviso")!;
+  const vazio = document.getElementById("cp-vazio")!;
+  const seletorAno = document.getElementById("cp-ano") as HTMLSelectElement;
+
+  const avisar = (t: string | null) => { aviso.hidden = !t; aviso.textContent = t ?? ""; };
+
+  function endereco() {
+    const url = new URL(location.href);
+    for (const k of ["a", "b"] as const) lados[k] ? url.searchParams.set(k, lados[k]!.codigo) : url.searchParams.delete(k);
+    ano ? url.searchParams.set("ano", String(ano)) : url.searchParams.delete("ano");
+    variante === "colunas" ? url.searchParams.delete("variante") : url.searchParams.set("variante", variante);
+    history.replaceState(null, "", url);
+    // A barrinha mantém o par escolhido ao trocar de variação.
+    document.querySelectorAll<HTMLAnchorElement>("[data-variante]").forEach((a) => {
+      const u = new URL(url);
+      a.dataset.variante === "colunas" ? u.searchParams.delete("variante") : u.searchParams.set("variante", a.dataset.variante!);
+      a.href = u.search || "?";
+      a.toggleAttribute("aria-current", a.dataset.variante === variante);
+    });
+  }
+
+  let vez = 0;
+  async function atualizar() {
+    const minha = ++vez;
+    endereco();
+    const { a, b } = lados;
+    vazio.hidden = !!(a || b);
+    if (!a || !b) { resultado.innerHTML = ""; seletorAno.disabled = true; avisar(a || b ? "Escolha o outro lugar." : null); return; }
+    if (a.tipo !== b.tipo) { resultado.innerHTML = ""; avisar("Compare cidade com cidade ou estado com estado."); return; }
+    if (a.codigo === b.codigo) { resultado.innerHTML = ""; avisar("Escolha dois lugares diferentes."); return; }
+    avisar(null);
+    resultado.setAttribute("aria-busy", "true");
+    const { anos, infoA, infoB } = await anosEmComum(a, b);
+    if (minha !== vez) return;
+    if (!anos.length) {
+      resultado.innerHTML = "";
+      resultado.removeAttribute("aria-busy");
+      const falta = !infoA?.anos.length ? a : !infoB?.anos.length ? b : null;
+      avisar(falta ? `${falta.nome} não entregou ao Tesouro a prestação de contas de nenhum ano.` : "Os dois lugares não têm contas do mesmo ano.");
+      return;
+    }
+    if (!ano || !anos.includes(ano)) ano = anos[0];
+    seletorAno.innerHTML = anos.map((x) => `<option value="${x}"${x === ano ? " selected" : ""}>${x}</option>`).join("");
+    seletorAno.disabled = anos.length < 2;
+    endereco();
+    const [la, lb] = await Promise.all([carregarLado(a, ano), carregarLado(b, ano)]);
+    if (minha !== vez) return;
+    resultado.removeAttribute("aria-busy");
+    if (!la || !lb) { resultado.innerHTML = ""; avisar("Não foi possível carregar os números. Tente de novo."); return; }
+    if (ano !== anos[0]) avisar(`Mostrando ${ano}. Dívida, escolas, saúde e emendas são sempre do ano mais recente.`);
+    resultado.innerHTML = desenhar(montar(la, lb, ano), variante);
+  }
+
+  const campos: Record<"a" | "b", Onde> = { a: null!, b: null! };
+  for (const lado of ["a", "b"] as const) {
+    const outro = lado === "a" ? "b" : "a";
+    const raiz = document.querySelector<HTMLElement>(`[data-onde][data-lado="${lado}"]`)!;
+    campos[lado] = ligarOnde(raiz, (l: Escolhido | null) => { lados[lado] = l; atualizar(); }, {
+      prefixo: `onde-${lado}`,
+      // Cidade só com cidade, estado só com estado.
+      aceita: (l: Escolhido) => !lados[outro] || lados[outro]!.tipo === l.tipo,
+    });
+  }
+
+  seletorAno.addEventListener("change", () => { ano = Number(seletorAno.value); atualizar(); });
+  document.getElementById("cp-inverter")!.addEventListener("click", async () => {
+    [lados.a, lados.b] = [lados.b, lados.a];
+    for (const k of ["a", "b"] as const) {
+      const raiz = document.querySelector<HTMLElement>(`[data-onde][data-lado="${k}"]`)!;
+      if (lados[k]) await campos[k].definir(lados[k]!.codigo);
+      else { raiz.querySelector<HTMLElement>("[data-chip]")!.hidden = true; raiz.querySelector<HTMLInputElement>("[data-onde-input]")!.hidden = false; }
+    }
+    atualizar();
+  });
+  document.querySelectorAll<HTMLAnchorElement>("[data-variante]").forEach((el) => el.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    variante = el.dataset.variante as Variante;
+    atualizar();
+  }));
+
+  // O par que veio no endereço.
+  for (const k of ["a", "b"] as const) {
+    const cod = params.get(k);
+    if (cod) lados[k] = (await campos[k].definir(cod)) ?? null;
+  }
+  atualizar();
+  }
+  iniciar();
+</script>
