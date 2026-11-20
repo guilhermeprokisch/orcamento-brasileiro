@@ -197,6 +197,8 @@ const tem = (e: string) => !!r?.esferas[e];
   const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
   const titulo = (s) => (s && s === s.toUpperCase() ? s.toLowerCase().split(/\s+/).map((p, i) => (/^(s\/?a|me|epp|eireli)$/.test(p) ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ") : s);
   const frase = (s) => { const t = s && s === s.toUpperCase() && /[A-ZÀ-Ú]{4}/.test(s) ? s.toLowerCase() : s || ""; return t.charAt(0).toUpperCase() + t.slice(1); };
+  /** A fatia de um valor no total: "24%", "<1%". */
+  const fatia = (v, total) => { const p = total > 0 ? (v / total) * 100 : 0; return p >= 99.5 ? "100%" : p >= 1 ? `${nf0.format(p)}%` : "<1%"; };
   const mes = (d) => { const x = new Date(d); return isNaN(x) ? "" : x.toLocaleDateString("pt-BR", { month: "short", year: "numeric", timeZone: "UTC" }).replace(" de ", "/").replace(".", ""); };
   // "08924078000104-2-000013/2025" → a página do contrato no PNCP
   const linkPncp = (id) => { const m = /^(\d{14})-\d-0*(\d+)\/(\d{4})$/.exec(id || ""); return m ? `https://pncp.gov.br/app/contratos/${m[1]}/${m[3]}/${m[2]}` : null; };
@@ -269,14 +271,14 @@ const tem = (e: string) => !!r?.esferas[e];
     }
   }
 
-  const linhaContrato = (x) => {
+  const linhaContrato = (x, total) => {
     const pncp = linkPncp(x.id);
     return `<div class="linha" role="row">
       <span role="cell" class="quem">${x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.quem)}</a>` : esc(x.quem)}<small>${esc(x.uf)}</small></span>
       <span role="cell">${esc(frase(x.objeto)) || "Sem descrição"}${x.teto ? `<small class="aviso">Valor máximo estimado (credenciamento)</small>` : ""}${pncp ? ` <a class="pncp" href="${pncp}" rel="noopener">ver no PNCP</a>` : ""}</span>
       <span role="cell">${x.pessoa === "PJ" && x.cnpj ? `<a href="/contratos?empresa=${esc(x.cnpj.slice(0, 8))}">${esc(titulo(x.fornecedor))}</a>` : `${esc(titulo(x.fornecedor))}<small>pessoa física</small>`}</span>
       <span role="cell" class="d">${mes(x.data)}</span>
-      <strong role="cell" class="d">${curto(x.valor)}</strong>
+      <span role="cell" class="d"><strong>${curto(x.valor)}</strong>${total ? `<small title="Fatia deste contrato no valor de todos os encontrados">${fatia(x.valor, total)} do total</small>` : ""}</span>
     </div>`;
   };
 
@@ -313,23 +315,39 @@ const tem = (e: string) => !!r?.esferas[e];
       titulo_ = outros ? "Com estes filtros" : "Todos os contratos";
     }
     let por = "contrato", pagina = 0;
+    /** Quanto do dinheiro fica com os maiores: os contratos, os fornecedores ou os lugares. */
+    const concentracao = async () => {
+      if (!s.n || !(s.valor > 0)) return "";
+      const grupo = por === "contrato" ? "SELECT valor FROM r" : `SELECT sum(valor) AS valor FROM r GROUP BY ${por === "lugar" ? "quem" : "fornecedor"}`;
+      const [c] = await consulta(`WITH g AS (${grupo}), o AS (SELECT valor, row_number() OVER (ORDER BY valor DESC) AS i FROM g)
+        SELECT count(*)::INTEGER AS n, sum(valor) FILTER (WHERE i = 1) AS t1, sum(valor) FILTER (WHERE i <= 3) AS t3, sum(valor) FILTER (WHERE i <= 10) AS t10 FROM o`);
+      const pc = (v) => `<strong>${fatia(v, s.valor)}</strong>`;
+      if (por === "contrato") {
+        if (c.n <= 10) return "";
+        return `Os 10 maiores contratos, de ${nf0.format(c.n)}, ficam com ${pc(c.t10)} do valor.${c.t1 / s.valor >= 0.1 ? ` Só o maior é ${pc(c.t1)}.` : ""}`;
+      }
+      if (c.n <= 3) return "";
+      const quem = por === "lugar" ? ["lugares que mais contrataram", "lugares"] : ["maiores fornecedores", "fornecedores"];
+      return `Os 3 ${quem[0]}, de ${nf0.format(c.n)} ${quem[1]}, ficam com ${pc(c.t3)} do valor${c.n > 10 ? `; os 10 maiores, com ${pc(c.t10)}` : ""}.`;
+    };
     const desenhar = async () => {
       let corpo;
+      const frase_ = await concentracao();
       if (por === "contrato") {
         const l = await consulta(`SELECT id, quem, ente, uf, objeto, fornecedor, pessoa, cnpj, data, valor, teto FROM r ORDER BY valor DESC LIMIT 50 OFFSET ${pagina * 50}`);
-        corpo = `<div class="tabela" role="table" aria-label="Contratos"><div class="linha cab" role="row"><span role="columnheader">Quem contratou</span><span role="columnheader">O que foi contratado</span><span role="columnheader">Fornecedor</span><span role="columnheader" class="d">Data</span><span role="columnheader" class="d">Valor</span></div>${l.map(linhaContrato).join("")}</div>
+        corpo = `<div class="tabela" role="table" aria-label="Contratos"><div class="linha cab" role="row"><span role="columnheader">Quem contratou</span><span role="columnheader">O que foi contratado</span><span role="columnheader">Fornecedor</span><span role="columnheader" class="d">Data</span><span role="columnheader" class="d">Valor</span></div>${l.map((x) => linhaContrato(x, s.valor)).join("")}</div>
           <div class="pe"><span>Mostrando ${nf0.format(Math.min(s.n, (pagina + 1) * 50))} de ${nf0.format(s.n)}, do maior para o menor valor.</span>${(pagina + 1) * 50 < s.n ? `<button type="button" data-mais>Mostrar mais</button>` : ""}</div>`;
       } else {
         const col = por === "lugar" ? "quem" : "fornecedor";
         const l = await consulta(`SELECT ${col} AS nome, any_value(ente) AS ente, any_value(cnpj) AS cnpj, any_value(pessoa) AS pessoa, count(*)::INTEGER AS n, sum(valor) AS valor FROM r GROUP BY ${col} ORDER BY valor DESC LIMIT 100`);
         corpo = `<ol class="lista">${l.map((x) => `<li><span>${por === "lugar"
           ? (x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.nome)}</a>` : esc(x.nome))
-          : (x.pessoa === "PJ" && x.cnpj ? `<a href="/contratos?empresa=${esc(x.cnpj.slice(0, 8))}">${esc(titulo(x.nome))}</a>` : esc(titulo(x.nome)))}</span><span>${x.n === 1 ? "1 contrato" : `${nf0.format(x.n)} contratos`} · ${curto(x.valor)}</span></li>`).join("")}</ol>`;
+          : (x.pessoa === "PJ" && x.cnpj ? `<a href="/contratos?empresa=${esc(x.cnpj.slice(0, 8))}">${esc(titulo(x.nome))}</a>` : esc(titulo(x.nome)))}</span><span>${x.n === 1 ? "1 contrato" : `${nf0.format(x.n)} contratos`} · ${curto(x.valor)}</span><span class="fatia" title="Fatia no valor de todos os contratos encontrados"><i style="width:${Math.max(1, (x.valor / (l[0].valor || 1)) * 70)}px"></i><b>${fatia(x.valor, s.valor)}</b></span></li>`).join("")}</ol>`;
       }
       saida.innerHTML = `
         <h2>${esc(titulo_)}</h2>
         <div class="numeros"><div><span>Contratos</span><strong>${nf0.format(s.n)}</strong></div><div><span>Somam</span><strong>${curto(s.valor)}</strong></div>${ente ? `<div><span>Fornecedores</span><strong>${nf0.format(s.fornecedores)}</strong></div>` : `<div><span>Em</span><strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong></div>`}</div>
-        ${s.n ? `<div class="agrupar"><span>Agrupar por:</span>${[["contrato", "Contrato"], ["lugar", "Quem contratou"], ["empresa", "Fornecedor"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar estes contratos (planilha)</button></div>${corpo}` : `<div class="vazio"><p><strong>Nenhum contrato com esses filtros.</strong></p><p class="menor">Tente outras palavras: cada prefeitura descreve o contrato do seu jeito (“resíduos” ou “limpeza urbana” em vez de “lixo”, por exemplo). Ou tire um filtro, ou procure em todo o Brasil.</p></div>`}
+        ${s.n ? `<div class="agrupar"><span>Agrupar por:</span>${[["contrato", "Contrato"], ["lugar", "Quem contratou"], ["empresa", "Fornecedor"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar estes contratos (planilha)</button></div>${frase_ ? `<p class="concentracao">${frase_}</p>` : ""}${corpo}` : `<div class="vazio"><p><strong>Nenhum contrato com esses filtros.</strong></p><p class="menor">Tente outras palavras: cada prefeitura descreve o contrato do seu jeito (“resíduos” ou “limpeza urbana” em vez de “lixo”, por exemplo). Ou tire um filtro, ou procure em todo o Brasil.</p></div>`}
         <p class="menor">A busca procura as palavras no texto do contrato e no nome do fornecedor, com e sem acento; separe alternativas com “ou”. Contratos descritos de outro jeito podem ficar de fora.</p>`;
       saida.querySelectorAll("[data-por]").forEach((b) => b.addEventListener("click", () => { por = b.dataset.por; pagina = 0; desenhar(); }));
       saida.querySelector("[data-mais]")?.addEventListener("click", () => { pagina += 1; desenhar(); });
@@ -370,7 +388,7 @@ const tem = (e: string) => !!r?.esferas[e];
         <section><h3>Quem mais contratou</h3><ol class="lista">${quem.map((x) => `<li><span>${x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.quem)}</a>` : esc(x.quem)}</span><span>${nf0.format(x.n)} · ${curto(x.valor)}</span></li>`).join("")}</ol></section>
       </div>
       <h3>Os maiores contratos</h3>
-      <div class="tabela" role="table" aria-label="Contratos da empresa"><div class="linha cab" role="row"><span role="columnheader">Quem contratou</span><span role="columnheader">O que foi contratado</span><span role="columnheader">Fornecedor</span><span role="columnheader" class="d">Data</span><span role="columnheader" class="d">Valor</span></div>${contratos.map(linhaContrato).join("")}</div>
+      <div class="tabela" role="table" aria-label="Contratos da empresa"><div class="linha cab" role="row"><span role="columnheader">Quem contratou</span><span role="columnheader">O que foi contratado</span><span role="columnheader">Fornecedor</span><span role="columnheader" class="d">Data</span><span role="columnheader" class="d">Valor</span></div>${contratos.map((x) => linhaContrato(x, s.valor)).join("")}</div>
       <p class="menor">Uma empresa contratada por muitos lugares não é sinal de problema: distribuidores de remédios e material hospitalar vencem pregões em centenas de cidades. Filiais da mesma empresa (a mesma raiz de CNPJ) aparecem juntas.</p>`;
   }
   // Por último: a busca usa as funções acima.
@@ -436,6 +454,14 @@ const tem = (e: string) => !!r?.esferas[e];
   .tabela .linha { display: grid; grid-template-columns: 170px minmax(0, 1fr) 230px 90px 100px; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--regra); font-size: 14px; line-height: 1.45; }
   .tabela .cab { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--texto-3); border-bottom-color: var(--tinta); }
   .d { text-align: right; }
+  .tabela .d small { white-space: nowrap; }
+  .concentracao { margin: 0; font-size: 17px; line-height: 1.5; color: var(--texto-2); }
+  .concentracao strong { color: var(--tinta); }
+  .lista li > span:first-child { flex: 1; min-width: 0; }
+  .lista li > span:nth-child(2) { white-space: nowrap; color: var(--texto-2); }
+  .lista .fatia { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; width: 120px; flex-shrink: 0; }
+  .lista .fatia i { display: block; height: 8px; background: var(--verde); min-width: 1px; max-width: 70px; }
+  .lista .fatia b { font-weight: 600; min-width: 36px; text-align: right; color: var(--tinta); }
   .pncp { font-size: 12px; white-space: nowrap; }
   .pe { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; color: var(--texto-3); }
   .pe button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
