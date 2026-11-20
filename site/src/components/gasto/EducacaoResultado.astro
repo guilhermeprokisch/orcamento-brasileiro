@@ -6,6 +6,7 @@
 import { moedaCurta, pct } from "../../lib/formato";
 import { docCidades, medianaDa, porPessoa, type Cidade } from "../../lib/cidades";
 import { idebDe, porAlunoDe, type NotaIdeb } from "../../lib/indicadores";
+import SerieAnos from "./SerieAnos.astro";
 
 interface Props {
   cidade: Cidade;
@@ -103,11 +104,13 @@ const linhas = ideb
           ))}
         </div>
       )}
-      {linhas[0] && linhas[0].x!.historico.length > 2 && (
-        <p class="serie">
-          <span>{linhas[0].rotulo.split(" (")[0]}, ano a ano:</span>{" "}
-          {linhas[0].x!.historico.slice(-6).map(([ano, v]) => `${ano}: ${n(v)}`).join(" · ")}
-        </p>
+      {linhas.some(({ x }) => x!.serie.length > 2) && (
+        <div class="series">
+          {linhas.filter(({ x }) => x!.serie.length > 2).map(({ rotulo, x }) => (
+            <SerieAnos titulo={`${rotulo.split(" (")[0]}, edição a edição`} serie={x!.serie} referencia={x!.referencia}
+              rotuloReferencia={`Mediana das cidades ${faixa ?? "do mesmo porte"}`} casas={1} />
+          ))}
+        </div>
       )}
       {estadual && (
         <p class="estadual">
@@ -138,8 +141,8 @@ const linhas = ideb
   .nome { font-weight: 600; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .nome small { font-size: 13px; font-weight: 400; color: var(--texto-3); }
   .linha strong { font-family: var(--serifa); font-size: 28px; }
-  .serie, .estadual, .fonte { margin: 0; font-size: 14px; line-height: 1.5; color: var(--texto-2); }
-  .serie span { color: var(--texto-3); }
+  .series { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  .estadual, .fonte { margin: 0; font-size: 14px; line-height: 1.5; color: var(--texto-2); }
   .fonte { font-size: 13px; color: var(--texto-3); }
 
   @media (max-width: 900px) {
@@ -147,6 +150,7 @@ const linhas = ideb
     .texto h2 { font-size: 26px; }
   }
   @media (max-width: 640px) {
+    .series { grid-template-columns: minmax(0, 1fr); }
     .linha { grid-template-columns: minmax(0, 1fr) 56px 70px; gap: 10px; }
     .linha strong { font-size: 24px; }
   }

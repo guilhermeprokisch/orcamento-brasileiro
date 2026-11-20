@@ -27,6 +27,9 @@ export interface NotaIdeb {
   mediana: number | null;
   /** [ano, nota] das edições com valor. */
   historico: [number, number][];
+  /** As mesmas notas como série, e a mediana das cidades do mesmo porte em cada edição (só rede municipal). */
+  serie: PontoSerie[];
+  referencia: PontoSerie[];
 }
 
 export interface Ideb {
@@ -45,14 +48,14 @@ function mediana(v: number[]): number | null {
   return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
 }
 
-// Mediana da nota mais recente da rede municipal em cada faixa de população.
+// Mediana da nota da rede municipal em cada faixa de população, numa edição (padrão: a mais recente).
 const medianas = new Map<string, number | null>();
-function medianaDaFaixa(faixa: number, serie: Serie): number | null {
-  const chave = `${faixa}-${serie}`;
+function medianaDaFaixa(faixa: number, serie: Serie, i = -1): number | null {
+  const chave = `${faixa}-${serie}-${i}`;
   if (!medianas.has(chave)) {
     const notas = (docCidades?.cidades ?? [])
       .filter((c) => c.faixa === faixa && c.ibge !== 53)
-      .map((c) => doc?.mun[String(c.ibge)]?.[serie]?.at(-1))
+      .map((c) => doc?.mun[String(c.ibge)]?.[serie]?.at(i))
       .filter((n): n is number => typeof n === "number");
     medianas.set(chave, mediana(notas));
   }
@@ -67,11 +70,18 @@ function nota(c: Cidade, serie: Serie): NotaIdeb | null {
   const atual = valores.at(-1) ?? null;
   const anteriores = historico.filter(([ano]) => ano < doc.edicao);
   const ultimo = anteriores.at(-1);
+  const comparar = serie.startsWith("m") && c.faixa !== undefined;
+  const referencia: PontoSerie[] = comparar
+    ? doc.anos.map((ano, i) => ({ ano, valor: medianaDaFaixa(c.faixa!, serie, i), preliminar: false }))
+      .filter((p): p is PontoSerie => p.valor !== null && historico.some(([a]) => a === p.ano))
+    : [];
   return {
     nota: atual,
     antes: ultimo ? { ano: ultimo[0], nota: ultimo[1] } : null,
-    mediana: serie.startsWith("m") && c.faixa !== undefined ? medianaDaFaixa(c.faixa, serie) : null,
+    mediana: comparar ? medianaDaFaixa(c.faixa!, serie) : null,
     historico,
+    serie: historico.map(([ano, valor]) => ({ ano, valor, preliminar: false })),
+    referencia,
   };
 }
 
