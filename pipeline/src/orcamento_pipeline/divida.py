@@ -42,7 +42,9 @@ FONTE_MUN = "Tesouro Nacional, Relatório de Gestão Fiscal das prefeituras (Ane
 def baixar(cache: c.CacheAno, ano: int, ibge: int, esfera: str = "E", semestre_primeiro: bool = False) -> list[dict] | None:
     """As linhas do Anexo 2 do fim do ano; [] se o ente não entregou; None se a consulta falhou.
 
-    Um ente já consultado sem resposta ([]) não é consultado de novo na mesma execução do ano."""
+    Um estado sem resposta ([] no cache) é consultado de novo a cada execução, porque pode entregar atrasado.
+    Uma prefeitura sem resposta não é: para procurar as que entregaram depois, apague
+    data/raw/siconfi/rgf-a02-mun/{ano}.json.gz antes de rodar `uv run divida --prefeituras`."""
     if (itens := cache.obter(ibge)) is not None and (itens or esfera == "M"):
         return itens
     periodos = (("S", 2), ("Q", 3)) if semestre_primeiro else (("Q", 3), ("S", 2))
@@ -66,6 +68,12 @@ def baixar(cache: c.CacheAno, ano: int, ibge: int, esfera: str = "E", semestre_p
 
 # A coluna do fim do ano: "Até o 3º Quadrimestre" (ou o 2º semestre, para quem entrega por semestre).
 FIM = re.compile(r"(3º|3°|3o)\s*quadrimestre|(2º|2°|2o)\s*semestre", re.I)
+
+
+def filtro_rgf(itens: list[dict]) -> list[dict]:
+    """O que o cache guarda de cada resposta. Sem ele, o CacheAno usaria o filtro da DCA (só as colunas de
+    despesa empenhada e paga), que não existem no RGF: o cache gravava listas vazias."""
+    return [{k: i.get(k) for k in ("coluna", "conta", "valor")} for i in itens]
 
 
 def resumir(itens: list[dict]) -> list[float] | None:
@@ -105,7 +113,7 @@ def main() -> None:
     anos: dict[str, dict[str, list[float]]] = {}
     pendentes = 0
     for ano in sorted(args.anos):
-        cache = c.CacheAno(ano, anexo="rgf-a02")
+        cache = c.CacheAno(ano, anexo="rgf-a02", filtro=filtro_rgf)
         try:
             for ibge in sorted(c.SIGLAS):
                 itens = baixar(cache, ano, ibge)
@@ -136,7 +144,7 @@ def prefeituras(anos_pedidos: list[int]) -> None:
     anos: dict[str, dict[str, list[float]]] = json.loads(origem.read_text(encoding="utf-8")).get("anos", {}) if origem.exists() else {}
     pendentes = 0
     for ano in sorted(anos_pedidos):
-        cache = c.CacheAno(ano, anexo="rgf-a02-mun")
+        cache = c.CacheAno(ano, anexo="rgf-a02-mun", filtro=filtro_rgf)
         doano = anos.setdefault(str(ano), {})
         try:
             for i, ibge in enumerate(entes):
