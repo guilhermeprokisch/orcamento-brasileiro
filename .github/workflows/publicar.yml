@@ -135,6 +135,15 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline matriculas
 
+      # Gasto com pessoal (RGF, Anexo 1): estados como a dívida (o cache de data/raw guarda os anos);
+      # prefeituras feitas à mão (uv run pessoal --prefeituras), aqui só a cópia vai para o site.
+      - name: Pipeline do gasto com pessoal dos estados
+        continue-on-error: true
+        run: uv run --project pipeline pessoal
+      - name: Gasto com pessoal das prefeituras
+        continue-on-error: true
+        run: uv run --project pipeline pessoal --prefeituras --max-chamadas 0
+
       # Dívida dos governos estaduais (RGF, Anexo 2): 27 consultas por ano à API do SICONFI.
       # O cache em data/raw guarda os anos já baixados; sem ele, são ~300 consultas (5 minutos).
       - name: Pipeline da dívida dos estados
@@ -146,15 +155,6 @@ jobs:
       - name: Pipeline da dívida das prefeituras
         continue-on-error: true
         run: uv run --project pipeline divida --prefeituras --max-chamadas 0
-
-      # Gasto com pessoal (RGF, Anexo 1): estados como a dívida (o cache de data/raw guarda os anos);
-      # prefeituras feitas à mão (uv run pessoal --prefeituras), aqui só a cópia vai para o site.
-      - name: Pipeline do gasto com pessoal dos estados
-        continue-on-error: true
-        run: uv run --project pipeline pessoal
-      - name: Gasto com pessoal das prefeituras
-        continue-on-error: true
-        run: uv run --project pipeline pessoal --prefeituras --max-chamadas 0
 
       # Contratos das prefeituras (PNCP): baixar um ano leva horas e o portal limita os pedidos, então a
       # carga é feita à mão e fica em pipeline/referencia/contratos.json; aqui só vai para o site.
