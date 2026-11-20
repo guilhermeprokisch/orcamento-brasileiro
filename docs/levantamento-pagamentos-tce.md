@@ -71,7 +71,7 @@ Em ordem de quantas prefeituras cada passo traz. Os pedidos pela Lei de Acesso �
 5. **Capital de São Paulo:** criar uma conta gratuita na APILib da prefeitura (`apilib.prefeitura.sp.gov.br`) e gerar a chave da API-SOF. Antes de usar, falta confirmar se ela traz o credor.
 6. **Nome do credor no RJ, RN e MA:** não precisa pedir nada. Cruzar o CNPJ com o cadastro aberto de CNPJ da Receita Federal (`arquivos.receitafederal.gov.br`), que tem a razão social. Pessoas físicas ficam sem nome.
 
-**Pedidos enviados em 20/11/2026**, por e-mail às ouvidorias (o prazo de 20 dias vence por volta de 10/12/2026): chave da API ao TCM-GO e pedido pela LAI ao TCM-BA, TCE-SC, TCM-PA, TCE-MT, TCE-AL, TCE-MS, TCE-RO, TCE-AP e TCE-RR. O do TCE-SE não saiu: o servidor de e-mail não conseguiu entregar e precisa ser reenviado.
+**Pedidos enviados em 20/11/2026**, por e-mail às ouvidorias (o prazo de 20 dias vence por volta de 10/12/2026): chave da API ao TCM-GO e pedido pela LAI ao TCM-BA, TCE-SC, TCM-PA, TCE-MT, TCE-AL, TCE-MS, TCE-RO, TCE-AP e TCE-RR. O do TCE-SE foi pelo formulário do e-SIC do tribunal, no mesmo dia, porque o e-mail não chegava ao domínio deles; o protocolo chega por e-mail.
 
 Modelo de pedido (trocar o tribunal e o estado):
 
