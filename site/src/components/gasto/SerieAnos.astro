@@ -14,8 +14,10 @@ interface Props {
   casas?: number;
   /** O que a marca † quer dizer, quando algum ano a tem. */
   notaMarca?: string;
+  /** O que o * dos anos marcados como preliminares quer dizer. */
+  notaPreliminar?: string;
 }
-const { titulo, serie, referencia = [], rotuloReferencia = "Brasil", casas = 0, notaMarca } = Astro.props;
+const { titulo, serie, referencia = [], rotuloReferencia = "Brasil", casas = 0, notaMarca, notaPreliminar = "Dados preliminares." } = Astro.props;
 const nf = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
 const ref = new Map(referencia.map((p) => [p.ano, p.valor]));
 const escala = Math.max(...serie.map((p) => p.valor), ...referencia.map((p) => p.valor)) * 1.05 || 1;
@@ -44,7 +46,7 @@ const linhas = serie.map((p) => {
     </ol>
     <p class="nota">
       {ref.size > 0 && <><span class="traco" aria-hidden="true"></span> {rotuloReferencia}. </>}
-      {temPreliminar && <>* Dados preliminares. </>}
+      {temPreliminar && <>* {notaPreliminar} </>}
       {temMarca && <>† {notaMarca}</>}
     </p>
   </figure>

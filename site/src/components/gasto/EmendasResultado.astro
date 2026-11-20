@@ -1,0 +1,94 @@
+---
+/**
+ * Emendas parlamentares que chegaram à cidade (ou ao estado) no último ano fechado: o total, por
+ * habitante, para quem foi (prefeitura, entidades e empresas), quem mandou e para quê, e a série
+ * ano a ano. Fonte: pagamentos por favorecido da CGU (pipeline/…/emendas.py).
+ */
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { porPessoa, type Cidade } from "../../lib/cidades";
+import { emendasDe } from "../../lib/indicadores";
+import SerieAnos from "./SerieAnos.astro";
+
+interface Props {
+  ente: Cidade;
+  esfera: "mun" | "uf";
+  /** "para Fortaleza", "para o Ceará" */
+  paraOnde: string;
+  /** "das cidades de 100 a 500 mil habitantes", "dos estados"; null sem comparação */
+  grupo: string | null;
+}
+const { ente, esfera, paraOnde, grupo } = Astro.props;
+const e = emendasDe(ente, esfera);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
+/** "COM. DA SAUDE" → "Comissão da Saúde"; "BANCADA DO RIO DE JANEIRO" → "Bancada do Rio de Janeiro". */
+const nome = (s: string) => s.toLowerCase().replace(/^com\. /, "comissão ").replace(/\bsaude\b/g, "saúde")
+  .split(" ").map((p, i) => (i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
+const coletivo = e?.autores.some(([a]) => /^(com\.|comiss|bancada)/i.test(a));
+const frente = e && e.mediana ? e.porHab / e.mediana - 1 : null;
+---
+
+{e && e.total > 0 && (
+  <section class="emendas">
+    <div class="texto">
+      <span class="sobretitulo">O que chega de Brasília</span>
+      <h2>Emendas parlamentares</h2>
+      <p>
+        Em {e.ano}, deputados e senadores mandaram <strong>{moedaExtenso(e.total)}</strong> em emendas {paraOnde}, ou{" "}
+        <strong>{porPessoa(e.porHab)} por habitante</strong>.
+        {e.mediana !== null && grupo && <> A mediana {grupo} é {porPessoa(e.mediana)}{frente !== null && Math.abs(frente) >= 0.1 && <> ({nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"})</>}.</>}
+      </p>
+      <p>
+        {esfera === "mun"
+          ? <>Foram {moedaCurta(e.prefeitura)} para a prefeitura (inclusive os fundos municipais de saúde e assistência){e.entidades > 0 && <> e {moedaCurta(e.entidades)} para entidades e empresas da cidade</>}{e.estadoEOutros > 0 && <>, além de {moedaCurta(e.estadoEOutros)} para órgãos estaduais e outros</>}.</>
+          : <>Foram {moedaCurta(e.prefeitura)} para as prefeituras do estado, {moedaCurta(e.estadoEOutros)} para o governo estadual e outros órgãos públicos e {moedaCurta(e.entidades)} para entidades e empresas.</>}
+      </p>
+      <p class="menor">
+        Emenda é a parte do orçamento federal que cada deputado, senador, bancada estadual ou comissão do Congresso indica
+        para um lugar e uma finalidade. Aqui entra o que foi de fato pago no ano, pelo lugar de quem recebeu. Uma entidade
+        da cidade pode usar o dinheiro em outro lugar, e emendas indicadas antes podem ser pagas anos depois.
+      </p>
+    </div>
+    <div class="lado">
+      {e.autores.length > 0 && (
+        <div class="lista">
+          <h3>Quem mandou mais</h3>
+          <ol>
+            {e.autores.map(([autor, valor]) => <li><span>{nome(autor)}</span><strong class="num">{moedaCurta(valor)}</strong></li>)}
+          </ol>
+          {coletivo && <p class="nota">Comissões e bancadas são emendas coletivas, indicadas em grupo.</p>}
+        </div>
+      )}
+      {e.areas.length > 0 && (
+        <div class="lista">
+          <h3>Para quê</h3>
+          <ol>
+            {e.areas.map(([area, valor]) => <li><span>{area}</span><strong class="num">{moedaCurta(valor)}</strong></li>)}
+          </ol>
+        </div>
+      )}
+      <SerieAnos titulo="Ano a ano, em R$ milhões" serie={e.serie} casas={1} notaPreliminar="Ano em andamento: o que foi pago até agora." />
+    </div>
+    <p class="fonte">Fonte: {e.fonte}.</p>
+  </section>
+)}
+
+<style>
+  .emendas { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .lado { grid-column: span 6; display: flex; flex-direction: column; gap: 24px; }
+  .lista h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  .lista ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .lista li { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .lista .nota { margin: 6px 0 0; font-size: 12px; color: var(--texto-3); }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .emendas { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+  }
+</style>

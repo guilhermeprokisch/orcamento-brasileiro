@@ -8,6 +8,7 @@ import SaudeResultado from "../../../components/gasto/SaudeResultado.astro";
 import SaneamentoResultado from "../../../components/gasto/SaneamentoResultado.astro";
 import SegurancaEstado from "../../../components/gasto/SegurancaEstado.astro";
 import IrMoradores from "../../../components/gasto/IrMoradores.astro";
+import EmendasResultado from "../../../components/gasto/EmendasResultado.astro";
 import NestaPagina, { type GrupoDaPagina } from "../../../components/NestaPagina.astro";
 import { moedaExtenso } from "../../../lib/formato";
 import { caminhoCidade, caminhoEstado, deUf, docCidades, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../../lib/cidades";
@@ -50,7 +51,7 @@ const base: BaseDaPagina | null = ctx
 const SUMARIO: GrupoDaPagina[] = [
   { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"]] },
   { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
-  { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["estado-aqui", "O que o governo do estado gastou aqui"]] },
+  { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["estado-aqui", "O que o governo do estado gastou aqui"]] },
   { id: "como-esta", n: 4, titulo: "Como está a cidade", itens: [["educacao", "Educação: gasto por aluno e nota das escolas"], ["saude", "Saúde: mortalidade infantil"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
 ];
 const descricao = temDados
@@ -101,6 +102,7 @@ const descricao = temDados
     {ctx && <p class="grupo-pagina" id="chega-e-sai" data-grupo="chega-e-sai">3 · O que chega e o que sai daqui</p>}
     {ctx && <div class="ficha" id="beneficios" data-parte="inss" set:html={contasHtml(ctx, "inss")} />}
     {temDados && <div id="ir" data-so-padrao="o imposto de renda dos moradores"><IrMoradores cidade={c} deOnde={ehDF ? "do Distrito Federal" : `de ${c.nome}`} grupo={!ehDF && faixa ? `das cidades ${faixa}` : null} /></div>}
+    {temDados && <div id="emendas" data-so-padrao="as emendas parlamentares"><EmendasResultado ente={c} esfera="mun" paraOnde={ehDF ? "para o Distrito Federal" : `para ${c.nome}`} grupo={!ehDF && faixa ? `das cidades ${faixa}` : null} /></div>}
     {!ehDF && <div id="estado-aqui" data-so-padrao="o gasto do governo do estado aqui"><GastoEstadualAqui cidade={c} /></div>}
 
     {temDados && !ehDF && <p class="grupo-pagina" id="como-esta" data-grupo="como-esta">4 · Como está a cidade</p>}

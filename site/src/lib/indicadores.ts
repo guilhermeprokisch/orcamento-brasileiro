@@ -495,3 +495,55 @@ export function situacaoParaMapa(): SituacaoDoMapa {
   }
   return out;
 }
+
+// ----- Emendas parlamentares que chegaram (CGU, pipeline/…/emendas.py) -----
+
+interface DocEmendas {
+  fonte: string;
+  anos: number[];
+  /** ibge → ano → [total, prefeitura, entidades e empresas, estado e outros] */
+  mun: Record<string, Record<string, [number, number, number, number]>>;
+  uf: Record<string, Record<string, [number, number, number, number]>>;
+  autores: Record<string, Record<string, [string, number][]>>;
+  areas: Record<string, Record<string, [string, number][]>>;
+}
+const arquivosEmendas = import.meta.glob<DocEmendas>("../../public/data/indicadores/emendas.json", { eager: true, import: "default" });
+const docEmendas: DocEmendas | null = Object.values(arquivosEmendas)[0] ?? null;
+
+export interface Emendas {
+  fonte: string;
+  ano: number;
+  total: number;
+  prefeitura: number;
+  entidades: number;
+  estadoEOutros: number;
+  porHab: number;
+  /** Mediana por habitante das cidades do mesmo porte (ou dos estados). */
+  mediana: number | null;
+  autores: [string, number][];
+  areas: [string, number][];
+  /** Total por ano, em R$ milhões; o ano corrente marcado como preliminar. */
+  serie: PontoSerie[];
+}
+
+export function emendasDe(c: Cidade, esfera: "mun" | "uf"): Emendas | null {
+  if (!docEmendas || !c.pop) return null;
+  const porAno = docEmendas[esfera][String(c.ibge)];
+  if (!porAno) return null;
+  const anoAtual = new Date().getFullYear();
+  // O último ano fechado: o ano corrente ainda está em andamento.
+  const ano = docEmendas.anos.filter((a) => a < anoAtual).at(-1);
+  if (!ano) return null;
+  const v = porAno[String(ano)] ?? [0, 0, 0, 0];
+  const comparaveis = esfera === "uf"
+    ? (docEstados?.cidades ?? []).filter((x) => x.ibge !== 53)
+    : (docCidades?.cidades ?? []).filter((x) => x.faixa === c.faixa);
+  const valores = comparaveis.filter((x) => x.pop).map((x) => (docEmendas[esfera][String(x.ibge)]?.[String(ano)]?.[0] ?? 0) / x.pop);
+  return {
+    fonte: docEmendas.fonte, ano, total: v[0], prefeitura: v[1], entidades: v[2], estadoEOutros: v[3],
+    porHab: v[0] / c.pop, mediana: mediana(valores),
+    autores: docEmendas.autores[String(c.ibge)]?.[String(ano)] ?? [],
+    areas: docEmendas.areas[String(c.ibge)]?.[String(ano)] ?? [],
+    serie: docEmendas.anos.map((a) => ({ ano: a, valor: (porAno[String(a)]?.[0] ?? 0) / 1e6, preliminar: a >= anoAtual })),
+  };
+}
