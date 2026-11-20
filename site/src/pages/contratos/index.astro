@@ -33,7 +33,7 @@ const nome = (s: string) => (s === s.toUpperCase()
 const tem = (e: string) => !!r?.esferas[e];
 ---
 
-<Base title="Contratos · Orçamento Brasileiro" description="Busque os contratos que prefeituras e governos estaduais assinaram e publicaram no Portal Nacional de Contratações Públicas.">
+<Base title="Contratos · Orçamento Brasileiro" description="Busque os contratos que prefeituras, governos estaduais e o governo federal assinaram e publicaram no Portal Nacional de Contratações Públicas.">
   <div class="wrap explorador" data-explorador data-arquivo={r?.arquivo} data-por-cnpj={r?.porCnpj} data-ano={r?.ano}>
     <section class="topo" data-topo>
       <nav class="trilha" aria-label="Caminho" data-voltar hidden></nav>
@@ -128,7 +128,8 @@ const tem = (e: string) => !!r?.esferas[e];
     <p class="nota">
       O valor de um contrato é o de toda a duração dele, que pode passar de um ano. Nem toda prefeitura publica tudo no
       portal nacional. Nos credenciamentos, o valor publicado é o máximo que se pode gastar, não o contratado. Contratos
-      maiores que metade do orçamento do ano de quem contratou ficam de fora, por erro de digitação{r && r.fora > 0 && <> ({nf0.format(r.fora)} casos)</>}.
+      maiores que metade do orçamento do ano de quem contratou ficam de fora, por erro de digitação; no governo federal, os
+      acima de R$ 5 bilhões, e todos os de uma unidade que publicou mais de um assim{r && r.fora > 0 && <> ({nf0.format(r.fora)} casos)</>}.
       Os nomes dos fornecedores são os publicados no portal; o CPF de pessoas físicas não aparece.
       Fonte: {r?.fonte}. <a href="/dados">Baixe todos os dados</a>.
     </p>
@@ -142,7 +143,7 @@ const tem = (e: string) => !!r?.esferas[e];
   const params = new URLSearchParams(location.search);
   const form = document.querySelector("[data-form]");
   for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
-  const pergunta = ["q", "uf", "esfera", "tipo", "min", "ente", "empresa"].some((k) => params.get(k));
+  const pergunta = ["q", "uf", "esfera", "tipo", "min", "ente", "orgao", "empresa"].some((k) => params.get(k));
   const saida = document.querySelector("[data-resultado]");
   // A trilha (public/explorador/trilha.js): por onde a pessoa veio, com um link para cada passo.
   const { ligarTrilha } = await import("/explorador/trilha.js");
@@ -175,7 +176,7 @@ const tem = (e: string) => !!r?.esferas[e];
   form?.addEventListener("submit", (ev) => {
     ev.preventDefault();
     const l = onde.escolhido, q = new URLSearchParams();
-    for (const [k, v] of new FormData(form)) if (v && !["ente", "uf", "empresa", "escopo", "esfera"].includes(k)) q.set(k, v);
+    for (const [k, v] of new FormData(form)) if (v && !["ente", "uf", "orgao", "empresa", "escopo", "esfera"].includes(k)) q.set(k, v);
     if (!l) { const e = form.elements.namedItem("esfera").value; if (e) q.set("esfera", e); }
     else if (l.tipo === "mun") q.set("ente", l.codigo);
     else if (new FormData(form).get("escopo") === "tudo") q.set("uf", l.sigla);
@@ -252,6 +253,10 @@ const tem = (e: string) => !!r?.esferas[e];
     for (const [k, col] of [["uf", "uf"], ["esfera", "esfera"], ["tipo", "tipo"], ["ente", "ente"]]) {
       const x = params.get(k); if (x) { onde.push(`${col} = ?`); v.push(x); }
     }
+    // Um estado inteiro é o governo e as prefeituras: os órgãos federais com sede nele ficam de fora.
+    if (params.get("uf") && !params.get("ente")) onde.push("esfera <> 'Governo federal'");
+    // Um órgão federal (o Exército, o DNIT…): não tem código de ente, vai pelo nome.
+    if (params.get("orgao")) { onde.push("esfera = 'Governo federal' AND quem = ?"); v.push(params.get("orgao")); }
     const min = Number(params.get("min")); if (min > 0) { onde.push("valor >= ?"); v.push(min); }
     return { where: onde.length ? `WHERE ${onde.join(" AND ")}` : "", v };
   }
@@ -276,10 +281,13 @@ const tem = (e: string) => !!r?.esferas[e];
     }
   }
 
+  /** Quem contratou, com link: a prefeitura ou o governo pelo código; o órgão federal pelo nome. */
+  const linkQuem = (ente, quem) => `<a href="/contratos?${ente ? `ente=${esc(ente)}` : `orgao=${esc(encodeURIComponent(quem))}`}">${esc(quem)}</a>`;
+
   const linhaContrato = (x, total) => {
     const pncp = linkPncp(x.id);
     return `<div class="linha" role="row">
-      <span role="cell" class="quem">${x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.quem)}</a>` : esc(x.quem)}<small>${esc(x.uf)}</small></span>
+      <span role="cell" class="quem">${linkQuem(x.ente, x.quem)}<small>${esc(x.uf)}</small></span>
       <span role="cell">${esc(frase(x.objeto)) || "Sem descrição"}${x.teto ? `<small class="aviso">Valor máximo estimado (credenciamento)</small>` : ""}${pncp ? ` <a class="pncp" href="${pncp}" rel="noopener">ver no PNCP</a>` : ""}</span>
       <span role="cell">${x.pessoa === "PJ" && x.cnpj ? `<a href="/contratos?empresa=${esc(x.cnpj.slice(0, 8))}">${esc(titulo(x.fornecedor))}</a>` : `${esc(titulo(x.fornecedor))}<small>pessoa física</small>`}</span>
       <span role="cell" class="d">${mes(x.data)}</span>
@@ -296,6 +304,7 @@ const tem = (e: string) => !!r?.esferas[e];
     const where = "", v = [];
     const [s] = await consulta(`SELECT count(*)::INTEGER AS n, coalesce(sum(valor), 0) AS valor, count(DISTINCT coalesce(nullif(ente, ''), quem))::INTEGER AS lugares, count(DISTINCT fornecedor)::INTEGER AS fornecedores FROM r`);
     const ente = params.get("ente");
+    const orgao = params.get("orgao");
     const outros = ["q", "esfera", "tipo", "min"].some((k) => params.get(k)) || (!!ente && !!params.get("uf"));
     let titulo_ = "Contratos encontrados";
     // Um estado inteiro (o governo e as prefeituras): ?uf=
@@ -317,6 +326,13 @@ const tem = (e: string) => !!r?.esferas[e];
         ? `Contratos ${quem.startsWith("Governo") ? "do governo" : "da prefeitura"} assinados em ${raiz.dataset.ano}, com os filtros escolhidos abaixo.`
         : `Os contratos que ${quem.startsWith("Governo") ? "o governo" : "a prefeitura"} assinou em ${raiz.dataset.ano} e publicou no Portal Nacional de Contratações Públicas. Procure dentro deles pelo que foi comprado ou pela empresa.`,
         quem.startsWith("Governo") ? "Contratos do governo estadual" : "Contratos da prefeitura");
+      titulo_ = outros ? "Com estes filtros" : "Todos os contratos";
+    }
+    if (orgao) {
+      topo(orgao, outros
+        ? `Contratos do órgão assinados em ${raiz.dataset.ano}, com os filtros escolhidos abaixo.`
+        : `Os contratos que o órgão assinou em ${raiz.dataset.ano} e publicou no Portal Nacional de Contratações Públicas, em todas as suas unidades. Procure dentro deles pelo que foi comprado ou pela empresa.`,
+        "Contratos do governo federal");
       titulo_ = outros ? "Com estes filtros" : "Todos os contratos";
     }
     let por = "contrato", pagina = 0;
@@ -346,12 +362,12 @@ const tem = (e: string) => !!r?.esferas[e];
         const col = por === "lugar" ? "quem" : "fornecedor";
         const l = await consulta(`SELECT ${col} AS nome, any_value(ente) AS ente, any_value(cnpj) AS cnpj, any_value(pessoa) AS pessoa, count(*)::INTEGER AS n, sum(valor) AS valor FROM r GROUP BY ${col} ORDER BY valor DESC LIMIT 100`);
         corpo = `<ol class="lista">${l.map((x) => `<li><span>${por === "lugar"
-          ? (x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.nome)}</a>` : esc(x.nome))
+          ? linkQuem(x.ente, x.nome)
           : (x.pessoa === "PJ" && x.cnpj ? `<a href="/contratos?empresa=${esc(x.cnpj.slice(0, 8))}">${esc(titulo(x.nome))}</a>` : esc(titulo(x.nome)))}</span><span>${x.n === 1 ? "1 contrato" : `${nf0.format(x.n)} contratos`} · ${curto(x.valor)}</span><span class="fatia" title="Fatia no valor de todos os contratos encontrados"><i style="width:${Math.max(1, (x.valor / (l[0].valor || 1)) * 70)}px"></i><b>${fatia(x.valor, s.valor)}</b></span></li>`).join("")}</ol>`;
       }
       saida.innerHTML = `
         <h2>${esc(titulo_)}</h2>
-        <div class="numeros"><div><span>Contratos</span><strong>${nf0.format(s.n)}</strong></div><div><span>Somam</span><strong>${curto(s.valor)}</strong></div>${ente ? `<div><span>Fornecedores</span><strong>${nf0.format(s.fornecedores)}</strong></div>` : `<div><span>Em</span><strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong></div>`}</div>
+        <div class="numeros"><div><span>Contratos</span><strong>${nf0.format(s.n)}</strong></div><div><span>Somam</span><strong>${curto(s.valor)}</strong></div>${ente || orgao ? `<div><span>Fornecedores</span><strong>${nf0.format(s.fornecedores)}</strong></div>` : `<div><span>Em</span><strong>${nf0.format(s.lugares)} ${params.get("esfera") === "Governo federal" ? (s.lugares === 1 ? "órgão" : "órgãos") : s.lugares === 1 ? "lugar" : "lugares"}</strong></div>`}</div>
         ${s.n ? `<div class="agrupar"><span>Agrupar por:</span>${[["contrato", "Contrato"], ["lugar", "Quem contratou"], ["empresa", "Fornecedor"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar estes contratos (planilha)</button></div>${frase_ ? `<p class="concentracao">${frase_}</p>` : ""}${corpo}` : `<div class="vazio"><p><strong>Nenhum contrato com esses filtros.</strong></p><p class="menor">Tente outras palavras: cada prefeitura descreve o contrato do seu jeito (“resíduos” ou “limpeza urbana” em vez de “lixo”, por exemplo). Ou tire um filtro, ou procure em todo o Brasil.</p></div>`}
         <p class="menor">A busca procura as palavras no texto do contrato e no nome do fornecedor, com e sem acento; separe alternativas com “ou”. Contratos descritos de outro jeito podem ficar de fora.</p>`;
       saida.querySelectorAll("[data-por]").forEach((b) => b.addEventListener("click", () => { por = b.dataset.por; pagina = 0; desenhar(); }));
@@ -390,7 +406,7 @@ const tem = (e: string) => !!r?.esferas[e];
     saida.innerHTML = `
       <div class="duas">
         <section><h3>Por estado</h3><ol class="barras">${ufs.map((x) => `<li><span>${esc(x.uf)}</span><i style="width:${(x.valor / maior) * 100}%"></i><strong>${curto(x.valor)}</strong></li>`).join("")}</ol></section>
-        <section><h3>Quem mais contratou</h3><ol class="lista">${quem.map((x) => `<li><span>${x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.quem)}</a>` : esc(x.quem)}</span><span>${nf0.format(x.n)} · ${curto(x.valor)}</span></li>`).join("")}</ol></section>
+        <section><h3>Quem mais contratou</h3><ol class="lista">${quem.map((x) => `<li><span>${linkQuem(x.ente, x.quem)}</span><span>${nf0.format(x.n)} · ${curto(x.valor)}</span></li>`).join("")}</ol></section>
       </div>
       <h3>Os maiores contratos</h3>
       <div class="tabela" role="table" aria-label="Contratos da empresa"><div class="linha cab" role="row"><span role="columnheader">Quem contratou</span><span role="columnheader">O que foi contratado</span><span role="columnheader">Fornecedor</span><span role="columnheader" class="d">Data</span><span role="columnheader" class="d">Valor</span></div>${contratos.map((x) => linhaContrato(x, s.valor)).join("")}</div>
