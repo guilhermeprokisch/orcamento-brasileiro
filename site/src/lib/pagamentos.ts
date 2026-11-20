@@ -1,6 +1,7 @@
 /**
  * Para quem cada prefeitura pagou no ano: os empenhos que o Tribunal de Contas do estado publica
- * (por enquanto só a Paraíba; pipeline/…/pagamentos.py). Lido no build; sem o arquivo, tudo vem null.
+ * (por enquanto Paraíba, Acre e Santa Catarina; pipeline/…/pagamentos.py e pagamentos_qlik.py).
+ * Um arquivo por estado: pagamentos.json (PB) e pagamentos-{uf}.json. Lido no build; sem arquivo, tudo vem null.
  */
 import type { Cidade } from "./cidades";
 
@@ -17,8 +18,8 @@ interface DocPagamentos {
     credores: [string, string, number, number][];
   }>;
 }
-const arquivos = import.meta.glob<DocPagamentos>("../../public/data/indicadores/pagamentos.json", { eager: true, import: "default" });
-const doc: DocPagamentos | null = Object.values(arquivos)[0] ?? null;
+const arquivos = import.meta.glob<DocPagamentos>("../../public/data/indicadores/pagamentos*.json", { eager: true, import: "default" });
+const docs = Object.values(arquivos);
 
 export interface Credor { nome: string; cnpj: string; pago: number; empenhos: number }
 export interface Pagamentos {
@@ -39,6 +40,7 @@ export interface Pagamentos {
 }
 
 export function pagamentosDe(c: Cidade): Pagamentos | null {
+  const doc = docs.find((d) => d.mun[String(c.ibge)]);
   const v = doc?.mun[String(c.ibge)];
   if (!doc || !v || !v.pago) return null;
   const [fornecedores, pessoas, folha, previdencia, divida, orgaos] = v.tipos;

@@ -2,7 +2,8 @@
 
     uv run pagamentos                # baixa o ZIP de 2025 (cerca de 190 MB) e resume
     uv run pagamentos --ano 2024
-    uv run pagamentos --sem-baixar   # só copia pipeline/referencia/pagamentos.json para o site (CI)
+    uv run pagamentos --uf AC        # Acre e Santa Catarina: pelos painéis dos tribunais (pagamentos_qlik.py)
+    uv run pagamentos --sem-baixar   # só copia pipeline/referencia/pagamentos*.json para o site (CI)
 
 Fonte: os dados abertos do TCE-PB, um ZIP por ano com todas as 223 prefeituras
 (https://download.tce.pb.gov.br/dados-abertos/dados-consolidados/despesas/despesas-{ano}.zip).
@@ -250,10 +251,12 @@ def resumir(arq, ibge_por_nome: dict[str, str]) -> tuple[dict, dict]:
 
 
 def copiar_referencia() -> None:
-    if REFERENCIA.exists():
-        SAIDA.parent.mkdir(parents=True, exist_ok=True)
-        SAIDA.write_text(REFERENCIA.read_text(encoding="utf-8"), encoding="utf-8")
-        print(f"saída: {SAIDA.relative_to(c.RAIZ)} (cópia de {REFERENCIA.relative_to(c.RAIZ)})")
+    """Um arquivo por estado: pagamentos.json (PB) e pagamentos-{uf}.json (os outros)."""
+    for ref in sorted(REFERENCIA.parent.glob("pagamentos*.json")):
+        destino = SAIDA.with_name(ref.name)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(ref.read_text(encoding="utf-8"), encoding="utf-8")
+        print(f"saída: {destino.relative_to(c.RAIZ)} (cópia de {ref.relative_to(c.RAIZ)})")
 
 
 def main() -> None:
@@ -261,9 +264,16 @@ def main() -> None:
     p.add_argument("--ano", type=int, default=2025)
     p.add_argument("--refazer", action="store_true", help="baixar o ZIP de novo, mesmo se já existir")
     p.add_argument("--sem-baixar", action="store_true", help="só copiar a referência versionada para o site (publicação automática)")
+    p.add_argument("--uf", default="PB", choices=["PB", "AC", "SC"], help="AC e SC vêm dos painéis dos tribunais (só respondem do Brasil)")
+    p.add_argument("--municipio", action="append", help="AC e SC: só esta cidade (pode repetir); junta-se às que já estão no arquivo")
+    p.add_argument("--pausa", type=float, default=1.0, help="AC e SC: segundos entre uma consulta e outra")
     args = p.parse_args()
     if args.sem_baixar:
         copiar_referencia()
+        return
+    if args.uf != "PB":
+        from . import pagamentos_qlik
+        pagamentos_qlik.rodar(args.uf, args.ano, args.municipio, args.pausa)
         return
 
     arq = baixar(args.ano, args.refazer)
