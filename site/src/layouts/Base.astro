@@ -11,6 +11,8 @@ interface Props {
 }
 const { title, description = "O orçamento federal brasileiro, explicado e explorável.", dateline } = Astro.props;
 const path = Astro.url.pathname;
+// URL absoluta desta página, para o canonical e para o link compartilhado.
+const canonical = new URL(path, Astro.site ?? Astro.url).href;
 const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
 ---
 
@@ -20,6 +22,14 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Orçamento Brasileiro" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
