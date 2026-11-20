@@ -7,7 +7,7 @@
  */
 import Base from "../../layouts/Base.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
-import { NOMES_UF } from "../../lib/cidades";
+import "../../styles/onde.css";
 
 interface Resumo {
   fonte: string; ano: number; anos: number[]; pagamentos: string; textos: string; total: number;
@@ -20,7 +20,6 @@ const arquivos = import.meta.glob<Resumo>("../../../public/data/emendas-explorad
 const r: Resumo | null = Object.values(arquivos)[0] ?? null;
 const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
 const titulo = (s: string) => (s === s.toUpperCase() ? s.toLowerCase().split(/\s+/).map((p, i) => (i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ") : s);
-const ufs = Object.entries(NOMES_UF).sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
 const TIPOS: [string, string, string][] = [
   ["Individual", "Individuais", "com finalidade definida"],
   ["Pix", "Emendas Pix", "caem direto na conta da prefeitura ou do estado"],
@@ -53,13 +52,14 @@ const TIPOS: [string, string, string][] = [
         <label><span>Ano</span>
           <select name="ano"><option value="">Todos os anos</option>{r?.anos.slice().reverse().map((a) => <option value={a}>{a}</option>)}</select>
         </label>
-        <label><span>Cidade ou estado</span>
-          <input type="search" name="lugar" list="lista-lugares" placeholder="Ex.: Petrópolis, Ceará" autocomplete="off" data-lugar />
-          <datalist id="lista-lugares"></datalist>
-        </label>
-        <label><span>Estado</span>
-          <select name="uf"><option value="">Todo o Brasil</option>{ufs.map(([sigla, n]) => <option value={sigla}>{n}</option>)}</select>
-        </label>
+        <div class="onde" data-onde>
+          <span id="onde-rotulo">Onde</span>
+          <div class="onde-campo">
+            <span class="chip" data-chip hidden><span data-chip-texto></span><button type="button" aria-label="Tirar o lugar e voltar a todo o Brasil" data-chip-tirar>✕</button></span>
+            <input type="search" data-onde-input role="combobox" aria-labelledby="onde-rotulo" aria-expanded="false" aria-controls="onde-lista" aria-autocomplete="list" placeholder="Todo o Brasil · digite uma cidade ou um estado" autocomplete="off" />
+          </div>
+          <div class="onde-lista" id="onde-lista" role="listbox" data-onde-lista hidden></div>
+        </div>
         <label><span>Onde procurar o texto</span>
           <select name="fonte">
             <option value="">Planos Pix, convênios e parcerias</option>
@@ -122,41 +122,16 @@ const TIPOS: [string, string, string][] = [
   const saida = document.querySelector("[data-resultado]");
   const pergunta = ["q", "autor", "entidade", "ente", "uf", "fonte"].some((k) => params.get(k));
 
-  // O campo "Cidade": sugestões ao digitar e, ao procurar, abre a página das emendas da cidade.
-  const campoLugar = document.querySelector("[data-lugar]");
-  let lugares = null;
-  const carregarLugares = async () => {
-    if (lugares) return lugares;
-    const nomes = await fetch("/data/mapa/nomes.json").then((x) => x.json());
-    lugares = { porNome: new Map(), porCodigo: new Map(), sigla: new Map() };
-    const opcoes = [];
-    // Os estados: tudo o que foi pago a quem fica nele (prefeituras, governo, entidades).
-    for (const [cod, [nome, sigla]] of Object.entries(nomes.uf)) {
-      const rotulo = `${nome} (estado)`;
-      lugares.porNome.set(sem(rotulo), cod); lugares.porNome.set(sem(nome), cod);
-      lugares.porCodigo.set(cod, rotulo); lugares.sigla.set(cod, sigla);
-      opcoes.push(`<option value="${esc(rotulo)}"></option>`);
-    }
-    for (const [ibge, [nome, uf]] of Object.entries(nomes.mun)) {
-      const rotulo = `${nome} (${uf})`;
-      lugares.porNome.set(sem(rotulo), ibge); if (!lugares.porNome.has(sem(nome))) lugares.porNome.set(sem(nome), ibge);
-      lugares.porCodigo.set(ibge, rotulo);
-      opcoes.push(`<option value="${esc(rotulo)}"></option>`);
-    }
-    document.getElementById("lista-lugares").innerHTML = opcoes.join("");
-    return lugares;
-  };
-  campoLugar?.addEventListener("focus", carregarLugares, { once: true });
-  if (params.get("ente")) carregarLugares().then((l) => { const r = l.porCodigo.get(params.get("ente")); if (r) campoLugar.value = r; });
-  form?.addEventListener("submit", async (ev) => {
+  // O campo "Onde" (public/explorador/onde.js): uma cidade abre a página das emendas dela; um estado, tudo o
+  // que foi pago a quem fica nele (prefeituras, governo, entidades). Com palavras, a busca fica no lugar.
+  const { ligarOnde, carregarLugares } = await import("/explorador/onde.js");
+  const campoOnde = ligarOnde(document.querySelector("[data-onde]"), () => form.requestSubmit());
+  if (params.get("ente")) await campoOnde.definir(params.get("ente"));
+  form?.addEventListener("submit", (ev) => {
     ev.preventDefault();
-    const texto = campoLugar.value.trim();
-    const ente = texto ? (await carregarLugares()).porNome.get(sem(texto)) : "";
-    if (texto && !ente) { campoLugar.setCustomValidity("Escolha uma cidade ou um estado da lista."); campoLugar.reportValidity(); campoLugar.setCustomValidity(""); return; }
     const q = new URLSearchParams();
-    for (const [k, v] of new FormData(form)) if (v && !["lugar", "autor", "entidade", "ente"].includes(k)) q.set(k, v);
-    // Só a cidade (e o ano): a página da cidade. Com palavras: a busca, na cidade.
-    if (ente) q.set("ente", ente);
+    for (const [k, v] of new FormData(form)) if (v && !["autor", "entidade", "ente", "uf"].includes(k)) q.set(k, v);
+    if (campoOnde.escolhido) q.set("ente", campoOnde.escolhido.codigo);
     location.href = `/emendas${q.size ? `?${q}` : ""}`;
   });
 
@@ -217,7 +192,7 @@ const TIPOS: [string, string, string][] = [
     else if (params.get("entidade")) topo("Carregando…", "", "Quem recebeu");
     else if (ente) {
       topo("Carregando…", "", "Emendas");
-      carregarLugares().then((l) => { const r = l.porCodigo.get(ente); if (r && document.querySelector("[data-titulo]").textContent === "Carregando…") topo(r, "Carregando as emendas…", "Emendas"); });
+      carregarLugares().then((l) => { const r = l.porCodigo.get(ente); if (r && document.querySelector("[data-titulo]").textContent === "Carregando…") topo(r.rotulo, "Carregando as emendas…", "Emendas"); });
     }
     try {
       await conectar();
@@ -292,7 +267,7 @@ const TIPOS: [string, string, string][] = [
   async function lugar() {
     const ente = params.get("ente");
     // Um estado (código de 2 dígitos): tudo o que foi pago a quem fica nele, pela UF.
-    const estado = ente.length === 2 ? (await carregarLugares()).sigla.get(ente) : null;
+    const estado = ente.length === 2 ? (await carregarLugares()).porCodigo.get(ente)?.sigla : null;
     const [col, val] = estado ? ["uf", estado] : ["ibge", ente];
     etapa(2, "Procurando as emendas…");
     const anos = (await consulta(`SELECT DISTINCT ano FROM p WHERE ${col} = ? ORDER BY ano`, [val])).map((x) => x.ano);
@@ -304,7 +279,7 @@ const TIPOS: [string, string, string][] = [
     const autores = await consulta(`SELECT autor, sum(valor) AS valor FROM x GROUP BY autor ORDER BY valor DESC LIMIT 10`);
     const quem = await consulta(`SELECT favorecido, codigo, grupo, sum(valor) AS valor FROM x GROUP BY ALL ORDER BY valor DESC LIMIT 10`);
     const area = await consulta(`SELECT coalesce(nullif(area, ''), 'Sem área') AS area, sum(valor) AS valor FROM x GROUP BY 1 ORDER BY valor DESC LIMIT 6`);
-    topo(estado ? (await carregarLugares()).porCodigo.get(ente).replace(/ \(estado\)$/, "") : `${s.municipio} (${s.uf})`,
+    topo(estado ? (await carregarLugares()).porCodigo.get(ente).nome : `${s.municipio} (${s.uf})`,
       estado
         ? `Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} emendas a quem fica no estado: prefeituras, o governo estadual, entidades e empresas.`
         : `Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} emendas a quem fica aqui: a prefeitura, entidades, empresas e órgãos estaduais e federais com sede na cidade.`,
@@ -329,10 +304,10 @@ const TIPOS: [string, string, string][] = [
     const ente = params.get("ente");
     if (ente && ente.length === 2) {
       const l = await carregarLugares();
-      onde.push("uf = ?"); v.push(l.sigla.get(ente));
-      topo(l.porCodigo.get(ente).replace(/ \(estado\)$/, ""), "Nos textos das emendas de quem fica no estado: planos das emendas Pix, convênios e parcerias.", "Busca no estado");
+      onde.push("uf = ?"); v.push(l.porCodigo.get(ente)?.sigla);
+      topo(l.porCodigo.get(ente)?.nome || "", "Nos textos das emendas de quem fica no estado: planos das emendas Pix, convênios e parcerias.", "Busca no estado");
     } else if (ente) {
-      const rotulo = (await carregarLugares()).porCodigo.get(ente) || "";
+      const rotulo = (await carregarLugares()).porCodigo.get(ente)?.rotulo || "";
       const [, nome, uf] = /^(.*) \((\w\w)\)$/.exec(rotulo) || [];
       if (nome) {
         onde.push("(strip_accents(lower(municipio)) = ? OR strip_accents(lower(beneficiario)) LIKE ?) AND uf = ?");
@@ -364,7 +339,7 @@ const TIPOS: [string, string, string][] = [
         ${nomes.length || ents.length ? `<div class="atalhos">${nomes.length ? `<p><span>Parlamentares e grupos:</span> ${nomes.map((n) => linkAutor(n)).join(" · ")}</p>` : ""}${ents.length ? `<p><span>Quem recebeu:</span> ${ents.map((e) => `<a href="/emendas?entidade=${esc(e.codigo)}">${esc(titulo(e.nome))}</a>`).join(" · ")}</p>` : ""}</div>` : ""}
         <h2>${termos.length ? "Nos textos das emendas" : "Os textos das emendas"}</h2>
         <div class="numeros"><div><span>Encontrados</span><strong>${nf0.format(s.n)}</strong></div><div><span>Somam</span><strong>${curto(s.valor)}</strong></div><div><span>Para</span><strong>${nf0.format(s.quem)} ${s.quem === 1 ? "beneficiário" : "beneficiários"}</strong></div></div>
-        ${s.n ? `<div class="agrupar"><span>Agrupar por:</span>${[["texto", "Texto"], ["autor", "Quem mandou"], ["quem", "Quem recebeu"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar (planilha)</button></div>${corpo}` : `<p>Nenhum texto com essas palavras.</p>`}
+        ${s.n ? `<div class="agrupar"><span>Agrupar por:</span>${[["texto", "Texto"], ["autor", "Quem mandou"], ["quem", "Quem recebeu"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar (planilha)</button></div>${corpo}` : `<div class="vazio"><p><strong>Nenhum texto com essas palavras.</strong></p><p class="menor">Tente outras palavras (cada prefeitura descreve do seu jeito), tire um filtro ou procure em todo o Brasil. Para ver tudo o que chegou a um lugar, escolha só a cidade ou o estado, sem palavras.</p></div>`}
         <p class="menor">A busca procura no objeto dos convênios e das parcerias e no plano declarado das emendas Pix, com e sem acento; separe alternativas com “ou”. O valor dos planos e convênios é o previsto, não necessariamente o pago.</p>`;
       saida.querySelectorAll("[data-por]").forEach((b) => b.addEventListener("click", () => { por = b.dataset.por; pagina = 0; desenhar(); }));
       saida.querySelector("[data-mais]")?.addEventListener("click", () => { pagina += 1; desenhar(); });
@@ -429,6 +404,7 @@ const TIPOS: [string, string, string][] = [
     @media (prefers-reduced-motion: reduce) { .barra-carga i { animation: none; left: 0; width: 100%; opacity: .5; } }
     .erro { margin: 0; padding: 20px 0; font-size: 16px; color: #8f3d1d; }
     .busca.travado { opacity: .55; }
+    .vazio { display: flex; flex-direction: column; gap: 6px; }
     .sobretitulo { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
     .frase { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); max-width: 900px; }
     .frase strong { color: var(--tinta); }
