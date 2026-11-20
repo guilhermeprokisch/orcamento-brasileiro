@@ -147,6 +147,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline contratos --sem-baixar
 
+      # Explorador de contratos (/contratos): o resumo da página inicial. O Parquet que a busca consulta
+      # fica no bucket público e é gerado à mão (uv run explorador-contratos).
+      - name: Explorador de contratos
+        continue-on-error: true
+        run: uv run --project pipeline explorador-contratos --sem-baixar
+
       # Nota de capacidade de pagamento (CAPAG) do Tesouro: a versão mais recente, para prefeituras e estados.
       - name: Pipeline da CAPAG
         continue-on-error: true

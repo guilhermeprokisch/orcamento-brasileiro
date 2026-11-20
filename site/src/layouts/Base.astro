@@ -58,6 +58,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
           <a href="/cidades" aria-current={ativo("/cidades")}>Cidades</a>
           <a href="/estados" aria-current={ativo("/estados")}>Estados</a>
           <a href="/mapa/">Mapa</a>
+          <a href="/contratos" aria-current={ativo("/contratos")}>Contratos</a>
           <a href="/aprenda" aria-current={ativo("/aprenda")}>Aprenda</a>
           <a href="/glossario" aria-current={ativo("/glossario")}>Glossário</a>
           <Busca client:idle />
@@ -75,6 +76,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
               <a href="/cidades">Cidades</a>
               <a href="/estados">Estados</a>
               <a href="/mapa/">Mapa</a>
+              <a href="/contratos">Contratos</a>
               <a href="/aprenda">Aprenda</a>
               <a href="/glossario">Glossário</a>
               <a href="/dados">Os dados</a>
