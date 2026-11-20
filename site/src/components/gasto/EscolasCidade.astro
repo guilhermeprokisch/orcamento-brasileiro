@@ -5,6 +5,7 @@
  */
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import { escolasDe } from "../../lib/indicadores";
+import Termo from "../Termo.astro";
 import type { Cidade } from "../../lib/cidades";
 
 interface Props {
@@ -41,13 +42,13 @@ const VISIVEIS = 20;
       {e.pdde.total > 0 && (
         <p>
           Em {e.anoPdde}, o governo federal mandou <strong>{moedaExtenso(e.pdde.total)}</strong> direto para{" "}
-          {nf0.format(e.pdde.conselhos)} conselhos e caixas escolares da cidade, sem passar pela prefeitura: é o PDDE (Dinheiro
+          {nf0.format(e.pdde.conselhos)} conselhos e caixas escolares da cidade, sem passar pela prefeitura: é o <Termo id="pdde" /> (Dinheiro
           Direto na Escola), para pequenas compras, reparos e projetos.
           {e.pdde.casado > 0 && <> Desse total, {moedaCurta(e.pdde.casado)} foram para escolas da lista abaixo.</>}
         </p>
       )}
       <p class="menor">
-        O Ideb é da edição de {e.edicaoIdeb}, numa escala de 0 a 10; escola sem nota teve poucos alunos avaliados ou não
+        O <Termo id="ideb" /> é da edição de {e.edicaoIdeb}, numa escala de 0 a 10; escola sem nota teve poucos alunos avaliados ou não
         tem aquela etapa. O PDDE chega com o nome do conselho escolar, não o da escola, e foi ligado a ela pelo nome:
         quando os nomes não batem, o dinheiro fica só no total. Os nomes das escolas vêm do Censo Escolar, sem acentos.
       </p>

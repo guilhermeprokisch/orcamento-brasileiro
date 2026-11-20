@@ -5,6 +5,7 @@
  * ano a ano. Fonte: pagamentos por favorecido da CGU (pipeline/…/emendas.py).
  */
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import Termo from "../Termo.astro";
 import { porPessoa, type Cidade } from "../../lib/cidades";
 import { emendasDe } from "../../lib/indicadores";
 import SerieAnos from "./SerieAnos.astro";
@@ -31,7 +32,7 @@ const frente = e && e.mediana ? e.porHab / e.mediana - 1 : null;
       <span class="sobretitulo">O que chega de Brasília</span>
       <h2>Emendas parlamentares</h2>
       <p>
-        Em {e.ano}, deputados e senadores mandaram <strong>{moedaExtenso(e.total)}</strong> em emendas {paraOnde}, ou{" "}
+        Em {e.ano}, deputados e senadores mandaram <strong>{moedaExtenso(e.total)}</strong> em <Termo id="emenda-parlamentar">emendas</Termo> {paraOnde}, ou{" "}
         <strong>{porPessoa(e.porHab)} por morador</strong>.
         {e.mediana !== null && grupo && <> A mediana {grupo} é {porPessoa(e.mediana)}{frente !== null && Math.abs(frente) >= 0.1 && <> ({nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"})</>}.</>}
       </p>

@@ -76,3 +76,28 @@ h1, h2, h3 { font-family: var(--serifa); font-weight: 700; letter-spacing: -0.02
 /* mostrar/esconder por tamanho de tela */
 @media (max-width: 640px) { .so-largo { display: none !important; } }
 @media (min-width: 641px) { .so-celular { display: none !important; } }
+
+/* Palavras técnicas com explicação (components/Termo.astro e termoHtml em lib/glossario.ts):
+   sublinhado pontilhado; o balão abre ao passar o mouse, ao focar com o teclado ou ao tocar. */
+.termo { position: relative; text-decoration: underline dotted; text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-color: currentColor; cursor: help; }
+.termo:focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
+.termo .balao {
+  display: none; position: absolute; z-index: 60; left: 50%; bottom: calc(100% + 10px);
+  transform: translateX(calc(-50% + var(--desvio, 0px)));
+  width: max-content; max-width: min(320px, calc(100vw - 32px));
+  padding: 10px 12px; background: var(--tinta); color: var(--papel);
+  font-family: var(--sans); font-size: 13.5px; font-weight: 400; font-style: normal; line-height: 1.45;
+  letter-spacing: normal; text-transform: none; text-align: left; white-space: normal; cursor: auto;
+  box-shadow: 0 6px 18px rgba(25, 25, 25, .18);
+}
+/* As páginas pintam strong e links com cores próprias e mais específicas: no balão, tudo é claro. */
+.termo .balao, .termo .balao strong, .termo .balao a { color: var(--papel) !important; background-color: transparent; }
+.termo .balao { background: var(--tinta) !important; }
+.termo .balao strong { font-weight: 600; }
+.termo .balao a { text-decoration: underline; white-space: nowrap; }
+/* Uma ponte invisível entre a palavra e o balão, para o mouse chegar ao link sem o balão fechar. */
+.termo .balao::before { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 12px; }
+.termo.abaixo .balao { bottom: auto; top: calc(100% + 10px); }
+.termo.abaixo .balao::before { top: auto; bottom: 100%; }
+.termo:hover .balao, .termo:focus-within .balao, .termo.aberto .balao { display: block; }
+.termo.fechado .balao { display: none; }
