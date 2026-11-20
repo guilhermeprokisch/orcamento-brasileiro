@@ -78,12 +78,15 @@ const descricao = temDados
         <h1>{c.nome}</h1>
         {ctx ? (
           <>
-            {anos.length > 1 && (
-              <label class="escolha-ano">Ano das contas
-                <select id="ano-ficha">{anos.map((a) => <option value={a} selected={a === c.ano}>{a}</option>)}</select>
-                <small>{anos.at(-1)} a {anos[0]}</small>
-              </label>
-            )}
+            <div class="topo-acoes">
+              {anos.length > 1 && (
+                <label class="escolha-ano">Ano das contas
+                  <select id="ano-ficha">{anos.map((a) => <option value={a} selected={a === c.ano}>{a}</option>)}</select>
+                  <small>{anos.at(-1)} a {anos[0]}</small>
+                </label>
+              )}
+              {!ehDF && <a class="comparar-com" href={`/comparar?a=${c.ibge}`}><span aria-hidden="true">⇄</span> Comparar com outra cidade</a>}
+            </div>
             <div class="ficha" data-parte="frase" set:html={fraseHtml(ctx)} />
           </>
         ) : (
