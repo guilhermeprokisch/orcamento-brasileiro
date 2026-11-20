@@ -406,7 +406,9 @@ def ler(ano: int, dims: dict, nomes_vistos: dict) -> dict:
                 detalhe = " ".join(r["DETALHAMENTO"].split()) or "Sem informação"
                 base, parcela = separar_parcela(detalhe)
                 cod_esp = codigo(orig[0], especie)
-                cod_item = codigo(orig[0], especie, base)
+                # Itens com nome simples (NOMES_ITENS) se juntam pelo nome: grafias diferentes do mesmo tributo
+                # em anos diferentes, ou a versão intraorçamentária, viram um item só.
+                cod_item = codigo(orig[0], especie, NOMES_ITENS.get(so_letras(base), base))
                 refin = int(orig[0] == "credito" and "REFIN" in detalhe.upper() and "EXC" not in detalhe.upper())
                 orgao = (r["CÓDIGO ÓRGÃO SUPERIOR"] or "-").strip()
                 dims["categoria"][cat[0]] = cat[1]

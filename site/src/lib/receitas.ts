@@ -55,6 +55,7 @@ export const ROTULOS_RECEITA: Rotulos = {
   taxa: "do previsto",
   colTrilho: "Arrecadado",
   colTaxa: "Do previsto",
+  codigo: false, // os códigos das receitas são internos (calculados do nome)
 };
 
 /** O que é cada tipo de receita, em português simples. */

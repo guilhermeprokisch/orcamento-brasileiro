@@ -189,6 +189,8 @@ export interface Rotulos {
   /** cabeçalhos da lista */
   colTrilho: string;
   colTaxa: string;
+  /** mostra o código ao lado do nome na lista (padrão: sim) */
+  codigo?: boolean;
 }
 
 export const ROTULOS_DESPESA: Rotulos = {

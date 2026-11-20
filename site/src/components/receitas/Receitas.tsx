@@ -252,7 +252,7 @@ export default function Receitas() {
                     <>De onde veio o dinheiro do governo federal{estado().semRefin ? ", sem contar o refinanciamento da dívida" : ""}.{" "}
                       Estava previsto {moedaExtenso(g().total.atualizado)}; entrou {pct(taxaRealizacao(g().total))} disso.</>
                   }>
-                    Rendeu <strong class="marca">{moedaExtenso(g().total.realizado)}</strong> em {ano()}{ateQuando()},{" "}
+                    Trouxe <strong class="marca">{moedaExtenso(g().total.realizado)}</strong> em {ano()}{ateQuando()},{" "}
                     {pct(g().total.realizado / Math.max(1, totalGeral()))} de tudo o que entrou.{" "}
                     <Show when={g().total.atualizado > 0}>Entrou {pct(taxaRealizacao(g().total))} do previsto.</Show>
                   </Show>

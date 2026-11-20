@@ -43,7 +43,7 @@ export default function Tabela(props: Props) {
                 <Show when={props.podeDescer} fallback={<span>{it.nome}</span>}>
                   <button type="button" onClick={() => props.onEscolher(it)}>{it.nome}</button>
                 </Show>
-                <span class="lista-cod">{it.codigo}</span>
+                <Show when={r().codigo !== false}><span class="lista-cod">{it.codigo}</span></Show>
               </span>
               <span role="cell" class="so-largo lista-trilho">
                 <span style={{ width: `${(Math.max(0, v()) / max()) * 100}%`, background: corDaRampa(Math.min(1, i() / 5)) }} />
