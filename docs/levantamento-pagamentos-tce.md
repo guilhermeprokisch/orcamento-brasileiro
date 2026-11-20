@@ -60,6 +60,21 @@ As linhas de PB, RS, SP, PR e CE foram conferidas por mim, baixando ou consultan
 
 Depois: PR (XML, dá mais trabalho), ES (pequeno), a cidade do Rio (um CSV por ano) e as APIs do CE, do AM, do PE, do TO e do AC. Com PB, RS, SP, PR e ES, o site cobriria um terço das prefeituras do país; com as APIs, 44%; com o arquivo de MG baixado à mão, 59%.
 
+## O que falta e como conseguir
+
+Em ordem de quantas prefeituras cada passo traz. Os pedidos pela Lei de Acesso à Informação (LAI) têm de sair em nome de uma pessoa (nome, CPF e e-mail), e o tribunal tem 20 dias para responder, prorrogáveis por mais 10.
+
+1. **MG, 853 prefeituras: baixar à mão, uma vez por ano.** Abrir `dadosabertos.tce.mg.gov.br` no navegador, ir em Jurisdicionado → Downloads, escolher o ano e baixar "Empenhos" e "Despesas" (2024: 597 MB e 1,7 GB). Depois, subir os dois arquivos para o bucket. Não pede login; o site faz sozinho uma verificação anti-robô, por isso só funciona no navegador.
+2. **GO, 246 prefeituras: pedir a chave da API ao TCM-GO.** A API (`ws.tcm.go.gov.br/api`) já tem empenho, liquidação e pagamento com o credor; falta a chave, que o tribunal cria e liga ao e-mail de um responsável. Não há formulário para isso. Pedir pela Ouvidoria/e-SIC (`tcmgo.tc.br/ouvidoria`, com cadastro) ou por e-mail para ouvidoria@tcmgo.tc.br. Os termos de uso pedem uma consulta a cada 10 minutos, no mínimo, e que o TCM-GO seja citado como fonte.
+3. **BA (417), SC (295), PA (144) e MT (142): pedido pela LAI** do arquivo completo de empenhos e pagamentos das prefeituras, com nome e CPF/CNPJ do credor, em CSV, de 2021 em diante. Esses tribunais já têm os dados: o TCM-BA e o TCM-PA mostram tudo atrás de um captcha, o TCE-SC no painel Farol e o TCE-MT no sistema APLIC.
+4. **AL (102), MS (79), SE (75), RO (52), AP (16) e RR (15): mesmo pedido pela LAI.** Esses tribunais recebem os dados das prefeituras (SIAP, e-Sfinge, SAGRES, SIGAP, Roraicontas), mas não publicam por credor. No TCE-RO dá para tentar antes entrar no Portal do Cidadão com a própria conta gov.br e ver se há download.
+5. **Capital de São Paulo:** criar uma conta gratuita na APILib da prefeitura (`apilib.prefeitura.sp.gov.br`) e gerar a chave da API-SOF. Antes de usar, falta confirmar se ela traz o credor.
+6. **Nome do credor no RJ, RN e MA:** não precisa pedir nada. Cruzar o CNPJ com o cadastro aberto de CNPJ da Receita Federal (`arquivos.receitafederal.gov.br`), que tem a razão social. Pessoas físicas ficam sem nome.
+
+Modelo de pedido (trocar o tribunal e o estado):
+
+> Com base na Lei 12.527/2011, solicito os dados de execução da despesa de todos os municípios do estado, que este Tribunal recebe das prefeituras e câmaras: empenhos, liquidações e pagamentos, com número do empenho, data, órgão, elemento de despesa, nome e CPF/CNPJ do credor e valores empenhado, liquidado e pago, de 2021 até hoje, em formato aberto (CSV ou API), por município ou para o estado inteiro. Se já houver um endereço público para baixar esses dados, peço que o informem. Os dados serão usados no site orcamentobrasileiro.com.br, que mostra de forma simples para onde vai o dinheiro público, com a devida citação da fonte.
+
 ## De onde vieram os endereços
 
 - **Primeira rodada:** dois agentes navegaram a partir da página inicial de cada tribunal e de cada portal estadual, procurando links de "dados abertos", "API" e "transparência", e abriram o que acharam.
