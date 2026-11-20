@@ -197,3 +197,13 @@ jobs:
       - name: Aviso sem credenciais
         if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == ''
         run: echo "::notice::Site gerado, mas não publicado — faltam os secrets CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID."
+
+      # Cópia pública dos dados (brutos e tratados) no Backblaze B2, só na main. Envia apenas o que
+      # mudou de tamanho; nada é apagado lá. Ver pipeline/src/orcamento_pipeline/espelho.py.
+      - name: Cópia pública dos dados (Backblaze B2)
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          B2_APPLICATION_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+        run: uv run --project pipeline espelho
