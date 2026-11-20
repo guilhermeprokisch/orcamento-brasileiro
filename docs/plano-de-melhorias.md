@@ -15,7 +15,7 @@ Atualizado em 20/11/2026.
 | # | Melhoria | Situação |
 |---|---|---|
 | 1 | O ano em andamento (2026) no mapa e nas páginas | Feito para estados e municípios (relatório bimestral, atualizado pelo `bimestral.yml`) |
-| 2 | Dívida oficial e limites fiscais (RGF do SICONFI) | Estados: feito (#22). Prefeituras: download em curso, PR a seguir. Falta o gasto com pessoal frente ao limite (RGF, Anexo 1) |
+| 2 | Dívida oficial e limites fiscais (RGF do SICONFI) | Feito: dívida dos estados (#22) e das prefeituras (#42), gasto com pessoal frente ao limite (#71) |
 | 3 | Conciliar o dinheiro federal: Portal da Transparência x prefeituras | Feito ([conciliacao-federal.md](conciliacao-federal.md)) |
 | 4 | Bolsa Família e BPC de outros anos | Depende de download manual (o Portal pede captcha); hoje só 2025 |
 | 5 | Gasto do estado em cada cidade | Feito para a Paraíba e para Minas Gerais. Demais estados: ver o item H |
@@ -37,6 +37,19 @@ Atualizado em 20/11/2026.
 | "Com o quê gasta": a frase cita a maior fatia e explica serviços e materiais | cidades, estados | #26 |
 | Lista "Nesta página" e seções em grupos (em que gasta, contas, o que chega e sai, como está) | cidades, estados | #32, #33 |
 | Bloco "Como está a cidade" no mapa (mortalidade, homicídios, água, esgoto) | mapa | #36 |
+| Emendas parlamentares que chegam a cada cidade e estado, e no mapa por morador | cidades, estados, mapa | #38, #41, #59 |
+| Explorador de emendas (/emendas) | página nova | #53, #55, #56 |
+| Contratos das prefeituras e dos estados (PNCP) e o explorador de contratos, com o governo federal | cidades, estados, /contratos | #43, #47, #52, #54, #57, #76, #77 |
+| As escolas da prefeitura, uma a uma | cidades | #49 |
+| Os postos e hospitais: internações (SIH) e procedimentos, exames e cirurgias sem internação (SIA) | cidades | #51, #70 |
+| Para quem a prefeitura pagou (tribunais de contas da PB, do AC e de SC) | cidades | #66, #73, #75 |
+| Gasto com pessoal frente ao limite da LRF | cidades, estados | #71 |
+| Comparar duas cidades ou dois estados (/comparar) | página nova | #64, #72 |
+| De onde vem o dinheiro da União (/receitas) | página nova | #65 |
+| A dívida pública federal (/divida) | página nova | #63 |
+| Cópia pública dos dados (Backblaze B2) e a página "Os dados" | /dados | #46, #48 |
+| Menu em quatro grupos, balões nas palavras técnicas, trilha e botões para voltar nos exploradores | todo o site | #50, #60, #61, #68 |
+| Publicação em quatro filas: de cerca de 15 para 7 a 8 minutos | GitHub | #69, #74 |
 
 ## Próximas, na ordem sugerida
 
@@ -65,24 +78,24 @@ gastamos mais e temos menos?".
 
 A promessa original do projeto: chegar na unidade.
 
-- Quanto o SUS pagou a cada hospital. Fonte: DATASUS (SIH/SIA, pelo código CNES) — a confirmar.
-- Dinheiro federal que vai direto a cada escola. Fonte: FNDE (PDDE) — a confirmar.
+- Hospitais e postos: **feito** (#51, #70), com o que o SUS pagou pela tabela a cada unidade. Falta
+  a produção dos postos de saúde (UBS), registrada no e-SUS/SISAB e não no SIA: hoje aparecem
+  quase sem atendimentos.
+- Escolas: **feito** (#49), uma a uma, com o dinheiro direto do FNDE.
 - Limite já conhecido: salários, merenda e contratos são pagos pela secretaria, não pela
   unidade. O que dá para mostrar é um pedaço do gasto, e a página precisa dizer isso.
 
 ### D. Emendas parlamentares
 
-Quanto cada deputado e senador mandou para cada cidade, e para quê. Fonte: Portal da
-Transparência e Transferegov — a confirmar (o Portal bloqueia downloads em série com captcha).
+**Feito** (#38, #41, #53): quanto cada deputado e senador mandou para cada cidade, e para quê.
 
 ### F. Comparar duas cidades lado a lado
 
-Hoje a comparação é só com a mediana das cidades do mesmo porte. Escolher duas (ou a cidade e a
-capital) e ver tudo em duas colunas.
+**Feito** (#64, #72): /comparar, duas cidades ou dois estados lado a lado.
 
 ### G. O que o governo federal gasta direto na cidade
 
-O mapa mostra o que a União repassa, não o que ela mesma gasta ali (universidades federais,
+**Em andamento** (sessão própria, 20/11/2026). O mapa mostra o que a União repassa, não o que ela mesma gasta ali (universidades federais,
 hospitais federais, quartéis, agências). Fonte: Portal da Transparência, despesas por
 localidade — a confirmar. Atenção: o gasto costuma ser registrado na sede do órgão, o mesmo
 problema da folha de pagamento na Paraíba.
@@ -101,8 +114,9 @@ município. Ordem sugerida:
 
 ### H2. Página "quem publica onde gasta"
 
-Os 27 estados em quatro faixas: gasto inteiro por município, folha com cidade, só obras e
-convênios, quase nada. Os dados já estão no documento da pesquisa.
+**Em andamento** (sessão própria, 20/11/2026). Os 27 estados em quatro faixas: gasto inteiro por
+município, folha com cidade, só obras e convênios, quase nada. Os dados já estão no documento da
+pesquisa.
 
 ### H3. Pedidos pela Lei de Acesso à Informação
 
@@ -139,12 +153,12 @@ municipais, que são milhares e cada um num formato
 ([levantamento](levantamento-portais-municipais.md)). Começar pelos Tribunais de Contas que
 publicam os dados de todos os municípios do estado num formato só.
 O levantamento estado por estado está em [levantamento-pagamentos-tce.md](levantamento-pagamentos-tce.md);
-a Paraíba é o primeiro.
+feitos: Paraíba (#66), Acre e Santa Catarina (#73, #75). Próximo: Pernambuco (API do TCE-PE,
+só responde do Brasil). Goiás (TCM-GO) depende de uma chave pedida com cadastro pessoal.
 
 ### K. De onde vem o dinheiro do governo federal
 
-O site mostra para onde vai o dinheiro da União (o Explorer), mas não de onde ele vem. Fazer o
-mesmo para as receitas:
+**Feito** (#65, /receitas). O plano original:
 
 - Quanto entrou em cada ano e de onde: imposto de renda, contribuições à Previdência, Cofins,
   IPI, IOF, royalties do petróleo, dividendos das estatais e o dinheiro emprestado (venda de
@@ -159,7 +173,7 @@ Nacional (Resultado do Tesouro Nacional) e Receita Federal (arrecadação mensal
 
 ### L. A dívida pública federal
 
-Uma página para entender a dívida da União:
+**Feito** (#63, /divida). O plano original:
 
 - Quanto é, em reais e em relação ao PIB, e como cresceu.
 - Quem empresta: bancos, fundos de investimento, fundos de previdência, seguradoras,
@@ -212,6 +226,9 @@ Marcar na página, com a regra escrita ao lado:
   `bimestral.yml` (dias 1 e 31 e toda segunda-feira). Falta estender à comparação com o mesmo
   período do ano anterior e ao relatório de dívida (RGF).
 - Testes automáticos do pipeline: hoje a conferência é feita à mão a cada mudança.
+- Valores digitados errado nos contratos: o corte de "metade do orçamento" não pega tudo nos
+  estaduais (ex.: R$ 5,9 bi do Governo do Pará para reformar uma escola) nem nos federais abaixo
+  de R$ 5 bi (ex.: R$ 468 mi de carro-pipa a uma pessoa física em Sergipe).
 
 ## Como decidir a ordem
 
