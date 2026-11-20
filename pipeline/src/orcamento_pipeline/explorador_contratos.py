@@ -6,7 +6,12 @@ Lê os dias baixados do PNCP por contratos.py: o download completo (data/raw/pnc
 todas as esferas, inclusive a federal) quando ele está inteiro; senão o das prefeituras e estados
 (data/raw/pncp/contratos). Aplica os mesmos cortes da página da cidade: fora vendas e cessões de bens
 (o dinheiro entra), e fora contratos maiores que metade de todo o gasto do ente no ano (erro de
-digitação). O CPF de pessoa física nunca entra; o nome entra, como o portal publica.
+digitação). Os federais não têm o gasto do órgão ao lado para comparar: ficam de fora os acima de
+R$ 5 bilhões (em 2025, só erros; os maiores de verdade, do DNIT e do Serpro, ficam abaixo de R$ 4,5
+bi). Uma unidade com mais de um contrato assim fica de fora inteira, porque os valores dela não são
+confiáveis (em 2025, o Hospital Geral de Belém, do Exército: 41 de 100 contratos com R$ 10 bi a
+R$ 640 bi, e os outros com valores de centenas de milhões para clínicas). O CPF de pessoa física
+nunca entra; o nome entra, como o portal publica.
 
 Saídas:
 - data/publico/contratos-{ano}.parquet: um contrato por linha, ordenado por UF, ente e valor, em blocos
@@ -43,6 +48,7 @@ PREP_UF = {"AC": "do", "AL": "de", "AM": "do", "AP": "do", "BA": "da", "CE": "do
            "RO": "de", "RR": "de", "RS": "do", "SC": "de", "SE": "de", "SP": "de", "TO": "do"}
 UF_CODIGO = {s: str(k) for k, s in c.SIGLAS.items()}
 TETO = re.compile(r"credenciamento|chamamento p[uú]blico", re.I)
+TETO_FEDERAL = 5e9   # acima disso, contrato federal é erro de digitação (ver acima)
 MERENDA = re.compile(r"merenda|g[eê]neros aliment|alimenta[cç][aã]o escolar", re.I)
 
 
@@ -57,7 +63,7 @@ def linhas(ano: int):
     completos = dias(PASTA_TODOS, ano)
     if all(a.exists() for a in completos):
         for arq in completos:
-            for (ident, esfera, _poder, ibge, uf, _cnpj_org, orgao, unidade, assin, cat, pessoa, cnpj, forn, obj, valor, publ) in \
+            for (ident, esfera, _poder, ibge, uf, cnpj_org, orgao, unidade, assin, cat, pessoa, cnpj, forn, obj, valor, publ) in \
                     json.loads(gzip.decompress(arq.read_bytes())):
                 if esfera == "M" and ibge in nomes["mun"]:
                     ente, quem = ibge, f"Prefeitura de {nomes['mun'][ibge][0]}"
@@ -69,6 +75,7 @@ def linhas(ano: int):
                 else:
                     continue
                 yield {"id": ident, "esfera": esfera if esfera != "D" else "E", "ente": ente, "uf": uf, "quem": quem,
+                       "unidade": f"{cnpj_org} {unidade}" if esfera == "F" else "",
                        "ano": assin[:4], "cat": cat, "pessoa": pessoa, "cnpj": cnpj, "fornecedor": forn, "objeto": obj,
                        "valor": valor, "data": assin or publ}
         return
@@ -83,7 +90,7 @@ def linhas(ano: int):
             if not n:
                 continue
             quem = f"Prefeitura de {n[0]}" if mun else ("Governo do Distrito Federal" if chave == "53" else f"Governo {PREP_UF.get(n[1], 'de')} {n[0]}")
-            yield {"id": ident, "esfera": "M" if mun else "E", "ente": chave, "uf": n[1], "quem": quem, "ano": ano_ass,
+            yield {"id": ident, "esfera": "M" if mun else "E", "ente": chave, "uf": n[1], "quem": quem, "unidade": "", "ano": ano_ass,
                    "cat": cat, "pessoa": pessoa, "cnpj": cnpj if pessoa == "PJ" else "",   # nos dias antigos, os 8 dígitos de um CPF
                    "fornecedor": forn, "objeto": obj, "valor": valor, "data": publ}
 
@@ -102,6 +109,13 @@ def main() -> None:
     gasto = {str(x["ibge"]): x["total"][0] for f in ("municipios", "estados")
              for x in json.loads((c.RAIZ / "site" / "public" / "data" / "cidades" / f"{f}.json").read_text(encoding="utf-8"))["cidades"] if x.get("total")}
 
+    # Unidades federais com mais de um contrato impossível: fora inteiras (ver acima).
+    impossiveis = Counter(r["unidade"] for r in linhas(args.ano)
+                          if r["esfera"] == "F" and r["ano"] == str(args.ano) and (r["valor"] or 0) > TETO_FEDERAL)
+    suspeitas = {u for u, n in impossiveis.items() if n > 1}
+    for u in suspeitas:
+        print(f"unidade federal fora: {u} ({impossiveis[u]} contratos acima de R$ {TETO_FEDERAL / 1e9:.0f} bi)")
+
     vistos: set[str] = set()
     tot = defaultdict(lambda: [0, 0.0])
     por_tipo = defaultdict(lambda: [0, 0.0])
@@ -115,7 +129,8 @@ def main() -> None:
                 if r["ano"] != str(args.ano) or not r["valor"] or r["valor"] <= 0 or r["id"] in vistos or r["cat"] in NAO_E_GASTO:
                     continue
                 vistos.add(r["id"])
-                if r["ente"] and gasto.get(r["ente"]) and r["valor"] > gasto[r["ente"]] * FATIA_MAXIMA:
+                if (r["ente"] and gasto.get(r["ente"]) and r["valor"] > gasto[r["ente"]] * FATIA_MAXIMA) or \
+                        (r["esfera"] == "F" and (r["valor"] > TETO_FEDERAL or r["unidade"] in suspeitas)):
                     fora += 1
                     continue
                 tipo = TIPOS[TIPO_DA_CATEGORIA.get(r["cat"], 5)]
