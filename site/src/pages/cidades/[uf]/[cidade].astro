@@ -11,6 +11,7 @@ import SegurancaEstado from "../../../components/gasto/SegurancaEstado.astro";
 import IrMoradores from "../../../components/gasto/IrMoradores.astro";
 import EmendasResultado from "../../../components/gasto/EmendasResultado.astro";
 import ContratosResultado from "../../../components/gasto/ContratosResultado.astro";
+import EscolasCidade from "../../../components/gasto/EscolasCidade.astro";
 import NestaPagina, { type GrupoDaPagina } from "../../../components/NestaPagina.astro";
 import { moedaExtenso } from "../../../lib/formato";
 import { caminhoCidade, caminhoEstado, deUf, docCidades, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../../lib/cidades";
@@ -54,7 +55,7 @@ const SUMARIO: GrupoDaPagina[] = [
   { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["contratos", "Os contratos"]] },
   { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida da prefeitura"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
   { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["estado-aqui", "O que o governo do estado gastou aqui"]] },
-  { id: "como-esta", n: 4, titulo: "Como está a cidade", itens: [["educacao", "Educação: gasto por aluno e nota das escolas"], ["saude", "Saúde: mortalidade infantil"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
+  { id: "como-esta", n: 4, titulo: "Como está a cidade", itens: [["educacao", "Educação: gasto por aluno e nota das escolas"], ["escolas", "As escolas da prefeitura"], ["saude", "Saúde: mortalidade infantil"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
 ];
 const descricao = temDados
   ? `Quanto ${quem} gastou em ${c.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por morador, por área (saúde, educação…).`
@@ -111,6 +112,7 @@ const descricao = temDados
 
     {temDados && !ehDF && <p class="grupo-pagina" id="como-esta" data-grupo="como-esta">4 · Como está a cidade</p>}
     {temDados && !ehDF && <div id="educacao" data-so-padrao="a nota das escolas (Ideb)"><EducacaoResultado cidade={c} faixa={faixa} /></div>}
+    {temDados && !ehDF && <div id="escolas" data-so-padrao="as escolas da prefeitura"><EscolasCidade cidade={c} quem={quem} /></div>}
     {temDados && !ehDF && <div id="saude" data-so-padrao="a mortalidade infantil"><SaudeResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? "das cidades parecidas" : null} onde={onde} /></div>}
     {temDados && !ehDF && <div id="seguranca" data-so-padrao="os homicídios"><SegurancaEstado estado={c} esfera="mun" quem={quem} onde={onde} grupo={faixa ? "das cidades parecidas" : "das cidades"} /></div>}
     {temDados && !ehDF && <div id="saneamento" data-so-padrao="a água e o esgoto"><SaneamentoResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? "das cidades parecidas" : null} onde={onde} /></div>}
@@ -120,8 +122,9 @@ const descricao = temDados
       <p>
         A prestação de contas das prefeituras para em áreas como "Ensino Fundamental" ou "Atenção Básica". Salários,
         merenda e contratos são pagos pela secretaria, não por escola ou posto, então o gasto de cada unidade não vem pronto.
-        Alguns pedaços existem em outras bases: o que o SUS paga a cada hospital (DATASUS, pelo código CNES) e o
-        dinheiro federal que vai direto para cada escola (PDDE). Essas bases ainda não estão neste site.
+        Das escolas, já dá para ver cada uma acima: alunos, nota e o dinheiro federal que vai direto para ela (PDDE).
+        Dos postos e hospitais, o que o SUS paga a cada um está nos arquivos do DATASUS, pelo código CNES, e ainda não
+        está neste site.
       </p>
       {!ehDF && (
         <p>
