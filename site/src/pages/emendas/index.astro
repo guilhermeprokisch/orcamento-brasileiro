@@ -18,7 +18,7 @@ interface Resumo {
 }
 const arquivos = import.meta.glob<Resumo>("../../../public/data/emendas-explorador/resumo.json", { eager: true, import: "default" });
 const r: Resumo | null = Object.values(arquivos)[0] ?? null;
-const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
+const pequenas = new Set(["de", "da", "do", "das", "dos", "e", "o", "a", "os", "as", "em", "no", "na", "para", "com"]);
 const titulo = (s: string) => (s === s.toUpperCase() ? s.toLowerCase().split(/\s+/).map((p, i) => (i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ") : s);
 const TIPOS: [string, string, string][] = [
   ["Individual", "Individuais", "com finalidade definida"],
@@ -96,7 +96,7 @@ const TIPOS: [string, string, string][] = [
             <p class="menor">Associações, fundações e organizações sociais, sem prefeituras e governos.</p>
             <ol class="lista">
               {r.entidades.map((e) => (
-                <li><span class="col"><a href={`/emendas?entidade=${e.codigo}`}>{titulo(e.nome)}</a><small>{e.lugar} · mais de: {e.autor}</small></span><span>{moedaCurta(e.valor)}</span></li>
+                <li><span class="col"><a href={`/emendas?entidade=${e.codigo}`}>{titulo(e.nome)}</a><small>{e.lugar} · quem mais mandou: <a href={`/emendas?autor=${encodeURIComponent(e.autor)}&ano=${r.ano}`}>{e.autor}</a></small></span><span>{moedaCurta(e.valor)}</span></li>
               ))}
             </ol>
           </section>
