@@ -1,0 +1,491 @@
+---
+/**
+ * Explorador de contratos: todos os contratos de prefeituras, estados (e, quando o download completo
+ * terminar, da União) publicados no PNCP no último ano fechado. A página inicial sai pronta do build
+ * (resumo.json); a busca, os filtros e a página de cada empresa consultam no navegador, com o DuckDB,
+ * o Parquet guardado no bucket público (pipeline/…/explorador_contratos.py), baixando só os blocos
+ * de que cada pergunta precisa.
+ */
+import Base from "../../layouts/Base.astro";
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import "../../styles/onde.css";
+
+interface Empresa { cnpj: string; nome: string; lugares: number; n: number; valor: number; teto: boolean }
+interface Resumo {
+  ano: number; fonte: string; arquivo: string; porCnpj: string;
+  total: { n: number; valor: number };
+  esferas: Record<string, { n: number; valor: number }>;
+  tipos: [string, number, number][];
+  merenda: { n: number; valor: number };
+  fora: number;
+  lugares: Empresa[];
+  maiores: Empresa[];
+}
+const arquivos = import.meta.glob<Resumo>("../../../public/data/contratos/resumo.json", { eager: true, import: "default" });
+const r: Resumo | null = Object.values(arquivos)[0] ?? null;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
+const SIGLAS = /^(S\/?A|S\.A\.?|LTDA|ME|EPP|EIRELI|CIEE|MGS|II|III)$/;
+/** "CENTERMEDI COMERCIO DE PROD. HOSPITAL. LTDA" → "Centermedi Comercio de Prod. Hospital. Ltda". */
+const nome = (s: string) => (s === s.toUpperCase()
+  ? s.toLowerCase().split(/\s+/).map((p, i) => (SIGLAS.test(p.toUpperCase()) && !/^ltda$/i.test(p) ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ")
+  : s);
+const tem = (e: string) => !!r?.esferas[e];
+---
+
+<Base title="Contratos · Orçamento Brasileiro" description="Busque os contratos que prefeituras e governos estaduais assinaram e publicaram no Portal Nacional de Contratações Públicas.">
+  <div class="wrap explorador" data-explorador data-arquivo={r?.arquivo} data-por-cnpj={r?.porCnpj} data-ano={r?.ano}>
+    <section class="topo" data-topo>
+      <nav class="trilha" aria-label="Caminho" data-voltar hidden></nav>
+      <span class="sobretitulo" data-sobretitulo hidden></span>
+      <h1 data-titulo>Os contratos</h1>
+      {r && (
+        <p data-frase>
+          Todos os contratos que {tem("Governo federal") ? "prefeituras, governos estaduais e o governo federal" : "prefeituras e governos estaduais"} assinaram
+          em {r.ano} e publicaram no Portal Nacional de Contratações Públicas: <strong>{nf0.format(r.total.n)} contratos</strong>,
+          que somam {moedaExtenso(r.total.valor)}. Procure pelo que foi comprado, pela empresa ou pelo lugar.
+        </p>
+      )}
+    </section>
+
+    <form class="busca" action="/contratos" method="get" data-form>
+      <label class="campo-grande">
+        <span>O que você procura</span>
+        <input type="search" name="q" placeholder="Ex.: merenda, coleta de lixo, nome da empresa ou CNPJ" autocomplete="off" />
+      </label>
+      <div class="filtros">
+        <div class="onde" data-onde>
+          <span id="onde-rotulo">Onde</span>
+          <div class="onde-campo">
+            <span class="chip" data-chip hidden><span data-chip-texto></span><button type="button" aria-label="Tirar o lugar e voltar a todo o Brasil" data-chip-tirar>✕</button></span>
+            <input type="search" data-onde-input role="combobox" aria-labelledby="onde-rotulo" aria-expanded="false" aria-controls="onde-lista" aria-autocomplete="list" placeholder="Todo o Brasil · digite uma cidade ou um estado" autocomplete="off" />
+          </div>
+          <div class="onde-lista" id="onde-lista" role="listbox" data-onde-lista hidden></div>
+        </div>
+        <label data-quem><span>Quem contratou</span>
+          <select name="esfera">
+            <option value="">Todos</option>
+            <option value="Prefeitura">Prefeituras</option>
+            <option value="Governo estadual">Governos estaduais</option>
+            {tem("Governo federal") && <option value="Governo federal">Governo federal</option>}
+          </select>
+        </label>
+        <label><span>Tipo</span>
+          <select name="tipo"><option value="">Todos</option>{r?.tipos.map(([t]) => <option value={t}>{t}</option>)}</select>
+        </label>
+        <label><span>Valor a partir de</span>
+          <select name="min">
+            <option value="">Qualquer valor</option><option value="100000">R$ 100 mil</option><option value="1000000">R$ 1 milhão</option><option value="10000000">R$ 10 milhões</option>
+          </select>
+        </label>
+        <input type="hidden" name="ente" />
+        <input type="hidden" name="uf" />
+        <input type="hidden" name="empresa" />
+        <button type="submit">Procurar</button>
+      </div>
+      <div class="escopo" role="radiogroup" aria-label="No estado" data-escopo hidden>
+        <label><input type="radio" name="escopo" value="governo" checked /> <span data-escopo-governo>Só o governo do estado</span></label>
+        <label><input type="radio" name="escopo" value="tudo" /> <span data-escopo-tudo>O governo e as prefeituras do estado</span></label>
+      </div>
+      <p class="exemplos" data-exemplos>Exemplos: <a href="/contratos?q=merenda ou gêneros alimentícios&uf=CE">merenda no Ceará</a> · <a href="/contratos?q=coleta de lixo">coleta de lixo</a> · <a href="/contratos?q=show artístico">shows</a> · <a href="/contratos?q=locação de veículos">aluguel de carros</a></p>
+    </form>
+
+    <section class="resultado" data-resultado hidden aria-live="polite"></section>
+
+    {r && (
+      <div class="inicio" data-inicio>
+        <div class="duas">
+          <section>
+            <h2>As empresas em mais lugares</h2>
+            <p class="menor">Quantas prefeituras e governos contrataram cada empresa em {r.ano}.</p>
+            <ol class="lista">
+              {r.lugares.map((e) => <li><a href={`/contratos?empresa=${e.cnpj}`}>{nome(e.nome)}</a><span>{nf0.format(e.lugares)} lugares · {moedaCurta(e.valor)}</span></li>)}
+            </ol>
+          </section>
+          <section>
+            <h2>As empresas com os maiores valores</h2>
+            <p class="menor">A soma dos contratos assinados em {r.ano}, que podem durar mais de um ano.</p>
+            <ol class="lista">
+              {r.maiores.map((e) => (
+                <li>
+                  <span class="col"><a href={`/contratos?empresa=${e.cnpj}`}>{nome(e.nome)}</a>{e.teto && <small class="aviso">Na maior parte, valor máximo estimado (credenciamento), não o contratado</small>}</span>
+                  <span>{moedaCurta(e.valor)}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+        <section class="tipos">
+          <h2>No que se gasta</h2>
+          <div class="cartoes">
+            <a href="/contratos?q=merenda ou gêneros alimentícios ou alimentação escolar"><span>Merenda e alimentos</span><strong>{moedaCurta(r.merenda.valor)}</strong><span>{nf0.format(r.merenda.n)} contratos</span></a>
+            {r.tipos.slice(0, 5).map(([t, n, v]) => <a href={`/contratos?tipo=${encodeURIComponent(t)}`}><span>{t}</span><strong>{moedaCurta(v)}</strong><span>{nf0.format(n)} contratos</span></a>)}
+          </div>
+        </section>
+      </div>
+    )}
+
+    <p class="nota">
+      O valor de um contrato é o de toda a duração dele, que pode passar de um ano. Nem toda prefeitura publica tudo no
+      portal nacional. Nos credenciamentos, o valor publicado é o máximo que se pode gastar, não o contratado. Contratos
+      maiores que metade do orçamento do ano de quem contratou ficam de fora, por erro de digitação{r && r.fora > 0 && <> ({nf0.format(r.fora)} casos)</>}.
+      Os nomes dos fornecedores são os publicados no portal; o CPF de pessoas físicas não aparece.
+      Fonte: {r?.fonte}. <a href="/dados">Baixe todos os dados</a>.
+    </p>
+  </div>
+</Base>
+
+<script is:inline type="module">
+  // A busca: o DuckDB lê, no navegador, só os blocos do Parquet de que cada pergunta precisa.
+  const raiz = document.querySelector("[data-explorador]");
+  const ARQ = raiz?.dataset.arquivo, POR_CNPJ = raiz?.dataset.porCnpj;
+  const params = new URLSearchParams(location.search);
+  const form = document.querySelector("[data-form]");
+  for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
+  const pergunta = ["q", "uf", "esfera", "tipo", "min", "ente", "empresa"].some((k) => params.get(k));
+  const saida = document.querySelector("[data-resultado]");
+  // A trilha (public/explorador/trilha.js): por onde a pessoa veio, com um link para cada passo.
+  const { ligarTrilha } = await import("/explorador/trilha.js");
+  const trilha = pergunta ? ligarTrilha(document.querySelector("[data-voltar]"), { chave: "contratos", inicio: { url: "/contratos", titulo: "Contratos" } }) : null;
+  trilha?.titulo(params.get("q") ? `“${params.get("q")}”` : "Resultado");
+
+  // O campo "Onde" (public/explorador/onde.js): cidade ou estado. Num estado, a pergunta: só o governo
+  // ou o governo e as prefeituras. Numa cidade, nada mais de lugar faz sentido.
+  const { ligarOnde, carregarLugares } = await import("/explorador/onde.js");
+  const escopo = document.querySelector("[data-escopo]");
+  const quemContratou = document.querySelector("[data-quem]");
+  const mostrarLugar = (l) => {
+    escopo.hidden = !l || l.tipo !== "uf";
+    quemContratou.hidden = !!l;
+    if (l?.tipo === "uf") {
+      const prep = { BA: "da", PB: "da", AL: "de", GO: "de", MG: "de", MS: "de", MT: "de", PE: "de", RO: "de", RR: "de", SC: "de", SE: "de", SP: "de" }[l.sigla] ?? "do";
+      document.querySelector("[data-escopo-governo]").textContent = `Só o governo ${prep} ${l.nome}`;
+      document.querySelector("[data-escopo-tudo]").textContent = `O governo e as prefeituras ${prep === "da" ? "da" : prep === "do" ? "do" : "de"} ${l.nome}`;
+    }
+  };
+  // Escolher (ou tirar) um lugar, ou trocar a opção do estado, já aplica o filtro.
+  const onde = ligarOnde(document.querySelector("[data-onde]"), (l) => { mostrarLugar(l); form.requestSubmit(); });
+  escopo.addEventListener("change", () => form.requestSubmit());
+  // Vindo do endereço: ?ente= (cidade ou governo estadual) ou ?uf= (governo e prefeituras do estado).
+  const doEndereco = params.get("ente") || (params.get("uf") ? (await carregarLugares()).porSigla.get(params.get("uf"))?.codigo : null);
+  if (doEndereco) {
+    mostrarLugar(await onde.definir(doEndereco));
+    if (params.get("uf") && !params.get("ente")) form.querySelector('input[name="escopo"][value="tudo"]').checked = true;
+  }
+  form?.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const l = onde.escolhido, q = new URLSearchParams();
+    for (const [k, v] of new FormData(form)) if (v && !["ente", "uf", "empresa", "escopo", "esfera"].includes(k)) q.set(k, v);
+    if (!l) { const e = form.elements.namedItem("esfera").value; if (e) q.set("esfera", e); }
+    else if (l.tipo === "mun") q.set("ente", l.codigo);
+    else if (new FormData(form).get("escopo") === "tudo") q.set("uf", l.sigla);
+    else q.set("ente", l.codigo);
+    trilha?.novaBusca();
+    location.href = `/contratos${q.size ? `?${q}` : ""}`;   // procurar sai da página da empresa
+  });
+
+  /** O topo da página assume o que foi escolhido: a cidade, o estado ou a empresa. */
+  function topo(titulo_, frase, sobretitulo) {
+    document.querySelector("[data-titulo]").textContent = titulo_;
+    const p = document.querySelector("[data-frase]"); if (p) p.innerHTML = frase;
+    const s = document.querySelector("[data-sobretitulo]"); s.hidden = !sobretitulo; s.textContent = sobretitulo || "";
+    trilha?.titulo(titulo_);
+    document.querySelector("[data-exemplos]")?.setAttribute("hidden", "");
+    document.title = `${titulo_} · Contratos · Orçamento Brasileiro`;
+  }
+
+  const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const curto = (v) => (v >= 1e9 ? `R$ ${nf1.format(v / 1e9)} bi` : v >= 1e6 ? `R$ ${nf1.format(v / 1e6)} mi` : v >= 1e3 ? `R$ ${nf0.format(v / 1e3)} mil` : `R$ ${nf0.format(v)}`);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const sem = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
+  const titulo = (s) => (s && s === s.toUpperCase() ? s.toLowerCase().split(/\s+/).map((p, i) => (/^(s\/?a|me|epp|eireli)$/.test(p) ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ") : s);
+  const frase = (s) => { const t = s && s === s.toUpperCase() && /[A-ZÀ-Ú]{4}/.test(s) ? s.toLowerCase() : s || ""; return t.charAt(0).toUpperCase() + t.slice(1); };
+  /** A fatia de um valor no total: "24%", "<1%". */
+  const fatia = (v, total) => { const p = total > 0 ? (v / total) * 100 : 0; return p >= 99.5 ? "100%" : p >= 1 ? `${nf0.format(p)}%` : "<1%"; };
+  const mes = (d) => { const x = new Date(d); return isNaN(x) ? "" : x.toLocaleDateString("pt-BR", { month: "short", year: "numeric", timeZone: "UTC" }).replace(" de ", "/").replace(".", ""); };
+  // "08924078000104-2-000013/2025" → a página do contrato no PNCP
+  const linkPncp = (id) => { const m = /^(\d{14})-\d-0*(\d+)\/(\d{4})$/.exec(id || ""); return m ? `https://pncp.gov.br/app/contratos/${m[1]}/${m[3]}/${m[2]}` : null; };
+
+  let conn;
+  /** O painel de carregamento: o passo atual e uma barra em movimento, no lugar do resultado. */
+  function etapa(n, texto) {
+    saida.hidden = false;
+    saida.innerHTML = `<div class="carregando" role="status" aria-live="polite">
+      <div class="barra-carga" aria-hidden="true"><i></i></div>
+      <p><strong>${esc(texto)}</strong></p>
+      <p class="menor">Passo ${n} de 3. A primeira consulta baixa o motor de busca e a parte dos dados de que precisa; as seguintes são mais rápidas.</p>
+    </div>`;
+  }
+  async function conectar() {
+    etapa(1, "Preparando o motor de consulta…");
+    const duckdb = await import("https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm");
+    const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+    const url = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" }));
+    const db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), new Worker(url));
+    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+    URL.revokeObjectURL(url);
+    conn = await db.connect();
+    await conn.query(`CREATE VIEW c AS SELECT * FROM read_parquet('${ARQ}')`);
+  }
+  const consulta = async (sql, valores = []) => {
+    const stmt = await conn.prepare(sql);
+    const t = await stmt.query(...valores);
+    await stmt.close();
+    return t.toArray().map((l) => l.toJSON());
+  };
+
+  /** O WHERE da busca, com os valores à parte (nada do que a pessoa digita entra no SQL). */
+  function filtros() {
+    const onde = [], v = [];
+    const q = (params.get("q") || "").trim();
+    if (q) {
+      const termos = q.split(/\s+ou\s+|,/i).map((t) => sem(t.trim())).filter(Boolean);
+      const partes = termos.map((t) => {
+        if (/^\d{8,14}$/.test(t.replace(/\D/g, "")) && t.replace(/\D/g, "").length >= 8) { v.push(t.replace(/\D/g, "").slice(0, 8) + "%"); return "cnpj LIKE ?"; }
+        v.push(`%${t}%`, `%${t}%`);
+        return "(strip_accents(lower(objeto)) LIKE ? OR strip_accents(lower(fornecedor)) LIKE ?)";
+      });
+      if (partes.length) onde.push(`(${partes.join(" OR ")})`);
+    }
+    for (const [k, col] of [["uf", "uf"], ["esfera", "esfera"], ["tipo", "tipo"], ["ente", "ente"]]) {
+      const x = params.get(k); if (x) { onde.push(`${col} = ?`); v.push(x); }
+    }
+    const min = Number(params.get("min")); if (min > 0) { onde.push("valor >= ?"); v.push(min); }
+    return { where: onde.length ? `WHERE ${onde.join(" AND ")}` : "", v };
+  }
+
+  async function iniciar() {
+    document.querySelector("[data-inicio]")?.setAttribute("hidden", "");
+    // Enquanto consulta: a busca fica travada e o título já mostra o lugar escolhido.
+    form.inert = true;
+    form.classList.add("travado");
+    if (params.get("ente") || params.get("uf")) topo("Carregando…", "", "Contratos");   // na hora, sem esperar a lista de cidades
+    if (params.get("ente")) carregarLugares().then((l) => { const r = l.porCodigo.get(params.get("ente")); if (r) topo(r.rotulo, "Carregando os contratos…", "Contratos"); });
+    if (params.get("empresa")) topo("Procurando a empresa…", "", "Empresa");
+    try {
+      await conectar();
+      if (params.get("empresa")) await empresa();
+      else await busca();
+    } catch (erro) {
+      saida.innerHTML = `<p class="erro">Não foi possível consultar os contratos agora (${esc(erro.message || erro)}). Tente de novo em instantes.</p>`;
+    } finally {
+      form.inert = false;
+      form.classList.remove("travado");
+    }
+  }
+
+  const linhaContrato = (x, total) => {
+    const pncp = linkPncp(x.id);
+    return `<div class="linha" role="row">
+      <span role="cell" class="quem">${x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.quem)}</a>` : esc(x.quem)}<small>${esc(x.uf)}</small></span>
+      <span role="cell">${esc(frase(x.objeto)) || "Sem descrição"}${x.teto ? `<small class="aviso">Valor máximo estimado (credenciamento)</small>` : ""}${pncp ? ` <a class="pncp" href="${pncp}" rel="noopener">ver no PNCP</a>` : ""}</span>
+      <span role="cell">${x.pessoa === "PJ" && x.cnpj ? `<a href="/contratos?empresa=${esc(x.cnpj.slice(0, 8))}">${esc(titulo(x.fornecedor))}</a>` : `${esc(titulo(x.fornecedor))}<small>pessoa física</small>`}</span>
+      <span role="cell" class="d">${mes(x.data)}</span>
+      <span role="cell" class="d"><strong>${curto(x.valor)}</strong>${total ? `<small title="Fatia deste contrato no valor de todos os encontrados">${fatia(x.valor, total)} do total</small>` : ""}</span>
+    </div>`;
+  };
+
+  async function busca() {
+    const filtro = filtros();
+    etapa(2, params.get("q") ? "Procurando nos contratos…" : "Lendo os contratos…");
+    // O arquivo é lido uma vez; trocar o agrupamento ou ver mais linhas consulta só o que foi achado.
+    await consulta(`CREATE OR REPLACE TEMP TABLE r AS SELECT * FROM c ${filtro.where}`, filtro.v);
+    etapa(3, "Organizando o resultado…");
+    const where = "", v = [];
+    const [s] = await consulta(`SELECT count(*)::INTEGER AS n, coalesce(sum(valor), 0) AS valor, count(DISTINCT coalesce(nullif(ente, ''), quem))::INTEGER AS lugares, count(DISTINCT fornecedor)::INTEGER AS fornecedores FROM r`);
+    const ente = params.get("ente");
+    const outros = ["q", "esfera", "tipo", "min"].some((k) => params.get(k)) || (!!ente && !!params.get("uf"));
+    let titulo_ = "Contratos encontrados";
+    // Um estado inteiro (o governo e as prefeituras): ?uf=
+    const ufp = !ente && params.get("uf");
+    if (ufp) {
+      const l = (await carregarLugares()).porSigla.get(ufp);
+      if (l) {
+        topo(l.nome, outros
+          ? `Contratos do governo e das prefeituras do estado assinados em ${raiz.dataset.ano}, com os filtros escolhidos abaixo.`
+          : `Os contratos que o governo e as prefeituras do estado assinaram em ${raiz.dataset.ano} e publicaram no Portal Nacional de Contratações Públicas.`,
+          "Governo e prefeituras do estado");
+        titulo_ = outros ? "Com estes filtros" : "Todos os contratos";
+      }
+    }
+    if (ente) {
+      const [q] = await consulta(`SELECT quem FROM c WHERE ente = ? LIMIT 1`, [ente]);
+      const quem = q?.quem || (await carregarLugares()).porCodigo.get(ente)?.rotulo || "Este lugar";
+      topo(quem, outros
+        ? `Contratos ${quem.startsWith("Governo") ? "do governo" : "da prefeitura"} assinados em ${raiz.dataset.ano}, com os filtros escolhidos abaixo.`
+        : `Os contratos que ${quem.startsWith("Governo") ? "o governo" : "a prefeitura"} assinou em ${raiz.dataset.ano} e publicou no Portal Nacional de Contratações Públicas. Procure dentro deles pelo que foi comprado ou pela empresa.`,
+        quem.startsWith("Governo") ? "Contratos do governo estadual" : "Contratos da prefeitura");
+      titulo_ = outros ? "Com estes filtros" : "Todos os contratos";
+    }
+    let por = "contrato", pagina = 0;
+    /** Quanto do dinheiro fica com os maiores: os contratos, os fornecedores ou os lugares. */
+    const concentracao = async () => {
+      if (!s.n || !(s.valor > 0)) return "";
+      const grupo = por === "contrato" ? "SELECT valor FROM r" : `SELECT sum(valor) AS valor FROM r GROUP BY ${por === "lugar" ? "quem" : "fornecedor"}`;
+      const [c] = await consulta(`WITH g AS (${grupo}), o AS (SELECT valor, row_number() OVER (ORDER BY valor DESC) AS i FROM g)
+        SELECT count(*)::INTEGER AS n, sum(valor) FILTER (WHERE i = 1) AS t1, sum(valor) FILTER (WHERE i <= 3) AS t3, sum(valor) FILTER (WHERE i <= 10) AS t10 FROM o`);
+      const pc = (v) => `<strong>${fatia(v, s.valor)}</strong>`;
+      if (por === "contrato") {
+        if (c.n <= 10) return "";
+        return `Os 10 maiores contratos, de ${nf0.format(c.n)}, ficam com ${pc(c.t10)} do valor.${c.t1 / s.valor >= 0.1 ? ` Só o maior é ${pc(c.t1)}.` : ""}`;
+      }
+      if (c.n <= 3) return "";
+      const quem = por === "lugar" ? ["lugares que mais contrataram", "lugares"] : ["maiores fornecedores", "fornecedores"];
+      return `Os 3 ${quem[0]}, de ${nf0.format(c.n)} ${quem[1]}, ficam com ${pc(c.t3)} do valor${c.n > 10 ? `; os 10 maiores, com ${pc(c.t10)}` : ""}.`;
+    };
+    const desenhar = async () => {
+      let corpo;
+      const frase_ = await concentracao();
+      if (por === "contrato") {
+        const l = await consulta(`SELECT id, quem, ente, uf, objeto, fornecedor, pessoa, cnpj, data, valor, teto FROM r ORDER BY valor DESC LIMIT 50 OFFSET ${pagina * 50}`);
+        corpo = `<div class="tabela" role="table" aria-label="Contratos"><div class="linha cab" role="row"><span role="columnheader">Quem contratou</span><span role="columnheader">O que foi contratado</span><span role="columnheader">Fornecedor</span><span role="columnheader" class="d">Data</span><span role="columnheader" class="d">Valor</span></div>${l.map((x) => linhaContrato(x, s.valor)).join("")}</div>
+          <div class="pe"><span>Mostrando ${nf0.format(Math.min(s.n, (pagina + 1) * 50))} de ${nf0.format(s.n)}, do maior para o menor valor.</span>${(pagina + 1) * 50 < s.n ? `<button type="button" data-mais>Mostrar mais</button>` : ""}</div>`;
+      } else {
+        const col = por === "lugar" ? "quem" : "fornecedor";
+        const l = await consulta(`SELECT ${col} AS nome, any_value(ente) AS ente, any_value(cnpj) AS cnpj, any_value(pessoa) AS pessoa, count(*)::INTEGER AS n, sum(valor) AS valor FROM r GROUP BY ${col} ORDER BY valor DESC LIMIT 100`);
+        corpo = `<ol class="lista">${l.map((x) => `<li><span>${por === "lugar"
+          ? (x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.nome)}</a>` : esc(x.nome))
+          : (x.pessoa === "PJ" && x.cnpj ? `<a href="/contratos?empresa=${esc(x.cnpj.slice(0, 8))}">${esc(titulo(x.nome))}</a>` : esc(titulo(x.nome)))}</span><span>${x.n === 1 ? "1 contrato" : `${nf0.format(x.n)} contratos`} · ${curto(x.valor)}</span><span class="fatia" title="Fatia no valor de todos os contratos encontrados"><i style="width:${Math.max(1, (x.valor / (l[0].valor || 1)) * 70)}px"></i><b>${fatia(x.valor, s.valor)}</b></span></li>`).join("")}</ol>`;
+      }
+      saida.innerHTML = `
+        <h2>${esc(titulo_)}</h2>
+        <div class="numeros"><div><span>Contratos</span><strong>${nf0.format(s.n)}</strong></div><div><span>Somam</span><strong>${curto(s.valor)}</strong></div>${ente ? `<div><span>Fornecedores</span><strong>${nf0.format(s.fornecedores)}</strong></div>` : `<div><span>Em</span><strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong></div>`}</div>
+        ${s.n ? `<div class="agrupar"><span>Agrupar por:</span>${[["contrato", "Contrato"], ["lugar", "Quem contratou"], ["empresa", "Fornecedor"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar estes contratos (planilha)</button></div>${frase_ ? `<p class="concentracao">${frase_}</p>` : ""}${corpo}` : `<div class="vazio"><p><strong>Nenhum contrato com esses filtros.</strong></p><p class="menor">Tente outras palavras: cada prefeitura descreve o contrato do seu jeito (“resíduos” ou “limpeza urbana” em vez de “lixo”, por exemplo). Ou tire um filtro, ou procure em todo o Brasil.</p></div>`}
+        <p class="menor">A busca procura as palavras no texto do contrato e no nome do fornecedor, com e sem acento; separe alternativas com “ou”. Contratos descritos de outro jeito podem ficar de fora.</p>`;
+      saida.querySelectorAll("[data-por]").forEach((b) => b.addEventListener("click", () => { por = b.dataset.por; pagina = 0; desenhar(); }));
+      saida.querySelector("[data-mais]")?.addEventListener("click", () => { pagina += 1; desenhar(); });
+      saida.querySelector("[data-csv]")?.addEventListener("click", baixarCsv);
+    };
+    await desenhar();
+  }
+
+  async function baixarCsv() {
+    const l = await consulta(`SELECT quem AS contratante, uf, objeto, fornecedor, CASE WHEN pessoa = 'PJ' THEN cnpj ELSE '' END AS cnpj, tipo, data, valor, id AS controle_pncp FROM ${params.get("empresa") ? "e" : "r"} ORDER BY valor DESC LIMIT 100000`);
+    const cols = Object.keys(l[0] || { contratante: "" });
+    const cel = (x) => { const s = x instanceof Date ? x.toISOString().slice(0, 10) : String(x ?? ""); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const csv = "﻿" + [cols.join(";"), ...l.map((x) => cols.map((k) => cel(x[k])).join(";"))].join("\n");
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), download: "contratos.csv" });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  async function empresa() {
+    const raizCnpj0 = (params.get("empresa") || "").replace(/\D/g, "").slice(0, 8).padStart(8, "0");
+    etapa(2, "Procurando os contratos da empresa…");
+    // A cópia por CNPJ está ordenada: a faixa [raiz, raiz + 1) fica em poucos blocos do arquivo.
+    const ate = String(Number(raizCnpj0) + 1).padStart(8, "0");
+    await consulta(`CREATE OR REPLACE TEMP TABLE e AS SELECT * FROM read_parquet('${POR_CNPJ}') WHERE cnpj >= ? AND cnpj < ?`, [raizCnpj0, ate]);
+    const where = "", v = [];
+    const [s] = await consulta(`SELECT mode(fornecedor) AS nome, any_value(cnpj) AS cnpj, count(*)::INTEGER AS n, sum(valor) AS valor, count(DISTINCT coalesce(nullif(ente, ''), quem))::INTEGER AS lugares FROM e`);
+    if (!s.n) { saida.innerHTML = `<p>Nenhum contrato dessa empresa em ${raiz.dataset.ano}.</p>`; return; }
+    const ufs = await consulta(`SELECT uf, sum(valor) AS valor FROM e GROUP BY uf ORDER BY valor DESC LIMIT 10`);
+    const quem = await consulta(`SELECT quem, any_value(ente) AS ente, count(*)::INTEGER AS n, sum(valor) AS valor FROM e GROUP BY quem ORDER BY valor DESC LIMIT 10`);
+    const contratos = await consulta(`SELECT id, quem, ente, uf, objeto, fornecedor, pessoa, cnpj, data, valor, teto FROM e ORDER BY valor DESC LIMIT 30`);
+    const maior = ufs[0]?.valor || 1;
+    const raizCnpj = (s.cnpj || "").slice(0, 8);
+    topo(titulo(s.nome), `Em ${raiz.dataset.ano}, <strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong> assinaram com ela <strong>${nf0.format(s.n)} ${s.n === 1 ? "contrato" : "contratos"}</strong>, que somam ${curto(s.valor)}.`,
+      `Empresa · CNPJ ${raizCnpj.replace(/^(\d{2})(\d{3})(\d{3})$/, "$1.$2.$3")}`);
+    saida.innerHTML = `
+      <div class="duas">
+        <section><h3>Por estado</h3><ol class="barras">${ufs.map((x) => `<li><span>${esc(x.uf)}</span><i style="width:${(x.valor / maior) * 100}%"></i><strong>${curto(x.valor)}</strong></li>`).join("")}</ol></section>
+        <section><h3>Quem mais contratou</h3><ol class="lista">${quem.map((x) => `<li><span>${x.ente ? `<a href="/contratos?ente=${esc(x.ente)}">${esc(x.quem)}</a>` : esc(x.quem)}</span><span>${nf0.format(x.n)} · ${curto(x.valor)}</span></li>`).join("")}</ol></section>
+      </div>
+      <h3>Os maiores contratos</h3>
+      <div class="tabela" role="table" aria-label="Contratos da empresa"><div class="linha cab" role="row"><span role="columnheader">Quem contratou</span><span role="columnheader">O que foi contratado</span><span role="columnheader">Fornecedor</span><span role="columnheader" class="d">Data</span><span role="columnheader" class="d">Valor</span></div>${contratos.map((x) => linhaContrato(x, s.valor)).join("")}</div>
+      <p class="menor">Uma empresa contratada por muitos lugares não é sinal de problema: distribuidores de remédios e material hospitalar vencem pregões em centenas de cidades. Filiais da mesma empresa (a mesma raiz de CNPJ) aparecem juntas.</p>`;
+  }
+  // Por último: a busca usa as funções acima.
+  if (ARQ && pergunta && saida) iniciar();
+</script>
+
+<style is:global>
+  /* Global, mas só dentro do explorador: o resultado da busca é montado no navegador, fora do escopo do Astro. */
+  @keyframes corre { from { left: -35%; } to { left: 100%; } }
+  .explorador {
+
+  .topo { padding: 44px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
+  .topo h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
+
+  .busca input[type="search"]:not(.campo-grande input) { font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 190px; }
+  .topo p { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); }
+  .topo strong { color: var(--tinta); }
+  .busca { border-top: 2px solid var(--tinta); padding: 24px 0; display: flex; flex-direction: column; gap: 14px; }
+  .busca label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--texto-3); }
+  .campo-grande span { font-size: 13px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+  .campo-grande input { font: inherit; font-size: 20px; padding: 12px 14px; border: 2px solid var(--tinta); background: #fff; color: var(--tinta); }
+  .filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .filtros select { font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 170px; }
+  .filtros button { font: inherit; font-size: 15px; font-weight: 600; padding: 10px 20px; background: var(--tinta); color: var(--papel, #f7f4ec); border: 0; cursor: pointer; }
+  .exemplos { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .duas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; }
+  h2 { font-size: 28px; }
+  h2.grande { font-size: 44px; line-height: 1.05; }
+  h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 15px; font-weight: 600; color: var(--texto-2); }
+  .menor, .nota { margin: 0; font-size: 14px; line-height: 1.6; color: var(--texto-3); }
+  .nota { border-top: 1px solid var(--regra); padding: 16px 0 40px; max-width: 860px; }
+  .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .lista li { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .lista li > span:last-child { white-space: nowrap; color: var(--texto-2); }
+  .col { display: flex; flex-direction: column; gap: 2px; }
+  small { display: block; font-size: 12px; color: var(--texto-3); }
+  .aviso { color: #8f3d1d; }
+  [hidden] { display: none !important; }   /* o display das seções abaixo não pode vencer o "escondido" */
+  .inicio { display: flex; flex-direction: column; gap: 36px; padding-bottom: 32px; }
+  .tipos { border-top: 2px solid var(--tinta); padding-top: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+  .cartoes a { display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid var(--tinta); background: #fff; text-decoration: none; color: var(--tinta); }
+  .cartoes span { font-size: 13px; color: var(--texto-3); }
+  .cartoes strong { font-family: var(--serifa); font-size: 26px; }
+  .resultado { display: flex; flex-direction: column; gap: 16px; padding-bottom: 32px; }
+  .carregando { display: flex; flex-direction: column; gap: 8px; padding: 28px 24px; margin: 8px 0; background: #fff; border: 1px solid var(--regra); }
+  .carregando p { margin: 0; font-size: 17px; color: var(--tinta); }
+  .barra-carga { position: relative; height: 4px; overflow: hidden; background: var(--regra); }
+  .barra-carga i { position: absolute; top: 0; bottom: 0; width: 35%; background: var(--verde); animation: corre 1.2s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .barra-carga i { animation: none; left: 0; width: 100%; opacity: .5; } }
+  .erro { margin: 0; padding: 20px 0; font-size: 16px; color: #8f3d1d; }
+  .busca.travado { opacity: .55; }
+  .numeros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; border-top: 2px solid var(--tinta); padding-top: 16px; }
+  .numeros div { display: flex; flex-direction: column; gap: 4px; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 34px; }
+  .agrupar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--texto-3); }
+  .agrupar button { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
+  .agrupar button[aria-pressed="true"] { background: var(--tinta); color: var(--papel, #f7f4ec); font-weight: 600; }
+  .agrupar .espaco { flex-grow: 1; }
+  .agrupar .link { border: 0; padding: 6px 0; color: var(--verde); text-decoration: underline; }
+  .tabela { display: flex; flex-direction: column; border-top: 1px solid var(--tinta); }
+  .tabela .linha { display: grid; grid-template-columns: 170px minmax(0, 1fr) 230px 90px 100px; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--regra); font-size: 14px; line-height: 1.45; }
+  .tabela .cab { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--texto-3); border-bottom-color: var(--tinta); }
+  .d { text-align: right; }
+  .tabela .d small { white-space: nowrap; }
+  .concentracao { margin: 0; font-size: 17px; line-height: 1.5; color: var(--texto-2); }
+  .concentracao strong { color: var(--tinta); }
+  .lista li > span:first-child { flex: 1; min-width: 0; }
+  .lista li > span:nth-child(2) { white-space: nowrap; color: var(--texto-2); }
+  .lista .fatia { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; width: 120px; flex-shrink: 0; }
+  .lista .fatia i { display: block; height: 8px; background: var(--verde); min-width: 1px; max-width: 70px; }
+  .lista .fatia b { font-weight: 600; min-width: 36px; text-align: right; color: var(--tinta); }
+  .pncp { font-size: 12px; white-space: nowrap; }
+  .pe { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; color: var(--texto-3); }
+  .pe button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
+  .sobretitulo { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .frase { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); max-width: 860px; }
+  .frase strong { color: var(--tinta); }
+  .barras { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .barras li { display: grid; grid-template-columns: 40px minmax(0, 1fr) 90px; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--regra); font-size: 14px; }
+  .barras i { display: block; height: 12px; background: var(--verde); }
+  .barras strong { text-align: right; }
+
+  @media (max-width: 900px) {
+    .topo h1 { font-size: 40px; }
+    .duas { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .numeros strong { font-size: 24px; }
+    .tabela .cab { display: none; }
+    .tabela .linha { grid-template-columns: minmax(0, 1fr) auto; }
+    .tabela .linha > :nth-child(2), .tabela .linha > :nth-child(3) { grid-column: 1 / -1; }
+    .tabela .linha > :nth-child(4) { display: none; }
+  }
+  }
+</style>

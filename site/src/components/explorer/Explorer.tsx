@@ -167,6 +167,9 @@ export default function Explorer() {
   };
   const irPara = (filtros: Filtro[]) => mudar({ filtros, por: proximaSugerida(filtros) }, true);
   const podeDescer = () => dimsDisponiveis(estado().filtros).length > 1;
+  // Voltar um nível: o passo anterior da trilha, ou o orçamento inteiro.
+  const pai = () => (trilha().length > 1 ? trilha().at(-2)!.nome : `todo o orçamento de ${ano() ?? ""}`);
+  const subir = () => irPara(estado().filtros.slice(0, -1));
 
   const legendaSerie = () =>
     estado().real && ipca() ? `Dotação por ano, em reais de ${ipca()!.base}` : "Dotação por ano, em valores nominais";
@@ -219,6 +222,9 @@ export default function Explorer() {
 
       <section class="exp-topo">
         <div class="exp-titulo">
+          <Show when={ultimo()}>
+            <button type="button" class="link exp-voltar" onClick={subir}>← Voltar a {pai()}</button>
+          </Show>
           <span class="sobretitulo">
             {ultimo() ? `${ROTULO_DIM[ultimo()!.dim]} · ${ultimo()!.cod}` : "Orçamento federal"}
           </span>
@@ -247,6 +253,9 @@ export default function Explorer() {
       </section>
 
       <div class="exp-abas">
+        <Show when={ultimo()}>
+          <button type="button" class="exp-subir" onClick={subir} title={`Voltar a ${pai()}`}>← Voltar um nível</button>
+        </Show>
         <span class="muted">Dividir por</span>
         <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
           <For each={ORDEM_ABAS.filter((d) => dimsDisponiveis(estado().filtros).includes(d))}>

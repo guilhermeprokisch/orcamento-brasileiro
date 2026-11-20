@@ -5,9 +5,11 @@
  * ano a ano. Fonte: pagamentos por favorecido da CGU (pipeline/…/emendas.py).
  */
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import Termo from "../Termo.astro";
 import { porPessoa, type Cidade } from "../../lib/cidades";
 import { emendasDe } from "../../lib/indicadores";
 import SerieAnos from "./SerieAnos.astro";
+import { ehColetivo, nomeAutor as nome } from "../../lib/autores-emendas";
 
 interface Props {
   ente: Cidade;
@@ -20,11 +22,7 @@ interface Props {
 const { ente, esfera, paraOnde, grupo } = Astro.props;
 const e = emendasDe(ente, esfera);
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
-const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
-/** "COM. DA SAUDE" → "Comissão da Saúde"; "BANCADA DO RIO DE JANEIRO" → "Bancada do Rio de Janeiro". */
-const nome = (s: string) => s.toLowerCase().replace(/^com\. /, "comissão ").replace(/\bsaude\b/g, "saúde")
-  .split(" ").map((p, i) => (i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
-const coletivo = e?.autores.some(([a]) => /^(com\.|comiss|bancada)/i.test(a));
+const coletivo = e?.autores.some(([a]) => ehColetivo(a));
 const frente = e && e.mediana ? e.porHab / e.mediana - 1 : null;
 ---
 
@@ -34,13 +32,13 @@ const frente = e && e.mediana ? e.porHab / e.mediana - 1 : null;
       <span class="sobretitulo">O que chega de Brasília</span>
       <h2>Emendas parlamentares</h2>
       <p>
-        Em {e.ano}, deputados e senadores mandaram <strong>{moedaExtenso(e.total)}</strong> em emendas {paraOnde}, ou{" "}
-        <strong>{porPessoa(e.porHab)} por habitante</strong>.
+        Em {e.ano}, deputados e senadores mandaram <strong>{moedaExtenso(e.total)}</strong> em <Termo id="emenda-parlamentar">emendas</Termo> {paraOnde}, ou{" "}
+        <strong>{porPessoa(e.porHab)} por morador</strong>.
         {e.mediana !== null && grupo && <> A mediana {grupo} é {porPessoa(e.mediana)}{frente !== null && Math.abs(frente) >= 0.1 && <> ({nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"})</>}.</>}
       </p>
       <p>
         {esfera === "mun"
-          ? <>Foram {moedaCurta(e.prefeitura)} para a prefeitura (inclusive os fundos municipais de saúde e assistência){e.entidades > 0 && <> e {moedaCurta(e.entidades)} para entidades e empresas da cidade</>}{e.estadoEOutros > 0 && <>, além de {moedaCurta(e.estadoEOutros)} para órgãos estaduais e outros</>}.</>
+          ? <>Foram {moedaCurta(e.prefeitura)} para a prefeitura (inclusive os fundos municipais de saúde e assistência){e.entidades > 0 && <> e {moedaCurta(e.entidades)} para entidades e empresas da cidade</>}.{e.estadoEOutros > 0 && <> Fora dessa conta ficam {moedaCurta(e.estadoEOutros)} para órgãos estaduais e federais com sede aqui, que atendem o estado inteiro e contam na página do estado.</>}</>
           : <>Foram {moedaCurta(e.prefeitura)} para as prefeituras do estado, {moedaCurta(e.estadoEOutros)} para o governo estadual e outros órgãos públicos e {moedaCurta(e.entidades)} para entidades e empresas.</>}
       </p>
       <p class="menor">
@@ -69,7 +67,7 @@ const frente = e && e.mediana ? e.porHab / e.mediana - 1 : null;
       )}
       <SerieAnos titulo="Ano a ano, em R$ milhões" serie={e.serie} casas={1} notaPreliminar="Ano em andamento: o que foi pago até agora." />
     </div>
-    <p class="fonte">Fonte: {e.fonte}.</p>
+    <p class="fonte">{esfera === "mun" && <><a href={`/emendas?ente=${ente.ibge}&ano=${e.ano}`}><strong>Ver quem recebeu e quem mandou, emenda por emenda →</strong></a> · </>}Fonte: {e.fonte}.</p>
   </section>
 )}
 

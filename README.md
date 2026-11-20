@@ -1,91 +1,81 @@
 # Orçamento Brasileiro
 
-O orçamento federal brasileiro, explicado e explorável.
+De onde vem e para onde vai o dinheiro público da sua cidade, do seu estado e do país: impostos, repasses, gastos, dívidas e o que eles produzem.
 
-Projeto independente, sem vínculo com o Governo Federal.
+**Site:** [orcamentobrasileiro.com.br](https://orcamentobrasileiro.com.br) · **Dados abertos:** [orcamentobrasileiro.com.br/dados](https://orcamentobrasileiro.com.br/dados)
 
-## Estrutura
+Projeto independente, sem vínculo com o governo.
 
-```
-pipeline/   Python + DuckDB: baixa os dados brutos e gera Parquet + JSON
-site/       Astro + Solid: páginas estáticas e o Explorer interativo
-data/       (ignorado no git) arquivos brutos e Parquet gerados
-```
+## O que tem no site
+
+- **Cidades e estados** (`/cidades/{uf}/{cidade}`, `/estados/{uf}`): uma página para cada prefeitura e governo estadual, em quatro partes:
+  1. *Em que gasta*: o gasto por área e por tipo (salários, serviços, obras), os contratos publicados no PNCP;
+  2. *As contas fecham*: de onde vem o dinheiro, o que sobrou, a dívida e o gasto com pessoal frente aos limites da Lei de Responsabilidade Fiscal, a nota do Tesouro (CAPAG), o ano em andamento;
+  3. *O que chega e o que sai*: aposentadorias do INSS, imposto de renda dos moradores, emendas parlamentares, o gasto do estado na cidade;
+  4. *Como está a cidade*: educação (Ideb), mortalidade infantil, homicídios, água e esgoto, sempre ao lado do gasto na área.
+- **Contratos** (`/contratos`): busca nos contratos publicados no PNCP, por lugar, empresa ou palavra, consultando no navegador (DuckDB) um Parquet guardado no bucket público.
+- **Emendas** (`/emendas`): quem mandou cada emenda, para onde, para quem e para quê; a página de cada parlamentar e de cada entidade, e a busca nos planos das emendas Pix, nos convênios e nas parcerias.
+- **Mapa** (`/mapa`): compara todas as cidades ou estados numa pergunta por vez (gasto, receita, saldo, dependência de repasses, dinheiro federal, emendas, impostos, situação), com as linhas de dinheiro saindo de Brasília. É um documento independente do layout do site (`site/src/mapa/pagina.html`).
+- **Explorer, Órgãos, Aprenda e Glossário**: o orçamento federal por órgão, programa e ação, de 2014 em diante, e as explicações.
+
+## Os dados
+
+Tudo vem de dados abertos oficiais. Os arquivos das fontes, como vieram, e os JSONs que o site usa ficam numa cópia pública no Backblaze B2 ([LEIA-ME](https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/LEIA-ME.md), [índice](https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/indice.csv)), atualizada a cada publicação.
+
+| Fonte | O que vem dela | Comando |
+|---|---|---|
+| Portal da Transparência (CGU) | Orçamento da despesa federal; transferências, Bolsa Família e BPC por município; emendas parlamentares e o explorador `/emendas` | `orcamento`, `federal`, `emendas`, `explorador-emendas` |
+| SIOP (Planejamento) | Nomes oficiais de órgãos, programas e ações | `orcamento` |
+| SICONFI (Tesouro) | Contas anuais (DCA) de estados e prefeituras; relatórios fiscais (RGF: dívida e pessoal; RREO: o ano em andamento) | `cidades`, `mapa`, `divida`, `rreo` |
+| FINBRA (Tesouro) | Histórico das prefeituras desde 2013 (baixado à mão por causa do captcha) | `finbra`, `semente` |
+| Tesouro Nacional | Nota CAPAG; tabela de municípios do SIAFI | `capag` |
+| PNCP | Contratos publicados por prefeituras, estados e União; o explorador `/contratos` | `contratos`, `explorador-contratos` |
+| Receita Federal | Arrecadação por estado e município; IR por município de residência | `rfb`, `irpf` |
+| Previdência Social | Benefícios do INSS pagos em cada município | `inss` |
+| DATASUS | Mortalidade (SIM) e nascidos vivos (SINASC) | `saude`, `seguranca` |
+| INEP | Ideb; matrículas do Censo Escolar | `ideb`, `matriculas` |
+| IBGE | População, Censo 2022 (água e esgoto), IPCA, malhas | `populacao`, `saneamento`, `mapa` |
+| Governos de MG e PB | Gasto estadual por município | `estado-mg`, `estado-pb` |
+
+Cada comando é um arquivo em `pipeline/src/orcamento_pipeline/`, com a explicação da fonte, das escolhas e dos cuidados no começo.
+
+Algumas coisas são **estimativas** e aparecem marcadas como tal no site: o ICMS e o IPVA pagos em cada cidade (a partir das cotas que o estado devolve) e, quando falta o dado da Receita, os impostos federais. Valores que as prefeituras declaram com erro evidente (receita de parte do ano, contratos maiores que o orçamento) ficam de fora e são avisados.
 
 ## Rodando
 
 Requer [uv](https://docs.astral.sh/uv/) e Node 22+.
 
 ```bash
-# 1. dados: baixa 2014 até o ano corrente e gera site/public/data/explorer/*.json
-cd pipeline && uv run orcamento
+cd pipeline
+uv run orcamento            # orçamento federal (Explorer), 2014 até o ano corrente
+uv run semente aplicar      # traz o cache do SICONFI do release "dados-siconfi" (precisa do gh); sem ele, ~3h de consultas
+uv run cidades              # estados e prefeituras
+uv run mapa                 # dados do mapa
+uv run <comando>            # os demais, da tabela acima
 
-# 1b. estados e cidades (SICONFI). Primeiro traz o cache já pronto do release "dados-siconfi"
-#     (precisa da CLI do GitHub, `gh`); sem ele são ~3h de consultas à API (1 por segundo)
-uv run semente aplicar
-uv run cidades
-
-# 1c. opcional: histórico dos municípios e receitas a partir dos arquivos do FINBRA
-#     (baixados à mão; ver pipeline/src/orcamento_pipeline/finbra.py)
-uv run finbra ~/Downloads/finbra
-#     depois de importar arquivos novos, publicar o cache no release para o CI usar:
-uv run semente publicar
-
-# 1d. dados da página /mapa (receita, tributos, áreas de gasto, malhas do IBGE)
-uv run mapa
-
-# opcional: confere o dinheiro federal do Portal com o que as prefeituras declaram
-#     (resultado e explicação em docs/conciliacao-federal.md)
-uv run conciliar 2025
-
-# 1e. o ano em andamento, pelo relatório bimestral (RREO): estados; com --municipios, todos (~1h40).
-#     Rodar depois do mapa: acrescenta o ano em andamento aos arquivos dele.
-#     No GitHub, os municípios são baixados sozinhos pelo workflow bimestral.yml.
-uv run rreo
-uv run federal 2025    # repasses e benefícios federais por município
-uv run inss            # aposentadorias e pensões do INSS por município
-
-# 2. site
 cd ../site && npm install && npm run dev
 ```
 
-`uv run orcamento --anos 2025 2026` limita os anos. O ano corrente é sempre baixado de novo.
+Algumas cargas levam horas (a API do SICONFI aceita uma consulta por segundo; o PNCP limita os pedidos): a dívida e o pessoal das prefeituras, os contratos e o histórico do FINBRA. O resultado delas fica em `pipeline/referencia/`, e a publicação automática só copia de lá.
 
-## Dados
+## Publicação
 
-| Fonte | Conjunto | Uso |
-|---|---|---|
-| Portal da Transparência (CGU) | [Orçamento da Despesa](https://portaldatransparencia.gov.br/download-de-dados/orcamento-despesa) | Explorer: dotação inicial e atualizada, empenhado e realizado por órgão, UO, função, subfunção, programa, ação e natureza da despesa, 2014+ |
-| SIOP (Ministério do Planejamento) | [Endpoint SPARQL](https://www1.siop.planejamento.gov.br/sparql/) | Nomes oficiais (com acentos e completos) de UOs, programas e ações, por ano. Cache em `data/raw/siop/`; se o SIOP falhar, ficam os nomes do Portal |
-| IBGE | [SIDRA, tabela 1737](https://sidra.ibge.gov.br/tabela/1737) | IPCA (número-índice) para corrigir valores pela inflação |
-| SICONFI (Tesouro Nacional) | [API de dados abertos](https://apidatalake.tesouro.gov.br/docs/siconfi/), DCA Anexo I-E | Páginas de estados e cidades: gasto de cada governo estadual e município por função e subfunção (empenhado e pago). Estados: 2014 em diante pela API. Municípios: os dois últimos exercícios pela API (uma consulta por ente; a API tem limite documentado de 1 requisição por segundo e responde HTTP 429 acima disso, então o pipeline segue esse ritmo). Cache em `data/raw/siconfi/`, um arquivo compactado por ano |
-| SICONFI (Tesouro Nacional) | [FINBRA](https://siconfi.tesouro.gov.br/siconfi/pages/public/consulta_finbra/finbra_list.jsf), Anexos I-E, I-C, I-D e I-AB | Histórico dos municípios (2013+): despesa por função, receitas, despesa por natureza (salários, custeio, obras, dívida) e balanço patrimonial (caixa e dívidas em 31/12), um arquivo por ano e por anexo com todos os municípios. Os mesmos dois anexos dos estados vêm da API (`uv run mapa`). O download tem captcha: os arquivos são baixados à mão e importados com `uv run finbra`. O cache importado fica no release `dados-siconfi` do GitHub (`uv run semente publicar` / `aplicar`), de onde o CI o traz |
+- **`.github/workflows/publicar.yml`**: a cada mudança na `main`, roda os pipelines (com o cache de `data/raw` e o release `dados-siconfi`), confere os tipos, gera o site, publica no Cloudflare Pages e atualiza a cópia pública dos dados no B2 (`uv run espelho`).
+- **`.github/workflows/bimestral.yml`**: baixa o relatório bimestral das prefeituras para o ano em andamento.
 
-| Portal da Transparência (CGU) | [Transferências](https://portaldatransparencia.gov.br/download-de-dados/transferencias), [Bolsa Família](https://portaldatransparencia.gov.br/download-de-dados/novo-bolsa-familia), [BPC](https://portaldatransparencia.gov.br/download-de-dados/bpc) | Mapa: dinheiro federal que chega a cada município. Os repasses são baixados pelo pipeline. Bolsa Família e BPC têm uma linha por beneficiário (~6,5 GB por ano) e o servidor bloqueia downloads em série com CAPTCHA: os zips são baixados à mão e somados com `uv run federal <ano> --beneficios <pasta>`; só a soma por município é guardada, em `pipeline/referencia/beneficios/` |
-| Ministério da Previdência Social | [Estatísticas municipais](https://www.gov.br/previdencia/pt-br/assuntos/previdencia-social/estatisticas-municipais-2000-a-2022), benefícios emitidos por município | Mapa: aposentadorias, pensões e auxílios do INSS pagos em cada município, 2013+. Só os benefícios previdenciários (o BPC vem do Portal da Transparência). Valor líquido, pelo município da agência que paga, não o de residência |
-| Receita Federal | [Arrecadação por estado](https://www.gov.br/receitafederal/dados/arrecadacao-estado.csv) | Mapa: impostos federais arrecadados em cada estado, base da estimativa do que cada cidade manda para a União |
-| Tesouro Nacional | [Municípios do SIAFI](https://www.tesourotransparente.gov.br/ckan/dataset/lista-de-municipios-do-siafi) | Código SIAFI → código IBGE (o Portal da Transparência usa o SIAFI) |
-| SICONFI (Tesouro Nacional) | [API de dados abertos](https://apidatalake.tesouro.gov.br/docs/siconfi/), RREO Anexo 01 | O ano em andamento nas páginas de estado e cidade: receita arrecadada e despesa empenhada e paga até o último bimestre com prazo de entrega vencido, frente ao previsto para o ano e ao mesmo período do ano anterior. No mapa, é o último ano do seletor, marcado como parcial ("2026 (até agosto)"), com gasto total, tipo de gasto, receita, saldo e origem do dinheiro |
-| Governo da Paraíba | [Portal de Dados Abertos](https://api.dados.pb.gov.br/swagger/), despesas orçamentárias | Páginas das cidades paraibanas: o que o governo do estado gastou em cada município (obras, serviços e compras), por área e com as maiores despesas. É o único estado que publica o município em cada empenho. `uv run estado-pb 2025` |
-| Governo de Minas Gerais | [Planejamento e Monitoramento](https://dados.mg.gov.br/dataset/planejamento-e-monitoramento) (CC-BY 4.0) | Páginas das cidades mineiras: a execução do plano plurianual distribuída pelo município de destino, por área e por programa. Inclui salários; a distribuição é informada pelos órgãos, não sai do empenho. 2024 está incompleto na fonte. `uv run estado-mg 2025` |
-| INEP | [Ideb, resultados por município](https://www.gov.br/inep/pt-br/areas-de-atuacao/pesquisas-estatisticas-e-indicadores/ideb/resultados) | Páginas de cidade: a nota das escolas da rede municipal (e da estadual, como contexto) ao lado do gasto da prefeitura em educação, com a mediana das cidades do mesmo porte. `uv run ideb` |
-| IBGE | [Malhas territoriais](https://servicodados.ibge.gov.br/api/docs/malhas) | Contornos de municípios e estados do mapa |
+## Estrutura
 
-Saídas do pipeline:
-
-- `data/out/orcamento_despesa.parquet`: todos os anos, nível de elemento de despesa (para o DuckDB-WASM no futuro).
-- `site/public/data/explorer/{ano}.json`: agregado por ação × GND, com dicionários código → nome. O site faz o agrupamento no navegador.
-- `site/public/data/explorer/anos.json`: totais por ano.
-- `site/public/data/cidades/municipios.json`: um registro por município (e o DF) com o gasto por função e subfunção do último ano entregue, a série histórica e a mediana per capita por faixa de população. Gera `/cidades` e `/cidades/{uf}/{cidade}`.
-- `site/public/data/cidades/estados.json`: o mesmo para os 26 estados e o DF, com a mediana dos estados. Gera `/estados` e `/estados/{uf}`.
-- `site/public/data/mapa/`: dados da página `/mapa` (ver `pipeline/src/orcamento_pipeline/mapa.py` e `federal.py`): um arquivo por ano com despesa, receita, origem da receita e tributos de cada município e estado; áreas de gasto; série histórica; fatores do IPCA; arrecadação federal por estado; dinheiro federal por município; malhas. As páginas de cidade e de estado leem daqui, no build, a receita, o saldo do ano, o tipo de gasto, o balanço, os benefícios do INSS e o ano em andamento (`parcial.json`, de `uv run rreo`) (`site/src/lib/contas.ts`); sem esses arquivos, essas seções não aparecem.
-
-## Mapa (protótipo)
-
-`/mapa` responde, para cada cidade e estado e por ano: o que se paga de imposto à prefeitura, quanto ela recebe e gasta, se sobrou ou faltou, de onde vem o dinheiro e o que chega do governo federal. A página é um documento independente do layout do site (`site/src/mapa/pagina.html`, servido por `site/src/pages/mapa.astro`).
-
-Três coisas são **estimativas** e aparecem marcadas como tal: o IPVA pago na cidade (o dobro da cota que o estado devolve à prefeitura), o ICMS atribuído a ela (quatro vezes a cota-parte) e os impostos federais (o total arrecadado no estado, repartido pelo peso da cidade no ICMS). O imposto é registrado onde é recolhido, não onde mora quem paga.
-
-## Plano de melhorias
+```
+pipeline/   Python: baixa, confere e trata os dados (um comando por fonte)
+site/       Astro: as páginas, geradas no build a partir de site/public/data
+data/       (fora do git) os arquivos brutos e o Parquet do orçamento federal
+docs/       plano de melhorias, levantamentos e pedidos pela Lei de Acesso
+```
 
 O que está em andamento e o que vem depois: [docs/plano-de-melhorias.md](docs/plano-de-melhorias.md).
+
+## Licença
+
+O código deste repositório está sob a licença MIT (ver [LICENSE](LICENSE)). Contribuições são bem-vindas.
+
+Os dados vêm de fontes públicas oficiais e seguem as licenças de cada fonte; a de Minas Gerais, por exemplo, é CC-BY 4.0.

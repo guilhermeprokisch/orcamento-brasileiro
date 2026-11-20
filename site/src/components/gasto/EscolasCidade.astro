@@ -1,0 +1,135 @@
+---
+/**
+ * As escolas da rede municipal, uma a uma: alunos (Censo Escolar), Ideb de cada escola e o dinheiro
+ * federal que vai direto para ela (PDDE). Fonte: pipeline/…/escolas.py.
+ */
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { escolasDe } from "../../lib/indicadores";
+import Termo from "../Termo.astro";
+import type { Cidade } from "../../lib/cidades";
+
+interface Props {
+  cidade: Cidade;
+  /** "a prefeitura de Fortaleza" */
+  quem: string;
+}
+const { cidade, quem } = Astro.props;
+const e = escolasDe(cidade);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+// Siglas de tipo de escola ficam em maiúsculas; o resto em caixa de título ("EMEF JOSE ALVES" → "EMEF Jose Alves").
+const SIGLAS = /^(EMEF|EMEI|EMEIEF|EMEB|EMEFI|EMEIF|EM|EE|EEF|EEEF|EEEFM|ETI|CEI|CMEI|CEMEI|CMEF|CEF|CEU|CRAS|EJA|II|III|IV|APAE|CAIC|CIEP|CAIC|UE|UEB|UEF)$/;
+const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
+const titulo = (s: string) => s.toLowerCase().split(/\s+/).map((p, i) => {
+  const alto = p.toUpperCase();
+  if (SIGLAS.test(alto.replace(/[.,]/g, ""))) return alto;
+  return i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1);
+}).join(" ");
+const nota = (v: number | null) => (v === null ? "—" : nf1.format(v));
+const VISIVEIS = 20;
+---
+
+{e && e.escolas.length > 0 && (
+  <section class="escolas" data-escolas>
+    <div class="texto">
+      <span class="sobretitulo">Escola por escola</span>
+      <h2>As escolas da prefeitura</h2>
+      <p>
+        Em {e.censo}, {quem} tinha <strong>{nf0.format(e.escolas.length)} {e.escolas.length === 1 ? "escola" : "escolas"} em atividade</strong>,
+        com {nf0.format(e.alunos)} alunos da educação básica.
+        {e.estaduais > 0 && <> Na cidade há também {nf0.format(e.estaduais)} {e.estaduais === 1 ? "escola estadual" : "escolas estaduais"}, do governo do estado.</>}
+      </p>
+      {e.pdde.total > 0 && (
+        <p>
+          Em {e.anoPdde}, o governo federal mandou <strong>{moedaExtenso(e.pdde.total)}</strong> direto para{" "}
+          {nf0.format(e.pdde.conselhos)} conselhos e caixas escolares da cidade, sem passar pela prefeitura: é o <Termo id="pdde" /> (Dinheiro
+          Direto na Escola), para pequenas compras, reparos e projetos.
+          {e.pdde.casado > 0 && <> Desse total, {moedaCurta(e.pdde.casado)} foram para escolas da lista abaixo.</>}
+        </p>
+      )}
+      <p class="menor">
+        O <Termo id="ideb" /> é da edição de {e.edicaoIdeb}, numa escala de 0 a 10; escola sem nota teve poucos alunos avaliados ou não
+        tem aquela etapa. O PDDE chega com o nome do conselho escolar, não o da escola, e foi ligado a ela pelo nome:
+        quando os nomes não batem, o dinheiro fica só no total. Os nomes das escolas vêm do Censo Escolar, sem acentos.
+      </p>
+    </div>
+    <div class="lado">
+      {e.escolas.length > VISIVEIS && (
+        <label class="busca">
+          <span>Procure a escola ou o bairro</span>
+          <input type="search" data-filtro placeholder="Ex.: Centro, Jose Alves" autocomplete="off" />
+        </label>
+      )}
+      <div class="tabela" role="table" aria-label="Escolas da rede municipal">
+        <div class="linha cab" role="row">
+          <span role="columnheader">Escola</span>
+          <span role="columnheader" class="d">Alunos</span>
+          <span role="columnheader" class="d" title="Ideb dos anos iniciais (1º ao 5º ano)">Ideb 1º–5º</span>
+          <span role="columnheader" class="d" title="Ideb dos anos finais (6º ao 9º ano)">Ideb 6º–9º</span>
+          <span role="columnheader" class="d">PDDE</span>
+        </div>
+        {e.escolas.map((x, i) => (
+          <div class:list={["linha", { escondida: i >= VISIVEIS }]} role="row" data-busca={`${x.nome} ${x.bairro}`.toLowerCase()}>
+            <span role="cell" class="nome">{titulo(x.nome)}{x.bairro && <small>{titulo(x.bairro)}</small>}</span>
+            <span role="cell" class="d num">{nf0.format(x.alunos)}</span>
+            <span role="cell" class="d num">{nota(x.ideb[0])}</span>
+            <span role="cell" class="d num">{nota(x.ideb[1])}</span>
+            <span role="cell" class="d num muted">{x.pdde ? moedaCurta(x.pdde) : "—"}</span>
+          </div>
+        ))}
+      </div>
+      {e.escolas.length > VISIVEIS && (
+        <button type="button" class="mais" data-mais>Mostrar as {nf0.format(e.escolas.length)} escolas</button>
+      )}
+      <p class="fonte">Fonte: {e.fonte}. Alunos do Censo Escolar de {e.censo}; PDDE pago em {e.anoPdde}.</p>
+    </div>
+  </section>
+)}
+
+<script>
+  // Busca e "mostrar todas": sem elas, a lista mostra as 20 maiores escolas.
+  document.querySelectorAll<HTMLElement>("[data-escolas]").forEach((s) => {
+    const linhas = [...s.querySelectorAll<HTMLElement>("[data-busca]")];
+    const campo = s.querySelector<HTMLInputElement>("[data-filtro]");
+    const mais = s.querySelector<HTMLButtonElement>("[data-mais]");
+    const sem = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    let todas = false;
+    const atualizar = () => {
+      const termo = sem(campo?.value.trim() ?? "");
+      linhas.forEach((l, i) => {
+        l.classList.toggle("escondida", termo ? !l.dataset.busca!.includes(termo) : !todas && i >= 20);
+      });
+      if (mais) mais.hidden = todas || !!termo;
+    };
+    campo?.addEventListener("input", atualizar);
+    mais?.addEventListener("click", () => { todas = true; atualizar(); });
+  });
+</script>
+
+<style>
+  .escolas { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .lado { grid-column: span 7; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .busca { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--texto-3); }
+  .busca input { font: inherit; font-size: 15px; padding: 8px 10px; border: 1px solid var(--tinta); background: var(--papel, #fff); color: var(--tinta); }
+  .tabela { display: flex; flex-direction: column; border-top: 1px solid var(--tinta); }
+  .linha { display: grid; grid-template-columns: minmax(0, 1fr) 64px 64px 64px 84px; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 14px; }
+  .linha.escondida { display: none; }
+  .cab { font-size: 11px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .d { text-align: right; }
+  .nome { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .nome small { font-size: 12px; color: var(--texto-3); }
+  .muted { color: var(--texto-2); }
+  .mais { align-self: flex-start; font: inherit; font-size: 14px; font-weight: 600; padding: 8px 12px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
+  .fonte { margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .escolas { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+    .linha { grid-template-columns: minmax(0, 1fr) 52px 48px 48px 72px; gap: 8px; font-size: 13px; }
+  }
+</style>

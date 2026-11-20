@@ -119,6 +119,18 @@ jobs:
 
       # Matrículas por município (Censo Escolar). Como o Ideb, usa a cópia versionada em
       # pipeline/referencia quando o INEP derruba a conexão do servidor do GitHub.
+      # Escolas da rede municipal: Censo Escolar, Ideb por escola e PDDE. O INEP recusa conexões de
+      # fora do país: sem o download, a saída vem de pipeline/referencia/escolas.json.
+      - name: Pipeline das escolas
+        continue-on-error: true
+        run: uv run --project pipeline escolas
+
+      # Postos e hospitais (CNES) e internações pelo SUS por hospital (SIH): ~1 GB de arquivos do
+      # DATASUS, baixados à mão; aqui só a cópia em pipeline/referencia/ vai para o site.
+      - name: Postos e hospitais
+        continue-on-error: true
+        run: uv run --project pipeline unidades-saude --sem-baixar
+
       - name: Pipeline das matrículas
         continue-on-error: true
         run: uv run --project pipeline matriculas
@@ -150,6 +162,18 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline contratos --sem-baixar
 
+      # Para quem cada prefeitura da Paraíba pagou (empenhos do TCE-PB): o ZIP do ano tem ~190 MB (2 GB de CSV), então
+      # a carga é feita à mão (uv run pagamentos) e fica em pipeline/referencia/pagamentos.json; aqui só vai para o site.
+      - name: Pagamentos das prefeituras (TCE-PB)
+        continue-on-error: true
+        run: uv run --project pipeline pagamentos --sem-baixar
+
+      # Explorador de contratos (/contratos): o resumo da página inicial. O Parquet que a busca consulta
+      # fica no bucket público e é gerado à mão (uv run explorador-contratos).
+      - name: Explorador de contratos
+        continue-on-error: true
+        run: uv run --project pipeline explorador-contratos --sem-baixar
+
       # Nota de capacidade de pagamento (CAPAG) do Tesouro: a versão mais recente, para prefeituras e estados.
       - name: Pipeline da CAPAG
         continue-on-error: true
@@ -174,6 +198,18 @@ jobs:
       - name: Pipeline das emendas parlamentares (CGU)
         continue-on-error: true
         run: uv run --project pipeline emendas
+
+      # Explorador de emendas (/emendas): o resumo da página inicial. Os Parquet que a página consulta
+      # ficam no bucket público e são gerados à mão (uv run explorador-emendas).
+      - name: Explorador de emendas
+        continue-on-error: true
+        run: uv run --project pipeline explorador-emendas --sem-baixar
+
+      # Receitas da União (/receitas): os zips do Portal da Transparência (~25 MB) são baixados à mão
+      # (uv run receitas-uniao); aqui só a cópia em pipeline/referencia/ vai para o site.
+      - name: Receitas da União
+        continue-on-error: true
+        run: uv run --project pipeline receitas-uniao --sem-baixar
 
       - uses: actions/setup-node@v4
         with:
@@ -206,3 +242,13 @@ jobs:
       - name: Aviso sem credenciais
         if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == ''
         run: echo "::notice::Site gerado, mas não publicado — faltam os secrets CLOUDFLARE_API_TOKEN e CLOUDFLARE_ACCOUNT_ID."
+
+      # Cópia pública dos dados (brutos e tratados) no Backblaze B2, só na main. Envia apenas o que
+      # mudou de tamanho; nada é apagado lá. Ver pipeline/src/orcamento_pipeline/espelho.py.
+      - name: Cópia pública dos dados (Backblaze B2)
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          B2_APPLICATION_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+        run: uv run --project pipeline espelho

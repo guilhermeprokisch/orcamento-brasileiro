@@ -31,7 +31,7 @@ const frente = ir && ir.mediana ? ir.porHab / ir.mediana - 1 : null;
       <h2>O imposto de renda de quem mora aqui</h2>
       <p>
         Em {ir.ano}, as {nf0.format(ir.declarantes)} pessoas {deOnde} que declararam imposto de renda pagaram{" "}
-        <strong>{moedaExtenso(ir.valor)}</strong> à União, ou <strong>{porPessoa(ir.porHab)} por habitante</strong>.
+        <strong>{moedaExtenso(ir.valor)}</strong> à União, ou <strong>{porPessoa(ir.porHab)} por morador</strong>.
         {ir.mediana !== null && grupo && <> A mediana {grupo} é {porPessoa(ir.mediana)}{frente !== null && Math.abs(frente) >= 0.1 && <> ({nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"})</>}.</>}
       </p>
       {esfera === "uf" ? (
@@ -53,7 +53,7 @@ const frente = ir && ir.mediana ? ir.porHab / ir.mediana - 1 : null;
     <div class="numeros-ir">
       <p class="unidade">Imposto de renda dos moradores, {ir.ano}</p>
       <div><span>Total</span><strong class="num">{moedaCurta(ir.valor)}</strong></div>
-      <div><span>Por habitante</span><strong class="num">{porPessoa(ir.porHab)}</strong></div>
+      <div><span>Por morador</span><strong class="num">{porPessoa(ir.porHab)}</strong></div>
       {ir.mediana !== null && grupo && <div><span>{comparaveis}</span><strong class="num muted">{porPessoa(ir.mediana)}</strong></div>}
     </div>
     <p class="fonte">Fonte: {ir.fonte}, ano-calendário {ir.ano}{esfera === "uf" && ", somando as cidades do estado"}.</p>

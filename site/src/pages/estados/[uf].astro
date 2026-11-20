@@ -67,7 +67,7 @@ const SUMARIO: GrupoDaPagina[] = [
 ];
 const ph = (c: Cidade, f: string) => (c.f?.[f]?.[0] ?? 0) / c.pop;
 const descricao = temDados
-  ? `Quanto ${quem} gastou em ${e.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por habitante, por área.`
+  ? `Quanto ${quem} gastou em ${e.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por morador, por área.`
   : `Gastos do governo ${deUf(e.uf)}.`;
 ---
 
@@ -83,12 +83,15 @@ const descricao = temDados
         <h1>{nome}</h1>
         {ctx ? (
           <>
-            {anos.length > 1 && (
-              <label class="escolha-ano">Ano das contas
-                <select id="ano-ficha">{anos.map((a) => <option value={a} selected={a === e.ano}>{a}</option>)}</select>
-                <small>{anos.at(-1)} a {anos[0]}</small>
-              </label>
-            )}
+            <div class="topo-acoes">
+              {anos.length > 1 && (
+                <label class="escolha-ano">Ano das contas
+                  <select id="ano-ficha">{anos.map((a) => <option value={a} selected={a === e.ano}>{a}</option>)}</select>
+                  <small>{anos.at(-1)} a {anos[0]}</small>
+                </label>
+              )}
+              <a class="comparar-com" href={`/comparar?a=${e.ibge}`}><span aria-hidden="true">⇄</span> Comparar com outro estado</a>
+            </div>
             <div class="ficha" data-parte="frase" set:html={fraseHtml(ctx)} />
           </>
         ) : (
@@ -153,12 +156,12 @@ const descricao = temDados
     {cidades.length > 0 && (
       <section class="cidades">
         <h2>As cidades {deUf(e.uf)}</h2>
-        <p>O que cada prefeitura gastou por habitante, <span data-cidades-quando>no último ano entregue</span>.</p>
+        <p>O que cada prefeitura gastou por morador, <span data-cidades-quando>no último ano entregue</span>.</p>
         <div class="tabela" role="table" aria-label={`Municípios de ${nome}`}>
           <div class="linha cab" role="row">
             <span role="columnheader">Cidade</span>
-            <span role="columnheader" class="d so-largo">Habitantes</span>
-            <span role="columnheader" class="d">Por hab.</span>
+            <span role="columnheader" class="d so-largo">Moradores</span>
+            <span role="columnheader" class="d">Por morador</span>
             <span role="columnheader" class="d so-largo">Saúde/hab.</span>
             <span role="columnheader" class="d so-largo">Educação/hab.</span>
           </div>

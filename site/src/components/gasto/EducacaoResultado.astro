@@ -4,8 +4,10 @@
  * cidades do mesmo porte. Mostra os dois números juntos, sem concluir que um causa o outro.
  */
 import { moedaCurta, pct } from "../../lib/formato";
+import Termo from "../Termo.astro";
 import { docCidades, medianaDa, porPessoa, type Cidade } from "../../lib/cidades";
 import { idebDe, porAlunoDe, type NotaIdeb } from "../../lib/indicadores";
+import SerieAnos from "./SerieAnos.astro";
 
 interface Props {
   cidade: Cidade;
@@ -54,19 +56,19 @@ const linhas = ideb
         <p>
           Em {cidade.ano}, a prefeitura gastou <strong>{porPessoa(aluno.porAluno)} por aluno</strong> das escolas dela
           ({nf0.format(aluno.alunos)} alunos), {moedaCurta(gasto)} no total{total > 0 && <>, {pct(gasto / total)} de tudo o que gastou</>}.
-          {aluno.mediana !== null && faixa && <> A mediana das cidades {faixa} é {porPessoa(aluno.mediana)} por aluno.</>}
-          {porHab !== null && <> Por habitante, são {porPessoa(porHab)}.</>}
+          {aluno.mediana !== null && faixa && <> A mediana das cidades parecidas é {porPessoa(aluno.mediana)} por aluno.</>}
+          {porHab !== null && <> Por morador, são {porPessoa(porHab)}.</>}
         </p>
       ) : porHab !== null && (
         <p>
-          Em {cidade.ano}, a prefeitura gastou <strong>{porPessoa(porHab)} por habitante</strong> em educação
+          Em {cidade.ano}, a prefeitura gastou <strong>{porPessoa(porHab)} por morador</strong> em educação
           ({moedaCurta(gasto)}{total > 0 && <>, {pct(gasto / total)} de tudo o que gastou</>}).
-          {medianaGasto !== null && faixa && <> A mediana das cidades {faixa} é {porPessoa(medianaGasto)}.</>}
+          {medianaGasto !== null && faixa && <> A mediana das cidades parecidas é {porPessoa(medianaGasto)}.</>}
         </p>
       )}
       {municipal ? (
         <p>
-          No Ideb de {ideb.edicao}, as escolas da prefeitura tiveram{" "}
+          No <Termo id="ideb" /> de {ideb.edicao}, as escolas da prefeitura tiveram{" "}
           {ideb.mi?.nota != null && <><strong>{n(ideb.mi.nota)}</strong> nos anos iniciais</>}
           {ideb.mi?.nota != null && ideb.mf?.nota != null && " e "}
           {ideb.mf?.nota != null && <><strong>{n(ideb.mf.nota)}</strong> nos anos finais</>}, numa escala de 0 a 10.
@@ -80,7 +82,7 @@ const linhas = ideb
         gastar mais para chegar à mesma nota.
         {aluno
           ? <> O gasto por aluno divide tudo o que a prefeitura gastou em educação (inclusive merenda, transporte e salários) pelas matrículas das escolas dela no Censo Escolar de {aluno.ano}, da creche ao ensino fundamental. Creches conveniadas, pagas pela prefeitura mas registradas como escolas privadas, não entram nas matrículas; nas cidades que usam muito esse modelo, como São Paulo, e nas que pagam aposentadorias de professores com o dinheiro da educação, o valor por aluno fica mais alto.</>
-          : <> O gasto é por habitante, não por aluno.</>}
+          : <> O gasto é por morador, não por aluno.</>}
       </p>
     </div>
     <div class="dados">
@@ -103,11 +105,13 @@ const linhas = ideb
           ))}
         </div>
       )}
-      {linhas[0] && linhas[0].x!.historico.length > 2 && (
-        <p class="serie">
-          <span>{linhas[0].rotulo.split(" (")[0]}, ano a ano:</span>{" "}
-          {linhas[0].x!.historico.slice(-6).map(([ano, v]) => `${ano}: ${n(v)}`).join(" · ")}
-        </p>
+      {linhas.some(({ x }) => x!.serie.length > 2) && (
+        <div class="series">
+          {linhas.filter(({ x }) => x!.serie.length > 2).map(({ rotulo, x }) => (
+            <SerieAnos titulo={`${rotulo.split(" (")[0]}, edição a edição`} serie={x!.serie} referencia={x!.referencia}
+              rotuloReferencia={`Mediana das cidades ${faixa ?? "do mesmo porte"}`} casas={1} />
+          ))}
+        </div>
       )}
       {estadual && (
         <p class="estadual">
@@ -138,8 +142,8 @@ const linhas = ideb
   .nome { font-weight: 600; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .nome small { font-size: 13px; font-weight: 400; color: var(--texto-3); }
   .linha strong { font-family: var(--serifa); font-size: 28px; }
-  .serie, .estadual, .fonte { margin: 0; font-size: 14px; line-height: 1.5; color: var(--texto-2); }
-  .serie span { color: var(--texto-3); }
+  .series { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  .estadual, .fonte { margin: 0; font-size: 14px; line-height: 1.5; color: var(--texto-2); }
   .fonte { font-size: 13px; color: var(--texto-3); }
 
   @media (max-width: 900px) {
@@ -147,6 +151,7 @@ const linhas = ideb
     .texto h2 { font-size: 26px; }
   }
   @media (max-width: 640px) {
+    .series { grid-template-columns: minmax(0, 1fr); }
     .linha { grid-template-columns: minmax(0, 1fr) 56px 70px; gap: 10px; }
     .linha strong { font-size: 24px; }
   }

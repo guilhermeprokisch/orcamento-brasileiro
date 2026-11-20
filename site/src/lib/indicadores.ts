@@ -3,6 +3,7 @@
  * rede (pipeline/…/ideb.py). Lido no build; sem o arquivo, tudo vem null.
  */
 import { docCidades, docEstados, type Cidade } from "./cidades";
+import { nomeAutor } from "./autores-emendas";
 
 interface DocIdeb {
   edicao: number;
@@ -26,6 +27,9 @@ export interface NotaIdeb {
   mediana: number | null;
   /** [ano, nota] das edições com valor. */
   historico: [number, number][];
+  /** As mesmas notas como série, e a mediana das cidades do mesmo porte em cada edição (só rede municipal). */
+  serie: PontoSerie[];
+  referencia: PontoSerie[];
 }
 
 export interface Ideb {
@@ -44,14 +48,14 @@ function mediana(v: number[]): number | null {
   return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2;
 }
 
-// Mediana da nota mais recente da rede municipal em cada faixa de população.
+// Mediana da nota da rede municipal em cada faixa de população, numa edição (padrão: a mais recente).
 const medianas = new Map<string, number | null>();
-function medianaDaFaixa(faixa: number, serie: Serie): number | null {
-  const chave = `${faixa}-${serie}`;
+function medianaDaFaixa(faixa: number, serie: Serie, i = -1): number | null {
+  const chave = `${faixa}-${serie}-${i}`;
   if (!medianas.has(chave)) {
     const notas = (docCidades?.cidades ?? [])
       .filter((c) => c.faixa === faixa && c.ibge !== 53)
-      .map((c) => doc?.mun[String(c.ibge)]?.[serie]?.at(-1))
+      .map((c) => doc?.mun[String(c.ibge)]?.[serie]?.at(i))
       .filter((n): n is number => typeof n === "number");
     medianas.set(chave, mediana(notas));
   }
@@ -66,11 +70,18 @@ function nota(c: Cidade, serie: Serie): NotaIdeb | null {
   const atual = valores.at(-1) ?? null;
   const anteriores = historico.filter(([ano]) => ano < doc.edicao);
   const ultimo = anteriores.at(-1);
+  const comparar = serie.startsWith("m") && c.faixa !== undefined;
+  const referencia: PontoSerie[] = comparar
+    ? doc.anos.map((ano, i) => ({ ano, valor: medianaDaFaixa(c.faixa!, serie, i), preliminar: false }))
+      .filter((p): p is PontoSerie => p.valor !== null && historico.some(([a]) => a === p.ano))
+    : [];
   return {
     nota: atual,
     antes: ultimo ? { ano: ultimo[0], nota: ultimo[1] } : null,
-    mediana: serie.startsWith("m") && c.faixa !== undefined ? medianaDaFaixa(c.faixa, serie) : null,
+    mediana: comparar ? medianaDaFaixa(c.faixa!, serie) : null,
     historico,
+    serie: historico.map(([ano, valor]) => ({ ano, valor, preliminar: false })),
+    referencia,
   };
 }
 
@@ -404,7 +415,7 @@ export interface IrMoradores {
   declarantes: number;
   valor: number;
   porHab: number;
-  /** Mediana por habitante das cidades do mesmo porte. */
+  /** Mediana por morador das cidades do mesmo porte. */
   mediana: number | null;
 }
 const medianasIr = new Map<string, number | null>();
@@ -518,7 +529,7 @@ export interface Emendas {
   entidades: number;
   estadoEOutros: number;
   porHab: number;
-  /** Mediana por habitante das cidades do mesmo porte (ou dos estados). */
+  /** Mediana por morador das cidades do mesmo porte (ou dos estados). */
   mediana: number | null;
   autores: [string, number][];
   areas: [string, number][];
@@ -534,23 +545,33 @@ export function emendasDe(c: Cidade, esfera: "mun" | "uf"): Emendas | null {
   // O último ano fechado: o ano corrente ainda está em andamento.
   const ano = docEmendas.anos.filter((a) => a < anoAtual).at(-1);
   if (!ano) return null;
+  // Na cidade, o total deixa de fora os órgãos estaduais e federais com sede nela (quase sempre a
+  // capital): eles atendem o estado inteiro e já contam na página do estado.
+  const totalDe = (x: number[] | undefined) => (!x ? 0 : esfera === "mun" ? x[1] + x[2] : x[0]);
   const v = porAno[String(ano)] ?? [0, 0, 0, 0];
   const comparaveis = esfera === "uf"
     ? (docEstados?.cidades ?? []).filter((x) => x.ibge !== 53)
     : (docCidades?.cidades ?? []).filter((x) => x.faixa === c.faixa);
-  const valores = comparaveis.filter((x) => x.pop).map((x) => (docEmendas[esfera][String(x.ibge)]?.[String(ano)]?.[0] ?? 0) / x.pop);
+  const valores = comparaveis.filter((x) => x.pop).map((x) => totalDe(docEmendas[esfera][String(x.ibge)]?.[String(ano)]) / x.pop);
   return {
-    fonte: docEmendas.fonte, ano, total: v[0], prefeitura: v[1], entidades: v[2], estadoEOutros: v[3],
-    porHab: v[0] / c.pop, mediana: mediana(valores),
+    fonte: docEmendas.fonte, ano, total: totalDe(v), prefeitura: v[1], entidades: v[2], estadoEOutros: v[3],
+    porHab: totalDe(v) / c.pop, mediana: mediana(valores),
     autores: docEmendas.autores[String(c.ibge)]?.[String(ano)] ?? [],
     areas: docEmendas.areas[String(c.ibge)]?.[String(ano)] ?? [],
-    serie: docEmendas.anos.map((a) => ({ ano: a, valor: (porAno[String(a)]?.[0] ?? 0) / 1e6, preliminar: a >= anoAtual })),
+    serie: docEmendas.anos.map((a) => ({ ano: a, valor: totalDe(porAno[String(a)]) / 1e6, preliminar: a >= anoAtual })),
   };
+}
+
+/** As emendas pagas na cidade em cada ano: [à prefeitura, a entidades e empresas]. Fora o DF. */
+export function emendasPorAno(c: Cidade): Record<string, [number, number]> | undefined {
+  const porAno = c.ibge === 53 ? undefined : docEmendas?.mun[String(c.ibge)];
+  if (!porAno) return undefined;
+  return Object.fromEntries(Object.entries(porAno).map(([a, v]) => [a, [v[1], v[2]] as [number, number]]));
 }
 
 /**
  * Para o mapa (/data/mapa/emendas.json): as emendas do último ano fechado de cada cidade e estado,
- * [total, prefeitura, entidades e empresas, estado e outros, por habitante], e os 3 maiores autores.
+ * [total, prefeitura, entidades e empresas, estado e outros, por morador], e os 3 maiores autores.
  */
 export function emendasParaMapa() {
   if (!docEmendas) return null;
@@ -560,10 +581,14 @@ export function emendasParaMapa() {
   const pop = new Map([...(docCidades?.cidades ?? []), ...(docEstados?.cidades ?? [])].map((x) => [String(x.ibge), x.pop]));
   const linhas = (esfera: "mun" | "uf") => Object.fromEntries(Object.entries(docEmendas[esfera])
     .filter(([k, v]) => v[a] && pop.get(k))
-    .map(([k, v]) => [k, [...v[a], Math.round((v[a][0] / pop.get(k)!) * 100) / 100]]));
+    .map(([k, v]) => {
+      // Cidade: sem os órgãos estaduais e federais com sede nela (ver emendasDe).
+      const x = esfera === "mun" ? [v[a][1] + v[a][2], v[a][1], v[a][2], 0] : v[a];
+      return [k, [...x, Math.round((x[0] / pop.get(k)!) * 100) / 100]];
+    }));
   // Os nomes dos autores vão uma vez só, numa lista; cada lugar guarda [índice do nome, valor].
   const nomesAutores: string[] = [], indice = new Map<string, number>();
-  const idx = (n: string) => { if (!indice.has(n)) { indice.set(n, nomesAutores.length); nomesAutores.push(n); } return indice.get(n)!; };
+  const idx = (n: string) => { if (!indice.has(n)) { indice.set(n, nomesAutores.length); nomesAutores.push(nomeAutor(n)); } return indice.get(n)!; };
   const autores = Object.fromEntries(Object.entries(docEmendas.autores)
     .map(([k, v]) => [k, (v[a] ?? []).slice(0, 3).map(([n, valor]) => [idx(n), valor])])
     .filter(([, v]) => v.length));
@@ -603,4 +628,69 @@ export function contratosDe(c: Cidade, esfera: "mun" | "uf" = "mun"): Contratos 
   const porTipo = docContratos.tipos.map((t, i) => [t, v.tipos[i] ?? 0] as [string, number])
     .filter(([, x]) => x > 0).sort((a, b) => b[1] - a[1]);
   return { ...v, fonte: docContratos.fonte, ano: docContratos.ano, porHab: v.total / c.pop, porTipo };
+}
+
+// Escolas da rede municipal (pipeline/…/escolas.py): Censo Escolar, Ideb por escola e PDDE.
+interface DocEscolas {
+  fonte: string;
+  censo: number;
+  ideb: number;
+  pdde: number;
+  /** escolas: [código INEP, nome, bairro, alunos, Ideb iniciais, Ideb finais, PDDE]; pdde: [total, conselhos, casado] */
+  mun: Record<string, { escolas: [string, string, string, number, number | null, number | null, number | null][]; estaduais: number; pdde: [number, number, number] }>;
+}
+const arquivosEscolas = import.meta.glob<DocEscolas>("../../public/data/indicadores/escolas.json", { eager: true, import: "default" });
+const docEscolas: DocEscolas | null = Object.values(arquivosEscolas)[0] ?? null;
+
+export interface Escola { inep: string; nome: string; bairro: string; alunos: number; ideb: [number | null, number | null]; pdde: number | null }
+export interface Escolas {
+  fonte: string; censo: number; edicaoIdeb: number; anoPdde: number;
+  escolas: Escola[]; alunos: number; estaduais: number;
+  pdde: { total: number; conselhos: number; casado: number };
+}
+
+export function escolasDe(c: Cidade): Escolas | null {
+  const v = docEscolas?.mun[String(c.ibge)];
+  if (!docEscolas || !v) return null;
+  const escolas = v.escolas.map(([inep, nome, bairro, alunos, i, f, pdde]) => ({ inep, nome, bairro, alunos, ideb: [i, f] as [number | null, number | null], pdde }));
+  return {
+    fonte: docEscolas.fonte, censo: docEscolas.censo, edicaoIdeb: docEscolas.ideb, anoPdde: docEscolas.pdde,
+    escolas, alunos: escolas.reduce((s, e) => s + e.alunos, 0), estaduais: v.estaduais,
+    pdde: { total: v.pdde[0], conselhos: v.pdde[1], casado: v.pdde[2] },
+  };
+}
+
+// Postos, UPAs e hospitais (pipeline/…/unidades_saude.py): CNES e internações do SIH/SUS.
+interface DocUnidadesSaude {
+  fonte: string;
+  ano: number;
+  cnes: string;
+  /** unidades: [CNES, nome, grupo, bairro]; hospitais: [CNES, nome, quem administra, internações, valor, bairro] */
+  mun: Record<string, { unidades: [string, string, string, string][]; hospitais: [string, string, string, number, number, string][] }>;
+}
+const arquivosUnidades = import.meta.glob<DocUnidadesSaude>("../../public/data/indicadores/unidades-saude.json", { eager: true, import: "default" });
+const docUnidades: DocUnidadesSaude | null = Object.values(arquivosUnidades)[0] ?? null;
+
+export interface UnidadesSaude {
+  fonte: string; ano: number; mesCnes: string;
+  unidades: { cnes: string; nome: string; grupo: string; bairro: string }[];
+  porGrupo: [string, number][];
+  hospitais: { cnes: string; nome: string; quem: string; internacoes: number; valor: number; bairro: string }[];
+}
+
+export function unidadesSaudeDe(c: Cidade): UnidadesSaude | null {
+  const v = docUnidades?.mun[String(c.ibge)];
+  if (!docUnidades || !v) return null;
+  // Primeiro o que a pessoa mais procura: o posto, a urgência, o hospital.
+  const ORDEM = ["Posto ou unidade básica", "Urgência", "Hospital", "Especialidades", "Saúde mental (CAPS)", "Exames", "Vacinação", "Atenção domiciliar", "Vigilância em saúde", "Academia da saúde"];
+  const ordem = (g: string) => (ORDEM.indexOf(g) + 1 || 99);
+  const unidades = v.unidades.map(([cnes, nome, grupo, bairro]) => ({ cnes, nome, grupo, bairro }))
+    .sort((x, y) => ordem(x.grupo) - ordem(y.grupo) || x.nome.localeCompare(y.nome, "pt-BR"));
+  const conta = new Map<string, number>();
+  for (const u of unidades) conta.set(u.grupo, (conta.get(u.grupo) ?? 0) + 1);
+  return {
+    fonte: docUnidades.fonte, ano: docUnidades.ano, mesCnes: docUnidades.cnes,
+    unidades, porGrupo: [...conta].sort((a, b) => b[1] - a[1]),
+    hospitais: v.hospitais.map(([cnes, nome, quem, internacoes, valor, bairro]) => ({ cnes, nome, quem, internacoes, valor, bairro })),
+  };
 }

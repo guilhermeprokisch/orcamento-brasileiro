@@ -4,6 +4,7 @@
  * governo estadual, com as três notas parciais explicadas em palavras simples.
  */
 import type { Cidade } from "../../lib/cidades";
+import Termo from "../Termo.astro";
 import { capagDe, type Parcial } from "../../lib/capag";
 
 interface Props {
@@ -24,7 +25,7 @@ const classe = (n: string | null) => (n ? `n${n[0].toLowerCase()}` : "nsem");
 const linhas: { titulo: string; texto: string; p: Parcial }[] = c
   ? [
       { titulo: "Endividamento", p: c.endividamento,
-        texto: c.endividamento.valor === null ? "sem dado" : `a dívida é ${pct(c.endividamento.valor)} da receita` },
+        texto: c.endividamento.valor === null ? "sem dado" : `a dívida, sem descontar o caixa, é ${pct(c.endividamento.valor)} da receita corrente líquida` },
       { titulo: "Poupança", p: c.poupanca,
         texto: c.poupanca.valor === null ? "sem dado" : `o gasto do dia a dia consome ${pct(c.poupanca.valor)} da receita do dia a dia` },
       { titulo: "Liquidez", p: c.liquidez,
@@ -52,7 +53,7 @@ const linhas: { titulo: string; texto: string; p: Parcial }[] = c
         <p>Na avaliação do Tesouro Nacional de {c.quando}, {quem} ficou sem nota: faltaram dados entregues ao Tesouro para fazer a conta.</p>
       )}
       <p class="menor">
-        A nota, chamada CAPAG (capacidade de pagamento), junta três avaliações das contas, cada uma de A a C.
+        A nota, chamada <Termo id="capag" /> (capacidade de pagamento), junta três avaliações das contas, cada uma de A a C.
         {c.boas !== null && grupo && <> Entre {esfera === "uf" ? "os estados" : `as cidades ${grupo.replace(/^das cidades /, "")}`}, {pct(c.boas)} têm nota A ou B.</>}
       </p>
     </div>

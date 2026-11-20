@@ -11,14 +11,14 @@ const comDados = (doc?.cidades ?? []).filter((c) => c.ano !== null).length;
 const ultimoAno = doc?.anos.at(-1);
 ---
 
-<Base title="Cidades · Orçamento Brasileiro" description="Quanto a prefeitura da sua cidade gastou em saúde, educação e outras áreas, por habitante.">
+<Base title="Cidades · Orçamento Brasileiro" description="Quanto a prefeitura da sua cidade gastou em saúde, educação e outras áreas, por morador.">
   <div class="wrap">
     <section class="topo-lista">
       <div>
         <span class="sobretitulo verde">Novo · protótipo</span>
         <h1>Quanto a sua cidade gasta</h1>
         <p>
-          O gasto de cada prefeitura por área, por habitante, comparado com cidades do mesmo tamanho.
+          O gasto de cada prefeitura por área, por morador, comparado com cidades do mesmo tamanho.
           {doc && <> {comDados.toLocaleString("pt-BR")} das {doc.cidades.length.toLocaleString("pt-BR")} cidades (5.570 municípios e o DF) entregaram as contas de {ultimoAno} ou {ultimoAno! - 1}.</>}
           {" "}Veja também <a href="/estados">o gasto dos estados</a>.
         </p>
@@ -36,7 +36,7 @@ const ultimoAno = doc?.anos.at(-1);
       <div class="tabela" role="table" aria-label="Capitais">
         <div class="linha cab" role="row">
           <span role="columnheader">Cidade</span>
-          <span role="columnheader" class="d">Por habitante</span>
+          <span role="columnheader" class="d">Por morador</span>
           <span role="columnheader" class="d">Saúde/hab.</span>
           <span role="columnheader" class="d so-largo">Educação/hab.</span>
           <span role="columnheader" class="d so-largo">Total</span>
