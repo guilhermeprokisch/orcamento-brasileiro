@@ -7,11 +7,11 @@ Hoje o site sabe **o que foi contratado** (PNCP). Isto aqui diz **quanto foi emp
 ## Resumo
 
 - **Prefeituras, com download em massa e nome do credor:** PB, RS, SP, PR, ES. Somam 1.841 das 5.570 prefeituras (33%).
-- **Prefeituras, por API (uma chamada por município e mês):** CE e AM, com nome; RJ, RN e MA só com o CNPJ, sem o nome.
+- **Prefeituras, por API (uma chamada por município e mês):** CE, AM e PE, com nome; RJ, RN e MA só com o CNPJ, sem o nome.
 - **Governos estaduais com arquivo aberto:** RS, ES, PR, MG, MS, MT, GO, DF, BA, SC, PE, AL (até 2023) e AM.
 - **Nada aproveitável encontrado:** prefeituras de MG (atrás de login com captcha), SC, MS, MT, GO, TO, BA (só tela), AL, SE, PA, AC, RO, RR e AP.
 
-Vários sites do Norte e do Nordeste (TCE-PE, TCE-AL, TCE-RO, TCE-AP e portais do RN, PI, MA, PA e AP) não responderam daqui ou recusaram o acesso. O TCE-PE avisa que só aceita endereços do Brasil, então parte desses "não encontrado" pode ser só bloqueio de fora do país. Vale testar de novo de um endereço brasileiro.
+Parte do levantamento automático rodou fora do Brasil, e vários sites do Norte e do Nordeste recusaram o acesso. Retestado de um endereço brasileiro em 20/11/2026: o TCE-PE funciona (veja a tabela) e a API do TCE-RN responde; o TCE-RO continua recusando (403) e os sites do TCE-AL e do TCE-AP não respondem. AC, PA, RR, MA, PI e os portais estaduais que falharam ainda precisam ser revistos daqui.
 
 ## Estado por estado
 
@@ -26,7 +26,7 @@ Vários sites do Norte e do Nordeste (TCE-PE, TCE-AL, TCE-RO, TCE-AP e portais d
 | **ES** | **Sim.** TCE-ES no dados.es.gov.br, `tcees-empenho`: CSV, 2017–2026, com nome e CNPJ do credor e o saldo mensal de cada empenho. | **Sim.** dados.es.gov.br, `Despesas-{ANO}.csv`, 2004–2026, com favorecido e CPF/CNPJ. | Arquivos pequenos. |
 | **CE** | **Sim, por API.** TCE-CE (SIM): `api-dados-abertos.tce.ce.gov.br/sim/notas_empenhos`, 2008–2026, com nome, CPF/CNPJ, valor e histórico. Pagamentos à parte, ligados pelo número do empenho. | Não confirmado (portal com bloqueio anti-robô). | Conferido: a API devolve os dados com o nome do credor. 1.000 registros por chamada, uma chamada por município e mês. |
 | **AM** | **Sim, por API.** TCE-AM (eContas): empenhos e pagamentos por unidade e mês, com nome e CNPJ. Desde 2014. | **Sim.** A mesma API cobre os órgãos do estado. | Uma fonte para os dois níveis de governo. Uma chamada por unidade e mês. |
-| **PE** | **Provável.** API do TCE-PE (`DespesasMunicipais`) com fornecedor, CNPJ e os três valores, segundo o catálogo. | **Sim.** dados.pe.gov.br, "Despesas detalhadas", CSV anual 2008–2026. | A API só aceita endereços do Brasil; não deu para testar daqui. |
+| **PE** | **Sim, por API.** TCE-PE: `sistemas.tcepe.tc.br/DadosAbertos/DespesasMunicipais!json?AnoReferencia={ANO}&MESREFERENCIA={MÊS}`. Uma linha por empenho, com `FORNECEDOR`, `CPF_CNPJ`, `TIPOCREDOR`, histórico, elemento e empenhado, liquidado e pago. | **Sim.** A mesma API (`DespesasEstaduais`) e o dados.pe.gov.br, "Despesas detalhadas", CSV anual 2008–2026. | Conferido em 20/11/2026: devolveu os dados de janeiro de 2025. Cada chamada traz no máximo 100 mil linhas (61 MB, 90 s), então é preciso fatiar por mês e por município. A API só aceita endereços do Brasil, então o robô de publicação (que roda fora do país) não alcança; baixar daqui e guardar no bucket. |
 | **RJ** | **Parcial.** API do TCE-RJ (`dados.tcerj.tc.br/api/v1/empenho_municipio`), 2020–2026, com CNPJ mas **sem o nome**. | **Parcial.** Mesma API (`empenho_estado`), só CNPJ. | Não inclui a capital (TCM-RJ). O nome teria de vir do cadastro de CNPJ da Receita. |
 | **RN** | **Parcial.** API do TCE-RN, com CNPJ e valor, sem o nome. Desde 2018. | Parcial (mesma API). | Uma chamada por unidade. |
 | **MA** | **Parcial.** API do TCE-MA, 2023–2026, empenhos e pagamentos do estado inteiro, só com o CPF/CNPJ. | Não confirmado. | Pagina bem (5.000 por chamada). |
