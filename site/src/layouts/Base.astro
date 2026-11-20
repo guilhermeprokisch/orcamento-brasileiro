@@ -54,6 +54,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
         </a>
         <nav class="nav so-largo" aria-label="Principal">
           <a href="/explorer" aria-current={ativo("/explorer")}>Explorer</a>
+          <a href="/receitas" aria-current={ativo("/receitas")}>Receitas</a>
           <a href="/orgaos" aria-current={ativo("/orgaos")}>Órgãos</a>
           <a href="/cidades" aria-current={ativo("/cidades")}>Cidades</a>
           <a href="/estados" aria-current={ativo("/estados")}>Estados</a>
@@ -155,7 +156,7 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
     font-family: var(--serifa); font-size: 25px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap;
   }
   .marca-site:hover { color: var(--tinta); }
-  .nav { display: flex; align-items: center; gap: 24px; font-size: 15px; }
+  .nav { display: flex; align-items: center; gap: 14px; font-size: 15px; }
   .nav a { color: var(--tinta); text-decoration: none; padding-bottom: 2px; }
   .nav a:hover { color: var(--verde); }
   .nav a[aria-current="page"] { border-bottom: 2px solid var(--tinta); }
@@ -185,8 +186,9 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
   .menu nav a:last-child { border-bottom: 0; }
 
   /* Entre o celular e a tela larga o menu completo não cabe ao lado da marca: fica o menu
-     recolhido, como no celular (as classes so-largo e so-celular trocam em 640px). */
-  @media (min-width: 641px) and (max-width: 1080px) {
+     recolhido, como no celular (as classes so-largo e so-celular trocam em 640px). A marca e
+     os dez itens precisam de ~1.130px; com as margens da página, isso pede uma tela de 1.260px. */
+  @media (min-width: 641px) and (max-width: 1260px) {
     .topo .nav.so-largo { display: none !important; }
     .topo .nav-celular.so-celular { display: flex !important; }
   }
