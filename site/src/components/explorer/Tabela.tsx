@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { taxaRealizacao, type Item, type Metrica } from "../../lib/dados";
+import { ROTULOS_DESPESA, taxaRealizacao, type Item, type Metrica, type Rotulos } from "../../lib/dados";
 import { moedaCurta, pct } from "../../lib/formato";
 import { corDaRampa } from "../../lib/cores";
 
@@ -10,12 +10,14 @@ interface Props {
   rotuloNome: string;
   podeDescer: boolean;
   onEscolher: (item: Item) => void;
+  rotulos?: Rotulos;
 }
 
 const LIMITE = 12;
 
 /** Lista editorial: nome, barra proporcional, valor, parcela e % pago. */
 export default function Tabela(props: Props) {
+  const r = () => props.rotulos ?? ROTULOS_DESPESA;
   const [todos, setTodos] = createSignal(false);
   const ordenados = createMemo(() => [...props.itens].sort((a, b) => b.valores[props.metrica] - a.valores[props.metrica]));
   const max = createMemo(() => Math.max(1, ...ordenados().map((i) => i.valores[props.metrica])));
@@ -26,10 +28,10 @@ export default function Tabela(props: Props) {
     <div class="lista" role="table" aria-label={`${props.rotuloNome}s`}>
       <div class="lista-linha lista-cab" role="row">
         <span role="columnheader">{props.rotuloNome}</span>
-        <span role="columnheader" class="so-largo">Dotação</span>
+        <span role="columnheader" class="so-largo">{r().colTrilho}</span>
         <span role="columnheader" class="d">Valor</span>
         <span role="columnheader" class="d so-largo">Parcela</span>
-        <span role="columnheader" class="d">Pago</span>
+        <span role="columnheader" class="d">{r().colTaxa}</span>
       </div>
       <For each={visiveis()}>
         {(it, i) => {
@@ -41,7 +43,7 @@ export default function Tabela(props: Props) {
                 <Show when={props.podeDescer} fallback={<span>{it.nome}</span>}>
                   <button type="button" onClick={() => props.onEscolher(it)}>{it.nome}</button>
                 </Show>
-                <span class="lista-cod">{it.codigo}</span>
+                <Show when={r().codigo !== false}><span class="lista-cod">{it.codigo}</span></Show>
               </span>
               <span role="cell" class="so-largo lista-trilho">
                 <span style={{ width: `${(Math.max(0, v()) / max()) * 100}%`, background: corDaRampa(Math.min(1, i() / 5)) }} />

@@ -1,0 +1,9 @@
+/* Receitas da União: o mesmo desenho do explorador de gastos (explorer.css), mais o aviso do refinanciamento. */
+.rec .rec-explica { margin: 0; font-size: 15px; line-height: 1.55; color: var(--texto-3); max-width: 60ch; }
+.rec-aviso {
+  margin: 0 0 22px; padding: 12px 16px; background: var(--papel-escuro); border-left: 3px solid var(--tinta);
+  font-size: 15px; line-height: 1.55; color: var(--texto-2);
+}
+.rec-aviso p { margin: 0; max-width: 90ch; }
+.rec-aviso strong { color: var(--tinta); }
+.rec-aviso button.link { white-space: nowrap; }

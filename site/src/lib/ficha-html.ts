@@ -20,6 +20,8 @@ export interface Contexto {
   /** "em Fortaleza", "no estado" */
   onde: string;
   destaques: { cod: string; titulo: string }[];
+  /** Só nas cidades: as emendas pagas em cada ano, [à prefeitura, a entidades e empresas da cidade]. */
+  emendas?: Record<string, [number, number]>;
   ficha: Ficha;
   pacote: Pacote;
 }
@@ -121,8 +123,7 @@ export function areasHtml(ctx: Contexto): string {
     </div>`).join("")}
   </section>` : "";
 
-  return `${destaques}
-  <section class="areas">
+  return `<section class="areas">
     <div class="areas-topo">
       <h2>Para onde vai o dinheiro</h2>
       <p>Gasto por morador em cada área.${grupo ? ` <span class="so-largo">O traço mostra a mediana ${grupo}.</span>` : ""}</p>
@@ -146,7 +147,20 @@ export function areasHtml(ctx: Contexto): string {
         <span role="cell" class="d num" title="${moedaCompleta(l.emp)}">${moedaCurta(l.emp)}</span>
       </div>`).join("")}
     </div>
-  </section>`;
+  </section>
+  ${destaques}`;
+}
+
+/** Na cidade: quanto do que veio de fora foram emendas parlamentares pagas à prefeitura naquele ano. */
+function emendasHtml(ctx: Contexto, ano: number, receita: number): string {
+  const [prefeitura, entidades] = ctx.emendas?.[String(ano)] ?? [0, 0];
+  if (ctx.esfera !== "mun" || prefeitura + entidades <= 0) return "";
+  const link = `<a href="/emendas?ente=${ctx.ibge}&amp;ano=${ano}">Quem mandou e para quê</a>.`;
+  // Valores pequenos para entidades (abaixo de R$ 100 mil) só atrapalham a frase.
+  const fora = entidades >= 1e5 ? `${moedaCurta(entidades)} foram direto para entidades e empresas da cidade (hospitais filantrópicos, associações), sem passar pelo caixa da prefeitura` : "";
+  if (prefeitura <= 0) return `<p class="menor">Em ${termoHtml("emenda-parlamentar", "emendas parlamentares")}, nada foi pago à prefeitura em ${ano}; ${fora}. ${link}</p>`;
+  return `<p class="menor">Parte do que veio de fora são ${termoHtml("emenda-parlamentar", "emendas parlamentares")}: deputados e senadores mandaram
+    <strong>${moedaCurta(prefeitura)}</strong> à prefeitura em ${ano}, ${pct(prefeitura / receita)} do que ela recebeu${fora ? `. Outros ${fora}` : ""}. ${link}</p>`;
 }
 
 const barras = (itens: { rotulo: string; termo?: string; dica?: string; valor: string; titulo?: string; largura: number; cor: string }[]) =>
@@ -222,6 +236,7 @@ export function contasHtml(ctx: Contexto, quais: "tudo" | "natureza" | "receitas
           <strong>R$ ${emCem}</strong> ${emCem === 1 ? "foi arrecadado" : "foram arrecadados"} por ${municipal ? "ela mesma" : "ele mesmo"};
           o resto veio de fora.</p>
         ${tributos.length ? `<p class="menor">Direto à prefeitura, moradores e empresas pagaram ${lista.format(tributos.map(([nome, v]) => `${moedaCurta(v)} de ${nome}`))}.</p>` : ""}
+        ${emendasHtml(ctx, contas.ano, contas.receita)}
       </div>
       ${barras(origens.map((o, k) => ({ rotulo: o.rotulo, termo: o.termo, dica: o.dica, valor: `${moedaCurta(o.v)} · ${pct(o.v / contas.receita)}`, titulo: moedaCompleta(o.v), largura: (o.v / maior) * 100, cor: corDaRampa(Math.min(1, k / 4)) })))}
     </section>`);

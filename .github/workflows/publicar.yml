@@ -153,6 +153,12 @@ jobs:
         continue-on-error: true
         run: uv run --project pipeline contratos --sem-baixar
 
+      # Para quem cada prefeitura da Paraíba pagou (empenhos do TCE-PB): o ZIP do ano tem ~190 MB (2 GB de CSV), então
+      # a carga é feita à mão (uv run pagamentos) e fica em pipeline/referencia/pagamentos.json; aqui só vai para o site.
+      - name: Pagamentos das prefeituras (TCE-PB)
+        continue-on-error: true
+        run: uv run --project pipeline pagamentos --sem-baixar
+
       # Explorador de contratos (/contratos): o resumo da página inicial. O Parquet que a busca consulta
       # fica no bucket público e é gerado à mão (uv run explorador-contratos).
       - name: Explorador de contratos
@@ -189,6 +195,12 @@ jobs:
       - name: Explorador de emendas
         continue-on-error: true
         run: uv run --project pipeline explorador-emendas --sem-baixar
+
+      # Receitas da União (/receitas): os zips do Portal da Transparência (~25 MB) são baixados à mão
+      # (uv run receitas-uniao); aqui só a cópia em pipeline/referencia/ vai para o site.
+      - name: Receitas da União
+        continue-on-error: true
+        run: uv run --project pipeline receitas-uniao --sem-baixar
 
       - uses: actions/setup-node@v4
         with:

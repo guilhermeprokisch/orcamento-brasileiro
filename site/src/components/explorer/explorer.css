@@ -9,7 +9,7 @@
 /* barra do caminho + controles: uma linha; o caminho corta com reticências */
 .exp-barra {
   display: flex; align-items: center; justify-content: space-between; gap: 10px 24px;
-  padding: 10px 0; border-bottom: 1px solid var(--regra); font-size: 14px;
+  padding: 10px 0; border-bottom: 1px solid var(--regra); font-size: 15px;
 }
 .exp-caminho {
   display: flex; align-items: center; gap: 10px; flex: 1 1 auto; min-width: 0; white-space: nowrap;
@@ -59,6 +59,12 @@
   color: var(--tinta); font-weight: 600; border-bottom-color: var(--verde);
 }
 .exp-abas-espaco { flex-grow: 1; }
+/* voltar um nível: no alto do título e junto do mapa, onde a pessoa acabou de clicar */
+.exp button.exp-voltar { align-self: flex-start; font-size: 15px; }
+.exp-abas button.exp-subir {
+  padding: 6px 12px; border: 1px solid var(--tinta); color: var(--tinta); font-size: 14px; font-weight: 600; background: transparent;
+}
+.exp-abas button.exp-subir:hover { background: var(--papel-escuro); }
 .exp-vistas { display: flex; align-items: center; gap: 10px; color: var(--regra); }
 .exp-vistas button:disabled { opacity: 0.5; cursor: default; }
 

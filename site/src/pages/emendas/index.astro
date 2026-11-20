@@ -32,7 +32,7 @@ const TIPOS: [string, string, string][] = [
 <Base title="Emendas parlamentares · Orçamento Brasileiro" description="Quem mandou emendas parlamentares, para onde, para quem e para quê: deputados, senadores, bancadas e comissões.">
   <div class="wrap explorador" data-emendas data-pagamentos={r?.pagamentos} data-textos={r?.textos} data-ano={r?.ano}>
     <section class="topo" data-topo>
-      <a class="voltar" href="/emendas" data-voltar hidden>← Todas as emendas</a>
+      <nav class="trilha" aria-label="Caminho" data-voltar hidden></nav>
       <span class="sobretitulo" data-sobretitulo hidden></span>
       <h1 data-titulo>As emendas parlamentares</h1>
       {r && (
@@ -121,6 +121,10 @@ const TIPOS: [string, string, string][] = [
   for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
   const saida = document.querySelector("[data-resultado]");
   const pergunta = ["q", "autor", "entidade", "ente", "uf", "fonte"].some((k) => params.get(k));
+  // A trilha (public/explorador/trilha.js): por onde a pessoa veio, com um link para cada passo.
+  const { ligarTrilha } = await import("/explorador/trilha.js");
+  const trilha = pergunta ? ligarTrilha(document.querySelector("[data-voltar]"), { chave: "emendas", inicio: { url: "/emendas", titulo: "Emendas" } }) : null;
+  trilha?.titulo(params.get("q") ? `“${params.get("q")}”` : "Resultado");
 
   // O campo "Onde" (public/explorador/onde.js): uma cidade abre a página das emendas dela; um estado, tudo o
   // que foi pago a quem fica nele (prefeituras, governo, entidades). Com palavras, a busca fica no lugar.
@@ -132,6 +136,7 @@ const TIPOS: [string, string, string][] = [
     const q = new URLSearchParams();
     for (const [k, v] of new FormData(form)) if (v && !["autor", "entidade", "ente", "uf"].includes(k)) q.set(k, v);
     if (campoOnde.escolhido) q.set("ente", campoOnde.escolhido.codigo);
+    trilha?.novaBusca();
     location.href = `/emendas${q.size ? `?${q}` : ""}`;
   });
 
@@ -140,7 +145,7 @@ const TIPOS: [string, string, string][] = [
     document.querySelector("[data-titulo]").textContent = titulo_;
     const p = document.querySelector("[data-frase]"); if (p) p.innerHTML = frase;
     const s = document.querySelector("[data-sobretitulo]"); s.hidden = !sobretitulo; s.textContent = sobretitulo || "";
-    document.querySelector("[data-voltar]").hidden = false;
+    trilha?.titulo(titulo_);
     document.querySelector("[data-exemplos]")?.setAttribute("hidden", "");
     document.title = `${titulo_} · Emendas · Orçamento Brasileiro`;
   }
@@ -364,7 +369,7 @@ const TIPOS: [string, string, string][] = [
   [data-emendas] {
     .topo { padding: 44px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
     .topo h1 { font-size: 56px; line-height: 1; letter-spacing: -0.025em; }
-    .voltar { font-size: 14px; }
+
     .filtros input[type="search"] { font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 190px; }
     .topo p { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); }
     .topo strong { color: var(--tinta); }

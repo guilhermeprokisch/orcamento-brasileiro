@@ -1,0 +1,10 @@
+---
+import Base from "../layouts/Base.astro";
+import Receitas from "../components/receitas/Receitas";
+---
+
+<Base title="Receitas · Orçamento Brasileiro" description="De onde vem o dinheiro do governo federal: impostos, contribuições, royalties, dividendos e empréstimos, ano a ano desde 2014.">
+  <div class="wrap">
+    <Receitas client:only="solid-js" />
+  </div>
+</Base>

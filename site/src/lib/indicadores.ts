@@ -562,6 +562,13 @@ export function emendasDe(c: Cidade, esfera: "mun" | "uf"): Emendas | null {
   };
 }
 
+/** As emendas pagas na cidade em cada ano: [à prefeitura, a entidades e empresas]. Fora o DF. */
+export function emendasPorAno(c: Cidade): Record<string, [number, number]> | undefined {
+  const porAno = c.ibge === 53 ? undefined : docEmendas?.mun[String(c.ibge)];
+  if (!porAno) return undefined;
+  return Object.fromEntries(Object.entries(porAno).map(([a, v]) => [a, [v[1], v[2]] as [number, number]]));
+}
+
 /**
  * Para o mapa (/data/mapa/emendas.json): as emendas do último ano fechado de cada cidade e estado,
  * [total, prefeitura, entidades e empresas, estado e outros, por morador], e os 3 maiores autores.
