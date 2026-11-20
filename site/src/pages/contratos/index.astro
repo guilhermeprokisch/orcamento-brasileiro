@@ -36,7 +36,7 @@ const tem = (e: string) => !!r?.esferas[e];
 <Base title="Contratos · Orçamento Brasileiro" description="Busque os contratos que prefeituras e governos estaduais assinaram e publicaram no Portal Nacional de Contratações Públicas.">
   <div class="wrap explorador" data-explorador data-arquivo={r?.arquivo} data-por-cnpj={r?.porCnpj} data-ano={r?.ano}>
     <section class="topo" data-topo>
-      <a class="voltar" href="/contratos" data-voltar hidden>← Todos os contratos</a>
+      <nav class="trilha" aria-label="Caminho" data-voltar hidden></nav>
       <span class="sobretitulo" data-sobretitulo hidden></span>
       <h1 data-titulo>Os contratos</h1>
       {r && (
@@ -144,6 +144,10 @@ const tem = (e: string) => !!r?.esferas[e];
   for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
   const pergunta = ["q", "uf", "esfera", "tipo", "min", "ente", "empresa"].some((k) => params.get(k));
   const saida = document.querySelector("[data-resultado]");
+  // A trilha (public/explorador/trilha.js): por onde a pessoa veio, com um link para cada passo.
+  const { ligarTrilha } = await import("/explorador/trilha.js");
+  const trilha = pergunta ? ligarTrilha(document.querySelector("[data-voltar]"), { chave: "contratos", inicio: { url: "/contratos", titulo: "Contratos" } }) : null;
+  trilha?.titulo(params.get("q") ? `“${params.get("q")}”` : "Resultado");
 
   // O campo "Onde" (public/explorador/onde.js): cidade ou estado. Num estado, a pergunta: só o governo
   // ou o governo e as prefeituras. Numa cidade, nada mais de lugar faz sentido.
@@ -176,6 +180,7 @@ const tem = (e: string) => !!r?.esferas[e];
     else if (l.tipo === "mun") q.set("ente", l.codigo);
     else if (new FormData(form).get("escopo") === "tudo") q.set("uf", l.sigla);
     else q.set("ente", l.codigo);
+    trilha?.novaBusca();
     location.href = `/contratos${q.size ? `?${q}` : ""}`;   // procurar sai da página da empresa
   });
 
@@ -184,7 +189,7 @@ const tem = (e: string) => !!r?.esferas[e];
     document.querySelector("[data-titulo]").textContent = titulo_;
     const p = document.querySelector("[data-frase]"); if (p) p.innerHTML = frase;
     const s = document.querySelector("[data-sobretitulo]"); s.hidden = !sobretitulo; s.textContent = sobretitulo || "";
-    document.querySelector("[data-voltar]").hidden = false;
+    trilha?.titulo(titulo_);
     document.querySelector("[data-exemplos]")?.setAttribute("hidden", "");
     document.title = `${titulo_} · Contratos · Orçamento Brasileiro`;
   }
@@ -402,7 +407,7 @@ const tem = (e: string) => !!r?.esferas[e];
 
   .topo { padding: 44px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
   .topo h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
-  .voltar { font-size: 14px; }
+
   .busca input[type="search"]:not(.campo-grande input) { font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 190px; }
   .topo p { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); }
   .topo strong { color: var(--tinta); }
