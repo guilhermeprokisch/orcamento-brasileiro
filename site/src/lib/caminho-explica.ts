@@ -84,6 +84,8 @@ export function explicacoes(doc: DocCaminho): Record<string, Info> {
     if (n.coluna === 0) {
       const imp = n.id.slice(2);
       texto = EXPLICA[imp] ?? "";
+      const naoCobrado = imp === "icms" ? doc.deixa?.estados?.total : doc.deixa?.uniao?.por_imposto[imp];
+      if (naoCobrado && naoCobrado >= 0.5) texto += ` Além disso, ${bi(naoCobrado)} deixaram de ser cobrados com benefícios fiscais (o tracejado embaixo da barra).`;
       itens = lista(doc.composicao?.[imp]) ?? (saem.length > 1 ? saem.map((f) => ({ nome: `Cobrado por ${nomeNo.get(f.para)}`, valor: bi(f.valor) })) : undefined);
     } else if (n.coluna === 1 && gov) {
       const g = doc.governos[gov.chave];
@@ -102,7 +104,7 @@ export function explicacoes(doc: DocCaminho): Record<string, Info> {
     info[n.id] = {
       titulo: n.nome, valor: linha(valor), texto, lista: itens,
       ligados: [n.id, ...entram.map((f) => f.id), ...saem.map((f) => f.id), ...entram.map((f) => f.de), ...saem.map((f) => f.para),
-        ...depois.flatMap((f) => [f.id, f.para])],
+        ...depois.flatMap((f) => [f.id, f.para]), ...(n.coluna === 0 ? [`x-${n.id.slice(2)}`] : [])],
     };
   }
 
@@ -121,7 +123,7 @@ export function explicacoes(doc: DocCaminho): Record<string, Info> {
         ? `O ICMS que os estados projetam deixar de cobrar com incentivos a empresas e setores, para atrair fábricas e baratear produtos (${e?.fonte ?? "Tesouro Nacional"}${e?.sem?.length ? `, sem ${e.sem.join(" e ")}` : ""}).`
         : `O que a Receita Federal estima deixar de cobrar com isenções, deduções e regimes especiais. Não está no caminho acima porque nunca foi pago. Os maiores:`,
       lista: itens,
-      ligados: [b.id],
+      ligados: [b.id, `t-${b.imposto}`],
     };
   }
 

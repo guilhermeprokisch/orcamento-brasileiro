@@ -120,6 +120,8 @@ export interface OpcoesDesenho {
   soColunas?: number[];
   /** horizontal (padrão) ou de cima para baixo (troca x e y) */
   vertical?: boolean;
+  /** espaço a mais embaixo de alguns nós (id → R$ bi), para desenhar ali o que deixa de entrar */
+  extra?: Record<string, number>;
 }
 
 const ORDEM_PADRAO = [
@@ -146,18 +148,18 @@ export function desenhar(doc: DocCaminho, o: OpcoesDesenho) {
   // Uma escala só para todas as colunas: a coluna com mais vãos é a que manda.
   const k = Math.min(...colunas.map((c) => {
     const daColuna = nos.filter((n) => n.coluna === c);
-    return (o.altura - o.vao * (daColuna.length - 1)) / daColuna.reduce((t, n) => t + valorDe(n.id), 0);
+    return (o.altura - o.vao * (daColuna.length - 1)) / daColuna.reduce((t, n) => t + valorDe(n.id) + (o.extra?.[n.id] ?? 0), 0);
   }));
   const desenhados = new Map<string, NoDesenhado>();
   for (const c of colunas) {
     const daColuna = nos.filter((n) => n.coluna === c);
-    const total = daColuna.reduce((t, n) => t + valorDe(n.id), 0) * k + o.vao * (daColuna.length - 1);
+    const total = daColuna.reduce((t, n) => t + valorDe(n.id) + (o.extra?.[n.id] ?? 0), 0) * k + o.vao * (daColuna.length - 1);
     let y = (o.altura - total) / 2;
     for (const n of daColuna) {
       const h = valorDe(n.id) * k;
       const esfera = (n.esfera ?? esferaDoImposto(doc, n.id)) as Esfera;
       desenhados.set(n.id, { id: n.id, nome: n.nome, coluna: c, x: o.colunas[c], y, w: o.barra, h, valor: valorDe(n.id), esfera });
-      y += h + o.vao;
+      y += h + (o.extra?.[n.id] ?? 0) * k + o.vao;
     }
   }
   // Cada faixa sai e chega empilhada na ordem dos nós do outro lado, para cruzar o mínimo.

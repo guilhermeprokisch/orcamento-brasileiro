@@ -75,7 +75,7 @@ const sus = Object.values(doc.programas ?? {}).flat().filter((i) => i.nome.start
       {deixa && (
         <li data-passo="8">
           <h2>O que deixa de entrar</h2>
-          <p>Isenções e regimes especiais (os <Termo id="beneficio-fiscal">benefícios fiscais</Termo>) fazem a União deixar de cobrar perto de {biExtenso(deixa.uniao)} por ano{deixa.estados > 0 && <>, e os estados, {biExtenso(deixa.estados)} de ICMS</>}. As barras tracejadas, embaixo, mostram em que imposto: o maior pedaço é do imposto de renda e da Cofins (o Simples Nacional, a cesta básica, as deduções de saúde). É dinheiro que não aparece no caminho, mas é uma escolha como um gasto.</p>
+          <p>Isenções e regimes especiais (os <Termo id="beneficio-fiscal">benefícios fiscais</Termo>) fazem a União deixar de cobrar perto de {biExtenso(deixa.uniao)} por ano{deixa.estados > 0 && <>, e os estados, {biExtenso(deixa.estados)} de ICMS</>}. O pedaço tracejado embaixo de cada imposto mostra quanto dele deixou de ser cobrado: o maior pedaço é do imposto de renda e da Cofins (o Simples Nacional, a cesta básica, as deduções de saúde). É dinheiro que não aparece no caminho, mas é uma escolha como um gasto.</p>
         </li>
       )}
     </ol>
