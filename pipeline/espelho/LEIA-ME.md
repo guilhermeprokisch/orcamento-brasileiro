@@ -16,7 +16,7 @@ O bucket não deixa listar os arquivos sem uma chave, então há dois índices n
 Para baixar tudo (cerca de 3,5 GB), mantendo as pastas:
 
 ```bash
-curl -s https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/indice.txt | wget -x -nH --cut-dirs=2 -i -
+curl -s https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/indice.txt | wget -x -nH --cut-dirs=2 -i -
 ```
 
 Para baixar só o que o site usa, filtre as linhas de `tratados/` antes de passar para o `wget`.

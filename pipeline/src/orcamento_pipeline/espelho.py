@@ -46,7 +46,7 @@ PASTAS = [
 LEIAME = c.RAIZ / "pipeline" / "espelho" / "LEIA-ME.md"
 # Temporários que os pipelines escrevem e trocam de nome no fim.
 IGNORAR = r"(\.tmp|\.part|~|\.DS_Store)$"
-URL = f"https://f005.backblazeb2.com/file/{BUCKET}"
+URL = f"https://dados.orcamentobrasileiro.com.br/file/{BUCKET}"
 
 
 def b2(*args: str, capturar: bool = False) -> str:
@@ -93,7 +93,7 @@ def main() -> None:
             print(f"  {destino}: falhou ({erro.returncode})", flush=True)
     b2("file", "upload", "--no-progress", "--quiet", "--content-type", "text/markdown; charset=utf-8", BUCKET, str(LEIAME), "LEIA-ME.md")
     indices()
-    print(f"pronto: https://f005.backblazeb2.com/file/{BUCKET}/LEIA-ME.md" + (f" ({falhas} pasta(s) falharam)" if falhas else ""))
+    print(f"pronto: https://dados.orcamentobrasileiro.com.br/file/{BUCKET}/LEIA-ME.md" + (f" ({falhas} pasta(s) falharam)" if falhas else ""))
     if falhas:
         sys.exit(1)
 
