@@ -1,16 +1,14 @@
 ---
 /**
  * PROTÓTIPO, "A história": a página conta, de cima para baixo, o que é uma emenda, os tipos, como cresceram,
- * para onde vão, onde chega mais por morador e quem manda; no fim, o explorador (no desenho do de gastos), com as
- * listas inteiras, e os atalhos para a busca.
+ * para onde vão, onde chega mais por morador e quem manda; no fim, as portas do explorador (página própria) e da busca.
  */
 import Termo from "../Termo.astro";
 import SerieTipos from "./SerieTipos.astro";
 import MapaEstados from "./MapaEstados.astro";
 import Explorar from "./Explorar.astro";
-import ExplorerEmendas from "./ExplorerEmendas";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
-import { ANO, cidades, nomeArea, nomeGrupo, panorama, POR_MORADOR, porEstado, resumo, TIPO, TIPOS, TOTAL, totalAno } from "../../lib/emendas-panorama";
+import { ANO, cidades, nomeArea, nomeGrupo, panorama, noExplorador, POR_MORADOR, porEstado, resumo, ROTA, TIPO, TIPOS, TOTAL, totalAno } from "../../lib/emendas-panorama";
 
 const p = panorama!;
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -31,6 +29,15 @@ const saude = p.areas.find(([a]) => a === "Saúde")?.[1] ?? 0;
 const pix = p.areas.find(([a]) => a === "Encargos especiais")?.[1] ?? 0;
 const pref = p.grupos.find(([g]) => g === "Prefeitura")?.[1] ?? 0;
 const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
+// Portas do explorador, cada uma já aberta num caminho.
+const ATALHOS: [string, string, string][] = [
+  ["Todos os deputados e senadores", noExplorador(["autoria:parlamentares"], true), `mais de mil nomes com emendas pagas em ${ANO}`],
+  ["Todas as comissões", noExplorador(["autoria:comissoes"], true), "Saúde, Desenvolvimento Regional, Assuntos Sociais…"],
+  ["Todas as bancadas", noExplorador(["autoria:bancadas"], true), "os deputados e senadores de cada estado, juntos"],
+  ["Por estado", `${ROTA.explorar}?por=uf`, "e, dentro de cada um, as cidades"],
+  ["Por área", `${ROTA.explorar}?por=area`, "saúde, obras, agricultura…"],
+  ["Quem recebeu", `${ROTA.explorar}?por=favorecido`, "prefeituras, entidades e empresas, pelo nome"],
+];
 ---
 
 <div class="historia">
@@ -117,7 +124,7 @@ const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
       Cada estado tem pelo menos 8 deputados e 3 senadores, e todos têm a mesma cota. Por isso os estados com pouca gente recebem muito mais
       por morador: o Amapá recebeu R$ {nf0.format(ap.porHab)} por pessoa; São Paulo, R$ {nf0.format(sp.porHab)}. O mesmo vale para as cidades.</p></div></div>
     <div class="duas">
-      <MapaEstados />
+      <MapaEstados link={(uf) => noExplorador([`uf:${uf}`])} />
       <div class="cidades">
         <h3>Nas cidades, por tamanho</h3>
         <ol class="barras">
@@ -140,12 +147,12 @@ const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
       <div>
         <h3>Deputados e senadores (individuais e Pix)</h3>
         <ol class="lista">{resumo!.autores.slice(0, 8).map(([a, v]) => <li><a href={`/emendas?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a><span class="num">{moedaCurta(v)}</span></li>)}</ol>
-        <p class="ver-todos"><a href="?f=autoria:parlamentares&vista=lista#h-explore">Ver todos os deputados e senadores →</a></p>
+        <p class="ver-todos"><a href={noExplorador(["autoria:parlamentares"], true)}>Ver todos os deputados e senadores →</a></p>
       </div>
       <div>
         <h3>Comissões e bancadas</h3>
         <ol class="lista">{p.coletivos.slice(0, 8).map(([a, t, v]) => <li><span><a href={`/emendas?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a> <small style={`color:${TIPO[t].cor === "#f2c919" ? "#8a6d00" : TIPO[t].cor}`}>{TIPO[t].nome.toLowerCase()}</small></span><span class="num">{moedaCurta(v)}</span></li>)}</ol>
-        <p class="ver-todos"><a href="?f=autoria:comissoes&vista=lista#h-explore">Todas as comissões</a> · <a href="?f=autoria:bancadas&vista=lista#h-explore">todas as bancadas →</a></p>
+        <p class="ver-todos"><a href={noExplorador(["autoria:comissoes"], true)}>Todas as comissões</a> · <a href={noExplorador(["autoria:bancadas"], true)}>todas as bancadas →</a></p>
       </div>
     </div>
     <p class="menor">O partido de cada parlamentar não está nos dados da CGU; dá para juntar pelos dados abertos da Câmara e do Senado (ver o PR).</p>
@@ -153,9 +160,14 @@ const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
 
   <section class="parte" id="h-explore">
     <div class="titulo-parte"><span class="n">7</span><div><h2>Explore tudo</h2><p>
-      Todas as emendas pagas, para dividir como quiser: por quem mandou (a lista inteira de deputados, senadores, bancadas e comissões),
-      por estado, cidade, quem recebeu ou área. Clique num bloco para descer um nível.</p></div></div>
-    <ExplorerEmendas client:only="solid-js" parquet={resumo!.pagamentos} ano={ANO} anos={resumo!.anos.filter((a) => a >= 2017)} />
+      No explorador estão todas as emendas pagas desde 2017, para dividir como quiser: por quem mandou (a lista inteira de deputados, senadores,
+      bancadas e comissões), por estado, cidade, quem recebeu ou área, como no explorador de gastos do governo.</p></div></div>
+    <div class="convite">
+      <a class="botao-grande" href={ROTA.explorar}>Abrir o explorador das emendas →</a>
+      <ul class="portas-exp">
+        {ATALHOS.map(([texto, href, dica]) => <li><a href={href}><strong>{texto}</strong><span>{dica}</span></a></li>)}
+      </ul>
+    </div>
   </section>
 
   <Explorar id="explore-1" titulo="Ou vá direto" />
@@ -205,6 +217,14 @@ const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
   .lista li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
   .lista small { display: inline; font-size: 12px; }
   .ver-todos { margin: 10px 0 0; font-size: 15px; font-weight: 600; }
+  .convite { display: flex; flex-direction: column; gap: 16px; }
+  .botao-grande { align-self: flex-start; font-size: 18px; font-weight: 600; padding: 14px 22px; background: var(--tinta); color: var(--papel); text-decoration: none; }
+  .botao-grande:hover { background: var(--verde-escuro); }
+  .portas-exp { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .portas-exp a { display: flex; flex-direction: column; gap: 2px; height: 100%; padding: 12px 14px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); text-decoration: none; }
+  .portas-exp a:hover { background: var(--marca-texto-fundo); }
+  .portas-exp strong { font-size: 16px; }
+  .portas-exp span { font-size: 13.5px; color: var(--texto-3); }
   @media (max-width: 900px) {
     .abre { padding: 28px 0 16px; }
     .abre h1 { font-size: 34px; }
@@ -221,5 +241,7 @@ const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
     .waffle { max-width: 260px; }
     .duas { grid-template-columns: minmax(0, 1fr); gap: 28px; }
     .barras li { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 72px; font-size: 13.5px; }
+    .portas-exp { grid-template-columns: minmax(0, 1fr); }
+    .botao-grande { align-self: stretch; text-align: center; }
   }
 </style>

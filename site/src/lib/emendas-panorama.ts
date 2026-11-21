@@ -132,3 +132,9 @@ export const GRADE_UF: Record<string, [number, number]> = {
   PR: [2, 5], RJ: [3, 5], SE: [5, 5],
   RS: [1, 6], SC: [2, 6],
 };
+
+/** Os endereços das páginas das emendas (no protótipo; na página final, /emendas e /emendas/explorar). */
+export const ROTA = { inicio: "/prototipo-emendas", explorar: "/prototipo-emendas/explorar", busca: "/emendas" };
+/** O explorador já aberto num caminho: filtros "dim:código" e, se quiser, a lista. */
+export const noExplorador = (filtros: string[], lista = false) =>
+  `${ROTA.explorar}?f=${filtros.map(encodeURIComponent).join("|")}${lista ? "&vista=lista" : ""}`;

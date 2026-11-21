@@ -1,0 +1,26 @@
+---
+/**
+ * PROTÓTIPO: o explorador das emendas numa página própria (na página final, /emendas/explorar), no desenho do
+ * explorador de gastos, com as listas inteiras. A história fica em /prototipo-emendas.
+ */
+import Base from "../../layouts/Base.astro";
+import EmendasAbas from "../../components/emendas/EmendasAbas.astro";
+import ExplorerEmendas from "../../components/emendas/ExplorerEmendas";
+import Explorar from "../../components/emendas/Explorar.astro";
+import { ANO, resumo } from "../../lib/emendas-panorama";
+---
+
+<Base title="Explorar as emendas · Orçamento Brasileiro" description="Todas as emendas parlamentares pagas, por quem mandou, estado, cidade, quem recebeu e área.">
+  <div class="faixa-prototipo"><div class="wrap"><strong>Protótipo</strong> da página nova das emendas. Não é a página final.</div></div>
+  <div class="wrap">
+    <EmendasAbas ativa="explorar" />
+    {resumo ? <ExplorerEmendas client:only="solid-js" parquet={resumo.pagamentos} ano={ANO} anos={resumo.anos.filter((a) => a >= 2017)} />
+      : <p>Os dados das emendas ainda não foram gerados.</p>}
+    <Explorar id="explore-direto" titulo="Ou vá direto" />
+  </div>
+</Base>
+
+<style>
+  .faixa-prototipo { background: var(--marca-texto); border-bottom: 1px solid var(--tinta); font-size: 14px; }
+  .faixa-prototipo .wrap { padding-top: 10px; padding-bottom: 10px; }
+</style>

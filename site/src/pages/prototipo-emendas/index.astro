@@ -1,11 +1,12 @@
 ---
 /**
  * PROTÓTIPO (rascunho, sai do site quando a página /emendas nova ficar pronta): a história das emendas, com os dados
- * de verdade, e no fim o explorador no desenho do de gastos. Das três versões do primeiro rascunho, ficou a 1.
+ * de verdade (das três versões do primeiro rascunho, ficou a 1). O explorador fica numa página própria, explorar.astro.
  */
-import Base from "../layouts/Base.astro";
-import VersaoHistoria from "../components/emendas/VersaoHistoria.astro";
-import { panorama } from "../lib/emendas-panorama";
+import Base from "../../layouts/Base.astro";
+import VersaoHistoria from "../../components/emendas/VersaoHistoria.astro";
+import EmendasAbas from "../../components/emendas/EmendasAbas.astro";
+import { panorama } from "../../lib/emendas-panorama";
 ---
 
 <Base title="Protótipo: emendas parlamentares · Orçamento Brasileiro" description="Rascunho da página nova das emendas parlamentares.">
@@ -13,6 +14,7 @@ import { panorama } from "../lib/emendas-panorama";
     <div class="wrap"><strong>Protótipo</strong> da página nova das emendas. Não é a página final.</div>
   </div>
   <div class="wrap">
+    <EmendasAbas ativa="inicio" />
     {!panorama ? <p>A visão geral das emendas ainda não foi gerada (<code>uv run explorador-emendas --so-panorama</code>).</p> : <VersaoHistoria />}
   </div>
 </Base>
