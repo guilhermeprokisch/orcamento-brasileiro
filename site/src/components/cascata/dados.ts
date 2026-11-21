@@ -28,6 +28,8 @@ export interface No {
   pai: No | null;
   /** Valor por categoria (mesma ordem de Fonte.cats). */
   mix: number[];
+  /** Dotação atualizada (o autorizado), só na União. */
+  autorizado?: number;
   /** "outros N programas": junta os menores; `lista` traz quem são. */
   ehOutros?: boolean;
   lista?: No[];
@@ -42,6 +44,10 @@ export interface Fonte {
   cats: Categoria[];
   /** Nome da cor por categoria: "Obrigatório ou não", "Quem recebe". */
   rotuloCor: string;
+  /** Uma frase por categoria, para quem não sabe o que é "obrigatória" ou "previdência". */
+  explicaCat: string[];
+  /** Endereço deste nó no Explorer (União). */
+  linkExplorer?: (n: No) => string;
   plural: Record<string, string>;
   /** Uma linha que explica cada nível, para quem não conhece os nomes. */
   explica: Record<string, string>;
@@ -75,7 +81,7 @@ export async function fonteUniao(ano = 2025): Promise<Fonte> {
   if (!r.ok) throw new Error(`Não consegui carregar ${ano} (HTTP ${r.status})`);
   const doc: DocAno = await r.json();
   const col = (c: string) => doc.colunas.indexOf(c);
-  const iV = col("realizado"), iSub = col("subfuncao"), iTipo = col("tipo");
+  const iV = col("realizado"), iA = col("atualizado"), iSub = col("subfuncao"), iTipo = col("tipo");
   const cats: Categoria[] = iTipo >= 0
     ? TIPOS_DESPESA.map((t) => ({ nome: t.nome, cor: t.cor, escuro: t.cod === "obr" }))
     : [{ nome: "Gasto", cor: "#1f7a47", escuro: true }];
@@ -91,13 +97,14 @@ export async function fonteUniao(ano = 2025): Promise<Fonte> {
 
   const criar = (ls: (string | number)[][], cod: string, nome: string, prof: number, pai: No | null): No => {
     const mix = new Array(cats.length).fill(0);
-    let valor = 0;
+    let valor = 0, autorizado = 0;
     for (const l of ls) {
       const v = l[iV] as number;
       valor += v;
+      autorizado += l[iA] as number;
       mix[iTipo >= 0 ? catDe.get(l[iTipo] as string) ?? 4 : 0] += v;
     }
-    const n: No = { cod, nome, valor, nivel: prof === 0 ? "Orçamento" : NIVEIS_UNIAO[prof - 1][1], prof, pai, mix };
+    const n: No = { cod, nome, valor, autorizado, nivel: prof === 0 ? "Orçamento" : NIVEIS_UNIAO[prof - 1][1], prof, pai, mix };
     if (prof < NIVEIS_UNIAO.length) {
       n.carregar = () => {
         const [dim] = NIVEIS_UNIAO[prof];
@@ -120,6 +127,17 @@ export async function fonteUniao(ano = 2025): Promise<Fonte> {
   const raiz = criar(linhas, "uniao", `Orçamento federal ${ano}`, 0, null);
   return {
     chave: "uniao", raiz, cats, rotuloCor: "Obrigatório ou não",
+    explicaCat: [
+      "o governo é obrigado por lei ou pela Constituição a pagar: aposentadorias, salários, repasses a estados e cidades",
+      "o governo decide se gasta e quanto: obras, compras, programas",
+      "deputados e senadores indicaram para onde vai",
+      "juros e pagamento da dívida pública",
+      "o orçamento não marca de que tipo é",
+    ],
+    linkExplorer: (n) => {
+      const f = caminhoAte(n).slice(1).map((x, i) => `${NIVEIS_UNIAO[i][0]}:${x.cod}`).join(",");
+      return `/explorer?ano=${ano}&metrica=realizado&refin=0${f ? `&f=${f}` : ""}`;
+    },
     plural: { Orçamento: "orçamento", Órgão: "órgãos", Unidade: "unidades", Programa: "programas", Ação: "ações", "Tipo de gasto": "tipos de gasto" },
     explica: {
       Órgão: "o ministério ou o poder (Câmara, tribunais…)",
@@ -198,6 +216,14 @@ export async function fonteJoaoPessoa(): Promise<Fonte> {
   const raiz = conv({ nome: `${d.nome} ${d.ano}`, valor: d.valor, filhos: d.filhos }, 0, null, 0);
   return {
     chave: "joao-pessoa", raiz, cats, rotuloCor: "Quem recebe", porCnpj,
+    explicaCat: [
+      "empresas e entidades contratadas pela prefeitura",
+      "pessoas pagas uma a uma: autônomos, bolsistas, microempreendedores (sem nome nem CPF aqui)",
+      "salários dos servidores, que a prefeitura manda para a conta da folha",
+      "aposentadorias, pensões e a contribuição ao INSS ou ao instituto de previdência",
+      "juros, parcelas da dívida e tarifas de bancos",
+      "repasses a outros governos, fundos e consórcios",
+    ],
     plural: { Prefeitura: "prefeitura", Área: "áreas", "Tipo de despesa": "tipos de despesa", Credor: "credores" },
     explica: {
       Área: "saúde, educação, urbanismo… (a função do gasto)",

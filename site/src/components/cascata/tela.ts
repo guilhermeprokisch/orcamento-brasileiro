@@ -1,10 +1,13 @@
 /**
  * Forma 4 do protótipo da cascata: a tela livre, em Canvas 2D. Uma árvore da esquerda para a direita, como um mapa
  * mental, em que cada caixa abre os filhos (vários galhos abertos ao mesmo tempo). Arrasta para andar, roda ou pinça
- * para o zoom, e há tela cheia. Os nomes aparecem conforme o zoom (abaixo de um tamanho, só a caixa).
+ * para o zoom, e há tela cheia.
  *
- * Tamanhos: os filhos de uma caixa dividem um bloco de pelo menos 280 px, em proporção ao valor (com um mínimo para
- * caber o nome). Por isso cada nível é um "zoom" do anterior, e a fita do pai até os filhos se abre como um funil.
+ * Dois jeitos de medir as caixas:
+ * - "em cada nível" (padrão): os filhos de uma caixa dividem um bloco de pelo menos 320 px, em proporção ao valor.
+ *   Cada nível é um zoom do anterior; a etiqueta "ampliado N×" no funil diz quanto.
+ * - "tamanho real": todas as caixas na mesma escala do total (um sankey de verdade). Os pequenos viram fios; o zoom
+ *   estica só na vertical, para enxergá-los sem as caixas ficarem largas demais.
  */
 import { moedaCurta, pct } from "../../lib/formato";
 import { RAMPA } from "../../lib/cores";
@@ -14,6 +17,7 @@ export interface OpcoesTela {
   usaTipo: () => boolean;
   caminhoInicial: No[];
   aoEscolher: (n: No) => void;
+  /** HTML dos detalhes de uma caixa (qualquer nível). */
   cartao: (n: No) => string;
 }
 
@@ -23,6 +27,8 @@ export interface Tela {
   redesenhar(): void;
 }
 
+type Modo = "nivel" | "real";
+
 const LARG = 250;          // largura da caixa (mundo)
 const VAO_COL = 150;        // espaço das fitas entre colunas
 const COL = LARG + VAO_COL;
@@ -31,36 +37,46 @@ const BLOCO = 320;          // altura mínima do bloco de filhos
 const ALT_RAIZ = 440;
 const VAO = 8;
 const VAO_GALHO = 26;
+const ALT_REAL = 900;       // no tamanho real, a altura do total
+const MIN_REAL = 1.5;
+const VAO_R = 2;
+const VAO_GALHO_R = 10;
 const K_INICIAL = 8;        // quantos filhos aparecem antes do "mais N"
 const MAIS = 10;            // quantos o "mais N" abre de cada vez
+const KY_MAX = 50000;
 
 const VERDE = "#0e6b3b";
 const PAPEL = "#f7f4ec";
 const TINTA = "#191919";
-const AREIA = "#c3bba7";
+const CINZA = "#5c574c";
 
 interface Pos { x: number; y: number; h: number; d: number }
+interface Camera { k: number; ky: number; x: number; y: number }
 
 const facil = (t: number) => 1 - Math.pow(1 - t, 3);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const limitar = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 const pctCurto = (v: number) => (v >= 0.995 ? "100%" : v >= 0.1 ? `${Math.round(v * 100)}%` : v >= 0.001 ? pct(v) : "<0,1%");
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+const vezes = (z: number) => (z < 10 ? z.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : Math.round(z).toLocaleString("pt-BR"));
 
 export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   host.innerHTML = `<div class="cc4" tabindex="-1">
-    <canvas class="cc4-canvas" aria-label="Tela livre do gasto: arraste para andar, use a roda ou pinça para o zoom, clique numa caixa para abrir."></canvas>
+    <canvas class="cc4-canvas" aria-label="Tela livre do gasto: arraste para andar, use a roda ou pinça para o zoom, clique numa caixa para abrir e ver os detalhes."></canvas>
     <div class="cc4-topo"><ol class="cc4-fio"></ol></div>
     <div class="cc4-botoes cc4-canto">
       <button type="button" data-acao="cheia" class="cc4-cheia-btn"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg><span>Tela cheia</span></button>
     </div>
     <div class="cc4-botoes cc4-zoom">
       <button type="button" data-acao="procurar" class="cc4-procurar-btn"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg><span>Procurar</span></button>
+      <button type="button" data-acao="modo" class="cc4-modo-btn" aria-pressed="false" title="Todas as caixas na mesma escala do total"><span class="longo">Tamanho real</span><span class="curto">Real</span></button>
       <button type="button" data-acao="mais" aria-label="Aproximar">+</button>
       <button type="button" data-acao="menos" aria-label="Afastar">−</button>
-      <button type="button" data-acao="ajustar">Ver tudo</button>
-      <button type="button" data-acao="fechar">Fechar galhos</button>
+      <button type="button" data-acao="ajustar"><span class="longo">Ver tudo</span><span class="curto">Tudo</span></button>
+      <button type="button" data-acao="fechar"><span class="longo">Fechar galhos</span><span class="curto">Fechar</span></button>
     </div>
-    <div class="cc4-dica">Arraste para andar · roda ou pinça: zoom · clique: abrir · duplo clique: focar · /: procurar</div>
+    <div class="cc4-aviso" hidden>Tamanho real: todas as caixas na mesma escala do total. Os pequenos viram fios; dê zoom para esticar na vertical.</div>
+    <div class="cc4-dica">Arraste para andar · roda ou pinça: zoom · clique: abrir e ver detalhes · duplo clique: focar · /: procurar</div>
     <div class="cc4-busca" hidden>
       <input type="search" placeholder="Procurar órgão, programa, ação, fornecedor…" aria-label="Procurar na árvore" autocomplete="off" />
       <ol class="cc4-resultados" aria-live="polite"></ol>
@@ -68,13 +84,18 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     <canvas class="cc4-mapa" aria-hidden="true"></canvas>
     <nav class="cc4-lista visually-hidden" aria-label="A árvore aberta, em lista"></nav>
     <div class="cc4-balao" hidden></div>
-    <aside class="cc4-cartao" hidden><button type="button" class="cc4-x" data-acao="fechar-cartao" aria-label="Fechar">×</button><div></div></aside>
+    <aside class="cc4-cartao" hidden>
+      <button type="button" class="cc4-resumo" data-acao="detalhes"></button>
+      <div class="cc4-corpo"><button type="button" class="cc4-x" data-acao="min-cartao" aria-label="Fechar os detalhes">×</button><div class="cc4-conteudo"></div></div>
+    </aside>
   </div>`;
   const caixa = host.querySelector<HTMLElement>(".cc4")!;
   const cv = caixa.querySelector<HTMLCanvasElement>("canvas")!;
   const ctx = cv.getContext("2d")!;
   const balao = caixa.querySelector<HTMLElement>(".cc4-balao")!;
   const cartao = caixa.querySelector<HTMLElement>(".cc4-cartao")!;
+  const resumoEl = cartao.querySelector<HTMLElement>(".cc4-resumo")!;
+  const conteudo = cartao.querySelector<HTMLElement>(".cc4-conteudo")!;
   const fioEl = caixa.querySelector<HTMLElement>(".cc4-fio")!;
   const busca = caixa.querySelector<HTMLElement>(".cc4-busca")!;
   const campo = busca.querySelector<HTMLInputElement>("input")!;
@@ -82,6 +103,18 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   const mapa = caixa.querySelector<HTMLCanvasElement>(".cc4-mapa")!;
   const mctx = mapa.getContext("2d")!;
   const listaEl = caixa.querySelector<HTMLElement>(".cc4-lista")!;
+  const avisoEl = caixa.querySelector<HTMLElement>(".cc4-aviso")!;
+
+  // listras do "mais N": não podem parecer uma categoria (a financeira é cinza)
+  const tile = document.createElement("canvas");
+  tile.width = tile.height = 8;
+  const tctx = tile.getContext("2d")!;
+  tctx.fillStyle = PAPEL;
+  tctx.fillRect(0, 0, 8, 8);
+  tctx.strokeStyle = "#8a8475";
+  tctx.lineWidth = 1.6;
+  tctx.beginPath(); tctx.moveTo(-2, 10); tctx.lineTo(10, -2); tctx.moveTo(-2, 2); tctx.lineTo(2, -2); tctx.moveTo(6, 10); tctx.lineTo(10, 6); tctx.stroke();
+  const listras = ctx.createPattern(tile, "repeat")!;
 
   // ——— estado ———
   const abertos = new Set<No>();
@@ -89,6 +122,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   const outrosDe = new Map<No, No>();
   let sel: No | null = null;
   let quente: No | null = null;
+  let modo: Modo = "nivel";
   for (const n of op.caminhoInicial) abertos.add(n);
   abertos.add(F.raiz);
   const ultimo = op.caminhoInicial[op.caminhoInicial.length - 1];
@@ -101,8 +135,9 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   }
 
   let W = 0, H = 0, dpr = 1;
-  const cam = { k: 1, x: 40, y: 40 };
-  let camDe = { ...cam }, camPara = { ...cam }, camT = 1, camIni = 0;
+  const cam: Camera = { k: 1, ky: 1, x: 40, y: 40 };
+  let camDe: Camera = { ...cam }, camPara: Camera = { ...cam }, camT = 1, camIni = 0;
+  let minimizado = false;
 
   let pos = new Map<No, Pos>();
   let antes = new Map<No, Pos>();
@@ -130,31 +165,41 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     return [...fs.slice(0, k), o];
   }
   const abre = (n: No) => !n.ehOutros && filhos(n).length > 0;
+  const galho = (n: No) => abertos.has(n) && abre(n);
+  const escalaReal = () => ALT_REAL / Math.max(1, F.raiz.valor);
+  const vao = () => (modo === "real" ? VAO_R : VAO);
+  const vaoGalho = () => (modo === "real" ? VAO_GALHO_R : VAO_GALHO);
 
   function alturas(n: No, h: number): number[] {
     const ks = visiveis(n);
+    if (modo === "real") return ks.map((f) => Math.max(MIN_REAL, f.valor * escalaReal()));
     const bloco = Math.max(h, BLOCO);
     const tot = ks.reduce((s, f) => s + f.valor, 0) || 1;
     const util = bloco - VAO * (ks.length - 1);
     return ks.map((f) => Math.max(MIN_H, (f.valor / tot) * util));
   }
 
+  /** Quanto o bloco de filhos está ampliado em relação à escala do total (só no modo "em cada nível"). */
+  function ampliacao(n: No, h: number): number {
+    const ks = visiveis(n);
+    const tot = ks.reduce((s, f) => s + f.valor, 0) || 1;
+    const util = Math.max(h, BLOCO) - VAO * (ks.length - 1);
+    return (util / tot) / (ALT_RAIZ / Math.max(1, F.raiz.valor));
+  }
+
   /** Mede (altura ocupada por cada galho) e posiciona. */
   function calcular() {
     const ext = new Map<No, number>();
     const hs = new Map<No, number>();
+    const entre = (ks: No[], i: number) => (i ? (galho(ks[i]) || galho(ks[i - 1]) ? vaoGalho() : vao()) : 0);
     const medir = (n: No, h: number): number => {
       hs.set(n, h);
       let e = h;
-      if (abertos.has(n) && abre(n)) {
+      if (galho(n)) {
         const ks = visiveis(n);
         const hk = alturas(n, h);
         let soma = 0;
-        ks.forEach((f, i) => {
-          const ef = medir(f, hk[i]);
-          const galho = abertos.has(f) && abre(f);
-          soma += ef + (i ? (galho || (abertos.has(ks[i - 1]) && abre(ks[i - 1])) ? VAO_GALHO : VAO) : 0);
-        });
+        ks.forEach((f, i) => { soma += medir(f, hk[i]) + entre(ks, i); });
         e = Math.max(h, soma);
       }
       ext.set(n, e);
@@ -164,18 +209,18 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     const por = (n: No, d: number, topo: number) => {
       const h = hs.get(n)!, e = ext.get(n)!;
       novo.set(n, { x: d * COL, y: topo + (e - h) / 2, h, d });
-      if (abertos.has(n) && abre(n)) {
+      if (galho(n)) {
         const ks = visiveis(n);
-        const soma = ks.reduce((s, f, i) => s + ext.get(f)! + (i ? ((abertos.has(f) && abre(f)) || (abertos.has(ks[i - 1]) && abre(ks[i - 1])) ? VAO_GALHO : VAO) : 0), 0);
+        const soma = ks.reduce((s, f, i) => s + ext.get(f)! + entre(ks, i), 0);
         let y = topo + (e - soma) / 2;
         ks.forEach((f, i) => {
-          if (i) y += (abertos.has(f) && abre(f)) || (abertos.has(ks[i - 1]) && abre(ks[i - 1])) ? VAO_GALHO : VAO;
+          y += entre(ks, i);
           por(f, d + 1, y);
           y += ext.get(f)!;
         });
       }
     };
-    medir(F.raiz, ALT_RAIZ);
+    medir(F.raiz, modo === "real" ? ALT_REAL : ALT_RAIZ);
     por(F.raiz, 0, 0);
     return novo;
   }
@@ -207,7 +252,11 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   }
   const alfaDe = (n: No) => (animT >= 1 || antes.has(n) ? 1 : facil(animT));
 
-  // ——— câmera ———
+  // ——— câmera (k no eixo x, ky no y; no modo "em cada nível" são iguais) ———
+  const sx = (x: number) => x * cam.k + cam.x;
+  const sy = (y: number) => y * cam.ky + cam.y;
+  const paraMundo = (px: number, py: number) => ({ x: (px - cam.x) / cam.k, y: (py - cam.y) / cam.ky });
+
   function caixaDe(ns: No[]) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const n of ns) {
@@ -217,17 +266,26 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     }
     return { x0, y0, x1, y1 };
   }
+  const cartaoAberto = () => !cartao.hidden && !minimizado;
+  function margens() {
+    const fioBaixo = fioEl.getBoundingClientRect().bottom - caixa.getBoundingClientRect().top;
+    const cel = W < 720;
+    const m = cel ? 24 : 70;
+    const dir = !cel && cartaoAberto() ? cartao.offsetWidth + 36 : m;
+    const baixo = cel ? (cartaoAberto() ? cartao.offsetHeight + 70 : 112) : 60;
+    return { esq: m, dir, topo: Math.max(64, fioBaixo + 12), baixo };
+  }
   function enquadrar(b: { x0: number; y0: number; x1: number; y1: number }, kMax = 1.1, animar = true) {
     if (!Number.isFinite(b.x0) || !W) return;
-    // embaixo do fio (os degraus no alto) e acima dos botões
-    const fioBaixo = fioEl.getBoundingClientRect().bottom - caixa.getBoundingClientRect().top;
-    const m = W < 640 ? 24 : 70, topo = Math.max(64, fioBaixo + 12), baixo = W < 640 ? 70 : 60;
-    const k = Math.min(kMax, (W - 2 * m) / (b.x1 - b.x0), (H - topo - baixo) / (b.y1 - b.y0));
-    const kk = Math.max(0.05, k);
-    const alvo = { k: kk, x: (W - (b.x1 - b.x0) * kk) / 2 - b.x0 * kk, y: topo + (H - topo - baixo - (b.y1 - b.y0) * kk) / 2 - b.y0 * kk };
-    irPara(alvo, animar);
+    const mg = margens();
+    const larg = Math.max(80, W - mg.esq - mg.dir), alt = Math.max(80, H - mg.topo - mg.baixo);
+    const bw = Math.max(1, b.x1 - b.x0), bh = Math.max(0.01, b.y1 - b.y0);
+    let k: number, ky: number;
+    if (modo === "nivel") { k = ky = limitar(Math.min(kMax, larg / bw, alt / bh), 0.03, 4); }
+    else { k = limitar(Math.min(1.1, larg / bw), 0.25, 1.1); ky = limitar(Math.min(KY_MAX, alt / bh), 0.05, KY_MAX); }
+    irPara({ k, ky, x: mg.esq + (larg - bw * k) / 2 - b.x0 * k, y: mg.topo + (alt - bh * ky) / 2 - b.y0 * ky }, animar);
   }
-  function irPara(alvo: { k: number; x: number; y: number }, animar = true) {
+  function irPara(alvo: Camera, animar = true) {
     camDe = { ...cam };
     camPara = alvo;
     camT = animar ? 0 : 1;
@@ -235,36 +293,48 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     if (!animar) Object.assign(cam, alvo);
     pedir();
   }
-  function zoomEm(fator: number, sx: number, sy: number) {
+  /** Um passo da animação da câmera: o centro anda em linha reta e o zoom em escala logarítmica (do fio ao detalhe). */
+  function passoCamera(t: number) {
+    const e = facil(t);
+    const cx0 = (W / 2 - camDe.x) / camDe.k, cx1 = (W / 2 - camPara.x) / camPara.k;
+    const cy0 = (H / 2 - camDe.y) / camDe.ky, cy1 = (H / 2 - camPara.y) / camPara.ky;
+    cam.k = Math.exp(lerp(Math.log(camDe.k), Math.log(camPara.k), e));
+    cam.ky = Math.exp(lerp(Math.log(camDe.ky), Math.log(camPara.ky), e));
+    cam.x = W / 2 - lerp(cx0, cx1, e) * cam.k;
+    cam.y = H / 2 - lerp(cy0, cy1, e) * cam.ky;
+  }
+  function zoomPara(base: Camera, fator: number, px0: number, py0: number, px: number, py: number) {
+    let k: number, ky: number;
+    if (modo === "nivel") { k = ky = limitar(base.k * fator, 0.03, 4); }
+    else { ky = limitar(base.ky * fator, 0.05, KY_MAX); k = limitar(ky, 0.25, 1.1); }
+    const wx = (px0 - base.x) / base.k, wy = (py0 - base.y) / base.ky;
+    cam.k = k; cam.ky = ky; cam.x = px - wx * k; cam.y = py - wy * ky;
+  }
+  function zoomEm(fator: number, px: number, py: number) {
     camT = 1;
-    const k = Math.min(4, Math.max(0.03, cam.k * fator));
-    const f = k / cam.k;
-    cam.x = sx - (sx - cam.x) * f;
-    cam.y = sy - (sy - cam.y) * f;
-    cam.k = k;
+    zoomPara({ ...cam }, fator, px, py, px, py);
     pedir();
   }
-  const paraMundo = (sx: number, sy: number) => ({ x: (sx - cam.x) / cam.k, y: (sy - cam.y) / cam.k });
 
-  /** Depois de abrir uma caixa: se ela e os filhos não couberem na tela, anda (e afasta, se preciso) até caberem. */
+  /** Depois de abrir uma caixa: se ela e os filhos não couberem na tela, anda (e muda o zoom, se preciso) até caberem. */
   function mostrarGalho(n: No) {
-    // no celular, só os filhos (a caixa aberta fica na borda, com a fita saindo dela)
-    const ns = W < 640 && abertos.has(n) ? visiveis(n) : [n, ...(abertos.has(n) ? visiveis(n) : [])];
+    const ns = W < 720 && galho(n) ? visiveis(n) : [n, ...(galho(n) ? visiveis(n) : [])];
     const b = caixaDe(ns);
-    const s0 = { x: b.x0 * cam.k + cam.x, y: b.y0 * cam.k + cam.y, x1: b.x1 * cam.k + cam.x, y1: b.y1 * cam.k + cam.y };
-    const cabe = s0.x >= 0 && s0.x1 <= W && s0.y >= 50 && s0.y1 <= H - 40;
-    if (!cabe) enquadrar(b, W < 640 ? 1 : Math.max(cam.k, 0.5));
+    const mg = margens();
+    const s0 = { x: sx(b.x0), y: sy(b.y0), x1: sx(b.x1), y1: sy(b.y1) };
+    const cabe = s0.x >= 0 && s0.x1 <= W - mg.dir + 20 && s0.y >= mg.topo - 20 && s0.y1 <= H - 40 && (s0.y1 - s0.y) > 40;
+    if (!cabe) enquadrar(b, W < 720 ? 1 : Math.max(cam.k, 0.5));
   }
 
-  /** O cartão do fim do caminho fica à direita (embaixo, no celular): anda para a caixa escolhida não ficar atrás dele. */
+  /** Os detalhes ficam à direita (embaixo, no celular): anda para a caixa escolhida não ficar atrás deles. */
   function desviarDoCartao(n: No) {
     const p = pos.get(n);
-    if (!p) return;
+    if (!p || !cartaoAberto()) return;
     const r = cartao.getBoundingClientRect(), c = caixa.getBoundingClientRect();
-    const sx1 = (p.x + LARG) * cam.k + cam.x, sy1 = (p.y + p.h) * cam.k + cam.y;
+    const x1 = sx(p.x + LARG), y1 = sy(p.y + p.h);
     const limX = r.left - c.left - 24, limY = r.top - c.top - 16;
-    if (W >= 720 && sx1 > limX) irPara({ ...cam, x: cam.x - (sx1 - limX) });
-    else if (W < 720 && sy1 > limY) irPara({ ...cam, y: cam.y - (sy1 - limY) });
+    if (W >= 720 && x1 > limX) irPara({ ...cam, x: cam.x - (x1 - limX) });
+    else if (W < 720 && y1 > limY) irPara({ ...cam, y: cam.y - (y1 - limY) });
   }
 
   // ——— desenho ———
@@ -275,52 +345,19 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     pedido = 0;
     let mais = false;
     if (animT < 1) { animT = Math.min(1, (t - animIni) / DUR); mais = true; }
-    if (camT < 1) {
-      camT = Math.min(1, (t - camIni) / 420);
-      const e = facil(camT);
-      cam.k = lerp(camDe.k, camPara.k, e); cam.x = lerp(camDe.x, camPara.x, e); cam.y = lerp(camDe.y, camPara.y, e);
-      mais = true;
-    }
+    if (camT < 1) { camT = Math.min(1, (t - camIni) / 450); passoCamera(camT); mais = true; }
     desenhar();
     if (mais) pedir();
   }
 
   const noCaminho = () => new Set(sel ? caminhoAte(sel) : []);
 
-  function corDe(n: No, rank: number, trilha: boolean): string {
-    if (n.ehOutros) return AREIA;
+  function corDe(n: No, rank: number, trilha: boolean): string | CanvasPattern {
+    if (n.ehOutros) return listras;
     if (op.usaTipo()) return F.cats[catPrincipal(n)].cor;
     if (trilha || n === F.raiz) return VERDE;
     return RAMPA[Math.min(rank + 1, RAMPA.length - 1)];
   }
-
-  function linhasDe(nome: string, larg: number, max: number): string[] {
-    const ps = nome.split(/\s+/);
-    const out: string[] = [];
-    let l = "";
-    for (const p of ps) {
-      const t = l ? `${l} ${p}` : p;
-      if (ctx.measureText(t).width <= larg || !l) l = t;
-      else { out.push(l); l = p; if (out.length === max) break; }
-    }
-    if (out.length < max && l) out.push(l);
-    if (out.length > max) out.length = max;
-    // a última linha cortada com reticências, se sobrou texto
-    const usado = out.join(" ").length;
-    if (usado < nome.length) {
-      let u = out[out.length - 1];
-      while (u.length > 1 && ctx.measureText(`${u}…`).width > larg) u = u.slice(0, -1);
-      out[out.length - 1] = `${u.trimEnd()}…`;
-    }
-    return out.map((s) => {
-      let u = s;
-      if (ctx.measureText(u).width <= larg) return u;
-      while (u.length > 1 && ctx.measureText(`${u}…`).width > larg) u = u.slice(0, -1);
-      return `${u}…`;
-    });
-  }
-
-  const rotulosTela: { x: number; y: number; w: number; h: number; n: No }[] = [];
 
   function cortar(t: string, larg: number): string {
     if (ctx.measureText(t).width <= larg) return t;
@@ -329,54 +366,47 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     return `${u.trimEnd()}…`;
   }
 
-  /** Caixa alta (os níveis de cima, ou um item que é quase tudo): em vez de espaço vazio, o resumo do que tem dentro. */
-  function caixaGrande(n: No, p: Pos, fx: number, larg: number, parte: number) {
-    const x = p.x + fx + 12;
-    let y = p.y + 18;
-    const fim = p.y + p.h - 10;
-    ctx.fillStyle = "#5c574c";
-    ctx.font = "600 10.5px Inter, system-ui, sans-serif";
-    ctx.fillText(n.nivel.toUpperCase(), x, y);
-    y += 8;
-    const tam = Math.max(15, Math.min(20, p.h / 10));
-    ctx.font = `700 ${tam}px "Source Serif 4", Georgia, serif`;
-    ctx.fillStyle = TINTA;
-    for (const l of linhasDe(n.nome, larg - 4, 4)) { y += tam * 1.15; if (y > fim) return; ctx.fillText(l, x, y); }
-    y += tam * 1.1;
-    if (y > fim) return;
-    ctx.font = `600 ${Math.round(tam * 0.85)}px Inter, system-ui, sans-serif`;
-    ctx.fillStyle = VERDE;
-    ctx.fillText(moedaCurta(n.valor), x, y);
-    if (n.pai) {
-      y += 18;
-      if (y > fim) return;
-      ctx.font = "400 12.5px Inter, system-ui, sans-serif";
-      ctx.fillStyle = "#3d3a33";
-      ctx.fillText(cortar(`${pctCurto(parte)} de ${n.pai.nome}`, larg + 20), x, y);
+  function linhasDe(nome: string, larg: number, max: number): string[] {
+    const out: string[] = [];
+    let l = "";
+    for (const p of nome.split(/\s+/)) {
+      const t = l ? `${l} ${p}` : p;
+      if (ctx.measureText(t).width <= larg || !l) l = t;
+      else { out.push(l); l = p; if (out.length === max) break; }
     }
-    const qtos = filhos(n).length;
-    if (qtos) {
-      y += 17;
-      if (y > fim) return;
-      ctx.font = "400 12.5px Inter, system-ui, sans-serif";
-      ctx.fillStyle = "#3d3a33";
-      const pl = filhos(n)[0].nivel;
-      ctx.fillText(`${qtos} ${qtos > 1 ? F.plural[pl] ?? "itens" : pl.toLowerCase()} dentro`, x, y);
+    if (out.length < max && l) out.push(l);
+    if (out.length > max) out.length = max;
+    if (out.join(" ").length < nome.length) out[out.length - 1] = cortar(`${out[out.length - 1]}…`, larg);
+    return out.map((s) => cortar(s, larg));
+  }
+
+  /** "R$ 93,3 bi · 44% · 2,7% do total": o "do total" só entra se couber. */
+  function linhaValor(n: No, larg: number): string {
+    const pai = n.pai;
+    const base = `${moedaCurta(n.valor)}${pai ? ` · ${pctCurto(n.valor / Math.max(1, pai.valor))}` : ""}`;
+    if (n.ehOutros) return cortar(`${base} · clique para ver mais`, larg);
+    if (pai && pai !== F.raiz) {
+      const comTotal = `${base} · ${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total`;
+      if (ctx.measureText(comTotal).width <= larg) return comTotal;
     }
-    // a mistura por categoria (obrigatória, escolha do governo…), uma linha por categoria
-    if (F.cats.length > 1) {
-      const t = n.mix.reduce((s2, v) => s2 + Math.max(0, v), 0) || 1;
-      const linhas = n.mix.map((v, i) => ({ i, f: Math.max(0, v) / t })).filter((m) => m.f >= 0.01).sort((a, b) => b.f - a.f);
-      y += 10;
-      for (const m of linhas) {
-        y += 17;
-        if (y > fim) return;
-        ctx.fillStyle = F.cats[m.i].cor;
-        ctx.fillRect(x, y - 9, 10, 10);
-        ctx.font = "400 12.5px Inter, system-ui, sans-serif";
-        ctx.fillStyle = "#3d3a33";
-        ctx.fillText(cortar(`${F.cats[m.i].nome} ${pctCurto(m.f)}`, larg), x + 16, y);
-      }
+    return cortar(base, larg);
+  }
+
+  /** Faixa da esquerda: a cor (ou a mistura por categoria, de cima para baixo). */
+  function faixa(n: No, x: number, y: number, w: number, h: number, rank: number, trilha: boolean) {
+    if (op.usaTipo() && !n.ehOutros) {
+      const t = n.mix.reduce((s, v) => s + Math.max(0, v), 0) || 1;
+      let yy = y;
+      n.mix.forEach((v, i) => {
+        const hh = (Math.max(0, v) / t) * h;
+        if (hh <= 0) return;
+        ctx.fillStyle = F.cats[i].cor;
+        ctx.fillRect(x, yy, w, hh);
+        yy += hh;
+      });
+    } else {
+      ctx.fillStyle = corDe(n, rank, trilha);
+      ctx.fillRect(x, y, w, h);
     }
   }
 
@@ -391,25 +421,98 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     ctx.closePath();
   }
 
+  /** Caixa alta: em vez de espaço vazio, o resumo do que tem dentro (coordenadas do mundo, modo "em cada nível"). */
+  function caixaGrande(n: No, p: Pos, fx: number, larg: number) {
+    const x = p.x + fx + 12;
+    let y = p.y + 18;
+    const fim = p.y + p.h - 10;
+    ctx.fillStyle = CINZA;
+    ctx.font = "600 10.5px Inter, system-ui, sans-serif";
+    ctx.fillText(n.nivel.toUpperCase(), x, y);
+    y += 8;
+    const tam = Math.max(15, Math.min(20, p.h / 10));
+    ctx.font = `700 ${tam}px "Source Serif 4", Georgia, serif`;
+    ctx.fillStyle = TINTA;
+    for (const l of linhasDe(n.nome, larg - 4, 4)) { y += tam * 1.15; if (y > fim) return; ctx.fillText(l, x, y); }
+    y += tam * 1.1;
+    if (y > fim) return;
+    ctx.font = `600 ${Math.round(tam * 0.85)}px Inter, system-ui, sans-serif`;
+    ctx.fillStyle = VERDE;
+    ctx.fillText(moedaCurta(n.valor), x, y);
+    const linha = (t: string) => {
+      y += 17;
+      if (y > fim) return false;
+      ctx.font = "400 12.5px Inter, system-ui, sans-serif";
+      ctx.fillStyle = "#3d3a33";
+      ctx.fillText(cortar(t, larg + 20), x, y);
+      return true;
+    };
+    if (n.pai && !linha(`${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${n.pai.nome}`)) return;
+    if (n.pai && n.pai !== F.raiz && !linha(`${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total`)) return;
+    const qtos = filhos(n).length;
+    if (qtos && !linha(`${qtos} ${qtos > 1 ? F.plural[filhos(n)[0].nivel] ?? "itens" : filhos(n)[0].nivel.toLowerCase()} dentro`)) return;
+    if (F.cats.length > 1) {
+      const t = n.mix.reduce((s2, v) => s2 + Math.max(0, v), 0) || 1;
+      const ms = n.mix.map((v, i) => ({ i, f: Math.max(0, v) / t })).filter((m) => m.f >= 0.01).sort((a, b) => b.f - a.f);
+      y += 8;
+      for (const m of ms) {
+        y += 17;
+        if (y > fim) return;
+        ctx.fillStyle = F.cats[m.i].cor;
+        ctx.fillRect(x, y - 9, 10, 10);
+        ctx.font = "400 12.5px Inter, system-ui, sans-serif";
+        ctx.fillStyle = "#3d3a33";
+        ctx.fillText(cortar(`${F.cats[m.i].nome} ${pctCurto(m.f)}`, larg), x + 16, y);
+      }
+    }
+  }
+
+  function botaoAbrir(n: No, cx: number, cy: number, r: number, lw: number) {
+    const aberto = galho(n);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = aberto ? TINTA : n.ehOutros ? PAPEL : "#fff";
+    ctx.fill();
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = TINTA;
+    ctx.stroke();
+    ctx.fillStyle = aberto ? "#fff" : TINTA;
+    ctx.font = `600 ${Math.round(r * 1.55)}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText(aberto ? "−" : n.ehOutros ? "…" : abre(n) ? "+" : "›", cx, cy + r * 0.55);
+    ctx.textAlign = "start";
+  }
+
   function desenhar() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = PAPEL;
     ctx.fillRect(0, 0, W, H);
+    ctx.textBaseline = "alphabetic";
+    if (modo === "nivel") desenharNivel(); else desenharReal();
+    cabecalhos();
+    desenharMapa();
+  }
+
+  /** Modo "em cada nível": desenha no mundo (o texto cresce com o zoom). */
+  function desenharNivel() {
     ctx.setTransform(dpr * cam.k, 0, 0, dpr * cam.k, dpr * cam.x, dpr * cam.y);
     const vis = { x0: -cam.x / cam.k, y0: -cam.y / cam.k, x1: (W - cam.x) / cam.k, y1: (H - cam.y) / cam.k };
     const trilha = noCaminho();
     const ordem = [...pos.keys()];
+    const px = 1 / cam.k;
 
     // fitas: do pai (lado direito, repartido pelos filhos) até cada filho
     for (const n of ordem) {
-      if (!abertos.has(n) || !abre(n)) continue;
+      if (!galho(n)) continue;
       const p = posDe(n)!;
       const ks = visiveis(n).filter((f) => pos.has(f));
       const tot = ks.reduce((s, f) => s + f.valor, 0) || 1;
       let acc = 0;
       const x0 = p.x + LARG;
+      let topoFilhos = Infinity;
       ks.forEach((f, rank) => {
         const q = posDe(f)!;
+        topoFilhos = Math.min(topoFilhos, q.y);
         const s0 = p.y + (acc / tot) * p.h;
         acc += f.valor;
         const s1 = p.y + (acc / tot) * p.h;
@@ -417,7 +520,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
         if (Math.max(x0, x1) < vis.x0 || Math.min(x0, x1) > vis.x1 || Math.max(s1, q.y + q.h) < vis.y0 || Math.min(s0, q.y) > vis.y1) return;
         const xm = (x0 + x1) / 2;
         const naTrilha = trilha.has(f) || f === quente;
-        ctx.globalAlpha = (naTrilha ? 0.5 : 0.2) * alfaDe(f);
+        ctx.globalAlpha = (f.ehOutros ? 0.35 : naTrilha ? 0.5 : 0.2) * alfaDe(f);
         ctx.fillStyle = corDe(f, rank, naTrilha);
         ctx.beginPath();
         ctx.moveTo(x0, s0);
@@ -427,20 +530,39 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
         ctx.closePath();
         ctx.fill();
       });
+      // a lupa: quanto este bloco de filhos está ampliado em relação ao total
+      const z = ampliacao(n, pos.get(n)!.h);
+      if (z >= 1.5 && 11 * cam.k >= 7 && animT >= 1) {
+        const t = `ampliado ${vezes(z)}×`;
+        ctx.globalAlpha = 1;
+        ctx.font = "italic 600 11.5px Inter, system-ui, sans-serif";
+        const w = ctx.measureText(t).width + 26;
+        const lx = x0 + VAO_COL / 2 - w / 2, ly = Math.min(topoFilhos, p.y) - 26;
+        retangulo(lx, ly, w, 19, 9.5);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.lineWidth = px;
+        ctx.strokeStyle = "#8a8475";
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(lx + 11, ly + 8.6, 3.6, 0, Math.PI * 2);
+        ctx.moveTo(lx + 13.6, ly + 11.2); ctx.lineTo(lx + 16, ly + 13.6);
+        ctx.lineWidth = 1.3;
+        ctx.strokeStyle = CINZA;
+        ctx.stroke();
+        ctx.fillStyle = CINZA;
+        ctx.fillText(t, lx + 20, ly + 13.5);
+      }
     }
     ctx.globalAlpha = 1;
 
-    // caixas
-    const px = 1 / cam.k;   // um pixel de tela, no mundo
+    const rotulosTela: { x: number; y: number; w: number; h: number; n: No }[] = [];
     for (const n of ordem) {
       const p = posDe(n)!;
       if (p.x > vis.x1 || p.x + LARG < vis.x0 || p.y > vis.y1 || p.y + p.h < vis.y0) continue;
-      const irmaos = n.pai ? visiveis(n.pai) : [n];
-      const rank = irmaos.indexOf(n);
+      const rank = (n.pai ? visiveis(n.pai) : [n]).indexOf(n);
       const naTrilha = trilha.has(n);
-      const aberto = abertos.has(n) && abre(n);
       ctx.globalAlpha = alfaDe(n);
-      // fundo
       retangulo(p.x, p.y, LARG, p.h, 4);
       ctx.fillStyle = n.ehOutros ? PAPEL : naTrilha ? "#fff3b0" : "#ffffff";
       ctx.fill();
@@ -449,33 +571,15 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       if (n.ehOutros) ctx.setLineDash([5 * px, 4 * px]);
       ctx.stroke();
       ctx.setLineDash([]);
-      // faixa da esquerda: a cor (ou a mistura por categoria)
-      const fx = 7;
-      if (op.usaTipo() && !n.ehOutros) {
-        const t = n.mix.reduce((s, v) => s + Math.max(0, v), 0) || 1;
-        let y = p.y;
-        n.mix.forEach((v, i) => {
-          const hh = (Math.max(0, v) / t) * p.h;
-          if (hh <= 0) return;
-          ctx.fillStyle = F.cats[i].cor;
-          ctx.fillRect(p.x, y, fx, hh);
-          y += hh;
-        });
-      } else {
-        ctx.fillStyle = corDe(n, rank, naTrilha);
-        ctx.fillRect(p.x, p.y, fx, p.h);
-      }
-      // textos, só quando a caixa tem tamanho na tela
+      const fx = n.ehOutros ? 12 : 7;
+      faixa(n, p.x, p.y, fx, p.h, rank, naTrilha);
       const alturaTela = p.h * cam.k;
-      const pai = n.pai;
-      const parte = pai ? n.valor / Math.max(1, pai.valor) : 1;
       if (alturaTela >= 14 && 12 * cam.k >= 6) {
         const larg = LARG - fx - 40;
-        ctx.textBaseline = "alphabetic";
-        if (p.h >= 120 && !n.ehOutros) caixaGrande(n, p, fx, larg, parte);
+        if (p.h >= 120 && !n.ehOutros) caixaGrande(n, p, fx, larg);
         else {
           ctx.font = `${n.ehOutros ? "italic " : ""}600 13px Inter, system-ui, sans-serif`;
-          ctx.fillStyle = n.ehOutros ? "#5c574c" : TINTA;
+          ctx.fillStyle = n.ehOutros ? CINZA : TINTA;
           const cabem = Math.max(1, Math.min(3, Math.floor((p.h - 26) / 16)));
           const linhas = alturaTela >= 26 ? linhasDe(n.nome, larg, cabem) : linhasDe(n.nome, larg, 1);
           const blocoTxt = linhas.length * 16 + (alturaTela >= 30 ? 15 : 0);
@@ -483,47 +587,112 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
           for (const l of linhas) { ctx.fillText(l, p.x + fx + 9, y); y += 16; }
           if (alturaTela >= 30) {
             ctx.font = "400 12px Inter, system-ui, sans-serif";
-            ctx.fillStyle = "#5c574c";
-            ctx.fillText(cortar(`${moedaCurta(n.valor)}${pai ? ` · ${pctCurto(parte)}` : ""}${n.ehOutros ? " · clique para ver mais" : ""}`, larg), p.x + fx + 9, y - 1);
+            ctx.fillStyle = CINZA;
+            ctx.fillText(linhaValor(n, larg), p.x + fx + 9, y - 1);
           }
         }
-        // + / − / › à direita
-        const cx = p.x + LARG - 18, cy = p.y + Math.min(p.h / 2, 26);
-        ctx.beginPath();
-        ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-        ctx.fillStyle = aberto ? TINTA : n.ehOutros ? PAPEL : "#fff";
-        ctx.fill();
-        ctx.lineWidth = 1.2 * px;
-        ctx.strokeStyle = TINTA;
-        ctx.stroke();
-        ctx.fillStyle = aberto ? "#fff" : TINTA;
-        ctx.font = "600 14px Inter, system-ui, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(aberto ? "−" : n.ehOutros ? "…" : abre(n) ? "+" : "›", cx, cy + 5);
-        ctx.textAlign = "start";
+        botaoAbrir(n, p.x + LARG - 18, p.y + Math.min(p.h / 2, 26), 9, 1.2 * px);
       } else if (LARG * cam.k >= 46 && alturaTela >= 12) {
-        // zoom afastado: o nome em letra de tamanho fixo na tela, para não virar só caixa
         rotulosTela.push({ x: (p.x + fx) * cam.k + cam.x + 4, y: p.y * cam.k + cam.y, w: (LARG - fx) * cam.k - 8, h: alturaTela, n });
       }
     }
     ctx.globalAlpha = 1;
 
-    // os nomes do zoom afastado, já em pixels de tela
+    // zoom afastado: o nome em letra de tamanho fixo na tela, para não virar só caixa
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     for (const r of rotulosTela) {
       ctx.font = `${r.n.ehOutros ? "italic " : ""}600 11px Inter, system-ui, sans-serif`;
-      ctx.fillStyle = r.n.ehOutros ? "#5c574c" : TINTA;
+      ctx.fillStyle = r.n.ehOutros ? CINZA : TINTA;
       const duas = r.h >= 30;
       ctx.fillText(cortar(r.n.nome, r.w), r.x, r.y + (duas ? r.h / 2 - 2 : r.h / 2 + 4));
       if (duas) {
         ctx.font = "400 10.5px Inter, system-ui, sans-serif";
-        ctx.fillStyle = "#5c574c";
+        ctx.fillStyle = CINZA;
         ctx.fillText(cortar(moedaCurta(r.n.valor), r.w), r.x, r.y + r.h / 2 + 11);
       }
     }
-    rotulosTela.length = 0;
+  }
 
-    // cabeçalhos das colunas, presos no alto da tela
+  /** Modo "tamanho real": tudo em pixels de tela, com o zoom vertical separado do horizontal. */
+  function desenharReal() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const trilha = noCaminho();
+    const ordem = [...pos.keys()];
+    const fora = (y0: number, y1: number) => y1 < 0 || y0 > H;
+
+    for (const n of ordem) {
+      if (!galho(n)) continue;
+      const p = posDe(n)!;
+      const ks = visiveis(n).filter((f) => pos.has(f));
+      const tot = ks.reduce((s, f) => s + f.valor, 0) || 1;
+      let acc = 0;
+      const x0 = sx(p.x + LARG);
+      ks.forEach((f, rank) => {
+        const q = posDe(f)!;
+        const s0 = sy(p.y + (acc / tot) * p.h);
+        acc += f.valor;
+        const s1 = sy(p.y + (acc / tot) * p.h);
+        const x1 = sx(q.x), t0 = sy(q.y), t1 = sy(q.y + q.h);
+        if (x1 < 0 || x0 > W || fora(Math.min(s0, t0), Math.max(s1, t1))) return;
+        const xm = (x0 + x1) / 2;
+        const naTrilha = trilha.has(f) || f === quente;
+        ctx.globalAlpha = (f.ehOutros ? 0.35 : naTrilha ? 0.5 : 0.22) * alfaDe(f);
+        ctx.fillStyle = corDe(f, rank, naTrilha);
+        ctx.beginPath();
+        ctx.moveTo(x0, s0);
+        ctx.bezierCurveTo(xm, s0, xm, t0, x1, t0);
+        ctx.lineTo(x1, Math.max(t1, t0 + 0.6));
+        ctx.bezierCurveTo(xm, Math.max(t1, t0 + 0.6), xm, Math.max(s1, s0 + 0.6), x0, Math.max(s1, s0 + 0.6));
+        ctx.closePath();
+        ctx.fill();
+      });
+    }
+    ctx.globalAlpha = 1;
+
+    for (const n of ordem) {
+      const p = posDe(n)!;
+      const x = sx(p.x), w = LARG * cam.k, y = sy(p.y), h = p.h * cam.ky;
+      if (x > W || x + w < 0 || fora(y, y + h)) continue;
+      const rank = (n.pai ? visiveis(n.pai) : [n]).indexOf(n);
+      const naTrilha = trilha.has(n);
+      ctx.globalAlpha = alfaDe(n);
+      if (h < 3) {
+        // um fio: só a cor, na largura da caixa
+        ctx.fillStyle = naTrilha ? TINTA : n.ehOutros ? listras : typeof corDe(n, rank, false) === "string" ? (corDe(n, rank, false) as string) : "#8a8475";
+        ctx.fillRect(x, y, w, Math.max(1, h));
+        continue;
+      }
+      ctx.fillStyle = n.ehOutros ? PAPEL : naTrilha ? "#fff3b0" : "#ffffff";
+      ctx.fillRect(x, y, w, h);
+      ctx.lineWidth = naTrilha || n === quente ? 2 : 1;
+      ctx.strokeStyle = naTrilha || n === quente ? TINTA : "#c9c2b2";
+      if (n.ehOutros) ctx.setLineDash([5, 4]);
+      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      ctx.setLineDash([]);
+      const fx = Math.max(4, (n.ehOutros ? 12 : 7) * cam.k);
+      faixa(n, x, y, fx, h, rank, naTrilha);
+      if (h >= 14 && w >= 70) {
+        const larg = w - fx - (h >= 22 ? 34 : 12);
+        const tx = x + fx + 8;
+        ctx.font = `${n.ehOutros ? "italic " : ""}600 12.5px Inter, system-ui, sans-serif`;
+        ctx.fillStyle = n.ehOutros ? CINZA : TINTA;
+        const linhas = h >= 48 ? linhasDe(n.nome, larg, Math.min(3, Math.floor((h - 22) / 15))) : [cortar(n.nome, larg)];
+        const bloco = linhas.length * 15 + (h >= 30 ? 14 : 0);
+        let ty = y + Math.max(13, (h - bloco) / 2 + 11);
+        for (const l of linhas) { ctx.fillText(l, tx, ty); ty += 15; }
+        if (h >= 30) {
+          ctx.font = "400 11.5px Inter, system-ui, sans-serif";
+          ctx.fillStyle = CINZA;
+          ctx.fillText(linhaValor(n, larg), tx, ty - 1);
+        }
+        if (h >= 22) botaoAbrir(n, x + w - 16, y + Math.min(h / 2, 24), 8, 1.2);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Títulos das colunas, presos no alto da tela. */
+  function cabecalhos() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const niveis = new Map<number, string>();
     for (const [n, p] of pos) if (!niveis.has(p.d)) niveis.set(p.d, n.nivel);
@@ -532,35 +701,31 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     ctx.strokeStyle = "#ddd6c6";
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, 44.5); ctx.lineTo(W, 44.5); ctx.stroke();
-    let inicioProximo = W >= 720 ? W - 150 : W;
+    let inicioProximo = W >= 720 ? W - 150 : W - 56;
     for (const [d, nivel] of [...niveis].sort((a, b) => b[0] - a[0])) {
-      const sx = d * COL * cam.k + cam.x;
-      if (sx > W || sx + LARG * cam.k < 0) continue;
-      const x = Math.max(8, sx);
+      const x0 = sx(d * COL);
+      if (x0 > W || x0 + LARG * cam.k < 0) continue;
+      const x = Math.max(8, x0);
       ctx.font = "600 11px Inter, system-ui, sans-serif";
-      const largTitulo = ctx.measureText((d === 0 ? nivel : F.plural[nivel] ?? nivel).toUpperCase()).width;
+      const titulo = (d === 0 ? nivel : F.plural[nivel] ?? nivel).toUpperCase();
+      const largTitulo = ctx.measureText(titulo).width;
       // da direita para a esquerda: um título não pisa no seguinte (colunas estreitas, ou a de trás presa na borda)
       if (x + largTitulo + 12 > inicioProximo) continue;
       inicioProximo = x;
-      ctx.fillStyle = "#5c574c";
-      ctx.font = "600 11px Inter, system-ui, sans-serif";
-      const titulo = d === 0 ? nivel.toUpperCase() : (F.plural[nivel] ?? nivel).toUpperCase();
+      ctx.fillStyle = CINZA;
       ctx.fillText(titulo, x, 19);
       if (F.explica[nivel] && LARG * cam.k > 120) {
         ctx.font = "400 11px Inter, system-ui, sans-serif";
         ctx.fillStyle = "#8a8475";
-        let t = F.explica[nivel];
         const lim = Math.min(Math.max(80, Math.min(COL * cam.k - 16, 320)), (W >= 720 ? W - 160 : W - 8) - x);
-        while (t.length > 3 && ctx.measureText(t).width > lim) t = `${t.slice(0, -2)}…`.replace(/…+$/, "…");
-        ctx.fillText(t, x, 34);
+        ctx.fillText(cortar(F.explica[nivel], lim), x, 34);
       }
     }
-    desenharMapa();
   }
 
   // ——— minimapa: a árvore inteira, com o retângulo do que está na tela ———
   const MW = 200, MH = 128;
-  let mapaT = { s: 1, x0: 0, y0: 0, ox: 0, oy: 0 };
+  let mapaT = { sxm: 1, sym: 1, x0: 0, y0: 0, ox: 0, oy: 0 };
   function desenharMapa() {
     if (getComputedStyle(mapa).display === "none") return;
     if (mapa.width !== MW * dpr) { mapa.width = MW * dpr; mapa.height = MH * dpr; mapa.style.width = `${MW}px`; mapa.style.height = `${MH}px`; }
@@ -568,29 +733,28 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     if (!Number.isFinite(b.x0)) return;
     const s = Math.min((MW - 12) / (b.x1 - b.x0), (MH - 12) / (b.y1 - b.y0));
     const ox = (MW - (b.x1 - b.x0) * s) / 2, oy = (MH - (b.y1 - b.y0) * s) / 2;
-    mapaT = { s, x0: b.x0, y0: b.y0, ox, oy };
+    mapaT = { sxm: s, sym: s, x0: b.x0, y0: b.y0, ox, oy };
     mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     mctx.clearRect(0, 0, MW, MH);
     mctx.fillStyle = "rgba(255,255,255,0.92)";
     mctx.fillRect(0, 0, MW, MH);
     const trilha = noCaminho();
     for (const [n, p] of pos) {
-      mctx.fillStyle = trilha.has(n) ? VERDE : n.ehOutros ? "#ddd5c3" : "#b5ad9b";
+      mctx.fillStyle = trilha.has(n) ? VERDE : n.ehOutros ? "#e6e0d2" : "#b5ad9b";
       mctx.fillRect(ox + (p.x - b.x0) * s, oy + (p.y - b.y0) * s, Math.max(1, LARG * s), Math.max(1, p.h * s));
     }
-    const v = { x0: -cam.x / cam.k, y0: -cam.y / cam.k, x1: (W - cam.x) / cam.k, y1: (H - cam.y) / cam.k };
+    const v0 = paraMundo(0, 0), v1 = paraMundo(W, H);
     mctx.strokeStyle = TINTA;
     mctx.lineWidth = 1.5;
-    mctx.strokeRect(ox + (v.x0 - b.x0) * s, oy + (v.y0 - b.y0) * s, (v.x1 - v.x0) * s, (v.y1 - v.y0) * s);
+    mctx.strokeRect(ox + (v0.x - b.x0) * s, oy + (v0.y - b.y0) * s, Math.max(3, (v1.x - v0.x) * s), Math.max(3, (v1.y - v0.y) * s));
   }
-  // clicar ou arrastar no minimapa leva a tela até ali
   let arrastandoMapa = false;
   const irPeloMapa = (e: PointerEvent) => {
     const r = mapa.getBoundingClientRect();
-    const wx = (e.clientX - r.left - mapaT.ox) / mapaT.s + mapaT.x0, wy = (e.clientY - r.top - mapaT.oy) / mapaT.s + mapaT.y0;
+    const wx = (e.clientX - r.left - mapaT.ox) / mapaT.sxm + mapaT.x0, wy = (e.clientY - r.top - mapaT.oy) / mapaT.sym + mapaT.y0;
     camT = 1;
     cam.x = W / 2 - wx * cam.k;
-    cam.y = H / 2 - wy * cam.k;
+    cam.y = H / 2 - wy * cam.ky;
     pedir();
   };
   mapa.addEventListener("pointerdown", (e) => { arrastandoMapa = true; mapa.setPointerCapture(e.pointerId); irPeloMapa(e); });
@@ -602,11 +766,10 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   function atualizarLista() {
     alvosLista = [];
     const item = (n: No): string => {
-      const aberto = abertos.has(n) && abre(n);
-      const ks = aberto ? visiveis(n) : [];
+      const ks = galho(n) ? visiveis(n) : [];
       alvosLista.push(n);
       const rot = `${n.nivel}: ${n.nome}, ${moedaCurta(n.valor)}${n.pai ? `, ${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${n.pai.nome}` : ""}`;
-      return `<li><button type="button" data-l="${alvosLista.length - 1}" ${abre(n) ? `aria-expanded="${aberto}"` : ""}>${esc(rot)}</button>${ks.length ? `<ul>${ks.map(item).join("")}</ul>` : ""}</li>`;
+      return `<li><button type="button" data-l="${alvosLista.length - 1}" ${abre(n) ? `aria-expanded="${galho(n)}"` : ""}>${esc(rot)}</button>${ks.length ? `<ul>${ks.map(item).join("")}</ul>` : ""}</li>`;
     };
     listaEl.innerHTML = `<ul>${item(F.raiz)}</ul>`;
   }
@@ -616,7 +779,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   });
 
   // ——— procurar ———
-  const normal = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const normal = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   let indice: { n: No; chave: string }[] | null = null;
   function montarIndice() {
     const out: { n: No; chave: string }[] = [];
@@ -653,21 +816,21 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   }
   /** Abre o caminho até o item (mostrando-o mesmo que esteja no "mais N") e leva a tela até ele. */
   function irAte(n: No) {
-    const cam2 = caminhoAte(n);
-    for (let i = 1; i < cam2.length; i++) {
-      const pai = cam2[i - 1], filho = cam2[i];
+    const c = caminhoAte(n);
+    for (let i = 1; i < c.length; i++) {
+      const pai = c[i - 1], filho = c[i];
       if (!visiveis(pai).includes(filho)) mostrar.set(pai, Math.max(mostrar.get(pai) ?? K_INICIAL, filhos(pai).indexOf(filho) + 2));
       if (!visiveis(pai).includes(filho)) mostrar.set(pai, filhos(pai).length);
     }
     abrirBusca(false);
-    escolher(n, false);
+    escolher(n, false, false);
     setTimeout(() => {
-      enquadrar(caixaDe([n, ...(abertos.has(n) ? visiveis(n) : [])]), 1);
-      if (!cartao.hidden) setTimeout(() => desviarDoCartao(n), 460);
+      enquadrar(caixaDe([n, ...(galho(n) ? visiveis(n) : [])]), 1);
+      if (cartaoAberto() && !galho(n)) setTimeout(() => desviarDoCartao(n), 480);
     }, 40);
   }
 
-  // ——— o fio (degraus) e o cartão ———
+  // ——— o fio (degraus) e os detalhes ———
   function atualizarFio() {
     const c = sel ? caminhoAte(sel) : [F.raiz];
     fioEl.innerHTML = c.map((n, i) => `<li><button type="button" data-fio="${i}" ${i === c.length - 1 ? 'aria-current="step"' : ""}>
@@ -675,26 +838,26 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       <span class="cc4-fio-valor">${moedaCurta(n.valor)}${i ? ` · ${pctCurto(n.valor / Math.max(1, n.pai!.valor))}` : ""}</span></button></li>`).join("");
     fioEl.querySelectorAll<HTMLButtonElement>("[data-fio]").forEach((b) => b.addEventListener("click", () => {
       const n = c[Number(b.dataset.fio)];
-      escolher(n, false);
-      const ns = [n, ...(abertos.has(n) ? visiveis(n) : [])];
-      enquadrar(caixaDe(ns), 1.1);
+      escolher(n, false, false);
+      setTimeout(() => enquadrar(caixaDe([n, ...(galho(n) ? visiveis(n) : [])]), 1.1), 40);
     }));
   }
 
   function mostrarCartao(n: No | null) {
-    if (!n || abre(n) || n.ehOutros) { cartao.hidden = true; return; }
-    cartao.querySelector("div")!.innerHTML = op.cartao(n);
+    if (!n || n.ehOutros) { cartao.hidden = true; return; }
+    resumoEl.innerHTML = `<span class="cc4-resumo-nome">${esc(n.nome)}</span><span class="cc4-resumo-valor">${moedaCurta(n.valor)}</span><span class="cc4-resumo-abrir">Detalhes</span>`;
+    conteudo.innerHTML = op.cartao(n);
+    cartao.classList.toggle("min", minimizado);
     cartao.hidden = false;
   }
 
-  function escolher(n: No, alternar: boolean) {
+  function escolher(n: No, alternar: boolean, mover = true) {
     if (n.ehOutros && n.pai) {
       mostrar.set(n.pai, (mostrar.get(n.pai) ?? K_INICIAL) + MAIS);
       relayout();
       return;
     }
     sel = n;
-    // abre o caminho todo até ela
     for (const a of caminhoAte(n).slice(0, -1)) abertos.add(a);
     if (abre(n)) {
       if (alternar && abertos.has(n)) {
@@ -707,20 +870,45 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     atualizarFio();
     mostrarCartao(n);
     relayout();
-    if (abertos.has(n)) setTimeout(() => mostrarGalho(n), 30);
-    else if (!cartao.hidden) setTimeout(() => desviarDoCartao(n), 30);
+    if (!mover) return;
+    if (galho(n)) setTimeout(() => mostrarGalho(n), 30);
+    else setTimeout(() => desviarDoCartao(n), 30);
   }
 
   // ——— interação ———
-  function noEm(sx: number, sy: number): No | null {
-    const m = paraMundo(sx, sy);
-    for (const [n, p] of pos) if (m.x >= p.x && m.x <= p.x + LARG && m.y >= p.y && m.y <= p.y + p.h) return n;
-    return null;
+  function noEm(px: number, py: number): No | null {
+    const m = paraMundo(px, py);
+    // fios finos (tamanho real): pelo menos 6 px de tela para acertar o clique
+    const folga = (p: Pos) => Math.max(0, (6 / cam.ky - p.h) / 2);
+    let melhor: No | null = null, dist = Infinity;
+    for (const [n, p] of pos) {
+      if (m.x < p.x || m.x > p.x + LARG) continue;
+      const f = folga(p);
+      if (m.y >= p.y - f && m.y <= p.y + p.h + f) {
+        const d = Math.abs(m.y - (p.y + p.h / 2));
+        if (d < dist) { dist = d; melhor = n; }
+      }
+    }
+    return melhor;
+  }
+
+  function htmlBalao(n: No): string {
+    const t = n.mix.reduce((a, v) => a + Math.max(0, v), 0) || 1;
+    const barra = F.cats.length > 1 && !n.ehOutros
+      ? `<span class="cc4-b-mix">${n.mix.map((v, i) => (v > 0 ? `<b style="flex:${v / t};background:${F.cats[i].cor}"></b>` : "")).join("")}</span>
+         <span class="cc4-b-cat">${esc(F.cats[catPrincipal(n)].nome)}: ${pctCurto(n.mix[catPrincipal(n)] / t)}</span>`
+      : "";
+    return `<span class="cc4-b-nivel">${esc(n.nivel)}${n.ehOutros ? " · os menores, juntos" : F.explica[n.nivel] ? ` · ${esc(F.explica[n.nivel])}` : ""}</span>
+      <strong>${esc(n.nome)}</strong>
+      <span class="cc4-b-valor">${moedaCurta(n.valor)}${n.pai ? ` · ${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${esc(n.pai.nome)}` : ""}</span>
+      ${n !== F.raiz && n.pai !== F.raiz ? `<span>${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total</span>` : ""}
+      ${barra}
+      <span class="cc4-b-dica">${n.ehOutros ? "Clique para ver mais 10" : abre(n) ? (galho(n) ? "Clique para fechar · detalhes ao lado" : "Clique para abrir · detalhes ao lado") : "Clique para ver os detalhes"}</span>`;
   }
 
   const toques = new Map<number, { x: number; y: number }>();
   let arrasto: { x: number; y: number; cx: number; cy: number; moveu: boolean } | null = null;
-  let pinca: { d: number; k: number; mx: number; my: number; cx: number; cy: number } | null = null;
+  let pinca: { d: number; base: Camera; mx: number; my: number } | null = null;
   const local = (e: PointerEvent | WheelEvent | MouseEvent) => {
     const r = cv.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -734,7 +922,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     if (toques.size === 1) arrasto = { x: p.x, y: p.y, cx: cam.x, cy: cam.y, moveu: false };
     else if (toques.size === 2) {
       const [a, b] = [...toques.values()];
-      pinca = { d: Math.hypot(a.x - b.x, a.y - b.y), k: cam.k, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, cx: cam.x, cy: cam.y };
+      pinca = { d: Math.hypot(a.x - b.x, a.y - b.y), base: { ...cam }, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
       arrasto = null;
     }
   });
@@ -744,11 +932,8 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     if (pinca && toques.size === 2) {
       const [a, b] = [...toques.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      const k = Math.min(4, Math.max(0.03, pinca.k * (d / pinca.d)));
-      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       // o ponto do mundo que estava sob os dedos continua sob eles
-      const wx = (pinca.mx - pinca.cx) / pinca.k, wy = (pinca.my - pinca.cy) / pinca.k;
-      cam.k = k; cam.x = mx - wx * k; cam.y = my - wy * k;
+      zoomPara(pinca.base, d / Math.max(1, pinca.d), pinca.mx, pinca.my, (a.x + b.x) / 2, (a.y + b.y) / 2);
       pedir();
       return;
     }
@@ -760,13 +945,17 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     }
     if (e.pointerType === "mouse") {
       const n = noEm(p.x, p.y);
-      if (n !== quente) { quente = n; cv.style.cursor = n ? "pointer" : "grab"; pedir(); }
+      if (n !== quente) {
+        quente = n;
+        cv.style.cursor = n ? "pointer" : "grab";
+        pedir();
+        if (n) balao.innerHTML = htmlBalao(n);
+      }
       if (n) {
-        balao.innerHTML = `<strong>${esc(n.nome)}</strong><span>${esc(n.nivel)}${n.ehOutros ? " (os menores, juntos)" : ""}</span>
-          <span>${moedaCurta(n.valor)}${n.pai ? ` · ${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${esc(n.pai.nome)}` : ""}</span>
-          ${n !== F.raiz ? `<span>${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total</span>` : ""}`;
         balao.hidden = false;
-        const bx = Math.min(p.x + 16, W - 280), by = Math.min(p.y + 16, H - 110);
+        const bw = balao.offsetWidth || 290, bh = balao.offsetHeight || 120;
+        const bx = p.x + 18 + bw > W ? p.x - bw - 12 : p.x + 18;
+        const by = Math.min(Math.max(50, p.y + 16), H - bh - 8);
         balao.style.transform = `translate(${bx}px, ${by}px)`;
       } else balao.hidden = true;
     }
@@ -779,7 +968,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     if (toques.size === 0) arrasto = null;
     if (era && !era.moveu && e.type === "pointerup") {
       const n = noEm(p.x, p.y);
-      if (n) escolher(n, true);
+      if (n) { escolher(n, true); balao.innerHTML = htmlBalao(n); }
     }
   };
   cv.addEventListener("pointerup", soltar);
@@ -789,8 +978,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     const p = local(e);
     const n = noEm(p.x, p.y);
     if (!n) return;
-    const ns = [n, ...(abertos.has(n) ? visiveis(n) : [])];
-    enquadrar(caixaDe(ns), 2);
+    enquadrar(caixaDe([n, ...(galho(n) ? visiveis(n) : [])]), 2);
   });
   cv.addEventListener("wheel", (e) => {
     e.preventDefault();
@@ -807,7 +995,6 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     balao.hidden = true;
   }, { passive: false });
 
-  // teclado: setas andam, + e − dão zoom
   caixa.addEventListener("keydown", (e) => {
     const passo = 60;
     if (e.key === "ArrowLeft") cam.x += passo; else if (e.key === "ArrowRight") cam.x -= passo;
@@ -840,12 +1027,27 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     if (!document.fullscreenElement && caixa.classList.contains("cheia")) alternarCheia();
   });
 
+  let tempoAviso = 0;
+  function trocarModo() {
+    modo = modo === "nivel" ? "real" : "nivel";
+    caixa.querySelector(".cc4-modo-btn")!.setAttribute("aria-pressed", String(modo === "real"));
+    // o aviso aparece por alguns segundos, para não cobrir o desenho
+    avisoEl.hidden = modo !== "real";
+    clearTimeout(tempoAviso);
+    if (modo === "real") tempoAviso = window.setTimeout(() => { avisoEl.hidden = true; }, 7000);
+    if (modo === "nivel") cam.ky = cam.k;
+    relayout();
+    const foco = sel ?? F.raiz;
+    setTimeout(() => enquadrar(caixaDe(modo === "real" ? [...pos.keys()] : [foco, ...(galho(foco) ? visiveis(foco) : [])]), 1.1), 30);
+  }
+
   caixa.addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-acao]");
     if (!b) return;
     const a = b.dataset.acao;
     if (a === "cheia") alternarCheia();
     else if (a === "procurar") abrirBusca();
+    else if (a === "modo") trocarModo();
     else if (a === "mais") zoomEm(1.3, W / 2, H / 2);
     else if (a === "menos") zoomEm(1 / 1.3, W / 2, H / 2);
     else if (a === "ajustar") enquadrar(caixaDe([...pos.keys()]), 1.1);
@@ -853,7 +1055,8 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       abertos.clear(); abertos.add(F.raiz); mostrar.clear(); sel = null;
       op.aoEscolher(F.raiz); atualizarFio(); mostrarCartao(null); relayout();
       setTimeout(() => enquadrar(caixaDe([...pos.keys()]), 1.1), 40);
-    } else if (a === "fechar-cartao") cartao.hidden = true;
+    } else if (a === "detalhes") { minimizado = false; cartao.classList.remove("min"); if (sel) setTimeout(() => desviarDoCartao(sel!), 30); }
+    else if (a === "min-cartao") { minimizado = true; cartao.classList.add("min"); }
   });
 
   // ——— tamanho ———
@@ -870,17 +1073,18 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   new ResizeObserver(medirTela).observe(caixa);
 
   medirTela();
+  // no celular os detalhes começam fechados (uma linha embaixo), para sobrar tela
+  minimizado = W < 720;
   pos = calcular();
   atualizarLista();
   atualizarFio();
   mostrarCartao(sel);
-  // começa mostrando o último galho aberto (ou tudo, se só a raiz estiver aberta)
-  const foco = sel ? (abertos.has(sel) ? sel : sel.pai ?? F.raiz) : F.raiz;
-  // no celular, só o último galho (o caminho inteiro ficaria pequeno demais); o fio no alto mostra de onde veio
-  const inicio = W < 640 ? (abertos.has(foco) ? visiveis(foco) : [foco]) : [...caminhoAte(foco), ...(abertos.has(foco) ? visiveis(foco) : [])];
+  // começa mostrando o último galho aberto; no celular, só ele (o caminho inteiro ficaria pequeno demais)
+  const foco = sel ? (galho(sel) ? sel : sel.pai ?? F.raiz) : F.raiz;
+  const inicio = W < 720 ? (galho(foco) ? visiveis(foco) : [foco]) : [...caminhoAte(foco), ...(galho(foco) ? visiveis(foco) : [])];
   enquadrar(caixaDe(inicio), 1, false);
-  if (sel && !cartao.hidden) requestAnimationFrame(() => desviarDoCartao(sel!));
+  if (sel) requestAnimationFrame(() => desviarDoCartao(sel!));
   document.fonts?.ready.then(pedir);
 
-  return { fonte: F, raiz: caixa, redesenhar: () => { atualizarFio(); pedir(); } };
+  return { fonte: F, raiz: caixa, redesenhar: () => { atualizarFio(); if (sel) mostrarCartao(sel); pedir(); } };
 }
