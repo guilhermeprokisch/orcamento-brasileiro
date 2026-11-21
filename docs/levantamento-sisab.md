@@ -38,7 +38,7 @@ devolve a planilha. Os campos que usamos:
 - `j_idt70=AAAAMM` (um mês por pedido);
 - `colunas=ibge`, `colunas=cnes`, `colunas=tp_unidade`;
 - `j_idt77=1%` (só aprovados) e `j_idt87=<ficha>` (4 atendimento individual, 5 odontológico, 7 procedimentos,
-  8 visita domiciliar);
+  8 visita domiciliar, 6 atividade coletiva);
 - `j_idt99=j_idt99` (o botão que baixa o .xlsx).
 
 Cada pedido leva de 5 a 30 segundos e devolve 1 a 2 MB, com 35 a 45 mil estabelecimentos. O ano inteiro, com
@@ -118,6 +118,49 @@ Esse relatório conta todas as unidades da cidade, também as do estado, e pela 
 isso a página mostra só as proporções, não os números, ao lado da soma das unidades da prefeitura tirada do
 relatório de validação. Nas cidades que conferimos as duas somas diferem em até 6% (São Paulo 1%, Cacoal 3%, Conceição do Araguaia 6%).
 
+## Atividades coletivas
+
+Por posto, a ficha 6 do relatório de validação dá quantas atividades coletivas cada CNES registrou (8,6
+milhões nas unidades da prefeitura em 2025). Ela não separa o tipo, e as reuniões da própria equipe entram
+na conta; por isso a linha de cada posto diz "atividades em grupo" e o aviso explica que inclui as reuniões.
+
+Por cidade, o relatório de atividade coletiva
+(<https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/saude/RelSauAtivColetiva.xhtml>)
+separa os sete tipos e dá o número de participantes. Funciona como o de produção: estado por estado, com o
+mesmo pedido AJAX, os 12 meses em `j_idt72`, todos os tipos em `tipoAtividade`, `selectLinha=MUN.CO_MUNICIPIO_IBGE`,
+`selectcoluna=tpat`, `j_idt83=qtac` (quantidade de atividades) ou `ndp` (participantes) e `j_idt134=j_idt134`
+(.csv). São dois pedidos por estado.
+
+2025, Brasil:
+
+| Tipo | Atividades | Participações |
+|---|---:|---:|
+| Atendimento em grupo | 4.112.551 | 48.035.354 |
+| Avaliação ou procedimento coletivo (escovação supervisionada, medir peso e altura nas escolas…) | 1.854.678 | 37.775.973 |
+| Educação em saúde | 1.638.283 | 43.917.646 |
+| Mobilização social | 122.903 | 4.114.423 |
+| **Com os moradores** | **7.728.415** | **133.843.396** |
+| Reunião de equipe, com outras equipes ou intersetorial | 993.561 | 9.916.140 |
+
+A página da cidade mostra as atividades com os moradores, as participações (uma pessoa que vai a cinco
+encontros conta cinco vezes) e, à parte, as reuniões da equipe. Como o relatório de produção, esse conta
+todas as unidades da cidade.
+
+## Vacinação: fica de fora
+
+A ficha de vacinação (14) existe no relatório de validação, mas não serve para dizer o que cada posto fez:
+
+- O SISAB não valida a vacinação (ela vai para a Rede Nacional de Dados em Saúde). Não há nenhum registro
+  "Aprovado"; os de dezembro de 2025 vêm como "Não Aplicado" (2,7 milhões), "Duplicado" (621 mil) e
+  "Pendente" (178 mil). No ano, 65 milhões de registros "Não Aplicado".
+- Muitas cidades e estados lançam as vacinas direto no sistema nacional, sem passar pelo e-SUS APS. Em
+  dezembro de 2025, São Paulo, Fortaleza, Belo Horizonte e Vitória tinham zero registros nas unidades da
+  prefeitura; o Espírito Santo inteiro, 354. Por mil moradores no mês, o estado vai de 0,1 (ES), 3,4 (RJ) e
+  5,9 (SP) a 39 (AM) e 42 (TO), e 1.176 das 5.566 cidades ficam abaixo de 5.
+
+Mostrar esse número faria os postos dessas cidades parecerem não vacinar. Para a vacinação, a fonte certa é
+o SI-PNI (doses aplicadas, pela Rede Nacional de Dados em Saúde), que fica para outro levantamento.
+
 ## Comparação com o SIA
 
 O SIA mede outra coisa: procedimentos que o SUS paga pela tabela, sobretudo de UPAs, policlínicas, CAPS e
@@ -140,14 +183,16 @@ página mostra "todos os moradores". Dezembro de 2025: 83,2% no Brasil (176,9 mi
   por CNES em `data/raw/datasus/sisab/AAAAMM-ficha.json` e soma o ano; `cobertura()` guarda a resposta da API
   em `data/raw/datasus/sisab/cobertura-AAAA12.json`. `uv run unidades-saude --so-atencao-basica` refaz só essa
   parte sobre a referência que já existe. `profissionais()` pede o Relatório de Produção estado por estado e
-  guarda cada um em `data/raw/datasus/sisab/profissionais-AAAA-UF.json`.
-- Cada unidade ganha quatro números no fim da lista (atendimentos, dentista, procedimentos, visitas) e cada
-  cidade ganha `cobertura` e `profissionais` (atendimentos com médico, com enfermeiro, com outros).
+  guarda cada um em `data/raw/datasus/sisab/profissionais-AAAA-UF.json`; `coletivas_estado()` faz o mesmo com o
+  relatório de atividade coletiva (`coletivas-AAAA-UF.json`).
+- Cada unidade ganha cinco números no fim da lista (atendimentos, dentista, procedimentos, visitas,
+  atividades coletivas) e cada cidade ganha `cobertura`, `profissionais` (atendimentos com médico, com
+  enfermeiro, com outros) e `coletivas` (atividades com os moradores, participações, reuniões da equipe).
 - `SaudeUnidades.astro`: uma frase com a soma do SISAB das unidades da prefeitura, uma com a parte dos
-  atendimentos com médico e com enfermeiro (e a do Brasil), uma com a cobertura, a
+  atendimentos com médico e com enfermeiro (e a do Brasil), uma com as atividades em grupo, uma com a cobertura, a
   frase do SIA com o nome do sistema e, em cada posto, a linha do SISAB acima da do SIA.
 
 ## O que fica para depois
 
-- Vacinação e atividades coletivas (as fichas 14 e 6 do mesmo relatório de validação).
 - A série de anos anteriores (o relatório vai até 2013), para mostrar se o trabalho dos postos cresceu.
+- A vacinação por cidade pelo SI-PNI (doses aplicadas), já que o SISAB não tem as vacinas de muitas cidades.

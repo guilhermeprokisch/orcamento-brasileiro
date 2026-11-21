@@ -56,11 +56,13 @@ const ab = (u?.unidades ?? []).reduce((s, x) => ({
   atendimentos: s.atendimentos + x.ab.atendimentos, dentista: s.dentista + x.ab.dentista,
   procedimentos: s.procedimentos + x.ab.procedimentos, visitas: s.visitas + x.ab.visitas,
 }), { atendimentos: 0, dentista: 0, procedimentos: 0, visitas: 0 });
+// As atividades coletivas da cidade (relatório próprio do SISAB, que separa as reuniões da equipe).
+const col = u?.coletivas ?? null;
 const temAb = ab.atendimentos + ab.dentista + ab.procedimentos + ab.visitas > 0;
 // Na linha de cada posto ficam os atendimentos e as visitas; os procedimentos do SISAB só entram na soma (e quando
 // a unidade não tem outra coisa), para não se confundirem com os procedimentos do SIA na linha de baixo.
-const linhaAb = (x: { atendimentos: number; dentista: number; procedimentos: number; visitas: number }) => {
-  const partes = ([[x.atendimentos, "atendimento", "atendimentos"], [x.dentista, "no dentista", "no dentista"], [x.visitas, "visita em casa", "visitas em casa"]] as [number, string, string][])
+const linhaAb = (x: { atendimentos: number; dentista: number; procedimentos: number; visitas: number; coletivas: number }) => {
+  const partes = ([[x.atendimentos, "atendimento", "atendimentos"], [x.dentista, "no dentista", "no dentista"], [x.visitas, "visita em casa", "visitas em casa"], [x.coletivas, "atividade em grupo", "atividades em grupo"]] as [number, string, string][])
     .filter(([n]) => n > 0).map(([n, um, varios]) => contagem(n, um, varios));
   if (!partes.length && x.procedimentos > 0) partes.push(contagem(x.procedimentos, "procedimento", "procedimentos"));
   return partes.join(" · ");
@@ -125,6 +127,13 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
           {pBrasil && <> No Brasil todo, {pctInteiro(pBrasil.medico)} com médico e {pctInteiro(pBrasil.enfermeiro)} com enfermeiro.</>}
         </p>
       )}
+      {col && col.moradores > 0 && (
+        <p>
+          As equipes da cidade também fizeram <strong>{contagem(col.moradores, "atividade em grupo", "atividades em grupo")} com os moradores</strong>, como
+          {" "}palestras, grupos de gestantes ou de hipertensos e ações nas escolas, que somaram {contagem(col.participantes, "participação", "participações")}
+          {col.reunioes > 0 && <>, além de {contagem(col.reunioes, "reunião da equipe", "reuniões da equipe")}</>}.
+        </p>
+      )}
       {cob && cob.populacao > 0 && (
         <p>
           {cob.capacidade > 0 ? (
@@ -162,6 +171,7 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
         agente comunitário ou de outro profissional a uma casa. Do SISAB entram só os registros aprovados pelo Ministério; eles
         não têm valor em reais, porque o SUS paga os postos pelo número de moradores e de equipes, não por consulta.
         {prof && " A divisão entre médico e enfermeiro vem do relatório de produção do SISAB, que só existe por cidade: conta todas as unidades, também as do estado, e não dá para ver posto por posto."}
+        {col && " As atividades em grupo da cidade vêm do relatório de atividades coletivas do SISAB, que também conta todas as unidades; uma pessoa que vai a cinco encontros soma cinco participações. Na linha de cada posto, as atividades em grupo incluem as reuniões da equipe."}
         {cob && " A cobertura conta 3.500 pessoas para cada equipe de saúde da família e menos para as de atenção primária (2.625 ou 1.750, conforme as horas); passa de 100% em muitas cidades pequenas e aparece como todos os moradores."}
       </p>
       <p class="menor">

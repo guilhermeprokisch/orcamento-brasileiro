@@ -27,11 +27,14 @@ Fontes do Ministério da Saúde:
 - SISAB (Sistema de Informação em Saúde para a Atenção Básica, relatório público de validação, sem login
   nem captcha): o que cada estabelecimento (CNES) registrou no e-SUS APS, por mês e tipo de ficha, só os
   registros aprovados. Por unidade, no ano: atendimentos individuais (consulta com médico, enfermeiro e
-  outros profissionais), atendimentos de dentista, procedimentos (medir a pressão, curativo, injeção) e
-  visitas domiciliares (sobretudo dos agentes comunitários). Uma planilha por mês e ficha, com o país
+  outros profissionais), atendimentos de dentista, procedimentos (medir a pressão, curativo, injeção),
+  visitas domiciliares (sobretudo dos agentes comunitários) e atividades coletivas (com as reuniões). Uma planilha por mês e ficha, com o país
   inteiro; só os totais por CNES ficam em data/raw/datasus/sisab/. Ver docs/levantamento-sisab.md.
   Do Relatório de Produção do mesmo SISAB sai, por cidade, quem fez os atendimentos individuais do ano
   (médico, enfermeiro ou outro profissional); ele não desce ao posto e só dá as cidades estado por estado.
+  Do relatório de atividade coletiva, também por cidade e estado por estado, saem as atividades em grupo com
+  os moradores (educação em saúde, grupos, ações nas escolas, mobilização), as participações nelas e as
+  reuniões da equipe, que o relatório de validação (por posto) não separa.
 - Cobertura da atenção primária (relatorioaps.saude.gov.br, API aberta): por cidade, em dezembro do ano,
   as equipes (saúde da família e atenção primária), quantas pessoas elas dão conta de acompanhar pela
   conta do Ministério (3.500 por equipe de saúde da família, 2.625 por equipe de 30 horas e 1.750 por
@@ -44,13 +47,14 @@ Cache em data/raw/datasus/cnes/, sih/, sia/ e sisab/. Saída em
 site/public/data/indicadores/unidades-saude.json, com cópia em pipeline/referencia/:
     {"fonte", "ano": 2025, "cnes": "2026-11", "cobertura": {"mes": "2025-12", "brasil": 83.2},
      "mun": {ibge: {"unidades": [[CNES, nome, grupo, bairro, atendimentos, exames, cirurgias, valor,
-                                  atendimentos individuais, de dentista, procedimentos, visitas], ...],
+                                  atendimentos individuais, de dentista, procedimentos, visitas, atividades coletivas], ...],
                     "hospitais": [[CNES, nome, quem administra, internações, valor, bairro], ...],
                     "cobertura": [cobertura %, população, pessoas que as equipes dão conta, equipes de
                                   saúde da família, de atenção primária, ribeirinhas, de rua ou prisionais],
-                    "profissionais": [atendimentos individuais com médico, com enfermeiro, com outros]}},
-     "profissionais": [as mesmas contas do Brasil]}
-Os quatro primeiros números de cada unidade vêm do SIA; os quatro últimos, do SISAB.
+                    "profissionais": [atendimentos individuais com médico, com enfermeiro, com outros],
+                    "coletivas": [atividades coletivas com os moradores, participações nelas, reuniões da equipe]}},
+     "profissionais": [as mesmas contas do Brasil], "coletivas": [idem]}
+Os quatro primeiros números de cada unidade vêm do SIA; os cinco últimos, do SISAB.
 """
 
 from __future__ import annotations
@@ -85,13 +89,17 @@ URL_SIH = "ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Dados/RD{uf
 PASTA_SIA = "ftp://ftp.datasus.gov.br/dissemin/publicos/SIASUS/200801_/Dados/"
 URL_SISAB = "https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/envio/RelValidacao.xhtml"
 URL_PRODUCAO = "https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/saude/RelSauProducao.xhtml"
+URL_COLETIVA = "https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/saude/RelSauAtivColetiva.xhtml"
 URL_COBERTURA = "https://relatorioaps-prd.saude.gov.br/cobertura/aps"
 UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR",
        "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"]
 FONTE = ("Ministério da Saúde: CNES (estabelecimentos), SIH/SUS (internações) e SIA/SUS (atendimentos ambulatoriais), "
          "pelo DATASUS; SISAB (produção dos postos, registros aprovados) e Relatórios da APS (cobertura da atenção primária)")
 # Fichas do e-SUS APS no relatório de validação do SISAB → posição na lista de cada unidade.
-FICHAS_SISAB = {"4": 0, "5": 1, "7": 2, "8": 3}   # atendimento individual, odontológico, procedimentos, visita domiciliar
+# Atendimento individual, odontológico, procedimentos, visita domiciliar e atividade coletiva. A vacinação (ficha
+# 14) fica de fora: o SISAB não a valida e muitas cidades (São Paulo, Fortaleza, BH, o Espírito Santo inteiro)
+# lançam as vacinas direto na Rede Nacional de Dados em Saúde, sem nada no SISAB. Ver docs/levantamento-sisab.md.
+FICHAS_SISAB = {"4": 0, "5": 1, "7": 2, "8": 3, "6": 4}
 
 MUNICIPAL = {"1031", "1120", "1155", "1244", "1279"}
 # Tipo de unidade do CNES → grupo mostrado na página (os que não estão aqui ficam de fora).
@@ -312,9 +320,10 @@ def sisab_mes(competencia: str, ficha: str) -> dict[str, int]:
 
 
 def sisab(ano: int, paralelo: int) -> dict[str, list[int]]:
-    """Soma o ano: {CNES: [atendimentos individuais, de dentista, procedimentos, visitas domiciliares]}."""
+    """Soma o ano: {CNES: [atendimentos individuais, de dentista, procedimentos, visitas domiciliares,
+    atividades coletivas]}."""
     pedidos = [(f"{ano}{m:02d}", f) for m in range(1, 13) for f in FICHAS_SISAB]
-    total: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0])
+    total: dict[str, list[int]] = defaultdict(lambda: [0] * len(FICHAS_SISAB))
     faltam = []
     with ThreadPoolExecutor(paralelo) as ex:
         for (comp, ficha), parte in zip(pedidos, ex.map(lambda p: sisab_mes(*p), pedidos)):
@@ -326,85 +335,146 @@ def sisab(ano: int, paralelo: int) -> dict[str, list[int]]:
         raise SystemExit(f"SISAB {ano}: sem resposta para {', '.join(faltam)}; rode de novo (o que já veio fica no cache)")
     print(f"  SISAB {ano}: {len(total)} estabelecimentos; " + ", ".join(
         f"{nome} {sum(v[i] for v in total.values()) / 1e6:.0f} mi" for i, nome in
-        enumerate(["atendimentos", "de dentista", "procedimentos", "visitas"])), flush=True)
+        enumerate(["atendimentos", "de dentista", "procedimentos", "visitas", "atividades coletivas"])), flush=True)
     return total
+
+
+def csv_do_estado(url: str, uf: str, montar, rotulo: str) -> list[list[str]] | None:
+    """Pede um .csv a um relatório JSF do SISAB com um estado escolhido; devolve as linhas ou None.
+
+    Esses relatórios só dão a linha por cidade com o estado escolhido. Escolher "Estado" na página é um
+    pedido AJAX do JSF que traz a lista de estados (sem ele o campo `estados` não é aceito); depois vai o
+    formulário montado por `montar(pagina, viewstate)`, que diz o resto (meses, linhas, colunas, botão)."""
+    for t in range(4):
+        try:
+            abre = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+            abre.addheaders = [("User-Agent", USER_AGENT)]
+            with abre.open(url, timeout=120) as resp:
+                pagina = resp.read().decode("utf-8", "replace")
+            estado = re.search(r'id="javax.faces.ViewState" value="([^"]+)"', pagina).group(1)
+            ajax = [("j_idt44", "j_idt44"), ("unidGeo", "estado"), ("javax.faces.source", "unidGeo"),
+                    ("javax.faces.partial.event", "change"), ("javax.faces.partial.execute", "unidGeo unidGeo"),
+                    ("javax.faces.partial.render", "regioes script"), ("javax.faces.behavior.event", "valueChange"),
+                    ("javax.faces.partial.ajax", "true"), ("javax.faces.ViewState", estado)]
+            req = urllib.request.Request(url, urllib.parse.urlencode(ajax).encode(), headers={"Faces-Request": "partial/ajax"})
+            with abre.open(req, timeout=120) as resp:
+                resp.read()
+            campos = [("j_idt44", "j_idt44"), ("unidGeo", "estado"), ("estados", uf)] + montar(pagina, estado)
+            with abre.open(url, urllib.parse.urlencode(campos).encode(), timeout=900) as resp:
+                tipo, dados = resp.headers.get("Content-Type", ""), resp.read()
+            if "csv" not in tipo:
+                raise ValueError("o SISAB não devolveu o .csv")
+            return list(csv.reader(io.StringIO(dados.decode("latin-1")), delimiter=";"))
+        except Exception as erro:
+            if t == 3:
+                print(f"  SISAB {rotulo} {uf}: {erro}", flush=True)
+                return None
+            time.sleep(20 * (t + 1))
+    return None
+
+
+def opcoes(pagina: str, campo: str) -> list[str]:
+    """Os valores de um <select> da página (para marcar todas as opções)."""
+    return re.findall(r'<option value="(\d+)"', re.search(rf'name="{campo}"[^>]*>(.*?)</select>', pagina, re.S).group(1))
+
+
+def numero(x: str) -> int:
+    x = x.replace(".", "").strip()
+    return int(x) if x.isdigit() else 0
+
+
+def conferir(linhas: list[list[str]], inicio: list[str], uf: str, ano: int, exige: list[str], rotulo: str) -> int:
+    """Acha o cabeçalho da tabela no .csv e confere nos filtros o estado, o ano inteiro e o que mais se pediu."""
+    cab = next((i for i, l in enumerate(linhas) if l[:len(inicio)] == inicio), None)
+    filtros = " ".join(" ".join(l) for l in linhas[:cab or 0])
+    if cab is None or f"Estado: {uf}." not in filtros or f"JAN/{ano}" not in filtros or f"DEZ/{ano}" not in filtros \
+            or any(e not in filtros and e not in linhas[cab] for e in exige):
+        raise ValueError(f"SISAB {rotulo} {ano} {uf}: .csv em formato inesperado")
+    return cab
 
 
 def profissionais_estado(ano: int, uf: str) -> dict[str, list[int]]:
     """Atendimentos individuais do ano em cada cidade do estado, por categoria do profissional, do Relatório
     de Produção do SISAB: {ibge de 6 dígitos: [com médico, com enfermeiro, com outros profissionais]}.
-
-    O relatório só dá a linha por cidade com o estado escolhido. Escolher "Estado" na página é um pedido
-    AJAX do JSF que traz a lista de estados; depois o formulário pede o .csv com as cidades nas linhas e as
-    26 categorias de profissional nas colunas, nos 12 meses do ano."""
+    O .csv traz as cidades nas linhas e as 26 categorias de profissional nas colunas, nos 12 meses do ano."""
     cache = PASTA / "sisab" / f"profissionais-{ano}-{uf}.json"
     if cache.exists():
         return json.loads(cache.read_text())
-    for t in range(4):
-        try:
-            abre = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-            abre.addheaders = [("User-Agent", USER_AGENT)]
-            with abre.open(URL_PRODUCAO, timeout=120) as resp:
-                pagina = resp.read().decode("utf-8", "replace")
-            estado = re.search(r'id="javax.faces.ViewState" value="([^"]+)"', pagina).group(1)
-            categorias = re.findall(r'<option value="(\d+)"', re.search(
-                r'name="categoriaProfissional"[^>]*>(.*?)</select>', pagina, re.S).group(1))
-            ajax = [("j_idt44", "j_idt44"), ("unidGeo", "estado"), ("javax.faces.source", "unidGeo"),
-                    ("javax.faces.partial.event", "change"), ("javax.faces.partial.execute", "unidGeo unidGeo"),
-                    ("javax.faces.partial.render", "regioes script"), ("javax.faces.behavior.event", "valueChange"),
-                    ("javax.faces.partial.ajax", "true"), ("javax.faces.ViewState", estado)]
-            req = urllib.request.Request(URL_PRODUCAO, urllib.parse.urlencode(ajax).encode(), headers={"Faces-Request": "partial/ajax"})
-            with abre.open(req, timeout=120) as resp:
-                resp.read()
-            campos = ([("j_idt44", "j_idt44"), ("lsCid", ""), ("lsSigtap", ""), ("unidGeo", "estado"), ("estados", uf)]
-                      + [("j_idt76", f"{ano}{m:02d}") for m in range(1, 13)]
-                      + [("categoriaProfissional", k) for k in categorias]
-                      + [("selectLinha", "MUN.CO_MUNICIPIO_IBGE"), ("selectcoluna", "CO_CATEGORIA_PROFISSIONAL"),
-                         ("idadeInicio", "0"), ("idadeFim", "0"), ("tpProducao", "4"), ("j_idt192", "j_idt192"),
-                         ("javax.faces.ViewState", estado)])
-            with abre.open(URL_PRODUCAO, urllib.parse.urlencode(campos).encode(), timeout=900) as resp:
-                tipo, dados = resp.headers.get("Content-Type", ""), resp.read()
-            if "csv" not in tipo:
-                raise ValueError("o SISAB não devolveu o .csv")
-            break
-        except Exception as erro:
-            if t == 3:
-                print(f"  SISAB profissionais {ano} {uf}: {erro}", flush=True)
-                return {}
-            time.sleep(20 * (t + 1))
-    linhas = list(csv.reader(io.StringIO(dados.decode("latin-1")), delimiter=";"))
-    cab = next(i for i, l in enumerate(linhas) if l[:3] == ["Uf", "Ibge", "Municipio"])
+    montar = lambda pagina, estado: (
+        [("lsCid", ""), ("lsSigtap", "")] + [("j_idt76", f"{ano}{m:02d}") for m in range(1, 13)]
+        + [("categoriaProfissional", k) for k in opcoes(pagina, "categoriaProfissional")]
+        + [("selectLinha", "MUN.CO_MUNICIPIO_IBGE"), ("selectcoluna", "CO_CATEGORIA_PROFISSIONAL"), ("idadeInicio", "0"),
+           ("idadeFim", "0"), ("tpProducao", "4"), ("j_idt192", "j_idt192"), ("javax.faces.ViewState", estado)])
+    linhas = csv_do_estado(URL_PRODUCAO, uf, montar, f"profissionais {ano}")
+    if linhas is None:
+        return {}
+    cab = conferir(linhas, ["Uf", "Ibge", "Municipio"], uf, ano, ["Médico", "Enfermeiro", "Atendimento Individual"], "profissionais")
     nomes = linhas[cab]
-    filtros = " ".join(" ".join(l) for l in linhas[:cab])
-    if ("Médico" not in nomes or "Enfermeiro" not in nomes or f"Estado: {uf}." not in filtros
-            or "Atendimento Individual" not in filtros or f"DEZ/{ano}" not in filtros or f"JAN/{ano}" not in filtros):
-        raise ValueError(f"SISAB profissionais {ano} {uf}: .csv em formato inesperado")
     med, enf = nomes.index("Médico"), nomes.index("Enfermeiro")
     por = {}
     for l in linhas[cab + 1:]:
         if len(l) > enf and l[0] == uf and l[1].isdigit():
-            n = [int(x.replace(".", "") or 0) for x in l[3:len(nomes)] if x.replace(".", "").isdigit()]
-            m, e = int(l[med].replace(".", "")), int(l[enf].replace(".", ""))
-            por[l[1]] = [m, e, sum(n) - m - e]
+            total = sum(numero(x) for x in l[3:len(nomes)])
+            m, e = numero(l[med]), numero(l[enf])
+            por[l[1]] = [m, e, total - m - e]
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(por, separators=(",", ":")))
     return por
 
 
-def profissionais(ano: int, paralelo: int) -> dict[str, list[int]]:
-    """Junta os 27 estados: {ibge de 6 dígitos: [atendimentos com médico, com enfermeiro, com outros]}."""
+# Tipos de atividade coletiva do SISAB: as três primeiras são reuniões da equipe; as outras, com os moradores.
+REUNIOES = ("Reunião de equipe", "Reunião com outras equipes", "Reunião intersetorial")
+
+
+def coletivas_estado(ano: int, uf: str) -> dict[str, list[int]]:
+    """Atividades coletivas do ano em cada cidade do estado, do relatório de atividade coletiva do SISAB:
+    {ibge de 6 dígitos: [atividades com os moradores, participantes delas, reuniões da equipe]}.
+    Dois .csv por estado (quantidade de atividades e número de participantes), com os 7 tipos nas colunas."""
+    cache = PASTA / "sisab" / f"coletivas-{ano}-{uf}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())
+    por: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
+    for medida, rotulo in (("qtac", "Quantidade de Atividade Coletiva"), ("ndp", "Número de participantes")):
+        montar = lambda pagina, estado, medida=medida: (
+            [("lsSigtap", "")] + [("j_idt72", f"{ano}{m:02d}") for m in range(1, 13)]
+            + [("tipoAtividade", k) for k in opcoes(pagina, "tipoAtividade")]
+            + [("selectLinha", "MUN.CO_MUNICIPIO_IBGE"), ("selectcoluna", "tpat"), ("j_idt83", medida),
+               ("j_idt134", "j_idt134"), ("javax.faces.ViewState", estado)])
+        linhas = csv_do_estado(URL_COLETIVA, uf, montar, f"atividades coletivas {ano}")
+        if linhas is None:
+            return {}
+        cab = conferir(linhas, ["Uf", "Ibge", "Municipio"], uf, ano, [rotulo, "Educacao em saúde"], "atividades coletivas")
+        nomes = linhas[cab]
+        reuniao = [i for i, n in enumerate(nomes) if n.startswith(REUNIOES)]
+        if len(reuniao) != 3 or len([n for n in nomes[3:] if n]) != 7:
+            raise ValueError(f"SISAB atividades coletivas {ano} {uf}: colunas inesperadas {nomes}")
+        for l in linhas[cab + 1:]:
+            if len(l) >= len(nomes) - 1 and l[0] == uf and l[1].isdigit():
+                valores = {i: numero(l[i]) for i in range(3, len(nomes)) if nomes[i]}
+                fora = sum(v for i, v in valores.items() if i not in reuniao)
+                if medida == "qtac":
+                    por[l[1]][0] += fora
+                    por[l[1]][2] += sum(valores[i] for i in reuniao)
+                else:
+                    por[l[1]][1] += fora
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(por, separators=(",", ":")))
+    return dict(por)
+
+
+def por_estado(ano: int, paralelo: int, funcao, nome: str, partes: list[str]) -> dict[str, list[int]]:
+    """Junta os 27 estados de um relatório por cidade e imprime as somas do Brasil."""
     total: dict[str, list[int]] = {}
     faltam = []
     with ThreadPoolExecutor(paralelo) as ex:
-        for uf, parte in zip(UFS, ex.map(lambda uf: profissionais_estado(ano, uf), UFS)):
+        for uf, parte in zip(UFS, ex.map(lambda uf: funcao(ano, uf), UFS)):
             if not parte:
                 faltam.append(uf)
             total.update(parte)
     if faltam:
-        raise SystemExit(f"SISAB profissionais {ano}: sem resposta para {', '.join(faltam)}; rode de novo (o que já veio fica no cache)")
-    soma = [sum(v[i] for v in total.values()) for i in range(3)]
-    print(f"  SISAB {ano}, atendimentos por profissional: {len(total)} cidades; médico {soma[0] / 1e6:.0f} mi, "
-          f"enfermeiro {soma[1] / 1e6:.0f} mi, outros {soma[2] / 1e6:.0f} mi", flush=True)
+        raise SystemExit(f"SISAB {nome} {ano}: sem resposta para {', '.join(faltam)}; rode de novo (o que já veio fica no cache)")
+    print(f"  SISAB {ano}, {nome}: {len(total)} cidades; " + ", ".join(
+        f"{p} {sum(v[i] for v in total.values()) / 1e6:.1f} mi" for i, p in enumerate(partes)), flush=True)
     return total
 
 
@@ -436,16 +506,20 @@ def juntar_atencao_basica(doc: dict, paralelo: int) -> None:
     ano = doc["ano"]
     producao = sisab(ano, paralelo)
     por_cidade, brasil = cobertura(ano)
-    por_profissional = profissionais(ano, paralelo)
+    por_profissional = por_estado(ano, paralelo, profissionais_estado, "atendimentos por profissional", ["médico", "enfermeiro", "outros"])
+    por_coletiva = por_estado(ano, paralelo, coletivas_estado, "atividades coletivas", ["com moradores", "participantes", "reuniões"])
     for ibge, v in doc["mun"].items():
         for u in v["unidades"]:
-            u[:] = u[:8] + [0] * (8 - len(u)) + producao.get(u[0], [0, 0, 0, 0])
+            u[:] = u[:8] + [0] * (8 - len(u)) + producao.get(u[0], [0] * len(FICHAS_SISAB))
         if ibge[:6] in por_cidade:
             v["cobertura"] = por_cidade[ibge[:6]]
         if sum(por_profissional.get(ibge[:6], [])) > 0:
             v["profissionais"] = por_profissional[ibge[:6]]
+        if sum(por_coletiva.get(ibge[:6], [])) > 0:
+            v["coletivas"] = por_coletiva[ibge[:6]]
     doc["cobertura"] = {"mes": f"{ano}-12", "brasil": brasil}
     doc["profissionais"] = [sum(v[i] for v in por_profissional.values()) for i in range(3)]
+    doc["coletivas"] = [sum(v[i] for v in por_coletiva.values()) for i in range(3)]
     doc["fonte"] = FONTE
     com = [u for v in doc["mun"].values() for u in v["unidades"] if sum(u[8:]) > 0]
     print(f"SISAB {ano}: {len(com)} unidades da prefeitura com produção; "

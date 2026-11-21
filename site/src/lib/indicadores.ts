@@ -670,15 +670,19 @@ interface DocUnidadesSaude {
   cobertura?: { mes: string; brasil: number };
   /** atendimentos individuais do ano no Brasil, com médico, com enfermeiro e com outros profissionais (Relatório de Produção do SISAB) */
   profissionais?: [number, number, number];
-  /** unidades: [CNES, nome, grupo, bairro, procedimentos, exames, cirurgias, valor (SIA), atendimentos, de dentista, procedimentos, visitas (SISAB)];
+  /** atividades coletivas do ano no Brasil: com os moradores, participações nelas e reuniões da equipe */
+  coletivas?: [number, number, number];
+  /** unidades: [CNES, nome, grupo, bairro, procedimentos, exames, cirurgias, valor (SIA), atendimentos, de dentista, procedimentos, visitas, atividades coletivas (SISAB)];
    *  hospitais: [CNES, nome, quem administra, internações, valor, bairro];
    *  cobertura: [%, população, pessoas que as equipes dão conta, equipes de saúde da família, de atenção primária, ribeirinhas, de rua ou prisionais];
-   *  profissionais: atendimentos individuais na cidade, com médico, com enfermeiro e com outros profissionais */
+   *  profissionais: atendimentos individuais na cidade, com médico, com enfermeiro e com outros profissionais;
+   *  coletivas: atividades coletivas na cidade, com os moradores, participações nelas e reuniões da equipe */
   mun: Record<string, {
-    unidades: [string, string, string, string, number?, number?, number?, number?, number?, number?, number?, number?][];
+    unidades: [string, string, string, string, number?, number?, number?, number?, number?, number?, number?, number?, number?][];
     hospitais: [string, string, string, number, number, string][];
     cobertura?: [number, number, number, number, number, number?];
     profissionais?: [number, number, number];
+    coletivas?: [number, number, number];
   }>;
 }
 const arquivosUnidades = import.meta.glob<DocUnidadesSaude>("../../public/data/indicadores/unidades-saude.json", { eager: true, import: "default" });
@@ -693,6 +697,8 @@ export interface ProducaoAtencaoBasica {
   procedimentos: number;
   /** visitas às casas, sobretudo dos agentes comunitários */
   visitas: number;
+  /** atividades coletivas (grupos, palestras, ações nas escolas e também as reuniões da equipe) */
+  coletivas: number;
 }
 
 export interface UnidadesSaude {
@@ -706,6 +712,8 @@ export interface UnidadesSaude {
   cobertura: { mes: string; pct: number; populacao: number; capacidade: number; esf: number; eap: number; outras: number; brasil: number } | null;
   /** atendimentos individuais registrados no ano em todas as unidades da cidade, por quem atendeu, e as mesmas contas do Brasil */
   profissionais: { medico: number; enfermeiro: number; outros: number; brasil: { medico: number; enfermeiro: number; outros: number } } | null;
+  /** atividades coletivas registradas no ano em todas as unidades da cidade: com os moradores, participações nelas e reuniões da equipe */
+  coletivas: { moradores: number; participantes: number; reunioes: number } | null;
 }
 
 export function unidadesSaudeDe(c: Cidade): UnidadesSaude | null {
@@ -714,8 +722,8 @@ export function unidadesSaudeDe(c: Cidade): UnidadesSaude | null {
   // Primeiro o que a pessoa mais procura: o posto, a urgência, o hospital.
   const ORDEM = ["Posto ou unidade básica", "Urgência", "Hospital", "Especialidades", "Saúde mental (CAPS)", "Exames", "Vacinação", "Atenção domiciliar", "Vigilância em saúde", "Academia da saúde"];
   const ordem = (g: string) => (ORDEM.indexOf(g) + 1 || 99);
-  const unidades = v.unidades.map(([cnes, nome, grupo, bairro, atendimentos = 0, exames = 0, cirurgias = 0, valor = 0, abAt = 0, abDent = 0, abProc = 0, abVis = 0]) =>
-    ({ cnes, nome, grupo, bairro, atendimentos, exames, cirurgias, valor, ab: { atendimentos: abAt, dentista: abDent, procedimentos: abProc, visitas: abVis } }))
+  const unidades = v.unidades.map(([cnes, nome, grupo, bairro, atendimentos = 0, exames = 0, cirurgias = 0, valor = 0, abAt = 0, abDent = 0, abProc = 0, abVis = 0, abCol = 0]) =>
+    ({ cnes, nome, grupo, bairro, atendimentos, exames, cirurgias, valor, ab: { atendimentos: abAt, dentista: abDent, procedimentos: abProc, visitas: abVis, coletivas: abCol } }))
     .sort((x, y) => ordem(x.grupo) - ordem(y.grupo) || x.nome.localeCompare(y.nome, "pt-BR"));
   const conta = new Map<string, number>();
   for (const u of unidades) conta.set(u.grupo, (conta.get(u.grupo) ?? 0) + 1);
@@ -730,5 +738,6 @@ export function unidadesSaudeDe(c: Cidade): UnidadesSaude | null {
       ? { medico: v.profissionais[0], enfermeiro: v.profissionais[1], outros: v.profissionais[2],
           brasil: { medico: docUnidades.profissionais[0], enfermeiro: docUnidades.profissionais[1], outros: docUnidades.profissionais[2] } }
       : null,
+    coletivas: v.coletivas ? { moradores: v.coletivas[0], participantes: v.coletivas[1], reunioes: v.coletivas[2] } : null,
   };
 }
