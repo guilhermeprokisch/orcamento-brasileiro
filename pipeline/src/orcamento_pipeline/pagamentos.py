@@ -3,6 +3,7 @@
     uv run pagamentos                # baixa o ZIP de 2025 (cerca de 190 MB) e resume
     uv run pagamentos --ano 2024
     uv run pagamentos --uf AC        # Acre e Santa Catarina: pelos painéis dos tribunais (pagamentos_qlik.py)
+    uv run pagamentos --uf CE        # Ceará (API do TCE-CE) e Espírito Santo (arquivos do TCE-ES): pagamentos_ce.py, pagamentos_es.py
     uv run pagamentos --sem-baixar   # só copia pipeline/referencia/pagamentos*.json para o site (CI)
 
 Fonte: os dados abertos do TCE-PB, um ZIP por ano com todas as 223 prefeituras
@@ -264,12 +265,16 @@ def main() -> None:
     p.add_argument("--ano", type=int, default=2025)
     p.add_argument("--refazer", action="store_true", help="baixar o ZIP de novo, mesmo se já existir")
     p.add_argument("--sem-baixar", action="store_true", help="só copiar a referência versionada para o site (publicação automática)")
-    p.add_argument("--uf", default="PB", choices=["PB", "AC", "SC"], help="AC e SC vêm dos painéis dos tribunais (só respondem do Brasil)")
+    p.add_argument("--uf", default="PB", choices=["PB", "AC", "SC", "CE", "ES"], help="AC e SC vêm dos painéis dos tribunais (só respondem do Brasil); CE da API do TCE-CE, ES dos arquivos do TCE-ES")
     p.add_argument("--municipio", action="append", help="AC e SC: só esta cidade (pode repetir); junta-se às que já estão no arquivo")
     p.add_argument("--pausa", type=float, default=1.0, help="AC e SC: segundos entre uma consulta e outra")
     args = p.parse_args()
     if args.sem_baixar:
         copiar_referencia()
+        return
+    if args.uf in ("CE", "ES"):   # pagamentos_ce.py e pagamentos_es.py
+        import importlib
+        importlib.import_module(f".pagamentos_{args.uf.lower()}", __package__).rodar(args.ano, args.municipio, args.pausa, args.refazer)
         return
     if args.uf != "PB":
         from . import pagamentos_qlik

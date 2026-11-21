@@ -89,6 +89,7 @@ fila_cidades() {
   pipe pode-falhar "Postos e hospitais" unidades-saude --sem-baixar
   # Contratos (PNCP) e pagamentos (TCE-PB; TCE-AC e TCE-SC pelos painéis, que só respondem do Brasil, e
   # este robô roda fora do país): cargas feitas à mão (uv run pagamentos [--uf AC|SC]); aqui só as cópias.
+  # CE (API do TCE-CE) e ES (arquivos do TCE-ES) também: uv run pagamentos --uf CE|ES, à mão; aqui só as cópias.
   pipe pode-falhar "Contratos das prefeituras" contratos --sem-baixar
   pipe pode-falhar "Pagamentos das prefeituras" pagamentos --sem-baixar
 }

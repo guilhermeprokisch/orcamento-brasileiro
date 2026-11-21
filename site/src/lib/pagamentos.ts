@@ -1,6 +1,7 @@
 /**
  * Para quem cada prefeitura pagou no ano: os empenhos que o Tribunal de Contas do estado publica
- * (por enquanto Paraíba, Acre e Santa Catarina; pipeline/…/pagamentos.py e pagamentos_qlik.py).
+ * (por enquanto Paraíba, Acre, Santa Catarina, Ceará e Espírito Santo; pipeline/…/pagamentos.py,
+ * pagamentos_qlik.py, pagamentos_ce.py e pagamentos_es.py).
  * Um arquivo por estado: pagamentos.json (PB) e pagamentos-{uf}.json. Lido no build; sem arquivo, tudo vem null.
  */
 import type { Cidade } from "./cidades";
