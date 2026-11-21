@@ -6,6 +6,7 @@
 import Diagrama from "./Diagrama.astro";
 import Painel from "./Painel.astro";
 import Termo from "../Termo.astro";
+import { fantasmas } from "../../lib/caminho-explica";
 import { bi, biExtenso, porMorador, soma, totalPago, type DocCaminho } from "../../lib/caminho-impostos";
 
 interface Props {
@@ -24,6 +25,7 @@ const obrigUniao = soma(doc, (x) => x.de === "c-uniao" && x.tipo === "obrigatori
 const progUniao = soma(doc, (x) => x.de === "c-uniao" && x.tipo === "programa");
 const progEstados = soma(doc, (x) => x.de === "c-estados" && x.tipo === "programa");
 const fb = doc.fundeb;
+const perde = fantasmas(doc).perde;
 const sus = Object.values(doc.programas ?? {}).flat().filter((i) => i.nome.startsWith("Saúde")).reduce((t, i) => t + i.valor, 0);
 ---
 
@@ -75,7 +77,7 @@ const sus = Object.values(doc.programas ?? {}).flat().filter((i) => i.nome.start
       {deixa && (
         <li data-passo="8">
           <h2>O que deixa de entrar</h2>
-          <p>Isenções e regimes especiais (os <Termo id="beneficio-fiscal">benefícios fiscais</Termo>) fazem a União deixar de cobrar perto de {biExtenso(deixa.uniao)} por ano{deixa.estados > 0 && <>, e os estados, {biExtenso(deixa.estados)} de ICMS</>}. O pedaço tracejado embaixo de cada imposto mostra quanto dele deixou de ser cobrado: o maior pedaço é do imposto de renda e da Cofins (o Simples Nacional, a cesta básica, as deduções de saúde). É dinheiro que não aparece no caminho, mas é uma escolha como um gasto.</p>
+          <p>Isenções e regimes especiais (os <Termo id="beneficio-fiscal">benefícios fiscais</Termo>) fazem a União deixar de cobrar perto de {biExtenso(deixa.uniao)} por ano{deixa.estados > 0 && <>, e os estados, {biExtenso(deixa.estados)} de ICMS</>}. O pedaço tracejado embaixo de cada imposto mostra quanto dele deixou de ser cobrado: o maior pedaço é do imposto de renda e da Cofins (o Simples Nacional, a cesta básica, as deduções de saúde). E o tracejado continua até quem deixa de receber: pelas mesmas regras de divisão, as prefeituras perdem {bi(perde.prefeituras)} sem decidir nenhum desses benefícios (o FPM e a cota do ICMS diminuem), e os estados, {bi(perde.estados)}.</p>
         </li>
       )}
     </ol>

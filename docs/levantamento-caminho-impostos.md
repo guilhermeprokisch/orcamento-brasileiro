@@ -178,6 +178,14 @@ Fica num galho à parte, nunca somado ao que se pagou: é dinheiro que não foi 
   - Um estudo da Fenafisco a partir das LDOs dá R$ 267 bi para 2025, mas só foi visto pela imprensa e o valor de São
     Paulo não bate com a lei paulista: não é usado.
 
+### Quem deixa de receber
+
+O diagrama leva o tracejado até o fim: se os benefícios fossem cobrados, cada real seguiria as mesmas regras de
+divisão, com as taxas efetivas de 2025 (o repasse dividido pelo imposto): FPE 21,5%, FPM 25,1% e fundos regionais 3,0%
+do imposto de renda e do IPI; IPI-exportação 10% do IPI; e, no ICMS, 30,6% para as prefeituras (a cota de um quarto e o
+que o Fundeb leva a elas). Resultado (R$ bi por ano): União 437; estados 238; prefeituras 145; fundos regionais 8. É uma
+conta "se fosse cobrado", não um dinheiro que existiu: o comportamento de quem paga mudaria sem o benefício.
+
 ## Fontes para a versão por cidade (depois)
 
 - **Transferências constitucionais da União por estado e por município** (Tesouro Transparente, CKAN,

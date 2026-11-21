@@ -25,7 +25,7 @@ const [cU, cE, cM] = partesInteiras([g.uniao.cobra, g.estados.cobra, g.prefeitur
 const [fU, , fE, fM] = partesInteiras([g.uniao.fica, fundos, g.estados.fica, g.prefeituras.fica]);
 const ATALHOS = [
   { id: "g-uniao", nome: "A divisão da União" }, { id: "g-icms", nome: "O caminho do ICMS" }, { id: "g-fundeb", nome: "O Fundeb" },
-  { id: "g-programas", nome: "Os programas" }, { id: "g-fica", nome: "O que cada um guarda" },
+  { id: "g-programas", nome: "Os programas" }, { id: "g-fica", nome: "O que cada um guarda" }, { id: "g-deixa", nome: "O que deixa de entrar" },
 ];
 ---
 
@@ -154,9 +154,9 @@ const ATALHOS = [
   });
   // Para as capturas de tela: &escolher=g-icms acende um pedaço do diagrama; &dia=compras aperta um filtro da parte 3.
   const q = new URLSearchParams(location.search);
-  requestAnimationFrame(() => {
+  setTimeout(() => {
     const escolha = q.get("escolher"), dia = q.get("dia");
     if (escolha) document.querySelector(".v-junta .parte-caminho")?.dispatchEvent(new CustomEvent("escolher", { detail: escolha }));
     if (dia) [...document.querySelectorAll<HTMLButtonElement>(".v-junta .dia button")].find((b) => b.textContent!.toLowerCase().includes(dia))?.click();
-  });
+  }, 300);
 </script>

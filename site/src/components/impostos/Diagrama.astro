@@ -10,7 +10,7 @@ import {
   agrupar, afastar, bi, COR, COR_CLARA, CURTO, desenhar, GRUPOS_ESTREITO, ORDEM_ESTREITO, totalPago,
   type DocCaminho, type FluxoDesenhado,
 } from "../../lib/caminho-impostos";
-import { barrasDeixa, explicacoes } from "../../lib/caminho-explica";
+import { barrasDeixa, explicacoes, fantasmas } from "../../lib/caminho-explica";
 
 interface Props { doc: DocCaminho; forma: "largo" | "estreito"; historia?: boolean; deixa?: { uniao: number; estados: number } | null; classe?: string }
 const { doc: original, forma, historia = false, deixa = null, classe = "" } = Astro.props;
@@ -32,7 +32,9 @@ const ROTULO: Record<string, string> = {
 // "O que deixa de entrar": o benefício fiscal de cada imposto continua a barra dele, tracejado, logo embaixo.
 const barras = deixa ? barrasDeixa(original, !largo) : [];
 const noDaBarra = (imposto: string) => `t-${imposto}`;
-const extra = Object.fromEntries(barras.map((b) => [noDaBarra(b.imposto), b.valor]));
+// E o caminho que esse dinheiro faria: o tracejado continua embaixo de quem cobra e de quem fica.
+const fx = deixa ? fantasmas(original, !largo) : null;
+const extra = fx?.extra ?? {};
 const dd = desenhar(doc, { ...o, ordem: largo ? undefined : ORDEM_ESTREITO, extra });
 // As caixas de "quem cobra" são largas, com o nome dentro; as barras dos impostos, finas. As faixas são refeitas
 // abaixo com essas larguras.
@@ -80,10 +82,39 @@ const rotulosFluxo = largo
     }))
   : [];
 const alturaDeixa = fantasma.length ? (largo ? 34 : 44) : 0;
+// O espaço tracejado embaixo das caixas de quem cobra e de quem fica, e as faixas tracejadas entre eles.
+const posNo = new Map(nos.map((n) => [n.id, n]));
+const caixasX = (fx ? Object.entries(fx.extra) : []).filter(([id]) => !id.startsWith("t-")).flatMap(([id, v]) => {
+  const n = posNo.get(id);
+  return n ? [{ id: `x-${id}`, no: n, x: n.x, y: n.y + n.h, w: n.w, h: v * dd.escala, valor: v, coluna: n.coluna, esfera: n.esfera }] : [];
+});
+const ordemY = (id: string) => posNo.get(id)?.y ?? 0;
+const fluxosX = (() => {
+  if (!fx) return [];
+  const saida = new Map<string, number>(), chegada = new Map<string, number>();
+  const topoX = (id: string) => { const n = posNo.get(id)!; return n.y + n.h; };
+  const porChegada = [...fx.fluxos].sort((a, b) => ordemY(a.para) - ordemY(b.para) || ordemY(a.de) - ordemY(b.de));
+  const y1 = new Map<string, number>();
+  for (const f of porChegada) {
+    const w = f.valor * dd.escala, j = chegada.get(f.para) ?? 0;
+    y1.set(f.id, topoX(f.para) + j + w / 2);
+    chegada.set(f.para, j + w);
+  }
+  return [...fx.fluxos].sort((a, b) => ordemY(a.de) - ordemY(b.de) || ordemY(a.para) - ordemY(b.para)).flatMap((f) => {
+    if (!posNo.has(f.de) || !posNo.has(f.para)) return [];
+    const w = f.valor * dd.escala, i = saida.get(f.de) ?? 0;
+    saida.set(f.de, i + w);
+    const cd = colDe.get(f.de)!, cp = colDe.get(f.para)!;
+    const x0 = xFim(cd), x1 = o.colunas[cp], xm = (x0 + x1) / 2;
+    const ya = topoX(f.de) + i + w / 2, yb = y1.get(f.id)!;
+    return [{ ...f, largura: w, d: `M${r1(x0)},${r1(ya)}C${r1(xm)},${r1(ya)} ${r1(xm)},${r1(yb)} ${r1(x1)},${r1(yb)}` }];
+  });
+})();
 const totalDeixa = barras.reduce((t, b) => t + b.valor, 0);
 // O balão: título, valor e explicação de cada pedaço deste desenho.
 const todas = explicacoes(original);
-const presentes = new Set([...dd.fluxos.map((f) => f.id), ...dd.nos.map((n) => n.id), ...barras.map((b) => b.id)]);
+const presentes = new Set([...dd.fluxos.map((f) => f.id), ...dd.nos.map((n) => n.id), ...barras.map((b) => b.id),
+  ...caixasX.map((c) => c.id), ...fluxosX.map((f) => f.id)]);
 const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((id) => [id, { t: todas[id].titulo, v: todas[id].valor, x: todas[id].texto }]));
 ---
 
@@ -137,6 +168,25 @@ const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((i
   </g>
   {fantasma.length > 0 && (
     <g class="deixa" data-desde={historia ? 8 : undefined} data-destaque={historia ? 8 : undefined}>
+      {fluxosX.map((f) => (
+        <path d={f.d} class={`fluxo-x e-${f.esfera}`} stroke-width={Math.max(0.8, f.largura - 1)} fill="none" data-id={f.id} />
+      ))}
+      {caixasX.map((c) => (
+        <g class="no" data-id={c.id} tabindex="0" role="button" aria-label={`${c.no.nome}: ${bi(c.valor)} que deixam de entrar`}>
+          <rect x={c.x + 0.75} y={c.y + 1} width={c.w - 1.5} height={Math.max(1, c.h - 1.5)} class={`fantasma ${c.esfera}`} />
+          {c.coluna === 1 && c.h >= 30 && (
+            <text x={c.x + c.w / 2} y={c.y + c.h / 2 + 4} text-anchor="middle" class="rotulo-x dentro">
+              <tspan x={c.x + c.w / 2} dy="-0.5em">não cobrado</tspan><tspan x={c.x + c.w / 2} dy="1.25em">{bi(c.valor)}</tspan>
+            </text>
+          )}
+          {c.coluna === 2 && largo && c.esfera !== "fundos" && (
+            <text x={c.x + c.w + 10} y={c.y + Math.min(c.h / 2, 14) + 4} class="rotulo rotulo-x">deixou de receber {bi(c.valor)}</text>
+          )}
+          {c.coluna === 2 && !largo && c.h >= 22 && (
+            <text x={c.x + c.w / 2} y={c.y + c.h / 2 + 4} text-anchor="middle" class="rotulo-x dentro">− {bi(c.valor)}</text>
+          )}
+        </g>
+      ))}
       {fantasma.map((b) => (
         <g class="no" data-id={b.id} tabindex="0" role="button" aria-label={`${b.nome}: ${bi(b.valor)} deixam de entrar`}>
           <rect x={b.x + 0.75} y={b.y + 1} width={o.barra - 1.5} height={Math.max(1, b.h - 1.5)} class={`fantasma ${b.esfera}`} />
@@ -185,6 +235,17 @@ const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((i
   .rotulo-deixa { font-size: 15px; font-weight: 600; fill: var(--texto-2); }
   .estreito .rotulo-deixa { font-size: 12px; }
   .rotulo-x { font-size: 12.5px; fill: var(--texto-3); font-style: italic; }
+  .rotulo-x.dentro { fill: var(--texto-2); font-size: 12px; pointer-events: none; }
+  .estreito .rotulo-x.dentro { font-size: 10px; }
+  .fluxo-x { stroke-opacity: 0.13; stroke-dasharray: 6 4; transition: stroke-opacity 0.4s, opacity 0.5s; }
+  .fluxo-x.e-uniao { stroke: var(--verde-escuro); }
+  .fluxo-x.e-estados { stroke: #2f8a55; }
+  .fluxo-x.e-prefeituras { stroke: #c9a40e; }
+  .fluxo-x.e-fundos { stroke: #8a8475; }
+  .fantasma.prefeituras { stroke: #c9a40e; fill: rgba(242, 201, 25, 0.1); }
+  .fantasma.fundos { stroke: #8a8475; fill: rgba(163, 154, 133, 0.1); }
+  .diagrama.com-escolha .fluxo-x:not([data-ligado]) { stroke-opacity: 0.06; }
+  .diagrama .fluxo-x[data-ligado], .diagrama .deixa[data-em-destaque] .fluxo-x { stroke-opacity: 0.5; }
   .estreito .rotulo-x { font-size: 10.5px; }
   .legenda-deixa text { font-size: 13px; fill: var(--texto-3); }
   .estreito .legenda-deixa text { font-size: 11px; }

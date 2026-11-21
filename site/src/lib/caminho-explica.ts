@@ -123,7 +123,7 @@ export function explicacoes(doc: DocCaminho): Record<string, Info> {
         ? `O ICMS que os estados projetam deixar de cobrar com incentivos a empresas e setores, para atrair fábricas e baratear produtos (${e?.fonte ?? "Tesouro Nacional"}${e?.sem?.length ? `, sem ${e.sem.join(" e ")}` : ""}).`
         : `O que a Receita Federal estima deixar de cobrar com isenções, deduções e regimes especiais. Não está no caminho acima porque nunca foi pago. Os maiores:`,
       lista: itens,
-      ligados: [b.id, `t-${b.imposto}`],
+      ligados: [b.id, `t-${b.imposto}`, `g-t-${b.imposto}>c-${icms ? "estados" : "uniao"}`],
     };
   }
 
@@ -154,6 +154,54 @@ export function explicacoes(doc: DocCaminho): Record<string, Info> {
     somados.size ? [...somados].sort((a, b) => b[1] - a[1]).map(([nome, v]) => ({ nome, valor: bi(v) })) : undefined);
   grupo("g-fica", "O que cada um guarda", "O que cada governo cobrou e não precisou repassar.", ids((f) => f.tipo === "fica"));
 
+  // O caminho do que deixa de entrar: as faixas tracejadas, as caixas tracejadas e o atalho que acende tudo.
+  const fxs = [fantasmas(doc), fantasmas(doc, true)];
+  const nomeGov: Record<string, string> = { "c-uniao": "a União", "c-estados": "os estados", "f-uniao": "a União", "f-estados": "os estados", "f-prefeituras": "as prefeituras", "f-fundos": "os fundos regionais" };
+  const perde = fxs[0].perde;
+  for (const fx of fxs) {
+    for (const g of fx.fluxos) {
+      if (info[g.id]) continue;
+      const deTax = g.de.startsWith("t-");
+      info[g.id] = {
+        titulo: deTax ? `${nomeNo.get(g.de) ?? g.partes[0].nome}: o que ${nomeGov[g.para]} deixa${g.para === "c-estados" ? "m" : ""} de cobrar`
+          : `Se fosse cobrado: o que ${nomeGov[g.para]} receberia${g.para === "f-estados" || g.para === "f-prefeituras" || g.para === "f-fundos" ? "m" : ""}`,
+        valor: `${bi(g.valor)} por ano`,
+        texto: deTax ? "Benefícios fiscais: imposto que deixou de ser cobrado com isenções, deduções e regimes especiais."
+          : "Pelas mesmas regras de divisão do resto do diagrama, a parte de cada governo no que deixou de ser cobrado.",
+        lista: g.partes.length > 1 ? g.partes.map((p) => ({ nome: p.nome, valor: bi(p.valor) })) : undefined,
+        ligados: [g.id, `x-${g.de}`, `x-${g.para}`, g.de.startsWith("t-") ? `x-${g.de.slice(2)}` : ""],
+      };
+    }
+    for (const id of Object.keys(fx.extra).filter((x) => !x.startsWith("t-"))) {
+      const xid = `x-${id}`;
+      if (info[xid]) continue;
+      const v = fx.extra[id];
+      const quem = nomeGov[id];
+      const entram = fx.fluxos.filter((g) => g.para === id), saem = fx.fluxos.filter((g) => g.de === id);
+      info[xid] = {
+        titulo: id.startsWith("c-") ? `O que ${quem} deixa${id === "c-estados" ? "m" : ""} de cobrar` : `O que ${quem} deixa${id === "f-uniao" ? "" : "m"} de receber`,
+        valor: `${bi(v)} por ano`,
+        texto: id === "f-prefeituras"
+          ? "As prefeituras não decidem nenhum desses benefícios, mas perdem com eles: os do imposto de renda e do IPI, decididos pela União, diminuem o FPM; os incentivos de ICMS, decididos pelos estados, diminuem a cota delas e o Fundeb."
+          : id === "f-estados" ? "Os estados perdem com os próprios incentivos de ICMS e com os benefícios federais no imposto de renda e no IPI, que diminuem o FPE."
+          : id === "c-uniao" ? "Os benefícios fiscais dos impostos federais: o Simples Nacional, a Zona Franca de Manaus, a cesta básica, as deduções de saúde e educação do imposto de renda e outros."
+          : id === "c-estados" ? "Os incentivos de ICMS que os estados dão a empresas e setores." : "",
+        lista: [...entram, ...saem].flatMap((g) => g.partes).reduce<{ nome: string; valor: number }[]>((acc, p) => {
+          const x = acc.find((a) => a.nome === p.nome); if (x) x.valor += p.valor; else acc.push({ ...p }); return acc;
+        }, []).sort((a, b) => b.valor - a.valor).map((p) => ({ nome: p.nome, valor: bi(p.valor) })),
+        ligados: [xid, ...entram.map((g) => g.id), ...saem.map((g) => g.id)],
+      };
+    }
+  }
+  const todosX = [...new Set(fxs.flatMap((fx) => [...fx.fluxos.map((g) => g.id), ...Object.keys(fx.extra).map((id) => `x-${id.startsWith("t-") ? id.slice(2) : id}`)]))];
+  info["g-deixa"] = {
+    titulo: "O que deixa de entrar", valor: `${bi(perde.uniao + perde.estados + perde.prefeituras + perde.fundos)} por ano`,
+    texto: "Se os benefícios fiscais fossem cobrados, pelas mesmas regras de divisão: quem deixa de receber quanto. As prefeituras não decidem nenhum desses benefícios, mas perdem com eles.",
+    lista: [["A União", perde.uniao], ["Os estados", perde.estados], ["As prefeituras", perde.prefeituras], ["Os fundos regionais", perde.fundos]]
+      .map(([n, v]) => ({ nome: `${n} deixa${n === "A União" ? "" : "m"} de receber`, valor: bi(v as number) })),
+    ligados: todosX,
+  };
+
   // O diagrama do celular junta impostos pequenos num nó só: os ids juntados ganham texto próprio, e os ids
   // originais acendem também o nó juntado.
   const estreito = agrupar(doc, GRUPOS_ESTREITO);
@@ -179,4 +227,70 @@ export function explicacoes(doc: DocCaminho): Record<string, Info> {
     if (extra.length) info[id] = { ...i, ligados: [...i.ligados, ...extra] };
   }
   return info;
+}
+
+// ── O caminho do que deixa de entrar ─────────────────────────────────────────────────────────────
+
+export interface FluxoFantasma { id: string; de: string; para: string; valor: number; esfera: Esfera; partes: { nome: string; valor: number }[] }
+
+/**
+ * Se os benefícios fiscais fossem cobrados, por onde o dinheiro passaria: as mesmas regras de divisão do resto do
+ * diagrama (FPE, FPM e fundos regionais sobre o imposto de renda e o IPI, o IPI-exportação, a cota das prefeituras e o
+ * Fundeb no ICMS), com as taxas efetivas do ano (o repasse dividido pelo imposto). Devolve o espaço a mais de cada
+ * nó (para desenhar o tracejado embaixo dele), as faixas tracejadas e quanto cada governo deixa de receber.
+ */
+export function fantasmas(doc: DocCaminho, estreito = false) {
+  const f = (de: string, para: string, chave: string) => soma(doc, (x) => x.de === de && x.para === para && x.chave === chave);
+  const irU = f("t-ir", "c-uniao", "ir"), ipi = f("t-ipi", "c-uniao", "ipi"), base = irU + ipi;
+  const taxa = { fpe: f("c-uniao", "f-estados", "fpe") / base, fpm: f("c-uniao", "f-prefeituras", "fpm") / base, fundos: f("c-uniao", "f-fundos", "fundos") / base,
+    ipiExp: f("c-uniao", "f-estados", "ipi-exportacao") / ipi };
+  const icms = f("t-icms", "c-estados", "icms");
+  const ded = doc.fundeb.deducao_estados, somaDed = Object.values(ded).reduce((t, v) => t + v, 0);
+  const icmsPref = (f("c-estados", "f-prefeituras", "cota-icms") + f("c-estados", "f-prefeituras", "fundeb") * (ded.icms / somaDed)) / icms;
+
+  const extra: Record<string, number> = {};
+  const add = (id: string, v: number) => { extra[id] = (extra[id] ?? 0) + v; };
+  const fluxos = new Map<string, FluxoFantasma>();
+  const ligar = (de: string, para: string, v: number, esfera: Esfera, parte: string) => {
+    if (v < 0.05) return;
+    const id = `g-${de}>${para}`;
+    const atual = fluxos.get(id) ?? { id, de, para, valor: 0, esfera, partes: [] };
+    atual.valor += v;
+    atual.partes.push({ nome: parte, valor: v });
+    fluxos.set(id, atual);
+  };
+  const perde = { uniao: 0, estados: 0, prefeituras: 0, fundos: 0 };
+  for (const b of barrasDeixa(doc)) {
+    const no = estreito ? `t-${({ csll: "federais", importacao: "federais", ipi: "federais", iof: "federais", "outros-federais": "federais" } as Record<string, string>)[b.imposto] ?? b.imposto}` : `t-${b.imposto}`;
+    const nome = b.nome;
+    add(no, b.valor);
+    if (b.imposto === "icms") {
+      add("c-estados", b.valor);
+      ligar(no, "c-estados", b.valor, "estados", nome);
+      const m = b.valor * icmsPref;
+      ligar("c-estados", "f-prefeituras", m, "prefeituras", "Um quarto do ICMS e o Fundeb");
+      ligar("c-estados", "f-estados", b.valor - m, "estados", "O que ficaria com o estado");
+      perde.prefeituras += m; perde.estados += b.valor - m;
+      continue;
+    }
+    add("c-uniao", b.valor);
+    ligar(no, "c-uniao", b.valor, "uniao", nome);
+    let e = 0, m = 0, fu = 0;
+    if (b.imposto === "ir" || b.imposto === "ipi") {
+      e = b.valor * taxa.fpe; m = b.valor * taxa.fpm; fu = b.valor * taxa.fundos;
+      ligar("c-uniao", "f-estados", e, "estados", `FPE (do ${nome.toLowerCase().replace("ipi", "IPI")})`);
+      ligar("c-uniao", "f-prefeituras", m, "prefeituras", `FPM (do ${nome.toLowerCase().replace("ipi", "IPI")})`);
+      ligar("c-uniao", "f-fundos", fu, "fundos", `Fundos regionais (do ${nome.toLowerCase().replace("ipi", "IPI")})`);
+      if (b.imposto === "ipi") {
+        const x = b.valor * taxa.ipiExp;
+        ligar("c-uniao", "f-estados", x * 0.75, "estados", "IPI-exportação");
+        ligar("c-uniao", "f-prefeituras", x * 0.25, "prefeituras", "IPI-exportação");
+        e += x * 0.75; m += x * 0.25;
+      }
+    }
+    ligar("c-uniao", "f-uniao", b.valor - e - m - fu, "uniao", `${nome} que ficaria com a União`);
+    perde.uniao += b.valor - e - m - fu; perde.estados += e; perde.prefeituras += m; perde.fundos += fu;
+  }
+  add("f-uniao", perde.uniao); add("f-estados", perde.estados); add("f-prefeituras", perde.prefeituras); add("f-fundos", perde.fundos);
+  return { extra, fluxos: [...fluxos.values()], perde };
 }
