@@ -1,0 +1,89 @@
+---
+/**
+ * Os benefícios fiscais ao longo dos anos: uma coluna por ano, empilhando os da União (Demonstrativo dos Gastos
+ * Tributários) e os incentivos de ICMS (Boletim de Finanças dos Entes Subnacionais). Os anos de projeção ficam
+ * listrados. SVG desenhado na hora de gerar o site; o valor de cada pedaço aparece no <title> (balão do navegador).
+ */
+import { bi, COR, type DocCaminho } from "../../lib/caminho-impostos";
+
+interface Props { doc: DocCaminho }
+const { doc } = Astro.props;
+const su = doc.deixa?.uniao?.serie ?? [];
+const se = doc.deixa?.estados?.serie ?? [];
+const anos = [...new Set([...su.map((x) => x.ano), ...se.map((x) => x.ano)])].sort();
+const linhas = anos.map((a) => {
+  const u = su.find((x) => x.ano === a), e = se.find((x) => x.ano === a);
+  return { ano: a, u: u?.valor ?? 0, e: e?.valor ?? null, pib: u?.pib ?? null, projecao: !(u?.efetivo ?? true) || (e ? !e.efetivo : false) };
+});
+const max = Math.max(...linhas.map((l) => l.u + (l.e ?? 0)));
+const L = 560, H = 220, base = 182, topo = 26, esq = 4;
+const passo = (L - esq) / Math.max(1, linhas.length);
+const larg = Math.min(46, passo * 0.56);
+const y = (v: number) => (v / max) * (base - topo);
+const primeiro = su[0], ultimoEfetivo = [...su].reverse().find((x) => x.efetivo), ano = doc.ano;
+const doAno = su.find((x) => x.ano === ano);
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+---
+
+{linhas.length > 1 && (
+  <figure class="serie-deixa">
+    <figcaption>
+      <strong>Os benefícios fiscais ao longo dos anos</strong>
+      <span>
+        Os da União foram de {bi(primeiro.valor)} em {primeiro.ano} para {bi(ultimoEfetivo?.valor ?? primeiro.valor)} em {ultimoEfetivo?.ano}
+        {doAno && <> e devem chegar a {bi(doAno.valor)} em {ano}</>}. Em proporção à economia, ficam perto de {nf1.format(Math.min(...su.map((x) => x.pib ?? 99)))}% a {nf1.format(Math.max(...su.map((x) => x.pib ?? 0)))}% do PIB.
+        Os incentivos de ICMS só têm série desde 2023.
+      </span>
+    </figcaption>
+    <svg viewBox={`0 0 ${L} ${H}`} role="img" aria-label="Gráfico: benefícios fiscais da União e incentivos de ICMS por ano, em reais.">
+      <defs>
+        <pattern id="listra-projecao" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+          <rect width="6" height="6" fill="var(--papel)" />
+          <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(0,0,0,0.18)" stroke-width="3" />
+        </pattern>
+      </defs>
+      <line x1={0} x2={L} y1={base} y2={base} class="eixo" />
+      {linhas.map((l, i) => {
+        const cx = esq + passo * i + passo / 2, x = cx - larg / 2;
+        const hu = y(l.u), he = l.e ? y(l.e) : 0;
+        return (
+          <g>
+            <rect x={x} y={base - hu} width={larg} height={hu} fill={COR.uniao} rx="2"><title>{l.ano}: União {bi(l.u)}{l.projecao ? " (projeção)" : ""}</title></rect>
+            {l.e !== null && <rect x={x} y={base - hu - he - 2} width={larg} height={he} fill={COR.estados} rx="2"><title>{l.ano}: ICMS {bi(l.e)}{l.projecao ? " (projeção)" : ""}</title></rect>}
+            {l.projecao && <rect x={x} y={base - hu - he - (l.e ? 2 : 0)} width={larg} height={hu + he + (l.e ? 2 : 0)} fill="url(#listra-projecao)" opacity="0.55" pointer-events="none" />}
+            <text x={cx} y={base - hu - he - (l.e ? 2 : 0) - 6} text-anchor="middle" class="valor">{bi(l.u + (l.e ?? 0))}</text>
+            <text x={cx} y={base + 16} text-anchor="middle" class="ano">{l.ano}</text>
+            {l.pib !== null && <text x={cx} y={base + 33} text-anchor="middle" class="pib">{nf1.format(l.pib)}% do PIB</text>}
+          </g>
+        );
+      })}
+    </svg>
+    <ul class="legenda">
+      <li><i style={`background: ${COR.uniao}`}></i>União (impostos federais)</li>
+      <li><i style={`background: ${COR.estados}`}></i>Estados (ICMS)</li>
+      <li><i class="listra"></i>Projeção</li>
+    </ul>
+    <p class="fonte">% do PIB: só os da União. Fontes: Receita Federal (Demonstrativo dos Gastos Tributários, bases efetivas de 2023) e Tesouro Nacional (Boletim de Finanças dos Entes Subnacionais 2025).</p>
+  </figure>
+)}
+
+<style>
+  .serie-deixa { margin: 12px 0 0; display: flex; flex-direction: column; gap: 8px; max-width: 620px; }
+  figcaption { display: flex; flex-direction: column; gap: 4px; }
+  figcaption strong { font-size: 17px; }
+  figcaption span { font-size: 14.5px; line-height: 1.5; color: var(--texto-2); }
+  svg { width: 100%; height: auto; display: block; overflow: visible; font-family: var(--sans); }
+  .eixo { stroke: var(--regra); }
+  .valor { font-size: 12.5px; fill: var(--tinta); }
+  .ano { font-size: 12.5px; fill: var(--texto-2); }
+  .pib { font-size: 11px; fill: var(--texto-3); }
+  .legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--texto-3); }
+  .legenda i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; }
+  .legenda .listra { background: repeating-linear-gradient(45deg, var(--papel) 0 2px, rgba(0,0,0,0.25) 2px 4px); border: 1px solid var(--regra); }
+  .fonte { margin: 0; font-size: 12.5px; color: var(--texto-3); }
+  @media (max-width: 640px) {
+    .valor { font-size: 17px; }
+    .ano { font-size: 17px; }
+    .pib { font-size: 14px; }
+  }
+</style>

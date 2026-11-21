@@ -6,5 +6,14 @@ import Receitas from "../components/receitas/Receitas";
 <Base title="Receitas · Orçamento Brasileiro" description="De onde vem o dinheiro do governo federal: impostos, contribuições, royalties, dividendos e empréstimos, ano a ano desde 2014.">
   <div class="wrap">
     <Receitas client:only="solid-js" />
+    <p class="ir-impostos">
+      <strong>Para onde vai cada imposto?</strong> Parte do que a União arrecada é repassada a estados e prefeituras por obrigação.
+      Veja <a href="/impostos">para quem vai o seu imposto</a>: quem cobra, quem repassa e quem fica com o dinheiro.
+    </p>
   </div>
 </Base>
+
+<style>
+  .ir-impostos { margin: 32px 0 0; padding: 16px 0 0; border-top: 2px solid var(--tinta); font-size: 16px; line-height: 1.55; color: var(--texto-2); max-width: 880px; }
+  .ir-impostos strong { color: var(--tinta); }
+</style>
