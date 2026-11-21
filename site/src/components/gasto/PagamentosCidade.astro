@@ -67,8 +67,10 @@ const semFolha = p ? diferenca < -0.05 && p.outros.folha < 0.1 * p.pago : false;
       {!semFolha && Math.abs(diferenca) > 0.05 && (
         <p class="aviso">
           O total aqui fica {pct(Math.abs(diferenca))} {diferenca < 0 ? "abaixo" : "acima"} do que a prefeitura declarou ao
-          Tesouro como pago em {p.ano} ({moedaCurta(dca!)}). Parte dos pagamentos pode não ter chegado ao Tribunal de Contas
-          (em algumas cidades falta dezembro). Leia estes números com cuidado.
+          Tesouro como pago em {p.ano} ({moedaCurta(dca!)}). {diferenca < 0
+            ? "Parte dos pagamentos pode não ter chegado ao Tribunal de Contas (em algumas cidades falta dezembro)."
+            : "Os dois números vêm de prestações de contas diferentes, e a que foi ao Tesouro pode ter saído incompleta."}
+          Leia estes números com cuidado.
         </p>
       )}
       <ul class="tipos">

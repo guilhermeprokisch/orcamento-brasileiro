@@ -4,6 +4,7 @@
     uv run pagamentos --ano 2024
     uv run pagamentos --uf AC        # Acre e Santa Catarina: pelos painéis dos tribunais (pagamentos_qlik.py)
     uv run pagamentos --uf PE        # Pernambuco: pela API de dados abertos do TCE-PE (pagamentos_tcepe.py)
+    uv run pagamentos --uf AM        # Amazonas e Tocantins: pagamentos_am.py e pagamentos_to.py
     uv run pagamentos --sem-baixar   # só copia pipeline/referencia/pagamentos*.json para o site (CI)
 
 Fonte: os dados abertos do TCE-PB, um ZIP por ano com todas as 223 prefeituras
@@ -265,10 +266,10 @@ def main() -> None:
     p.add_argument("--ano", type=int, default=2025)
     p.add_argument("--refazer", action="store_true", help="baixar o ZIP de novo, mesmo se já existir (PE: ler de novo as cidades já lidas)")
     p.add_argument("--sem-baixar", action="store_true", help="só copiar a referência versionada para o site (publicação automática)")
-    p.add_argument("--uf", default="PB", choices=["PB", "AC", "SC", "PE"],
-                   help="AC e SC vêm dos painéis dos tribunais, PE da API do TCE-PE (os três só respondem do Brasil)")
-    p.add_argument("--municipio", action="append", help="AC, SC e PE: só esta cidade (pode repetir); junta-se às que já estão no arquivo")
-    p.add_argument("--pausa", type=float, default=1.0, help="AC, SC e PE: segundos entre uma consulta e outra")
+    p.add_argument("--uf", default="PB", choices=["PB", "AC", "SC", "PE", "AM", "TO"],
+                   help="AC e SC vêm dos painéis dos tribunais, PE da API do TCE-PE (os três só respondem do Brasil); AM e TO, ver pagamentos_am.py e pagamentos_to.py")
+    p.add_argument("--municipio", action="append", help="AC, SC, PE, AM e TO: só esta cidade (pode repetir); junta-se às que já estão no arquivo")
+    p.add_argument("--pausa", type=float, default=1.0, help="AC, SC, PE, AM e TO: segundos entre uma consulta e outra")
     args = p.parse_args()
     if args.sem_baixar:
         copiar_referencia()
@@ -276,6 +277,10 @@ def main() -> None:
     if args.uf == "PE":
         from . import pagamentos_tcepe
         pagamentos_tcepe.rodar(args.ano, args.municipio, args.pausa, args.refazer)
+        return
+    if args.uf in ("AM", "TO"):
+        from . import pagamentos_am, pagamentos_to
+        {"AM": pagamentos_am, "TO": pagamentos_to}[args.uf].rodar(args.ano, args.municipio, args.pausa, args.refazer)
         return
     if args.uf != "PB":
         from . import pagamentos_qlik
