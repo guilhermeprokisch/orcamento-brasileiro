@@ -7,6 +7,7 @@
  */
 import Base from "../../layouts/Base.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import EmendasAbas from "../../components/emendas/EmendasAbas.astro";
 import "../../styles/onde.css";
 
 interface Resumo {
@@ -30,6 +31,7 @@ const TIPOS: [string, string, string][] = [
 ---
 
 <Base title="Emendas parlamentares · Orçamento Brasileiro" description="Quem mandou emendas parlamentares, para onde, para quem e para quê: deputados, senadores, bancadas e comissões.">
+  <div class="wrap"><EmendasAbas ativa="busca" /></div>
   <div class="wrap explorador" data-emendas data-pagamentos={r?.pagamentos} data-textos={r?.textos} data-ano={r?.ano}>
     <section class="topo" data-topo>
       <nav class="trilha" aria-label="Caminho" data-voltar hidden></nav>
@@ -367,7 +369,7 @@ const TIPOS: [string, string, string][] = [
   /* Global, mas só dentro do explorador: as páginas da busca são montadas no navegador, fora do escopo do Astro. */
   @keyframes corre { from { left: -35%; } to { left: 100%; } }
   [data-emendas] {
-    .topo { padding: 44px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
+    .topo { padding: 36px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
     .topo h1 { font-size: 56px; line-height: 1; letter-spacing: -0.025em; }
 
     .filtros input[type="search"] { font: inherit; font-size: 14px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 190px; }
