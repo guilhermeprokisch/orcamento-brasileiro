@@ -9,16 +9,16 @@
  */
 import { ufsComPagamentos } from "./pagamentos";
 
-export const PESQUISA = { estado: "19/11/2026", prefeituras: "20/11/2026", texto: "19 e 20 de novembro de 2026" };
+export const PESQUISA = { estado: "19/11/2026", prefeituras: "20/11/2026", texto: "19 a 21 de novembro de 2026" };
 
 export type Faixa = "inteiro" | "folha" | "obras" | "nada";
 export type Prefeituras = "sim" | "parte" | "nao" | "nao-se-aplica";
 
 /** `frase` completa "O governo do estado …", na página de cada estado. */
 export const FAIXAS: { id: Faixa; nome: string; curto: string; explica: string; frase: string }[] = [
-  { id: "inteiro", nome: "Publicam o gasto inteiro por município", curto: "Gasto inteiro por município", frase: "publica quanto gasta em cada município",
-    explica: "Cada gasto do governo do estado vem com a cidade onde foi feito. Dá para somar e saber quanto o estado gastou em cada município." },
-  { id: "folha", nome: "Publicam a folha de pagamento com a cidade ou a escola", curto: "Folha com cidade ou unidade", frase: "publica a folha de pagamento com a cidade ou a escola, mas não o gasto inteiro por município",
+  { id: "inteiro", nome: "Publicam cada gasto com o município", curto: "Cada gasto com o município", frase: "publica cada gasto com o município onde foi feito, mas uma parte fica sem cidade",
+    explica: "Cada gasto do governo do estado vem com uma cidade, e dá para somar quanto foi para cada município. Mesmo assim, uma parte fica sem a cidade certa: na Paraíba, os salários aparecem na sede de cada órgão; em Minas, 12% do gasto de 2025 está como \"diversos municípios\" ou como do estado inteiro." },
+  { id: "folha", nome: "Publicam a folha de pagamento com a cidade ou a escola", curto: "Folha com cidade ou unidade", frase: "publica a folha de pagamento com a cidade ou a escola, mas não cada gasto com o município",
     explica: "O salário dos servidores vem com a escola, o hospital ou a cidade onde trabalham. Salário é mais da metade do gasto de um estado, então isso já mostra boa parte do caminho do dinheiro." },
   { id: "obras", nome: "Publicam só obras ou convênios por município", curto: "Só obras e convênios", frase: "publica só as obras ou os convênios de cada município, uma parte pequena do que gasta",
     explica: "Dá para ver as obras ou os convênios em cada cidade, mas isso é uma parte pequena do gasto do estado." },
@@ -58,12 +58,12 @@ const ESTADOS: Estado[] = [
   // Gasto inteiro por município
   { uf: "PB", faixa: "inteiro", noSite: true,
     publica: "Cada nota de empenho, numa API aberta, diz em que município o dinheiro foi gasto.",
-    falta: "A folha de pagamento aparece na cidade da sede do órgão, não onde o servidor trabalha.",
+    falta: "A folha de pagamento aparece na cidade da sede do órgão, não onde o servidor trabalha: o salário de quem trabalha num hospital do interior, por exemplo, aparece em João Pessoa.",
     fonte: { nome: "Dados abertos da Paraíba (API)", url: "https://api.dados.pb.gov.br" },
     prefeituras: { situacao: "sim", noSite: true, texto: "Um arquivo por ano com todas as 223 prefeituras, de 2003 a 2026, com o nome de quem recebeu.", fonte: { nome: "TCE-PB", url: "https://tce.pb.gov.br" } } },
   { uf: "MG", faixa: "inteiro", noSite: true,
     publica: "A execução do plano plurianual distribuída por município, desde 2012.",
-    falta: "Quem informa a cidade são os próprios órgãos; 2024 está incompleto na fonte.",
+    falta: "Em 2025, R$ 15,4 bilhões (12% do gasto) ficaram como \"diversos municípios\" ou como do estado inteiro, sem cidade. Quem informa a cidade são os próprios órgãos; 2024 está incompleto na fonte.",
     fonte: { nome: "Dados abertos de Minas Gerais", url: "https://dados.mg.gov.br/dataset/planejamento-e-monitoramento" },
     prefeituras: { situacao: "sim", texto: "Um arquivo por ano com as 853 prefeituras, com o nome de quem recebeu. O download só funciona pelo navegador.", fonte: { nome: "TCE-MG", url: "https://dadosabertos.tce.mg.gov.br" } } },
 
@@ -153,6 +153,17 @@ const ESTADOS: Estado[] = [
     fonte: { nome: "Portal da Transparência de Rondônia", url: "https://transparencia.ro.gov.br/convenios/convenios-de-saida" },
     prefeituras: { situacao: "nao", texto: "O portal do tribunal pede login.", fonte: { nome: "TCE-RO", url: "https://tcero.tc.br" } } },
 
+  { uf: "RN", faixa: "obras",
+    publica: "Um painel de obras, com as medições de cada uma, em planilha.",
+    falta: "A coluna da cidade diz \"Natal\" em todas as obras; o município de verdade aparece só na descrição, e só em parte delas.",
+    fonte: { nome: "Portal da Transparência do RN", url: "https://www.transparencia.rn.gov.br/obras-e-execucao" },
+    prefeituras: { situacao: "parte", texto: "Os gastos das prefeituras, desde 2018, mas só com o CNPJ de quem recebeu, sem o nome.", fonte: { nome: "TCE-RN", url: "https://apidadosabertos.tce.rn.gov.br/swagger" } } },
+  { uf: "TO", faixa: "obras",
+    publica: "Um painel de obras com as intervenções do estado, a cidade e o valor de cada uma.",
+    falta: "Nem toda obra traz o município, e o valor é o da obra contratada; o que já foi pago fica num campo à parte.",
+    fonte: { nome: "Painel de Obras do Tocantins", url: "https://app.powerbi.com/view?r=eyJrIjoiOTAzNDgyZWMtODljYS00OTg0LTk0ZjYtNDlhYTExOGVjNmNhIiwidCI6IjkxOGZjZDQ5LWE2ZWQtNGM0Ny04ZDk4LWU1ZTUxZmE3MjgzYSJ9" },
+    prefeituras: { situacao: "sim", texto: "Uma planilha por município e ano, de 2013 a 2026, com o nome de quem recebeu.", fonte: { nome: "TCE-TO", url: "https://portaldocidadao.tceto.tc.br" } } },
+
   // Quase nada
   { uf: "CE", faixa: "nada",
     publica: "Só a região administrativa em cada gasto. Existe uma página de investimentos por município que a pesquisa não conseguiu abrir.",
@@ -174,14 +185,6 @@ const ESTADOS: Estado[] = [
     publica: "Um painel de obras, mas sem a coluna do município.",
     fonte: { nome: "Portal da Transparência do Amapá", url: "https://transparencia.ap.gov.br" },
     prefeituras: { situacao: "nao", texto: "O tribunal publica um PDF por prefeitura e mês, sem dados abertos.", fonte: { nome: "TCE-AP" } } },
-  { uf: "RN", faixa: "nada",
-    publica: "A pesquisa não achou caminho que funcionasse.",
-    fonte: { nome: "Portal da Transparência do RN", url: "https://www.transparencia.rn.gov.br/" },
-    prefeituras: { situacao: "parte", texto: "Os gastos das prefeituras, desde 2018, mas só com o CNPJ de quem recebeu, sem o nome.", fonte: { nome: "TCE-RN", url: "https://apidadosabertos.tce.rn.gov.br/swagger" } } },
-  { uf: "TO", faixa: "nada",
-    publica: "A pesquisa não achou nenhum caminho.",
-    fonte: { nome: "Portal da Transparência do Tocantins", url: "https://transparencia.to.gov.br/PortalTransparencia/" },
-    prefeituras: { situacao: "sim", texto: "Uma planilha por município e ano, de 2013 a 2026, com o nome de quem recebeu.", fonte: { nome: "TCE-TO", url: "https://portaldocidadao.tceto.tc.br" } } },
 ];
 
 // Se o build tem o arquivo de pagamentos de um estado, o site já usa o dado do tribunal
