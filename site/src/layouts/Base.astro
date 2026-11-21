@@ -15,7 +15,13 @@ const site = Astro.site ?? new URL("https://orcamentobrasileiro.com.br");
 const urlPagina = new URL(Astro.url.pathname, site).href;
 const imagemPrevia = new URL("/previa.png", site).href;
 const path = Astro.url.pathname;
-const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
+// O item do menu desta página: o de endereço mais longo que começa o caminho (/emendas/explorar acende
+// "Explorar as emendas", não "Emendas").
+const todosHrefs = () => GRUPOS.flatMap((g) => g.itens.map((i) => i.href));
+const ativo = (p: string) => {
+  const melhor = todosHrefs().filter((h) => path.startsWith(h)).sort((a, b) => b.length - a.length)[0];
+  return p === melhor ? "page" : undefined;
+};
 
 // Menu principal: as páginas agrupadas pela pergunta de quem chega. Para incluir uma página,
 // acrescente um item ao grupo dela; o menu do computador e o do celular saem desta lista.
@@ -36,7 +42,8 @@ const GRUPOS = [
   ] },
   { nome: "Contratos e emendas", itens: [
     { href: "/contratos", nome: "Contratos", desc: "O que prefeituras e governos estaduais contrataram, e de quem." },
-    { href: "/emendas", nome: "Emendas", desc: "O dinheiro que deputados e senadores mandam: para onde e para quem." },
+    { href: "/emendas", nome: "Emendas", desc: "O que são as emendas parlamentares, quanto são e para onde vão." },
+    { href: "/emendas/explorar", nome: "Explorar as emendas", desc: "Todas as emendas pagas, por quem mandou, estado, cidade, quem recebeu e área." },
   ] },
   { nome: "Impostos", itens: [
     { href: "/impostos", nome: "Para quem vai o seu imposto", desc: "Quem cobra cada imposto, o que é repassado a estados e prefeituras e quem fica com o dinheiro." },

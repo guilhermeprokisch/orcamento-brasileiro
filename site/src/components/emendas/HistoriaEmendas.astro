@@ -1,0 +1,247 @@
+---
+/**
+ * A história das emendas (/emendas): a página conta, de cima para baixo, o que é uma emenda, os tipos, como cresceram,
+ * para onde vão, onde chega mais por morador e quem manda; no fim, as portas do explorador (página própria) e da busca.
+ */
+import Termo from "../Termo.astro";
+import SerieTipos from "./SerieTipos.astro";
+import MapaEstados from "./MapaEstados.astro";
+import Explorar from "./Explorar.astro";
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { ANO, cidades, nomeArea, nomeGrupo, panorama, noExplorador, POR_MORADOR, porEstado, resumo, ROTA, TIPO, TIPOS, TOTAL, totalAno } from "../../lib/emendas-panorama";
+
+const p = panorama!;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const ano = p.serie.find((x) => x.ano === ANO)!;
+// De cada R$ 100: os quadradinhos de cada tipo, pelo maior resto, para somarem 100.
+const partes = TIPOS.map((t) => ({ t, x: (ano[t.id] / totalAno(ano)) * 100 }));
+const inteiros = partes.map((q) => Math.floor(q.x));
+partes.map((q, i) => ({ i, r: q.x - inteiros[i] })).sort((a, b) => b.r - a.r).slice(0, 100 - inteiros.reduce((a, b) => a + b, 0)).forEach(({ i }) => inteiros[i]++);
+const quadrados = partes.flatMap((q, i) => Array(inteiros[i]).fill(q.t));
+const primeiro = p.serie.find((x) => x.ano === 2019)!;
+const estados = porEstado();
+const c = cidades()!;
+const areasTot = p.areas.reduce((t, [, v]) => t + v, 0);
+const areas = p.areas.slice(0, 7);
+const gruposTot = p.grupos.reduce((t, [, v]) => t + v, 0);
+const pctDe = (v: number, t: number) => `${Math.round((v / t) * 100)}%`;
+const saude = p.areas.find(([a]) => a === "Saúde")?.[1] ?? 0;
+const pix = p.areas.find(([a]) => a === "Encargos especiais")?.[1] ?? 0;
+const pref = p.grupos.find(([g]) => g === "Prefeitura")?.[1] ?? 0;
+const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
+// Portas do explorador, cada uma já aberta num caminho.
+const ATALHOS: [string, string, string][] = [
+  ["Todos os deputados e senadores", noExplorador(["autoria:parlamentares"], true), `mais de mil nomes com emendas pagas em ${ANO}`],
+  ["Todas as comissões", noExplorador(["autoria:comissoes"], true), "Saúde, Desenvolvimento Regional, Assuntos Sociais…"],
+  ["Todas as bancadas", noExplorador(["autoria:bancadas"], true), "os deputados e senadores de cada estado, juntos"],
+  ["Por estado", `${ROTA.explorar}?por=uf`, "e, dentro de cada um, as cidades"],
+  ["Por área", `${ROTA.explorar}?por=area`, "saúde, obras, agricultura…"],
+  ["Quem recebeu", `${ROTA.explorar}?por=favorecido`, "prefeituras, entidades e empresas, pelo nome"],
+];
+---
+
+<div class="historia">
+  <header class="abre">
+    <span class="sobretitulo">Emendas parlamentares · Brasil · {ANO}</span>
+    <h1>O pedaço do orçamento que deputados e senadores escolhem para onde vai</h1>
+    <p>
+      Todo ano, cada deputado e cada senador indica para onde vai uma parte do dinheiro federal: uma cidade, um hospital, um
+      asfalto. Em {ANO}, essas <Termo id="emenda-parlamentar">emendas</Termo> pagaram <strong class="marca">{moedaExtenso(TOTAL)}</strong>,
+      perto de <strong>R$ {nf0.format(POR_MORADOR)} por morador</strong>, e chegaram a {nf0.format(p.contagem.lugares)} das 5.570 cidades.
+      Em 2019, eram {moedaCurta(totalAno(primeiro))}.
+    </p>
+  </header>
+
+  <nav class="indice" aria-label="Nesta página">
+    <a href="#h-o-que-e"><b>1.</b> O que é</a>
+    <a href="#h-tipos"><b>2.</b> Os tipos</a>
+    <a href="#h-cresceu"><b>3.</b> Como cresceu</a>
+    <a href="#h-para-onde"><b>4.</b> Para onde vai</a>
+    <a href="#h-por-morador"><b>5.</b> Quem recebe mais</a>
+    <a href="#h-quem-manda"><b>6.</b> Quem manda</a>
+    <a href="#h-explore"><b>7.</b> Explore tudo</a>
+  </nav>
+
+  <section class="parte" id="h-o-que-e">
+    <div class="titulo-parte"><span class="n">1</span><h2>O que é uma emenda</h2></div>
+    <ol class="passos">
+      <li><b>O governo escreve o orçamento</b><span>Todo ano, o presidente manda ao Congresso o projeto da <Termo id="loa">lei do orçamento</Termo>: quanto vai gastar, em quê.</span></li>
+      <li><b>Deputados e senadores mudam um pedaço</b><span>Cada um indica para onde vai uma parte: uma cidade, uma entidade, uma finalidade. Essa mudança é a emenda.</span></li>
+      <li><b>O governo é obrigado a pagar</b><span>Desde 2015, a maior parte das emendas é <Termo id="emenda-impositiva">impositiva</Termo>: o governo não pode deixar de pagar só porque não quer.</span></li>
+      <li><b>O dinheiro chega ao lugar</b><span>Quase sempre à prefeitura, que compra a ambulância, faz o asfalto ou paga o posto de saúde. Às vezes, a uma entidade ou ao governo do estado.</span></li>
+    </ol>
+  </section>
+
+  <section class="parte" id="h-tipos">
+    <div class="titulo-parte"><span class="n">2</span><div><h2>Os cinco tipos</h2><p>De cada R$ 100 pagos em emendas em {ANO}:</p></div></div>
+    <div class="tipos-grade">
+      <div class="waffle" aria-hidden="true">{quadrados.map((t) => <i style={`background:${t.cor}`}></i>)}</div>
+      <ul class="tipos">
+        {TIPOS.map((t, i) => (
+          <li>
+            <span class="qd" style={`background:${t.cor}`}></span>
+            <div>
+              <strong><Termo id={t.termo}>{t.nome}</Termo> · R$ {inteiros[i]}</strong>
+              <span>{t.uma}</span>
+              <small>{moedaCurta(ano[t.id])} em {ANO}</small>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="parte" id="h-cresceu">
+    <div class="titulo-parte"><span class="n">3</span><div><h2>Em seis anos, quatro vezes mais</h2><p>
+      Em 2019 as emendas pagaram {moedaCurta(totalAno(primeiro))}; em {ANO}, {moedaCurta(TOTAL)}. O dinheiro trocou de tipo algumas vezes no caminho.
+      Clique num tipo para ver só ele.</p></div></div>
+    <SerieTipos />
+  </section>
+
+  <section class="parte" id="h-para-onde">
+    <div class="titulo-parte"><span class="n">4</span><div><h2>Para onde vai</h2><p>
+      {pctDe(saude, areasTot)} vão para a saúde, porque a Constituição manda que metade das individuais vá para ela. Mas {pctDe(pix, areasTot)},
+      as <Termo id="emenda-pix">emendas Pix</Termo>, chegam sem área definida: a prefeitura decide depois. E {pctDe(pref, gruposTot)} vão para as prefeituras.</p></div></div>
+    <div class="duas">
+      <div>
+        <h3>Para quê</h3>
+        <ol class="barras">
+          {areas.map(([a, v]) => <li class:list={{ pix: a === "Encargos especiais" }}><span>{nomeArea(a)}</span><i style={`width:${(v / areas[0][1]) * 100}%`}></i><strong class="num">{moedaCurta(v)}</strong></li>)}
+        </ol>
+      </div>
+      <div>
+        <h3>Para quem</h3>
+        <ol class="barras">
+          {p.grupos.map(([g, v]) => <li><span>{nomeGrupo(g)}</span><i style={`width:${(v / p.grupos[0][1]) * 100}%`}></i><strong class="num">{moedaCurta(v)}</strong></li>)}
+        </ol>
+        <p class="menor">Prefeituras inclui os fundos municipais de saúde. Até 2024, a CGU registrava boa parte dos pagamentos como feitos ao Banco do Brasil, que só repassa; por isso aqui só aparece {ANO}.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="parte" id="h-por-morador">
+    <div class="titulo-parte"><span class="n">5</span><div><h2>Quem recebe mais por morador</h2><p>
+      Cada estado tem pelo menos 8 deputados e 3 senadores, e todos têm a mesma cota. Por isso os estados com pouca gente recebem muito mais
+      por morador: o Amapá recebeu R$ {nf0.format(ap.porHab)} por pessoa; São Paulo, R$ {nf0.format(sp.porHab)}. O mesmo vale para as cidades.</p></div></div>
+    <div class="duas">
+      <MapaEstados link={(uf) => noExplorador([`uf:${uf}`])} />
+      <div class="cidades">
+        <h3>Nas cidades, por tamanho</h3>
+        <ol class="barras">
+          {c.faixas.map((f) => <li><span>{f.rotulo}</span><i style={`width:${(f.mediana / c.faixas[0].mediana) * 100}%`}></i><strong class="num">R$ {nf0.format(f.mediana)}</strong></li>)}
+        </ol>
+        <p class="menor">O valor do meio (mediana) por morador em cada tamanho de cidade, em {ANO}.</p>
+        <p class="destaque-texto">
+          Em <strong>{nf0.format(c.peso.acima10)} cidades</strong>, o que chegou de emendas à prefeitura passou de 10% de tudo o que ela gastou no ano.
+          No meio das cidades, foi {Math.round(c.peso.mediana * 100)}%.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="parte" id="h-quem-manda">
+    <div class="titulo-parte"><span class="n">6</span><div><h2>Quem manda</h2><p>
+      Um deputado ou senador mandou, no meio, {moedaCurta(p.contagem.mediana_individual)} em {ANO}. Os que mais mandaram são senadores, que têm cota maior.
+      Nas coletivas, as comissões de saúde e de desenvolvimento regional mandam bilhões.</p></div></div>
+    <div class="duas">
+      <div>
+        <h3>Deputados e senadores (individuais e Pix)</h3>
+        <ol class="lista">{resumo!.autores.slice(0, 8).map(([a, v]) => <li><a href={`/emendas/buscar?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a><span class="num">{moedaCurta(v)}</span></li>)}</ol>
+        <p class="ver-todos"><a href={noExplorador(["autoria:parlamentares"], true)}>Ver todos os deputados e senadores →</a></p>
+      </div>
+      <div>
+        <h3>Comissões e bancadas</h3>
+        <ol class="lista">{p.coletivos.slice(0, 8).map(([a, t, v]) => <li><span><a href={`/emendas/buscar?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a> <small style={`color:${TIPO[t].cor === "#f2c919" ? "#8a6d00" : TIPO[t].cor}`}>{TIPO[t].nome.toLowerCase()}</small></span><span class="num">{moedaCurta(v)}</span></li>)}</ol>
+        <p class="ver-todos"><a href={noExplorador(["autoria:comissoes"], true)}>Todas as comissões</a> · <a href={noExplorador(["autoria:bancadas"], true)}>todas as bancadas →</a></p>
+      </div>
+    </div>
+    <p class="menor">O partido de cada parlamentar não está nos dados da CGU; dá para juntar pelos dados abertos da Câmara e do Senado (ver o PR).</p>
+  </section>
+
+  <section class="parte" id="h-explore">
+    <div class="titulo-parte"><span class="n">7</span><div><h2>Explore tudo</h2><p>
+      No explorador estão todas as emendas pagas desde 2017, para dividir como quiser: por quem mandou (a lista inteira de deputados, senadores,
+      bancadas e comissões), por estado, cidade, quem recebeu ou área, como no explorador de gastos do governo.</p></div></div>
+    <div class="convite">
+      <a class="botao-grande" href={ROTA.explorar}>Abrir o explorador das emendas →</a>
+      <ul class="portas-exp">
+        {ATALHOS.map(([texto, href, dica]) => <li><a href={href}><strong>{texto}</strong><span>{dica}</span></a></li>)}
+      </ul>
+    </div>
+  </section>
+
+  <Explorar id="explore-1" titulo="Ou vá direto" />
+</div>
+
+<style>
+  .historia { padding-bottom: 32px; }
+  .abre { padding: 40px 0 20px; max-width: 900px; display: flex; flex-direction: column; gap: 14px; }
+  .abre h1 { font-size: 56px; line-height: 1.02; letter-spacing: -0.025em; }
+  .abre p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .indice { display: flex; flex-wrap: wrap; gap: 4px 20px; border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); padding: 12px 0; margin-bottom: 8px; }
+  .indice a { color: var(--tinta); text-decoration: none; font-family: var(--serifa); font-weight: 600; font-size: 16px; }
+  .indice a:hover { text-decoration: underline; }
+  .parte { border-top: 2px solid var(--tinta); padding: 8px 0 32px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 12px; }
+  .parte:first-of-type { border-top: 0; }
+  .titulo-parte { display: flex; gap: 16px; align-items: flex-start; padding-top: 24px; }
+  .titulo-parte .n { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--tinta); color: var(--papel); display: grid; place-items: center; font-family: var(--serifa); font-weight: 700; font-size: 22px; }
+  .titulo-parte h2 { font-size: 36px; line-height: 1.1; }
+  .titulo-parte p { margin: 6px 0 0; font-size: 17px; line-height: 1.55; color: var(--texto-2); max-width: 800px; }
+  .passos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; counter-reset: p; }
+  .passos li { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px 20px 16px 0; border-top: 6px solid var(--verde); counter-increment: p; }
+  .passos li + li { padding-left: 20px; border-left: 1px solid var(--regra); }
+  .passos b { font-family: var(--serifa); font-size: 19px; line-height: 1.2; }
+  .passos b::before { content: counter(p) ". "; color: var(--verde); }
+  .passos span { font-size: 15px; line-height: 1.5; color: var(--texto-2); }
+  .tipos-grade { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 32px; align-items: start; }
+  .waffle { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+  .waffle i { aspect-ratio: 1; display: block; }
+  .tipos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .tipos li { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--regra); }
+  .tipos li:first-child { border-top: 1px solid var(--tinta); }
+  .tipos .qd { flex: none; width: 16px; height: 16px; margin-top: 3px; }
+  .tipos div { display: flex; flex-direction: column; gap: 2px; }
+  .tipos strong { font-size: 16px; }
+  .tipos span { font-size: 15px; line-height: 1.45; color: var(--texto-2); }
+  .tipos small { font-size: 13px; color: var(--texto-3); }
+  .duas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; align-items: start; }
+  h3 { font-family: var(--sans); font-size: 15px; font-weight: 600; color: var(--texto-2); margin: 0 0 6px; }
+  .barras { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .barras li { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) 96px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--regra); font-size: 14.5px; }
+  .barras i { display: block; height: 12px; background: var(--verde); }
+  .barras li.pix i { background: #f2c919; }
+  .barras strong { text-align: right; font-weight: 600; }
+  .menor { margin: 8px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--texto-3); }
+  .destaque-texto { margin: 16px 0 0; padding: 12px 14px; background: var(--marca-texto-fundo); font-size: 16px; line-height: 1.5; }
+  .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .lista li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .lista small { display: inline; font-size: 12px; }
+  .ver-todos { margin: 10px 0 0; font-size: 15px; font-weight: 600; }
+  .convite { display: flex; flex-direction: column; gap: 16px; }
+  .botao-grande { align-self: flex-start; font-size: 18px; font-weight: 600; padding: 14px 22px; background: var(--tinta); color: var(--papel); text-decoration: none; }
+  .botao-grande:hover { background: var(--verde-escuro); }
+  .portas-exp { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .portas-exp a { display: flex; flex-direction: column; gap: 2px; height: 100%; padding: 12px 14px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); text-decoration: none; }
+  .portas-exp a:hover { background: var(--marca-texto-fundo); }
+  .portas-exp strong { font-size: 16px; }
+  .portas-exp span { font-size: 13.5px; color: var(--texto-3); }
+  @media (max-width: 900px) {
+    .abre { padding: 28px 0 16px; }
+    .abre h1 { font-size: 34px; }
+    .abre p { font-size: 17px; }
+    .indice { gap: 4px 14px; }
+    .indice a { font-size: 14px; }
+    .titulo-parte { gap: 12px; }
+    .titulo-parte .n { width: 32px; height: 32px; font-size: 18px; }
+    .titulo-parte h2 { font-size: 26px; }
+    .titulo-parte p { font-size: 15.5px; }
+    .passos { grid-template-columns: minmax(0, 1fr); }
+    .passos li, .passos li + li { padding: 12px 0; border-left: 0; border-top-width: 4px; }
+    .tipos-grade { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    .waffle { max-width: 260px; }
+    .duas { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .barras li { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 72px; font-size: 13.5px; }
+    .portas-exp { grid-template-columns: minmax(0, 1fr); }
+    .botao-grande { align-self: stretch; text-align: center; }
+  }
+</style>

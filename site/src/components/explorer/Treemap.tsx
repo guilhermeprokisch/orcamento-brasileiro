@@ -115,7 +115,7 @@ export default function Treemap(props: Props) {
             <div class="tm-tip" style={posTip()} role="status">
               <strong>{item().nome}</strong>
               <dl class="num">
-                <dt>{r().atualizado}</dt><dd>{moedaCurta(item().valores.atualizado)}</dd>
+                <Show when={!r().soRealizado}><dt>{r().atualizado}</dt><dd>{moedaCurta(item().valores.atualizado)}</dd></Show>
                 <Show when={r().empenhado}><dt>{r().empenhado}</dt><dd>{moedaCurta(item().valores.empenhado)}</dd></Show>
                 <dt>{r().realizado}</dt><dd>{moedaCurta(item().valores.realizado)}{taxa() !== null ? ` (${pct(taxa())})` : ""}</dd>
                 <dt>Parcela</dt><dd>{pct((n().value ?? 0) / props.total)}</dd>

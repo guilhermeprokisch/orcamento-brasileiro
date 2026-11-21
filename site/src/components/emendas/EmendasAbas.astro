@@ -1,0 +1,47 @@
+---
+/**
+ * O submenu das páginas das emendas: entender (a história), explorar (o explorador no desenho do de gastos) e buscar
+ * emenda por emenda (a busca nos textos, por lugar, parlamentar ou entidade).
+ */
+import { ROTA } from "../../lib/emendas-panorama";
+
+interface Props { ativa: "inicio" | "explorar" | "busca" }
+const { ativa } = Astro.props;
+const ABAS = [
+  { id: "inicio", href: ROTA.inicio, nome: "O que são", curto: "O que são", dica: "a história, com os números" },
+  { id: "explorar", href: ROTA.explorar, nome: "Explorar", curto: "Explorar", dica: "todas as listas, por quem, onde e para quê" },
+  { id: "busca", href: ROTA.busca, nome: "Buscar emenda por emenda", curto: "Buscar", dica: "por lugar, parlamentar ou assunto" },
+] as const;
+---
+
+<nav class="abas-emendas" aria-label="Emendas parlamentares">
+  <span class="rotulo">Emendas parlamentares</span>
+  <ul>
+    {ABAS.map((a) => (
+      <li><a href={a.href} aria-current={a.id === ativa ? "page" : undefined}><strong class="longo">{a.nome}</strong><strong class="curto">{a.curto}</strong><span>{a.dica}</span></a></li>
+    ))}
+  </ul>
+</nav>
+
+<style>
+  .abas-emendas { display: flex; align-items: flex-end; gap: 8px 24px; flex-wrap: wrap; border-bottom: 1px solid var(--tinta); padding-top: 20px; }
+  .rotulo { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--texto-3); padding-bottom: 12px; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; }
+  a { display: flex; flex-direction: column; gap: 1px; padding: 8px 14px 9px; text-decoration: none; color: var(--texto-3); border: 1px solid transparent; border-bottom: 0; margin-bottom: -1px; }
+  a strong { font-family: var(--serifa); font-size: 18px; font-weight: 700; color: inherit; }
+  a span { font-size: 12.5px; }
+  a:hover { color: var(--tinta); }
+  .curto { display: none; }
+  a[aria-current="page"] { color: var(--tinta); border-color: var(--tinta); background: var(--papel); }
+  @media (max-width: 900px) {
+    .abas-emendas { padding-top: 14px; }
+    .rotulo { display: none; }
+    ul { width: 100%; }
+    li { flex: 1 1 0; min-width: 0; }
+    a { padding: 8px 8px 9px; height: 100%; }
+    a strong { font-size: 15px; line-height: 1.2; }
+    a span { display: none; }
+    .longo { display: none; }
+    .curto { display: block; }
+  }
+</style>
