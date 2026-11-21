@@ -25,5 +25,5 @@ export const GET: APIRoute = async ({ params }) => {
     const f = await fichaDe(c, esfera, ano);
     if (f) entes[c.ibge] = f;
   }
-  return new Response(JSON.stringify({ ...pacoteDe(esfera, ano), entes }), { headers: { "Content-Type": "application/json; charset=utf-8" } });
+  return new Response(JSON.stringify({ ...(await pacoteDe(esfera, ano)), entes }), { headers: { "Content-Type": "application/json; charset=utf-8" } });
 };

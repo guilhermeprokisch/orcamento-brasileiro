@@ -6,7 +6,7 @@
  * para /dados/fichas/{ano}/{uf|estados}.json e são desenhados no navegador (lib/ficha-html.ts).
  */
 import { docCidades, docEstados, type Cidade, type DocCidades } from "./cidades";
-import { balancoDe, contasDe, inssDe, naturezaDe, type Balanco, type Contas, type Esfera, type Inss, type Natureza } from "./contas";
+import { balancoDe, contasDe, inssDe, naturezaDe, vermelhoNoAno, type Balanco, type Contas, type Esfera, type Inss, type Natureza, type Vermelho } from "./contas";
 
 /** O registro de gasto (DCA, Anexo I-E) de um ente num ano. */
 export interface Gasto {
@@ -38,6 +38,8 @@ export interface Pacote {
   medianas: Record<string, number>[];
   funcoes: Record<string, string>;
   subfuncoes: Record<string, string>;
+  /** Quantas prefeituras (ou estados) gastaram mais do que receberam naquele ano, para comparar. */
+  vermelho?: Vermelho | null;
 }
 
 const arquivos = import.meta.glob<Record<string, Gasto>>("../gerado/gasto/*/*.json", { import: "default" });
@@ -56,10 +58,13 @@ export const docDa = (esfera: Esfera): DocCidades | null => (esfera === "uf" ? d
 /** Anos com gasto declarado pelo ente, do mais recente ao mais antigo. */
 export const anosDe = (c: Cidade): number[] => Object.keys(c.hist ?? {}).map(Number).sort((a, b) => b - a);
 
-export function pacoteDe(esfera: Esfera, ano: number): Pacote | null {
+export async function pacoteDe(esfera: Esfera, ano: number): Promise<Pacote | null> {
   const doc = docDa(esfera);
   if (!doc) return null;
-  return { ano, faixas: doc.faixas, medianas: doc.medianas[String(ano)] ?? [], funcoes: doc.funcoes, subfuncoes: doc.subfuncoes };
+  return {
+    ano, faixas: doc.faixas, medianas: doc.medianas[String(ano)] ?? [], funcoes: doc.funcoes, subfuncoes: doc.subfuncoes,
+    vermelho: await vermelhoNoAno(esfera, ano),
+  };
 }
 
 export async function fichaDe(c: Cidade, esfera: Esfera, ano: number): Promise<Ficha | null> {

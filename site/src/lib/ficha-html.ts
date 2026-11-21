@@ -32,6 +32,18 @@ const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"
 const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ESC[c]);
 const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
 
+/** "Em 2025, 26 de cada 100 prefeituras também gastaram mais do que receberam (1.410 de 5.505)." */
+function vermelhoHtml(ctx: Contexto, municipal: boolean, sobrou: boolean): string {
+  const v = ctx.pacote.vermelho;
+  // O DF aparece entre as cidades, mas a contagem da página é a das prefeituras: não se compara.
+  if (!v || v.ano !== ctx.ano || v.total < 10 || ctx.ibge === 53) return "";
+  const quem = municipal ? "prefeituras" : "governos estaduais";
+  const conta = municipal
+    ? `${Math.round((v.vermelho / v.total) * 100)} de cada 100 ${quem}${sobrou ? "" : " também"} gastaram mais do que receberam (${nf0.format(v.vermelho)} de ${nf0.format(v.total)})`
+    : `${v.vermelho} dos ${v.total} ${quem}${sobrou ? "" : " também"} gastaram mais do que receberam`;
+  return `<p class="menor">Em ${v.ano}, ${conta}. <a href="/contas#estados-e-cidades">As contas no país →</a></p>`;
+}
+
 function comum(ctx: Contexto) {
   const ehDF = ctx.ibge === 53;
   const municipal = ctx.esfera === "mun" && !ehDF;
@@ -252,6 +264,7 @@ export function contasHtml(ctx: Contexto, quais: "tudo" | "natureza" | "receitas
         <p class="menor">${sobrou
           ? "É a conta simples do ano, não o resultado fiscal oficial: não considera dívidas antigas nem o dinheiro que já estava em caixa."
           : "Quem gasta mais do que recebe cobre a diferença com dinheiro guardado de anos anteriores ou deixando contas para o ano seguinte."}${parte > 0.3 ? " Uma diferença tão grande costuma indicar erro na declaração enviada ao Tesouro." : ""}</p>
+        ${vermelhoHtml(ctx, municipal, sobrou)}
       </div>
       <ul class="barras">
         <li><span class="lb-linha"><span>Receita</span><strong class="num" title="${moedaCompleta(contas.receita)}">${moedaCurta(contas.receita)}</strong></span>

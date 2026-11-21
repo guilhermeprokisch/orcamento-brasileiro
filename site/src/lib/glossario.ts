@@ -60,6 +60,9 @@ export const GLOSSARIO: Termo[] = [
   { id: "prazo-medio", termo: "Prazo médio da dívida", definicao: "Quanto tempo falta, em média, para a dívida vencer. Um prazo longo dá mais tempo ao governo e o deixa menos exposto a momentos de juros altos." },
   { id: "custo-medio", termo: "Custo médio da dívida", definicao: "Os juros que a dívida rendeu a quem emprestou nos últimos 12 meses, em porcentagem do valor devido: a taxa média que o governo paga." },
   { id: "juros-nominais", termo: "Juros nominais", definicao: "Todos os juros que a dívida acumulou no período, pagos ou não, inclusive a parte que só repõe a inflação. É a conta do Banco Central para o custo da dívida." },
+  { id: "resultado-nominal", termo: "Resultado nominal", definicao: "Receitas menos despesas do governo, contando os juros da dívida. Quando é negativo (déficit nominal), o governo precisa pegar emprestado a diferença, e a dívida cresce." },
+  { id: "setor-publico-consolidado", termo: "Setor público consolidado", definicao: "A conta do Banco Central que junta o governo federal, os estados, as prefeituras e as estatais (menos Petrobras, Eletrobras e os bancos públicos), sem contar duas vezes o dinheiro que passa de um para outro." },
+  { id: "governo-central", termo: "Governo central", definicao: "O governo federal (Tesouro Nacional e INSS) junto com o Banco Central. É a parte do setor público que segue a meta de resultado primário do arcabouço fiscal." },
   { id: "balanco-patrimonial", termo: "Balanço patrimonial", definicao: "O retrato das contas no último dia do ano: o que o governo tem (dinheiro, aplicações, imóveis) e o que deve (fornecedores, empréstimos, aposentadorias futuras)." },
 ];
 
