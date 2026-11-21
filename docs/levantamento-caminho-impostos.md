@@ -4,6 +4,12 @@ Novembro de 2026, para o bloco 2 do plano ("O caminho dos impostos"). A pergunta
 para onde vai?** O diagrama é do Brasil inteiro, todos os governos somados, em 2025 (o último ano fechado). Todos os
 números abaixo saíram dos arquivos baixados; o comando que monta tudo é `uv run --project pipeline caminho-impostos`.
 
+A página é `/impostos` (grupo "Impostos" no menu), em três partes: a história (o diagrama se monta rolando a
+página), o caminho inteiro para clicar (com os atalhos, o liga/desliga do que deixa de entrar e a série dos benefícios
+fiscais) e "Siga o seu imposto" (uma barra por imposto, com os filtros do dia a dia). As explicações de cada pedaço
+estão em `site/src/lib/caminho-explica.ts`; o desenho, em `site/src/lib/caminho-impostos.ts` e
+`site/src/components/impostos/`.
+
 ## O desenho
 
 Três colunas, ligadas por fluxos de largura proporcional ao dinheiro:

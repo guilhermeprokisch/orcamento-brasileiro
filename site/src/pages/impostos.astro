@@ -71,7 +71,7 @@ const descricao = doc && g
           <div class="atalhos" role="group" aria-label="Mostrar">
             {ATALHOS.map((a) => <button type="button" data-grupo={a.id} aria-pressed="false">{a.nome}</button>)}
           </div>
-          {deixa && <label class="liga-deixa"><input type="checkbox" class="mostrar-x" /> Mostrar o que deixa de entrar (<Termo id="beneficio-fiscal">benefícios fiscais</Termo>)</label>}
+          {deixa && <label class="liga-deixa"><input type="checkbox" class="mostrar-x" /><span>Mostrar o que deixa de entrar (<Termo id="beneficio-fiscal">benefícios fiscais</Termo>)</span></label>}
           <div class="explorar-grade">
             <div>
               {/* Dois desenhos: sem e com o que deixa de entrar (que muda o espaço de cada barra); a caixa troca um pelo outro. */}

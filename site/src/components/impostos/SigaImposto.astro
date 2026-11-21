@@ -47,7 +47,7 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
   </div>
   <p class="dia-texto" aria-live="polite" hidden></p>
   <p class="dica">Cada barra tem o tamanho do que se arrecadou e a cor de quem fica com o dinheiro. Clique para ver o caminho.</p>
-  <label class="liga"><input type="checkbox" class="mostrar-deixa" /> Mostrar o que deixou de entrar (<Termo id="beneficio-fiscal">benefícios fiscais</Termo>)</label>
+  <label class="liga"><input type="checkbox" class="mostrar-deixa" /><span>Mostrar o que deixou de entrar (<Termo id="beneficio-fiscal">benefícios fiscais</Termo>)</span></label>
   <div class="grade-rotas">
     <ul class="lista-rotas">
       {rs.map((r) => (
