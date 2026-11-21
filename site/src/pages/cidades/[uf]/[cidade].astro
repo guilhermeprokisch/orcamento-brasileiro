@@ -4,6 +4,7 @@ import AnoEmAndamento from "../../../components/gasto/AnoEmAndamento.astro";
 import CapagNota from "../../../components/gasto/CapagNota.astro";
 import DividaEstado from "../../../components/gasto/DividaEstado.astro";
 import PessoalResultado from "../../../components/gasto/PessoalResultado.astro";
+import PrevidenciaServidores from "../../../components/gasto/PrevidenciaServidores.astro";
 import GastoEstadualAqui from "../../../components/gasto/GastoEstadualAqui.astro";
 import GastoFederalAqui from "../../../components/gasto/GastoFederalAqui.astro";
 import EducacaoResultado from "../../../components/gasto/EducacaoResultado.astro";
@@ -59,7 +60,7 @@ const base: BaseDaPagina | null = ctx
 // A lista "Nesta página": os grupos na ordem em que aparecem; um item sem conteúdo some no navegador.
 const SUMARIO: GrupoDaPagina[] = [
   { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["contratos", "Os contratos"], ["pagamentos", "Para quem pagou"]] },
-  { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida da prefeitura"], ["pessoal", "O gasto com pessoal"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
+  { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida da prefeitura"], ["pessoal", "O gasto com pessoal"], ["previdencia", "A aposentadoria dos servidores"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
   { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["estado-aqui", "O que o governo do estado gastou aqui"], ["federal-aqui", "O que o governo federal gastou aqui"]] },
   { id: "como-esta", n: 4, titulo: "Como está a cidade", itens: [["educacao", "Educação: gasto por aluno e nota das escolas"], ["escolas", "As escolas da prefeitura"], ["saude", "Saúde: mortalidade infantil"], ["postos", "Os postos e hospitais"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
 ];
@@ -112,6 +113,7 @@ const descricao = temDados
     {ctx && <div class="ficha" id="receitas" data-parte="receitas" set:html={contasHtml(ctx, "receitas")} />}
     {!ehDF && <div id="divida" data-so-padrao="a dívida da prefeitura"><DividaEstado ibge={c.ibge} esfera="mun" quem={quem} ano={c.ano} grupo={faixa ? "das cidades parecidas" : "das prefeituras"} /></div>}
     {!ehDF && <div id="pessoal" data-so-padrao="o gasto com pessoal"><PessoalResultado ibge={c.ibge} esfera="mun" quem={quem} ano={c.ano} grupo={faixa ? "das cidades parecidas" : null} /></div>}
+    {!ehDF && <div id="previdencia" data-so-padrao="a aposentadoria dos servidores"><PrevidenciaServidores ibge={c.ibge} esfera="mun" quem={quem} grupo={faixa ? "das cidades parecidas" : null} /></div>}
     {!ehDF && <div id="capag"><CapagNota ente={c} esfera="mun" quem={quem} grupo={faixa ? "das cidades parecidas" : null} /></div>}
     {temDados && <div id="ano-atual"><AnoEmAndamento ente={c} esfera="mun" quem={quem} /></div>}
 
