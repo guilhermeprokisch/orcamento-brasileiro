@@ -36,7 +36,11 @@ const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" 
 // A parte do compromisso que já se decidiu pagar com o caixa de cada ano, sem juntar fundo.
 const financeiro = f && f.financeiro && f.provisoes && f.financeiro >= f.provisoes * 0.2 ? f.financeiro : null;
 const antigo = f && f.anoDraa && f.anoIsp && f.anoDraa < f.anoIsp;
-const escala = f && f.falta !== null ? Math.max(f.provisoes!, f.aplicado!) : 0;
+// Com o rombo calculado, provisões e dinheiro aplicado existem; aqui viram números (0 quando faltam).
+const provisoes = f?.provisoes ?? 0, aplicado = f?.aplicado ?? 0;
+const escala = f && f.falta !== null ? Math.max(provisoes, aplicado) : 0;
+const larguraPrecisa = escala ? `width:${(provisoes / escala) * 100}%` : "";
+const larguraTem = escala ? `width:${Math.max(0.5, (aplicado / escala) * 100)}%` : "";
 const classe = (n: string | null) => (n ? `n${n.toLowerCase()}` : "nsem");
 const SIGNIFICADO: Record<string, string> = { A: "a melhor das quatro", B: "a segunda melhor", C: "a segunda pior", D: "a pior das quatro" };---
 
@@ -74,21 +78,21 @@ const SIGNIFICADO: Record<string, string> = { A: "a melhor das quatro", B: "a se
           ) : f.falta > 0 ? (
             <p>
               Pelas contas do próprio fundo{f.anoDraa && <>, de {f.anoDraa}</>}, faltam <strong>{moedaExtenso(f.falta)}</strong> para
-              pagar o que já foi prometido: o fundo calcula que precisaria ter hoje {moedaCurta(f.provisoes!)} e tinha {moedaCurta(f.aplicado!)} aplicados.
+              pagar o que já foi prometido: o fundo calcula que precisaria ter hoje {moedaCurta(provisoes)} e tinha {moedaCurta(aplicado)} aplicados.
               {f.anos !== null && <> É o equivalente a <strong>{anos(f.anos)} de toda a receita corrente líquida</strong> {daEnte}.</>}
               {f.anos !== null && f.mediana !== null && grupo && <> A mediana {grupo} com fundo próprio é {anos(f.mediana)}.</>}
               {antigo && <> O fundo não entregou a avaliação de {f.anoIsp}; esta é a do ano anterior.</>}
             </p>
           ) : (
             <p>
-              Pelas contas do próprio fundo{f.anoDraa && <>, de {f.anoDraa}</>}, o dinheiro aplicado ({moedaCurta(f.aplicado!)}) <strong>cobre o que
-              já foi prometido</strong> ({moedaCurta(f.provisoes!)}).
+              Pelas contas do próprio fundo{f.anoDraa && <>, de {f.anoDraa}</>}, o dinheiro aplicado ({moedaCurta(aplicado)}) <strong>cobre o que
+              já foi prometido</strong> ({moedaCurta(provisoes)}).
               {antigo && <> O fundo não entregou a avaliação de {f.anoIsp}; esta é a do ano anterior.</>}
             </p>
           )}
           {financeiro && f.falta !== null && f.falta > 0 && (
             <p>
-              Do compromisso, {financeiro >= f.provisoes! * 0.95 ? "quase tudo é" : `${moedaCurta(financeiro)} são`} de um grupo, em geral o dos
+              Do compromisso, {financeiro >= provisoes * 0.95 ? "quase tudo é" : `${moedaCurta(financeiro)} são`} de um grupo, em geral o dos
               servidores mais antigos, que {ente} decidiu pagar com o dinheiro de cada ano, sem juntar fundo
               (o <Termo id="plano-financeiro">plano financeiro</Termo>): para esse grupo, o rombo é esperado e vai sendo coberto pelo caixa.
             </p>
@@ -125,13 +129,13 @@ const SIGNIFICADO: Record<string, string> = { A: "a melhor das quatro", B: "a se
           <ul class="barras" aria-label="O que o fundo precisaria ter e o que tem">
             <li>
               <span class="rotulo">Precisaria ter</span>
-              <span class="trilho"><span class="barra precisa" style={`width:${(f.provisoes! / escala) * 100}%`}></span></span>
-              <strong class="num">{moedaCurta(f.provisoes!)}</strong>
+              <span class="trilho"><span class="barra precisa" style={larguraPrecisa}></span></span>
+              <strong class="num">{moedaCurta(provisoes)}</strong>
             </li>
             <li>
               <span class="rotulo">Tem aplicado</span>
-              <span class="trilho"><span class="barra tem" style={`width:${Math.max(0.5, (f.aplicado! / escala) * 100)}%`}></span></span>
-              <strong class="num">{moedaCurta(f.aplicado!)}</strong>
+              <span class="trilho"><span class="barra tem" style={larguraTem}></span></span>
+              <strong class="num">{moedaCurta(aplicado)}</strong>
             </li>
           </ul>
         )}
