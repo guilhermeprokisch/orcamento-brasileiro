@@ -19,12 +19,19 @@ export interface OpcoesTela {
   aoEscolher: (n: No) => void;
   /** HTML dos detalhes de uma caixa (qualquer nível). */
   cartao: (n: No) => string;
+  /** Sem o fio de degraus no alto (quem usa a tela já mostra o caminho, como o Explorer). */
+  semFio?: boolean;
+  /** O botão "Ver em blocos" dos detalhes (data-acao="ver-mapa"). */
+  verMapa?: (n: No) => void;
 }
 
 export interface Tela {
   fonte: Fonte;
   raiz: HTMLElement;
   redesenhar(): void;
+  /** Escolhe uma caixa vinda de fora (os degraus do Explorer): abre o caminho e leva a tela até ela. */
+  selecionar(n: No): void;
+  escolhido(): No | null;
 }
 
 type Modo = "nivel" | "real";
@@ -104,6 +111,9 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   const mctx = mapa.getContext("2d")!;
   const listaEl = caixa.querySelector<HTMLElement>(".cc4-lista")!;
   const avisoEl = caixa.querySelector<HTMLElement>(".cc4-aviso")!;
+  const dicaEl = caixa.querySelector<HTMLElement>(".cc4-dica")!;
+  const zoomEl = caixa.querySelector<HTMLElement>(".cc4-zoom")!;
+  if (op.semFio) caixa.querySelector<HTMLElement>(".cc4-topo")!.hidden = true;
 
   // listras do "mais N": não podem parecer uma categoria (a financeira é cinza)
   const tile = document.createElement("canvas");
@@ -154,11 +164,13 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     const resto = fs.slice(k);
     let o = outrosDe.get(n);
     if (!o) {
-      o = { cod: "#outros", nome: "", valor: 0, nivel: fs[0].nivel, prof: n.prof + 1, pai: n, mix: [], ehOutros: true };
+      o = { cod: "#outros", nome: "", valor: 0, autorizado: 0, pago: 0, nivel: fs[0].nivel, prof: n.prof + 1, pai: n, mix: [], ehOutros: true };
       outrosDe.set(n, o);
     }
     o.lista = resto;
     o.valor = resto.reduce((s, f) => s + f.valor, 0);
+    o.autorizado = resto.reduce((s, f) => s + f.autorizado, 0);
+    o.pago = resto.reduce((s, f) => s + f.pago, 0);
     o.mix = new Array(n.mix.length).fill(0);
     for (const f of resto) f.mix.forEach((v, i) => (o!.mix[i] += v));
     o.nome = `mais ${resto.reduce((s, f) => s + (f.info?.resto ?? 1), 0)} ${F.plural[o.nivel] ?? "itens"}`;
@@ -1059,6 +1071,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       setTimeout(() => enquadrar(caixaDe([...pos.keys()]), 1.1), 40);
     } else if (a === "detalhes") { minimizado = false; cartao.classList.remove("min"); if (sel) setTimeout(() => desviarDoCartao(sel!), 30); }
     else if (a === "min-cartao") { minimizado = true; cartao.classList.add("min"); }
+    else if (a === "ver-mapa" && sel) op.verMapa?.(sel);
   });
 
   // ——— tamanho ———
@@ -1070,7 +1083,14 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     W = novoW; H = novoH;
     cv.width = W * dpr; cv.height = H * dpr;
     cv.style.width = `${W}px`; cv.style.height = `${H}px`;
+    ajustarDica();
     pedir();
+  }
+  /** A dica do rodapé só aparece se couber entre o minimapa e os botões. */
+  function ajustarDica() {
+    dicaEl.hidden = false;
+    const d = dicaEl.getBoundingClientRect(), z = zoomEl.getBoundingClientRect();
+    dicaEl.hidden = W < 720 || d.right > z.left - 12;
   }
   new ResizeObserver(medirTela).observe(caixa);
 
@@ -1086,7 +1106,12 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   const inicio = W < 720 ? (galho(foco) ? visiveis(foco) : [foco]) : [...caminhoAte(foco), ...(galho(foco) ? visiveis(foco) : [])];
   enquadrar(caixaDe(inicio), 1, false);
   if (sel) requestAnimationFrame(() => desviarDoCartao(sel!));
-  document.fonts?.ready.then(pedir);
+  document.fonts?.ready.then(() => { ajustarDica(); pedir(); });
 
-  return { fonte: F, raiz: caixa, redesenhar: () => { atualizarFio(); if (sel) mostrarCartao(sel); pedir(); } };
+  return {
+    fonte: F, raiz: caixa,
+    redesenhar: () => { atualizarFio(); if (sel) mostrarCartao(sel); pedir(); },
+    selecionar: (n: No) => irAte(n),
+    escolhido: () => sel,
+  };
 }

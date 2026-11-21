@@ -1,62 +1,54 @@
 /**
- * A cascata do gasto: a árvore do orçamento federal (órgão › unidade › programa › ação › tipo de gasto), com os filhos
- * de cada nível calculados na hora em que são abertos. Cada nó guarda a mistura por categoria (obrigatória, escolha do
- * governo, emendas, financeira), que serve de cor. A versão com uma cidade até o fornecedor (João Pessoa, empenhos do
- * TCE-PB) ficou guardada em pipeline/prototipo/cascata_joao_pessoa.py e pipeline/referencia/cascata-joao-pessoa-*.json.
+ * A cascata do gasto (a vista "Cascata" do Explorer): a árvore do orçamento federal (órgão › unidade › programa › ação ›
+ * tipo de gasto), montada do mesmo arquivo do ano que o Explorer carrega, com os filhos de cada nível calculados na
+ * hora em que são abertos. Cada nó guarda a mistura por categoria (obrigatória, escolha do governo, emendas,
+ * financeira), que serve de cor.
+ *
+ * A versão com uma cidade até o fornecedor (João Pessoa, empenhos do TCE-PB) ficou guardada em
+ * pipeline/prototipo/cascata_joao_pessoa.py e pipeline/referencia/cascata-joao-pessoa-*.json.
  */
-import { SUBFUNCOES_REFINANCIAMENTO, TIPOS_DESPESA, type DocAno } from "../../lib/dados";
-import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { SUBFUNCOES_REFINANCIAMENTO, TIPOS_DESPESA, type Dim, type DocAno, type Metrica } from "../../lib/dados";
+import { moedaCurta } from "../../lib/formato";
 
 export interface Categoria { nome: string; cor: string; escuro?: boolean }
-
-export interface Info {
-  cnpj?: string;
-  licitacao?: string;
-  empenhos?: number;
-  pessoas?: number;
-  resto?: number;
-  via?: string;
-  tipoCredor?: number;
-}
 
 export interface No {
   cod: string;
   nome: string;
+  /** O valor da métrica escolhida no Explorer (dotação, empenhado ou pago), já corrigido pela inflação se pedido. */
   valor: number;
-  /** O tipo do nível: "Órgão", "Área", "Credor"… */
+  /** O tipo do nível: "Órgão", "Unidade"… */
   nivel: string;
   prof: number;
   pai: No | null;
   /** Valor por categoria (mesma ordem de Fonte.cats). */
   mix: number[];
-  /** Dotação atualizada (o autorizado), só na União. */
-  autorizado?: number;
-  /** "outros N programas": junta os menores; `lista` traz quem são. */
+  /** Dotação atualizada (o autorizado) e o pago, para os detalhes. */
+  autorizado: number;
+  pago: number;
+  /** "mais N programas": junta os menores; `lista` traz quem são. */
   ehOutros?: boolean;
   lista?: No[];
-  info?: Info;
+  /** Um item que já junta vários (não acontece na União; fica para quando entrarem cidades). */
+  info?: { resto?: number };
   _filhos?: No[];
   carregar?: () => No[];
 }
 
 export interface Fonte {
-  chave: "uniao";
   ano: number;
-  /** Para os valores por pessoa: população do Brasil (União) ou da cidade, no ano. */
+  metrica: Metrica;
+  /** "pagos", "autorizados"…: o que o valor é, nos detalhes. */
+  rotuloValor: string;
+  /** Para os valores por pessoa: a população do Brasil no ano. */
   populacao: number;
   raiz: No;
   cats: Categoria[];
-  /** Nome da cor por categoria: "Obrigatório ou não", "Quem recebe". */
-  rotuloCor: string;
-  /** Uma frase por categoria, para quem não sabe o que é "obrigatória" ou "previdência". */
+  /** Uma frase por categoria, para quem não sabe o que é "obrigatória". */
   explicaCat: string[];
-  /** Endereço deste nó no Explorer (União). */
-  linkExplorer?: (n: No) => string;
   plural: Record<string, string>;
   /** Uma linha que explica cada nível, para quem não conhece os nomes. */
   explica: Record<string, string>;
-  frase: string;
-  fonte: string;
 }
 
 export function filhos(n: No): No[] {
@@ -72,44 +64,52 @@ export function caminhoAte(n: No): No[] {
   return c;
 }
 
-// ——— União: o arquivo do Explorer (site/public/data/explorer/2025.json), sem o refinanciamento da dívida ———
-
-const NIVEIS_UNIAO: [string, string][] = [
+/** Os níveis da cascata, na ordem; o caminho do Explorer só vira caminho aqui se seguir esta ordem. */
+export const NIVEIS: [Dim, string][] = [
   ["orgao", "Órgão"], ["uo", "Unidade"], ["programa", "Programa"], ["acao", "Ação"], ["gnd", "Tipo de gasto"],
 ];
 
-export async function fonteUniao(ano = 2025, populacao = 1): Promise<Fonte> {
-  const r = await fetch(`/data/explorer/${ano}.json`);
-  if (!r.ok) throw new Error(`Não consegui carregar ${ano} (HTTP ${r.status})`);
-  const doc: DocAno = await r.json();
+const ROTULO_VALOR: Record<Metrica, string> = {
+  inicial: "previstos no orçamento (dotação inicial)",
+  atualizado: "autorizados (dotação atualizada)",
+  empenhado: "empenhados",
+  realizado: "pagos",
+};
+
+export interface OpcoesFonte {
+  ano: number;
+  metrica: Metrica;
+  semRefin: boolean;
+  /** Fator do IPCA para reais do ano-base (1: valores nominais). */
+  fator: number;
+  populacao: number;
+}
+
+export function fonteDoDoc(doc: DocAno, op: OpcoesFonte): Fonte {
   const col = (c: string) => doc.colunas.indexOf(c);
-  const iV = col("realizado"), iA = col("atualizado"), iSub = col("subfuncao"), iTipo = col("tipo");
+  const iV = col(op.metrica), iA = col("atualizado"), iP = col("realizado"), iSub = col("subfuncao"), iTipo = col("tipo");
   const cats: Categoria[] = iTipo >= 0
     ? TIPOS_DESPESA.map((t) => ({ nome: t.nome, cor: t.cor, escuro: t.cod === "obr" }))
     : [{ nome: "Gasto", cor: "#1f7a47", escuro: true }];
   const catDe = new Map<string, number>(TIPOS_DESPESA.map((t, i) => [t.cod, i]));
+  const f = op.fator;
 
-  let refin = 0;
-  const linhas: (string | number)[][] = [];
-  for (const l of doc.linhas) {
-    const v = l[iV] as number;
-    if (SUBFUNCOES_REFINANCIAMENTO.has(l[iSub] as string)) { refin += v; continue; }
-    if (v) linhas.push(l);
-  }
+  const linhas = doc.linhas.filter((l) => (l[iV] as number) && !(op.semRefin && SUBFUNCOES_REFINANCIAMENTO.has(l[iSub] as string)));
 
   const criar = (ls: (string | number)[][], cod: string, nome: string, prof: number, pai: No | null): No => {
     const mix = new Array(cats.length).fill(0);
-    let valor = 0, autorizado = 0;
+    let valor = 0, autorizado = 0, pago = 0;
     for (const l of ls) {
-      const v = l[iV] as number;
+      const v = (l[iV] as number) * f;
       valor += v;
-      autorizado += l[iA] as number;
+      autorizado += (l[iA] as number) * f;
+      pago += (l[iP] as number) * f;
       mix[iTipo >= 0 ? catDe.get(l[iTipo] as string) ?? 4 : 0] += v;
     }
-    const n: No = { cod, nome, valor, autorizado, nivel: prof === 0 ? "Orçamento" : NIVEIS_UNIAO[prof - 1][1], prof, pai, mix };
-    if (prof < NIVEIS_UNIAO.length) {
+    const n: No = { cod, nome, valor, autorizado, pago, nivel: prof === 0 ? "Orçamento" : NIVEIS[prof - 1][1], prof, pai, mix };
+    if (prof < NIVEIS.length) {
       n.carregar = () => {
-        const [dim] = NIVEIS_UNIAO[prof];
+        const [dim] = NIVEIS[prof];
         const i = col(dim);
         const grupos = new Map<string, (string | number)[][]>();
         for (const l of ls) {
@@ -120,15 +120,15 @@ export async function fonteUniao(ano = 2025, populacao = 1): Promise<Fonte> {
         }
         return [...grupos]
           .map(([c, g]) => criar(g, c, (doc.dims as Record<string, Record<string, string>>)[dim]?.[c] ?? c, prof + 1, n))
-          .filter((f) => f.valor > 0)
+          .filter((x) => x.valor > 0)
           .sort((a, b) => b.valor - a.valor);
       };
     }
     return n;
   };
-  const raiz = criar(linhas, "uniao", `Orçamento federal ${ano}`, 0, null);
   return {
-    chave: "uniao", ano, populacao, raiz, cats, rotuloCor: "Obrigatório ou não",
+    ano: op.ano, metrica: op.metrica, rotuloValor: ROTULO_VALOR[op.metrica], populacao: op.populacao,
+    raiz: criar(linhas, "uniao", `Orçamento federal ${op.ano}`, 0, null), cats,
     explicaCat: [
       "o governo é obrigado por lei ou pela Constituição a pagar: aposentadorias, salários, repasses a estados e cidades",
       "o governo decide se gasta e quanto: obras, compras, programas",
@@ -136,10 +136,6 @@ export async function fonteUniao(ano = 2025, populacao = 1): Promise<Fonte> {
       "juros e pagamento da dívida pública",
       "o orçamento não marca de que tipo é",
     ],
-    linkExplorer: (n) => {
-      const f = caminhoAte(n).slice(1).map((x, i) => `${NIVEIS_UNIAO[i][0]}:${x.cod}`).join(",");
-      return `/explorer?ano=${ano}&metrica=realizado&refin=0${f ? `&f=${f}` : ""}`;
-    },
     plural: { Orçamento: "orçamento", Órgão: "órgãos", Unidade: "unidades", Programa: "programas", Ação: "ações", "Tipo de gasto": "tipos de gasto" },
     explica: {
       Órgão: "o ministério ou o poder (Câmara, tribunais…)",
@@ -148,37 +144,7 @@ export async function fonteUniao(ano = 2025, populacao = 1): Promise<Fonte> {
       Ação: "o que é feito com o dinheiro",
       "Tipo de gasto": "salários, custeio, obras, juros…",
     },
-    frase: `Em ${ano}, o governo federal pagou ${moedaExtenso(raiz.valor)}, sem contar ${moedaExtenso(refin)} de rolagem da dívida (troca de dívida velha por nova, que fica de fora).`,
-    fonte: "Orçamento federal (Tesouro e SIOP), valores pagos.",
   };
-}
-
-// ——— "Não mostrar tudo": os maiores de cada nível e o resto junto ———
-
-export interface Visiveis { itens: No[]; outros: No | null }
-
-export function visiveis(n: No, k: number, plural: Record<string, string>, escolhido?: No | null): Visiveis {
-  const fs = filhos(n);
-  if (fs.length <= k + 1 && !fs.some((f) => f.info?.resto)) return { itens: fs.slice(), outros: null };
-  // "N credores menores" (o resto que o arquivo do protótipo já juntou) vai sempre para "outros".
-  let top = fs.filter((f) => !f.info?.resto).slice(0, k);
-  // Os pedacinhos (menos de 0,6% do nível) também vão para "outros", mas ficam pelo menos três.
-  while (top.length > 3 && top[top.length - 1].valor < n.valor * 0.006) top.pop();
-  if (escolhido && !top.includes(escolhido)) {
-    top = top.slice(0, Math.max(1, top.length - 1));
-    top.push(escolhido);
-    top.sort((a, b) => b.valor - a.valor);
-  }
-  const resto = fs.filter((f) => !top.includes(f));
-  if (resto.length <= 1) return { itens: fs.filter((f) => top.includes(f) || resto.includes(f)), outros: null };
-  const mix = new Array(n.mix.length).fill(0);
-  for (const f of resto) f.mix.forEach((v, i) => (mix[i] += v));
-  const nivel = resto[0].nivel;
-  const outros: No = {
-    cod: "#outros", nome: `outros ${resto.reduce((s, f) => s + (f.info?.resto ?? 1), 0)} ${plural[nivel] ?? "itens"}`, valor: resto.reduce((s, f) => s + f.valor, 0),
-    nivel, prof: n.prof + 1, pai: n, mix, ehOutros: true, lista: resto,
-  };
-  return { itens: top, outros };
 }
 
 /** Categoria com mais dinheiro no nó. */
@@ -202,3 +168,13 @@ export function dinheiro(v: number, longo = false): string {
   return `${t}${longo ? " por pessoa" : "/pessoa"}`;
 }
 
+/** População do Brasil (soma das UFs) no ano, pelo arquivo de população do site; sem o ano, o mais próximo. */
+let populacaoPromessa: Promise<Record<string, Record<string, number>>> | null = null;
+export async function populacaoDoBrasil(ano: number): Promise<number> {
+  populacaoPromessa ??= fetch("/data/indicadores/populacao.json").then((r) => (r.ok ? r.json() : { anos: {} })).then((d) => d.anos ?? {});
+  const anos = await populacaoPromessa;
+  const lista = Object.keys(anos).map(Number).sort((a, b) => a - b);
+  if (!lista.length) return 1;
+  const a = lista.includes(ano) ? ano : lista.reduce((m, x) => (Math.abs(x - ano) < Math.abs(m - ano) ? x : m), lista[0]);
+  return Object.entries(anos[String(a)]).filter(([k]) => k.length === 2).reduce((s, [, v]) => s + v, 0);
+}

@@ -1,35 +1,8 @@
-/* A cascata do gasto (/cascata): a página e a tela livre em Canvas (components/cascata/tela.ts). */
-.cc { padding-top: 28px; padding-bottom: 48px; }
-.cc-cabecalho h1 { font-size: clamp(32px, 4.4vw, 48px); line-height: 1.08; margin: 6px 0 10px; }
-.cc-lede { font-family: var(--serifa); font-size: 19px; line-height: 1.45; max-width: 68ch; margin: 0 0 18px; color: var(--texto-2); }
-.cc-lede a { white-space: nowrap; }
-
-.cc-controles { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
-.cc-opcoes { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: center; font-size: 14px; }
-.cc-cores { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.cc-cores button {
-  font: inherit; font-size: 14px; padding: 5px 11px; border: 1px solid var(--regra); background: transparent; color: var(--tinta);
-  text-decoration: none; cursor: pointer;
-}
-.cc-tempo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.cc-tempo button, .cc-ano select {
-  font: inherit; font-size: 14px; padding: 5px 11px; border: 1px solid var(--regra); background: transparent; color: var(--tinta); cursor: pointer;
-}
-.cc-ano select { padding: 5px 8px; background: #fff; }
-.cc-tempo button[aria-pressed="true"] { background: var(--tinta); color: #fff; border-color: var(--tinta); }
-.cc-pessoa { display: block; font-size: 16px; margin-top: 4px; font-family: var(--sans); color: var(--texto-2); }
-.cc-cores button[aria-pressed="true"] { background: var(--tinta); color: #fff; border-color: var(--tinta); }
-.cc-cores[hidden] { display: none; }
-
-.cc-frase { font-family: var(--serifa); font-size: 19px; line-height: 1.4; margin: 6px 0 8px; max-width: 70ch; }
-.cc-topo-linha { min-height: 4px; }
-.cc-legenda { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; margin: 0 0 12px; padding: 0; font-size: 13px; color: var(--texto-2); }
+/* A cascata do gasto: a vista "Cascata" do Explorer (components/explorer/CascataVista.tsx), em Canvas (cascata/tela.ts). */
+.cc-legenda { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--texto-2); }
 .cc-legenda i { display: inline-block; width: 11px; height: 11px; margin-right: 6px; vertical-align: -1px; }
-.cc-dica { font-size: 13.5px; margin: 8px 0 12px; }
-
-.cc-desenho { position: relative; min-height: 200px; }
-.cc-carregando, .cc-erro { padding: 40px 0; color: var(--texto-3); }
-.cc-nota { font-size: 13px; color: var(--texto-3); margin: 12px 0 0; max-width: 80ch; }
+.cc-carregando { padding: 40px 0; color: var(--texto-3); }
+.cc-ver-mapa { font: inherit; font-weight: 600; color: var(--verde); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
 .cc-cartao { max-width: 640px; }
 .cc-cartao h3 { font-size: 24px; margin: 4px 0 6px; }
@@ -40,8 +13,6 @@
 .cc-cartao dd { margin: 0; }
 .cc-fio { font-size: 13px; }
 
-/* a tela livre (Canvas), de ponta a ponta da página */
-.cc-desenho { margin: 0 calc(-1 * var(--margem)); }
 .cc4 {
   position: relative; height: min(80vh, 920px); min-height: 520px; overflow: hidden; outline: none;
   background: var(--papel); border-top: 1px solid var(--regra); border-bottom: 1px solid var(--regra);
@@ -146,8 +117,7 @@ html.cc4-sem-rolar, html.cc4-sem-rolar body { overflow: hidden; }
 .cc4-r-valor { grid-row: 1; grid-column: 2; font-size: 13px; color: var(--verde); white-space: nowrap; }
 .cc4-r-onde { grid-column: 1 / -1; font-size: 12px; color: var(--texto-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cc4-r-nada { padding: 10px 14px; font-size: 14px; color: var(--texto-3); }
-.cc4-cheia .cc4-dica { display: none; }
-@media (max-width: 1520px) { .cc4-dica { display: none; } }
+.cc4-dica[hidden] { display: none; }
 
 @media (max-width: 720px) {
   .cc4-mapa { display: none; }

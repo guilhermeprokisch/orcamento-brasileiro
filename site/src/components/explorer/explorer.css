@@ -51,8 +51,12 @@
 .exp-abas-espaco { flex-grow: 1; }
 .exp-vistas { display: flex; align-items: center; gap: 10px; color: var(--regra); }
 .exp-vistas button:disabled { opacity: 0.5; cursor: default; }
-.exp-vistas a.exp-cascata { font-size: 14px; font-weight: 600; color: var(--verde); text-decoration: none; white-space: nowrap; }
-.exp-vistas a.exp-cascata:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* a vista Cascata (CascataVista.tsx) */
+.exp-cascata-niveis { font-size: 13px; }
+.exp-cascata-vista { margin-top: 4px; }
+.exp-cascata-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; margin: 0 0 10px; }
+.exp-cascata-opcoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.exp-cascata-tela { min-height: 520px; }
 
 /* aviso quando o ano não tem o tipo de despesa (o filtro de tipo fica de fora) */
 .exp-aviso { margin: 0 0 14px; padding: 10px 14px; font-size: 15px; line-height: 1.5; background: var(--marca-texto-fundo); }
