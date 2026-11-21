@@ -159,22 +159,26 @@ def tipo_do_credor(l: Linha) -> int:
     return t
 
 
-def resumir(linhas) -> tuple[dict, dict]:
-    """Os empenhos de um município -> o resumo no formato da Paraíba, e o que ficou de fora."""
-    m = {"pago": 0.0, "empenhado": 0.0, "n": 0, "tipos": [0.0] * len(pb.TIPOS), "intra": 0.0, "pessoas": set(),
-         "empresas": defaultdict(lambda: [Counter(), Counter(), 0.0, 0])}
-    fora = {"linhas": 0, "consorcios": 0.0}
-    for l in linhas:
+class Resumo:
+    """O resumo de um município, somado empenho a empenho (o Rio Grande do Sul soma um órgão de cada vez)."""
+
+    def __init__(self) -> None:
+        self.m = {"pago": 0.0, "empenhado": 0.0, "n": 0, "tipos": [0.0] * len(pb.TIPOS), "intra": 0.0, "pessoas": set(),
+                  "empresas": defaultdict(lambda: [Counter(), Counter(), 0.0, 0])}
+        self.fora = {"linhas": 0, "consorcios": 0.0}
+
+    def somar(self, l: Linha) -> None:
+        m, fora = self.m, self.fora
         fora["linhas"] += 1
         if pb.CONSORCIO_UG.match(l.unidade):
             fora["consorcios"] += l.pago
-            continue
+            return
         if l.modalidade == "91":
             m["intra"] += l.pago
-            continue
+            return
         m["empenhado"] += l.empenhado
         if not l.pago:
-            continue
+            return
         t = tipo_do_credor(l)
         m["pago"] += l.pago
         m["n"] += 1
@@ -187,14 +191,24 @@ def resumir(linhas) -> tuple[dict, dict]:
             e[1][l.doc] += l.pago
             e[2] += l.pago
             e[3] += 1
-    empresas = sorted(m["empresas"].values(), key=lambda e: -e[2])
-    resumo = {
-        "pago": round(m["pago"]), "empenhado": round(m["empenhado"]), "n": m["n"],
-        "tipos": [round(v) for v in m["tipos"]], "intra": round(m["intra"]),
-        "pessoas": len(m["pessoas"]), "empresas": len(m["empresas"]),
-        "credores": [[nome_mais_comum(e[0]), e[1].most_common(1)[0][0], round(e[2]), e[3]] for e in empresas[:pb.MAIORES]],
-    }
-    return resumo, fora
+
+    def fechar(self) -> dict:
+        m = self.m
+        empresas = sorted(m["empresas"].values(), key=lambda e: -e[2])
+        return {
+            "pago": round(m["pago"]), "empenhado": round(m["empenhado"]), "n": m["n"],
+            "tipos": [round(v) for v in m["tipos"]], "intra": round(m["intra"]),
+            "pessoas": len(m["pessoas"]), "empresas": len(m["empresas"]),
+            "credores": [[nome_mais_comum(e[0]), e[1].most_common(1)[0][0], round(e[2]), e[3]] for e in empresas[:pb.MAIORES]],
+        }
+
+
+def resumir(linhas) -> tuple[dict, dict]:
+    """Os empenhos de um município -> o resumo no formato da Paraíba, e o que ficou de fora."""
+    r = Resumo()
+    for l in linhas:
+        r.somar(l)
+    return r.fechar(), r.fora
 
 
 def nome_mais_comum(nomes: Counter) -> str:

@@ -8,6 +8,8 @@
     uv run pagamentos --uf SP        # São Paulo: TCE-SP e, na capital, TCM-SP (pagamentos_sp.py)
     uv run pagamentos --uf CE        # Ceará (API do TCE-CE) e Espírito Santo (arquivos do TCE-ES): pagamentos_ce.py, pagamentos_es.py
     uv run pagamentos --uf MG        # Minas Gerais: o pacote de empenhos do TCE-MG, baixado à mão (pagamentos_mg.py)
+    uv run pagamentos --uf PR        # Paraná: o pacote do PIT do TCE-PR (pagamentos_pr.py)
+    uv run pagamentos --uf RS        # Rio Grande do Sul: o arquivo de empenhos do TCE-RS, que só responde do Brasil (pagamentos_rs.py)
     uv run pagamentos --sem-baixar   # só copia pipeline/referencia/pagamentos*.json para o site (CI)
 
 Fonte: os dados abertos do TCE-PB, um ZIP por ano com todas as 223 prefeituras
@@ -269,9 +271,9 @@ def main() -> None:
     p.add_argument("--ano", type=int, default=2025)
     p.add_argument("--refazer", action="store_true", help="baixar o ZIP de novo, mesmo se já existir (PE: ler de novo as cidades já lidas)")
     p.add_argument("--sem-baixar", action="store_true", help="só copiar a referência versionada para o site (publicação automática)")
-    p.add_argument("--uf", default="PB", choices=["PB", "AC", "SC", "PE", "AM", "TO", "SP", "CE", "ES", "MG"],
-                   help="AC e SC vêm dos painéis dos tribunais, PE da API do TCE-PE (os três só respondem do Brasil); AM, TO, SP, CE, ES e MG, ver pagamentos_am.py, pagamentos_to.py, pagamentos_sp.py, pagamentos_ce.py, pagamentos_es.py e pagamentos_mg.py")
-    p.add_argument("--municipio", action="append", help="AC, SC, PE, AM, TO, CE, ES e MG: só esta cidade (pode repetir); junta-se às que já estão no arquivo")
+    p.add_argument("--uf", default="PB", choices=["PB", "AC", "SC", "PE", "AM", "TO", "SP", "CE", "ES", "MG", "PR", "RS"],
+                   help="AC e SC vêm dos painéis dos tribunais, PE da API do TCE-PE (os três só respondem do Brasil); AM, TO, SP, CE, ES, MG, PR e RS, ver pagamentos_am.py, pagamentos_to.py, pagamentos_sp.py, pagamentos_ce.py, pagamentos_es.py, pagamentos_mg.py, pagamentos_pr.py e pagamentos_rs.py")
+    p.add_argument("--municipio", action="append", help="AC, SC, PE, AM, TO, CE, ES, MG, PR e RS: só esta cidade (pode repetir); junta-se às que já estão no arquivo")
     p.add_argument("--pausa", type=float, default=1.0, help="AC, SC, PE, AM, TO, CE e ES: segundos entre uma consulta e outra")
     args = p.parse_args()
     if args.sem_baixar:
@@ -289,7 +291,7 @@ def main() -> None:
         from . import pagamentos_sp
         pagamentos_sp.rodar(args.ano, args.refazer)
         return
-    if args.uf in ("CE", "ES", "MG"):   # pagamentos_ce.py, pagamentos_es.py e pagamentos_mg.py
+    if args.uf in ("CE", "ES", "MG", "PR", "RS"):   # pagamentos_ce.py, pagamentos_es.py, pagamentos_mg.py, pagamentos_pr.py e pagamentos_rs.py
         import importlib
         importlib.import_module(f".pagamentos_{args.uf.lower()}", __package__).rodar(args.ano, args.municipio, args.pausa, args.refazer)
         return
