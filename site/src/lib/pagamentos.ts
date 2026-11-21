@@ -11,7 +11,11 @@ interface DocPagamentos {
   uf: string;
   /** Rótulo de cada posição de "tipos": fornecedores, pessoas físicas, folha, previdência, dívida e bancos, outros órgãos. */
   tipos: string[];
+  /** Que unidades do município entram no total ("a prefeitura, a Câmara e…"), quando o estado diz; senão, o texto padrão. */
+  entra?: string;
   mun: Record<string, {
+    /** Quando a cidade tem fonte ou unidades diferentes das do estado (a capital de SP, pelo TCM-SP). */
+    fonte?: string; entra?: string;
     pago: number; empenhado: number; n: number; tipos: number[]; intra: number;
     pessoas: number; empresas: number;
     /** [nome, CNPJ, pago, empenhos] dos maiores fornecedores */
@@ -27,6 +31,8 @@ export interface Credor { nome: string; cnpj: string; pago: number; empenhos: nu
 export interface Pagamentos {
   fonte: string;
   ano: number;
+  /** Que unidades do município entram no total, quando o arquivo diz (SP); null usa o texto padrão. */
+  entra: string | null;
   /** Tudo o que foi pago no ano, sem as operações entre unidades do próprio município. */
   pago: number;
   /** Operações entre unidades do município (a prefeitura pagando o próprio instituto de previdência). */
@@ -49,7 +55,7 @@ export function pagamentosDe(c: Cidade): Pagamentos | null {
   const credores = v.credores.map(([nome, cnpj, pago, empenhos]) => ({ nome, cnpj, pago, empenhos }));
   const cinco = fornecedores ? credores.slice(0, 5).reduce((s, x) => s + x.pago, 0) / fornecedores : 0;
   return {
-    fonte: doc.fonte, ano: doc.ano, pago: v.pago, intra: v.intra, fornecedores, nFornecedores: v.empresas,
+    fonte: v.fonte ?? doc.fonte, ano: doc.ano, entra: v.entra ?? doc.entra ?? null, pago: v.pago, intra: v.intra, fornecedores, nFornecedores: v.empresas,
     pessoas: { n: v.pessoas, valor: pessoas },
     outros: { folha, previdencia, divida, orgaos, total: folha + previdencia + divida + orgaos },
     credores, cinco,
