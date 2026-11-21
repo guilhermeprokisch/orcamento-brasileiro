@@ -1,6 +1,6 @@
 /**
  * Para quem cada prefeitura pagou no ano: os empenhos que o Tribunal de Contas do estado publica
- * (por enquanto PB, AC, SC, PE, AM, TO, SP, CE e ES; pipeline/…/pagamentos.py e os coletores de cada
+ * (por enquanto PB, AC, SC, PE, AM, TO, SP, CE, ES e MG; pipeline/…/pagamentos.py e os coletores de cada
  * estado, como pagamentos_qlik.py e pagamentos_tcepe.py).
  * Um arquivo por estado: pagamentos.json (PB) e pagamentos-{uf}.json. Lido no build; sem arquivo, tudo vem null.
  */
