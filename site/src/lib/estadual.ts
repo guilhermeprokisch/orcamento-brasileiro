@@ -1,7 +1,8 @@
 /**
  * Gasto do governo estadual localizado em cada município, para os estados que publicam esse
- * dado: a Paraíba, empenho a empenho (pipeline/…/estado_pb.py), e Minas Gerais, pela execução
- * do plano plurianual distribuída por município (estado_mg.py).
+ * dado: a Paraíba, empenho a empenho (pipeline/…/estado_pb.py), Minas Gerais, pela execução
+ * do plano plurianual distribuída por município (estado_mg.py), e o Paraná e Santa Catarina,
+ * só pela folha de pagamento com o lugar de trabalho (estado_pr.py, estado_sc.py).
  * Lido no build; sem os arquivos, tudo vem null.
  */
 import { docCidades, type Cidade } from "./cidades";
@@ -11,7 +12,7 @@ interface DocEstadual {
   ate_mes: number;
   fonte: string;
   /** Como dizer o que o número é, quando difere do padrão (ver GastoEstadualAqui.astro). */
-  texto?: { resumo: string; onde: string; nota: string };
+  texto?: TextoEstadual;
   estado: { empenhado: number; pago: number; folha: number; sem_municipio: number };
   areas: Record<string, string>;
   mun: Record<string, {
@@ -26,6 +27,17 @@ interface DocEstadual {
   }>;
 }
 
+/** O que dizer quando o número não é "empenhos sem a folha" (MG, PR, SC). */
+interface TextoEstadual {
+  resumo: string;
+  onde: string;
+  nota: string;
+  /** Título da lista das maiores (PR e SC: as unidades com a maior folha). */
+  maiores?: string;
+  /** Frase depois da fonte. */
+  aviso?: string;
+}
+
 const arquivos = import.meta.glob<DocEstadual>("../../public/data/estados/*/*.json", { import: "default" });
 
 export interface GastoEstadual {
@@ -36,7 +48,7 @@ export interface GastoEstadual {
   /** Folha de órgãos estaduais com sede no município (não é gasto "na cidade"). */
   folha: number;
   /** Texto próprio do estado, quando o número não é "empenhos sem a folha". */
-  texto: { resumo: string; onde: string; nota: string } | null;
+  texto: TextoEstadual | null;
   areas: { nome: string; valor: number }[];
   maiores: { credor: string; acao: string; orgao: string; valor: number }[];
   /** Parte de todo o gasto localizado do estado que caiu neste município. */

@@ -104,7 +104,7 @@ const descricao = temDados
         )}
         {publica && (
           <p class="quem-publica">
-            {quemMaiusculo} {ehDF ? faixaDe(publica.faixa).frase.replace("cada município", "cada região administrativa") : faixaDe(publica.faixa).frase}{publica.noSite ? ", e o site mostra esse gasto na página de cada cidade" : ""}.{" "}
+            {quemMaiusculo} {ehDF ? faixaDe(publica.faixa).frase.replace("cada município", "cada região administrativa") : faixaDe(publica.faixa).frase}{publica.noSite ? `, e o site mostra ${publica.faixa === "folha" ? "essa folha" : "esse gasto"} na página de cada cidade` : ""}.{" "}
             <a href={`/quem-publica#${e.uf.toLowerCase()}`}>Quem publica onde gasta</a>
           </p>
         )}

@@ -59,6 +59,11 @@ fila_independente() {
   # Gasto do governo da Paraíba e de Minas Gerais por município.
   pipe pode-falhar "Gasto estadual localizado (PB)" estado-pb 2025
   pipe pode-falhar "Gasto estadual localizado (MG)" estado-mg 2025
+  # Paraná e Santa Catarina: só a folha de pagamento, pela cidade onde cada servidor trabalha. Cargas feitas
+  # à mão (uv run estado-pr 2025, uv run estado-sc 2025; o ano fechado não muda): o servidor do PR trava por
+  # minutos depois de alguns downloads e o portal de SC leva 45 s por mês. Aqui só as cópias de referência.
+  pipe pode-falhar "Folha estadual por cidade (PR)" estado-pr 2025 --sem-baixar
+  pipe pode-falhar "Folha estadual por cidade (SC)" estado-sc 2025 --sem-baixar
   # INEP: quando recusa a conexão do GitHub, cada comando usa a cópia em pipeline/referencia/.
   pipe pode-falhar "Ideb" ideb
   pipe pode-falhar "Escolas" escolas
