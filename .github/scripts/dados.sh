@@ -22,11 +22,26 @@ passo() {
   local tipo="$1" nome="$2"; shift 2
   local arq="$LOGS/$(date +%s%N)-${nome//[^a-zA-Z0-9]/_}"
   local ini=$SECONDS
-  if "$@" >"$arq.log" 2>&1; then echo ok >"$arq.status"; else echo "$tipo" >"$arq.status"; fi
+  if "$@" >"$arq.log" 2>&1; then echo ok >"$arq.status"
+  elif [ $? -eq 3 ]; then echo referencia >"$arq.status"   # falhou, mas o site sai com a cópia de referência
+  else echo "$tipo" >"$arq.status"; fi
   echo "$nome" >"$arq.nome"
   echo "$((SECONDS - ini))" >"$arq.tempo"
 }
 pipe() { local tipo="$1" nome="$2"; shift 2; passo "$tipo" "$nome" uv run --project pipeline "$@"; }
+
+# com_referencia <cópia> <destino> <comando…>: se o comando falhar, põe no site a última versão boa (a cópia em
+# pipeline/referencia/, feita à mão daqui do Brasil) em vez de deixar o site sem a parte. Sai com 3 nesse caso.
+com_referencia() {
+  local ref="$1" dest="$2"; shift 2
+  "$@" && return 0
+  [ -f "$ref" ] || return 1
+  mkdir -p "$(dirname "$dest")" && cp "$ref" "$dest"
+  echo "a fonte falhou: o site sai com a cópia de referência ($ref)"
+  return 3
+}
+# pipe_ref <nome> <cópia> <destino> <comando do pipeline…>: um passo opcional com cópia de referência.
+pipe_ref() { local nome="$1" ref="$2" dest="$3"; shift 3; passo pode-falhar "$nome" com_referencia "$ref" "$dest" uv run --project pipeline "$@"; }
 
 fila_siconfi() {
   # Histórico dos municípios (FINBRA, baixado à mão por causa do captcha): vem do release
@@ -52,13 +67,17 @@ fila_siconfi() {
   # Dívida pública federal (/divida): Tesouro, Banco Central e o RGF dos 27 estados. Se o download
   # falhar, usa a cópia em pipeline/referencia/divida-federal.json.
   pipe pode-falhar "Dívida federal" divida-federal
+  # CAPAG (Tesouro Transparente): aqui, e não na fila independente, para não consultar o Tesouro ao mesmo
+  # tempo que o SICONFI (o servidor derrubava a conexão). Se falhar, fica a cópia de referência.
+  pipe_ref "CAPAG" pipeline/referencia/capag.json site/public/data/indicadores/capag.json capag
 }
 
 fila_independente() {
   pipe obrigatorio "Orçamento federal (Explorer)" orcamento
   # Gasto do governo da Paraíba e de Minas Gerais por município.
   pipe pode-falhar "Gasto estadual localizado (PB)" estado-pb 2025
-  pipe pode-falhar "Gasto estadual localizado (MG)" estado-mg 2025
+  # MG: em 21/11/2026 a fonte passou a vir só com o cabeçalho; sem os dados, fica a cópia de referência.
+  pipe_ref "Gasto estadual localizado (MG)" pipeline/referencia/estado-mg-2025.json site/public/data/estados/mg/2025.json estado-mg 2025
   # Paraná e Santa Catarina: só a folha de pagamento, pela cidade onde cada servidor trabalha. Cargas feitas
   # à mão (uv run estado-pr 2025, uv run estado-sc 2025; o ano fechado não muda): o servidor do PR trava por
   # minutos depois de alguns downloads e o portal de SC leva 45 s por mês. Aqui só as cópias de referência.
@@ -68,9 +87,7 @@ fila_independente() {
   pipe pode-falhar "Ideb" ideb
   pipe pode-falhar "Escolas" escolas
   pipe pode-falhar "Matrículas" matriculas
-  pipe pode-falhar "CAPAG" capag
   pipe pode-falhar "Saneamento (Censo 2022)" saneamento
-  pipe pode-falhar "Emendas parlamentares (CGU)" emendas
   # Os Parquet dos exploradores ficam no bucket e são gerados à mão; aqui só os resumos.
   pipe pode-falhar "Explorador de emendas" explorador-emendas --sem-baixar
   pipe pode-falhar "Receitas da União" receitas-uniao --sem-baixar
@@ -105,13 +122,15 @@ fila_cidades() {
 
 fila_mapa() {
   esperar "$MAPA_OK"
+  # Emendas: precisam de nomes.json, que o passo do mapa grava (por isso aqui, e não na fila independente).
+  pipe_ref "Emendas parlamentares (CGU)" pipeline/referencia/emendas.json site/public/data/indicadores/emendas.json emendas
   pipe pode-falhar "Mortalidade infantil" saude
   pipe pode-falhar "Homicídios" seguranca
   pipe pode-falhar "Explorador de contratos" explorador-contratos --sem-baixar
   # Camadas do mapa: arrecadação federal por município, imposto de renda por residência, dinheiro
   # federal (o Portal da Transparência às vezes responde com CAPTCHA) e INSS.
   pipe pode-falhar "Arrecadação federal por município" rfb
-  pipe pode-falhar "Imposto de renda por cidade de residência" irpf
+  pipe_ref "Imposto de renda por cidade de residência" pipeline/referencia/irpf-res.json site/public/data/mapa/irpf-res.json irpf
   pipe pode-falhar "Dinheiro federal" federal 2025
   pipe pode-falhar "INSS" inss
 }
@@ -132,6 +151,7 @@ for st in "$LOGS"/*.status; do
   case "$status" in
     obrigatorio) echo "::error::$nome falhou"; falhou=1 ;;
     pode-falhar) echo "::warning::$nome falhou; o site sai sem essa parte ou com a cópia de referência" ;;
+    referencia) echo "::warning::$nome: a fonte falhou; o site sai com a cópia de referência (pipeline/referencia/)" ;;
   esac
 done
 echo "Programas de dados: $((SECONDS - ini))s no total, em quatro filas."
