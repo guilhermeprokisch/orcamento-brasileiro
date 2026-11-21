@@ -328,6 +328,14 @@ def rodar(uf: str, ano: int, so: list[str] | None, pausa: float) -> None:
     painel = PAINEIS[uf]
     ibge_por_nome = {pb._chave(e["ente"]): str(e["cod_ibge"]) for e in c.baixar_entes() if e["esfera"] == "M" and e["uf"] == uf}
     mun, sem_ibge = carregar(painel, ano, so, pausa, ibge_por_nome)
+    if sem_ibge:
+        print(f"  sem código do IBGE (ficaram de fora): {sem_ibge}")
+    gravar(uf, painel.fonte, ano, mun, so)
+
+
+def gravar(uf: str, fonte: str, ano: int, mun: dict, so: list[str] | None) -> None:
+    """Põe nome nos fornecedores que vieram só com o CNPJ e grava pagamentos-{uf}.json (site e referência).
+    Também usado pelo coletor de Pernambuco (pagamentos_tcepe.py)."""
     if sem_nome := completar_nomes(mun):
         print(f"  {sem_nome} fornecedores sem nome nem no cadastro de CNPJ: aparecem pelo CNPJ")
     destino, referencia = saida(uf)
@@ -337,11 +345,11 @@ def rodar(uf: str, ano: int, so: list[str] | None, pausa: float) -> None:
         antigo = json.loads(referencia.read_text(encoding="utf-8"))
         if antigo.get("ano") == ano:
             mun = {**antigo["mun"], **mun}
-    doc = {"fonte": painel.fonte, "ano": ano, "uf": uf, "tipos": pb.TIPOS, "mun": dict(sorted(mun.items()))}
+    doc = {"fonte": fonte, "ano": ano, "uf": uf, "tipos": pb.TIPOS, "mun": dict(sorted(mun.items()))}
     texto = json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
     for arq in (destino, referencia):
         arq.parent.mkdir(parents=True, exist_ok=True)
         arq.write_text(texto, encoding="utf-8")
-    if sem_ibge:
-        print(f"  sem código do IBGE (ficaram de fora): {sem_ibge}")
+    pago = sum(m["pago"] for m in mun.values())
+    print(f"{uf} {ano}: {len(mun)} municípios, pago R$ {br(pago / 1e9, 2)} bi")
     print(f"saída: {destino.relative_to(c.RAIZ)} ({len(mun)} municípios, {len(texto) / 1e3:.0f} KB) e {referencia.relative_to(c.RAIZ)}")

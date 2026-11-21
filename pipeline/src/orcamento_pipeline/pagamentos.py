@@ -3,6 +3,8 @@
     uv run pagamentos                # baixa o ZIP de 2025 (cerca de 190 MB) e resume
     uv run pagamentos --ano 2024
     uv run pagamentos --uf AC        # Acre e Santa Catarina: pelos painéis dos tribunais (pagamentos_qlik.py)
+    uv run pagamentos --uf PE        # Pernambuco: pela API de dados abertos do TCE-PE (pagamentos_tcepe.py)
+    uv run pagamentos --uf AM        # Amazonas e Tocantins: pagamentos_am.py e pagamentos_to.py
     uv run pagamentos --uf SP        # São Paulo: TCE-SP e, na capital, TCM-SP (pagamentos_sp.py)
     uv run pagamentos --sem-baixar   # só copia pipeline/referencia/pagamentos*.json para o site (CI)
 
@@ -263,14 +265,23 @@ def copiar_referencia() -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--ano", type=int, default=2025)
-    p.add_argument("--refazer", action="store_true", help="baixar o ZIP de novo, mesmo se já existir")
+    p.add_argument("--refazer", action="store_true", help="baixar o ZIP de novo, mesmo se já existir (PE: ler de novo as cidades já lidas)")
     p.add_argument("--sem-baixar", action="store_true", help="só copiar a referência versionada para o site (publicação automática)")
-    p.add_argument("--uf", default="PB", choices=["PB", "AC", "SC", "SP"], help="AC e SC vêm dos painéis dos tribunais (só respondem do Brasil)")
-    p.add_argument("--municipio", action="append", help="AC e SC: só esta cidade (pode repetir); junta-se às que já estão no arquivo")
-    p.add_argument("--pausa", type=float, default=1.0, help="AC e SC: segundos entre uma consulta e outra")
+    p.add_argument("--uf", default="PB", choices=["PB", "AC", "SC", "PE", "AM", "TO", "SP"],
+                   help="AC e SC vêm dos painéis dos tribunais, PE da API do TCE-PE (os três só respondem do Brasil); AM, TO e SP, ver pagamentos_am.py, pagamentos_to.py e pagamentos_sp.py")
+    p.add_argument("--municipio", action="append", help="AC, SC, PE, AM e TO: só esta cidade (pode repetir); junta-se às que já estão no arquivo")
+    p.add_argument("--pausa", type=float, default=1.0, help="AC, SC, PE, AM e TO: segundos entre uma consulta e outra")
     args = p.parse_args()
     if args.sem_baixar:
         copiar_referencia()
+        return
+    if args.uf == "PE":
+        from . import pagamentos_tcepe
+        pagamentos_tcepe.rodar(args.ano, args.municipio, args.pausa, args.refazer)
+        return
+    if args.uf in ("AM", "TO"):
+        from . import pagamentos_am, pagamentos_to
+        {"AM": pagamentos_am, "TO": pagamentos_to}[args.uf].rodar(args.ano, args.municipio, args.pausa, args.refazer)
         return
     if args.uf == "SP":
         from . import pagamentos_sp

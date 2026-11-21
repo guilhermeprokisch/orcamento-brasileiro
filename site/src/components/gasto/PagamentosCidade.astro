@@ -2,8 +2,8 @@
 /**
  * Para quem a prefeitura pagou no ano, pelos empenhos que o Tribunal de Contas do estado publica: os
  * maiores fornecedores, as pessoas físicas num total só (sem nomes) e, à parte, o que não é
- * fornecedor (folha, previdência, dívida e repasses a outros órgãos). Por enquanto PB, AC e SC.
- * Fonte: pipeline/…/pagamentos.py e pagamentos_qlik.py.
+ * fornecedor (folha, previdência, dívida e repasses a outros órgãos). Por enquanto PB, AC, SC e PE.
+ * Fonte: pipeline/…/pagamentos.py, pagamentos_qlik.py e pagamentos_tcepe.py.
  */
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import Termo from "../Termo.astro";
@@ -35,6 +35,9 @@ const diferenca = p && dca
   ? [p.pago / dca - 1, (p.pago + p.intra) / dca - 1].sort((a, b) => Math.abs(a) - Math.abs(b))[0]
   : 0;
 const maior = p ? Math.max(p.fornecedores, p.pessoas.valor, p.outros.total) : 1;
+// Algumas prefeituras não mandam a folha ao tribunal por este caminho (Recife, em PE): a folha, que costuma ser
+// de um terço à metade do que se paga, fica quase zerada, e o total, bem abaixo do declarado ao Tesouro.
+const semFolha = p ? diferenca < -0.05 && p.outros.folha < 0.1 * p.pago : false;
 ---
 
 {p && (
@@ -53,12 +56,20 @@ const maior = p ? Math.max(p.fornecedores, p.pessoas.valor, p.outros.total) : 1;
           Os 5 maiores fornecedores receberam <strong>{pct(p.cinco)}</strong> do que a prefeitura pagou a fornecedores.
         </p>
       )}
-      {Math.abs(diferenca) > 0.05 && (
+      {semFolha && (
+        <p class="aviso">
+          O total aqui fica {pct(Math.abs(diferenca))} abaixo do que a prefeitura declarou ao Tesouro como pago em {p.ano} ({moedaCurta(dca!)}).
+          A diferença deve ser a folha de pagamento dos servidores, que quase não aparece no que a prefeitura mandou ao
+          Tribunal de Contas (aqui, só {moedaCurta(p.outros.folha)}). Os fornecedores são contados à parte e não são
+          afetados por isso.
+        </p>
+      )}
+      {!semFolha && Math.abs(diferenca) > 0.05 && (
         <p class="aviso">
           O total aqui fica {pct(Math.abs(diferenca))} {diferenca < 0 ? "abaixo" : "acima"} do que a prefeitura declarou ao
           Tesouro como pago em {p.ano} ({moedaCurta(dca!)}). {diferenca < 0
             ? "Parte dos pagamentos pode não ter chegado ao Tribunal de Contas (em algumas cidades falta dezembro)."
-            : "A conta mandada ao Tesouro pode ter deixado de fora alguma unidade do município, como o serviço de água ou o fundo de previdência."}{" "}
+            : "Os dois números vêm de prestações de contas diferentes, e a que foi ao Tesouro pode ter deixado de fora alguma unidade do município, como o serviço de água ou o fundo de previdência."}{" "}
           Leia estes números com cuidado.
         </p>
       )}
