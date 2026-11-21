@@ -13,7 +13,7 @@ from pathlib import Path
 
 import duckdb
 
-from .fontes import baixar_ipca, baixar_nomes_siop, baixar_orcamento_despesa
+from .fontes import baixar_ipca, baixar_nomes_siop, baixar_orcamento_despesa, baixar_rp_siop
 from .transformar import carregar, exportar_explorer, exportar_parquet, fatores_ipca
 
 RAIZ = Path(__file__).resolve().parents[3]
@@ -50,19 +50,29 @@ def main() -> None:
         except Exception as e:  # o site funciona com os nomes do Portal se o SIOP falhar
             print(f"  aviso: SIOP {ano} indisponível ({e}); usando nomes do Portal", flush=True)
 
+    print("baixando o tipo de cada despesa (SIOP, resultado primário)…", flush=True)
+    rp_siop = {}
+    for ano in sorted(args.anos):
+        # O ano corrente muda todo dia; o anterior ainda fecha nos primeiros meses.
+        try:
+            rp_siop[ano] = baixar_rp_siop(ano, PASTA_SIOP, forcar=args.forcar or ano >= hoje.year - 1)
+        except Exception as e:  # sem o SIOP o ano sai sem a divisão por tipo, como antes
+            print(f"  aviso: tipo de despesa do SIOP {ano} indisponível ({e}); o ano sai sem essa divisão", flush=True)
+
     print("baixando IPCA…", flush=True)
     ipca = fatores_ipca(baixar_ipca(PASTA_IPCA), sorted(args.anos))
 
     con = duckdb.connect()
     carregar(con, csvs)
     exportar_parquet(con, PARQUET)
-    resumo = exportar_explorer(con, PASTA_EXPLORER, ipca, nomes_siop)
+    resumo = exportar_explorer(con, PASTA_EXPLORER, ipca, nomes_siop, rp_siop)
 
     bi = 1e9
-    print(f"\n{'ano':>4}  {'linhas':>7}  {'atualizado':>12}  {'empenhado':>12}  {'realizado':>12}  (R$ bi)  nomes SIOP")
+    print(f"\n{'ano':>4}  {'linhas':>7}  {'atualizado':>12}  {'empenhado':>12}  {'realizado':>12}  (R$ bi)  nomes SIOP  com tipo")
     for r in resumo:
+        tipo = f"{r['com_tipo']:>8.1%}" if "com_tipo" in r else f"{'—':>8}"
         print(f"{r['ano']:>4}  {r['linhas']:>7}  {r['atualizado']/bi:>12.1f}  "
-              f"{r['empenhado']/bi:>12.1f}  {r['realizado']/bi:>12.1f}  {r['nomes_oficiais']:>17.0%}")
+              f"{r['empenhado']/bi:>12.1f}  {r['realizado']/bi:>12.1f}  {r['nomes_oficiais']:>17.0%}  {tipo}")
     print(f"\nIPCA: reais de {ipca['base']} (até {ipca['ultimo_mes']}); "
           f"fator 2014 = {ipca['fatores'].get('2014', '—')}")
     print(f"parquet: {PARQUET.relative_to(RAIZ)}\nexplorer: {PASTA_EXPLORER.relative_to(RAIZ)}")

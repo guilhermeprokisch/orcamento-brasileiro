@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import ssl
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -82,6 +83,85 @@ def baixar_nomes_siop(ano: int, destino: Path, forcar: bool = False) -> dict[str
 
     cache.write_text(json.dumps(nomes, ensure_ascii=False), encoding="utf-8")
     return nomes
+
+
+# Identificador de resultado primário (RP) de cada item da despesa no SIOP. Os valores somados por
+# UO × função × subfunção × programa × ação × GND × RP, a mesma chave das linhas do Explorer (mais o RP).
+COLUNAS_RP = ["uo", "funcao", "subfuncao", "programa", "acao", "gnd", "rp",
+              "inicial", "atualizado", "empenhado", "pago"]
+_PAGINA_RP = 9_000  # o endpoint corta em 10.000 linhas por resposta
+
+
+def _consultar_siop(consulta: str, timeout: int = 600) -> list[dict]:
+    import json
+    import urllib.parse
+
+    url = URL_SIOP_SPARQL + "?" + urllib.parse.urlencode({"query": consulta})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": USER_AGENT, "Accept": "application/sparql-results+json"}
+    )
+    with urllib.request.urlopen(req, timeout=timeout, context=CONTEXTO_TLS) as resp:
+        return json.load(resp)["results"]["bindings"]
+
+
+def baixar_rp_siop(ano: int, destino: Path, forcar: bool = False) -> dict:
+    """Valores da despesa do exercício por linha do Explorer e por RP, do SIOP (SPARQL).
+
+    Devolve {"ano", "colunas": COLUNAS_RP, "linhas": [[uo, funcao, …, rp, inicial, atualizado,
+    empenhado, pago], …]} e guarda em destino/rp-{ano}.json; só consulta de novo se `forcar`.
+    """
+    import json
+
+    destino.mkdir(parents=True, exist_ok=True)
+    cache = destino / f"rp-{ano}.json"
+    if cache.exists() and not forcar:
+        return json.loads(cache.read_text(encoding="utf-8"))
+
+    base = f"http://orcamento.dados.gov.br/id/{ano}/"
+    partes = {"uo": "UnidadeOrcamentaria", "funcao": "Funcao", "subfuncao": "Subfuncao",
+              "programa": "Programa", "acao": "Acao", "gnd": "GrupoNatDespesa", "rp": "ResultadoPrimario"}
+    props = {"uo": "temUnidadeOrcamentaria", "funcao": "temFuncao", "subfuncao": "temSubfuncao",
+             "programa": "temPrograma", "acao": "temAcao", "gnd": "temGND", "rp": "temResultadoPrimario"}
+    valores = {"inicial": "valorDotacaoInicial", "atualizado": "valorLeiMaisCredito",
+               "empenhado": "valorEmpenhado", "pago": "valorPago"}
+    def grupos(rp: str | None) -> list[list]:
+        """Todas as páginas da soma por chave; com `rp`, só os itens desse identificador."""
+        livres = [k for k in partes if not (rp and k == "rp")]
+        chaves = " ".join(f"?{k}" for k in livres)
+        padrao = " ; ".join([f"loa:temExercicio <{base}Exercicio/{ano}>"]
+                            + [f"loa:{props[k]} " + (f"<{base}ResultadoPrimario/{rp}>" if k == "rp" and rp else f"?{k}")
+                               for k in partes]
+                            + [f"loa:{p} ?v_{k}" for k, p in valores.items()])
+        somas = " ".join(f"(SUM(xsd:decimal(?v_{k})) AS ?{k})" for k in valores)
+        saida: list[list] = []
+        while True:
+            pagina = _consultar_siop(
+                "PREFIX loa: <http://vocab.e.gov.br/2013/09/loa#> "
+                "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#> "
+                f"SELECT {chaves} {somas} WHERE {{ ?x {padrao} }} GROUP BY {chaves} ORDER BY {chaves} "
+                f"LIMIT {_PAGINA_RP} OFFSET {len(saida)}"
+            )
+            for b in pagina:
+                cods = [rp if (k == "rp" and rp) else b[k]["value"].rsplit("/", 1)[1].strip() for k in partes]
+                saida.append(cods + [round(float(b[k]["value"])) for k in valores])
+            if len(pagina) < _PAGINA_RP:
+                return saida
+
+    try:
+        linhas = grupos(None)
+    except urllib.error.HTTPError:
+        # Em anos grandes (2020) a consulta inteira estoura no servidor; uma por RP passa.
+        rps = _consultar_siop(
+            "PREFIX loa: <http://vocab.e.gov.br/2013/09/loa#> "
+            f"SELECT DISTINCT ?rp WHERE {{ ?x loa:temExercicio <{base}Exercicio/{ano}> ; loa:temResultadoPrimario ?rp }}"
+        )
+        linhas = [l for b in sorted(r["rp"]["value"].rsplit("/", 1)[1] for r in rps) for l in grupos(b)]
+    if not linhas:
+        raise RuntimeError(f"SIOP {ano}: nenhum item da despesa")
+
+    doc = {"ano": ano, "colunas": COLUNAS_RP, "linhas": linhas}
+    cache.write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    return doc
 
 
 # IPCA, número-índice mensal (base dez/1993 = 100), tabela 1737 do SIDRA/IBGE.
