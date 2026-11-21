@@ -1,12 +1,14 @@
 ---
 /**
- * PROTÓTIPO, versão 1, "A história": a página conta, de cima para baixo, o que é uma emenda, os tipos, como
- * cresceram, para onde vão, onde chega mais por morador e quem manda; no fim, as portas do explorador.
+ * PROTÓTIPO, "A história": a página conta, de cima para baixo, o que é uma emenda, os tipos, como cresceram,
+ * para onde vão, onde chega mais por morador e quem manda; no fim, o explorador (no desenho do de gastos), com as
+ * listas inteiras, e os atalhos para a busca.
  */
 import Termo from "../Termo.astro";
 import SerieTipos from "./SerieTipos.astro";
 import MapaEstados from "./MapaEstados.astro";
 import Explorar from "./Explorar.astro";
+import ExplorerEmendas from "./ExplorerEmendas";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import { ANO, cidades, nomeArea, nomeGrupo, panorama, POR_MORADOR, porEstado, resumo, TIPO, TIPOS, TOTAL, totalAno } from "../../lib/emendas-panorama";
 
@@ -50,7 +52,7 @@ const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
     <a href="#h-para-onde"><b>4.</b> Para onde vai</a>
     <a href="#h-por-morador"><b>5.</b> Quem recebe mais</a>
     <a href="#h-quem-manda"><b>6.</b> Quem manda</a>
-    <a href="#explore-1"><b>7.</b> Explore</a>
+    <a href="#h-explore"><b>7.</b> Explore tudo</a>
   </nav>
 
   <section class="parte" id="h-o-que-e">
@@ -138,16 +140,25 @@ const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
       <div>
         <h3>Deputados e senadores (individuais e Pix)</h3>
         <ol class="lista">{resumo!.autores.slice(0, 8).map(([a, v]) => <li><a href={`/emendas?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a><span class="num">{moedaCurta(v)}</span></li>)}</ol>
+        <p class="ver-todos"><a href="?f=autoria:parlamentares&vista=lista#h-explore">Ver todos os deputados e senadores →</a></p>
       </div>
       <div>
         <h3>Comissões e bancadas</h3>
         <ol class="lista">{p.coletivos.slice(0, 8).map(([a, t, v]) => <li><span><a href={`/emendas?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a> <small style={`color:${TIPO[t].cor === "#f2c919" ? "#8a6d00" : TIPO[t].cor}`}>{TIPO[t].nome.toLowerCase()}</small></span><span class="num">{moedaCurta(v)}</span></li>)}</ol>
+        <p class="ver-todos"><a href="?f=autoria:comissoes&vista=lista#h-explore">Todas as comissões</a> · <a href="?f=autoria:bancadas&vista=lista#h-explore">todas as bancadas →</a></p>
       </div>
     </div>
     <p class="menor">O partido de cada parlamentar não está nos dados da CGU; dá para juntar pelos dados abertos da Câmara e do Senado (ver o PR).</p>
   </section>
 
-  <Explorar id="explore-1" />
+  <section class="parte" id="h-explore">
+    <div class="titulo-parte"><span class="n">7</span><div><h2>Explore tudo</h2><p>
+      Todas as emendas pagas, para dividir como quiser: por quem mandou (a lista inteira de deputados, senadores, bancadas e comissões),
+      por estado, cidade, quem recebeu ou área. Clique num bloco para descer um nível.</p></div></div>
+    <ExplorerEmendas client:only="solid-js" parquet={resumo!.pagamentos} ano={ANO} anos={resumo!.anos.filter((a) => a >= 2017)} />
+  </section>
+
+  <Explorar id="explore-1" titulo="Ou vá direto" />
 </div>
 
 <style>
@@ -193,6 +204,7 @@ const [sp, ap] = [estados.find((e) => e.uf === "SP")!, estados[0]];
   .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
   .lista li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
   .lista small { display: inline; font-size: 12px; }
+  .ver-todos { margin: 10px 0 0; font-size: 15px; font-weight: 600; }
   @media (max-width: 900px) {
     .abre { padding: 28px 0 16px; }
     .abre h1 { font-size: 34px; }

@@ -25,13 +25,13 @@ export default function Tabela(props: Props) {
   const resto = () => ordenados().slice(LIMITE);
 
   return (
-    <div class="lista" role="table" aria-label={`${props.rotuloNome}s`}>
+    <div class="lista" classList={{ "lista-sem-taxa": !!r().soRealizado }} role="table" aria-label={`${props.rotuloNome}s`}>
       <div class="lista-linha lista-cab" role="row">
         <span role="columnheader">{props.rotuloNome}</span>
         <span role="columnheader" class="so-largo">{r().colTrilho}</span>
         <span role="columnheader" class="d">Valor</span>
         <span role="columnheader" class="d so-largo">Parcela</span>
-        <span role="columnheader" class="d">{r().colTaxa}</span>
+        <Show when={!r().soRealizado}><span role="columnheader" class="d">{r().colTaxa}</span></Show>
       </div>
       <For each={visiveis()}>
         {(it, i) => {
@@ -50,7 +50,7 @@ export default function Tabela(props: Props) {
               </span>
               <span role="cell" class="d num">{moedaCurta(v())}</span>
               <span role="cell" class="d num so-largo">{pct(v() / props.total)}</span>
-              <span role="cell" class="d num">{taxa === null ? "—" : `${Math.round(taxa * 100)}%`}</span>
+              <Show when={!r().soRealizado}><span role="cell" class="d num">{taxa === null ? "—" : `${Math.round(taxa * 100)}%`}</span></Show>
             </div>
           );
         }}

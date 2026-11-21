@@ -191,6 +191,8 @@ export interface Rotulos {
   colTaxa: string;
   /** mostra o código ao lado do nome na lista (padrão: sim) */
   codigo?: boolean;
+  /** só há o valor realizado (emendas: o pago): sem a coluna de taxa na lista e sem o previsto no balão */
+  soRealizado?: boolean;
 }
 
 export const ROTULOS_DESPESA: Rotulos = {
