@@ -1,0 +1,75 @@
+---
+/**
+ * O painel ao lado do diagrama para explorar: ao clicar num pedaço (qualquer elemento com data-id dentro de
+ * .explorar-svg na mesma seção), mostra o que é, quanto passou por ali e de onde veio ou para onde foi.
+ * Os textos vão prontos num JSON dentro da página; o script só troca o conteúdo.
+ */
+import { explicacoes } from "../../lib/caminho-explica";
+import type { DocCaminho } from "../../lib/caminho-impostos";
+
+interface Props { doc: DocCaminho; deixa: { uniao: number; estados: number } | null; inicial?: string }
+const { doc, inicial = "c-uniao" } = Astro.props;
+const info = explicacoes(doc);
+const ini = info[inicial];
+---
+
+<aside class="painel" aria-live="polite">
+  <script type="application/json" class="painel-dados" set:html={JSON.stringify(info)} />
+  <span class="painel-tipo">Você escolheu</span>
+  <h3 class="painel-titulo">{ini.titulo}</h3>
+  <strong class="painel-valor">{ini.valor}</strong>
+  <p class="painel-texto">{ini.texto}</p>
+  <ul class="painel-lista">{ini.lista?.map((l) => <li><span>{l.nome}</span><span>{l.valor}</span></li>)}</ul>
+</aside>
+
+<style>
+  .painel { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; border: 1px solid var(--tinta); background: var(--papel); }
+  .painel-tipo { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-3); }
+  .painel-titulo { font-size: 22px; line-height: 1.2; }
+  .painel-valor { font-family: var(--serifa); font-size: 20px; }
+  .painel-texto { margin: 0; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
+  .painel-lista { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; font-size: 14px; }
+  .painel-lista :global(li) { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--regra-leve); }
+  .painel-lista :global(li span:last-child) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  @media (max-width: 900px) { .painel { position: static; } }
+</style>
+
+<script>
+  import type { Info } from "../../lib/caminho-explica";
+  document.querySelectorAll<HTMLElement>(".painel").forEach((painel) => {
+    const secao = painel.closest("section")!;
+    const dados = JSON.parse(painel.querySelector(".painel-dados")!.textContent!) as Record<string, Info>;
+    const $ = (s: string) => painel.querySelector<HTMLElement>(s)!;
+    const svgs = [...secao.querySelectorAll<SVGSVGElement>(".explorar-svg")];
+    const escolher = (id: string) => {
+      const i = dados[id];
+      if (!i) return;
+      $(".painel-titulo").textContent = i.titulo;
+      $(".painel-valor").textContent = i.valor;
+      $(".painel-texto").textContent = i.texto;
+      $(".painel-lista").replaceChildren(...(i.lista ?? []).map((l) => {
+        const li = document.createElement("li");
+        li.append(Object.assign(document.createElement("span"), { textContent: l.nome }), Object.assign(document.createElement("span"), { textContent: l.valor }));
+        return li;
+      }));
+      const ligados = new Set(i.ligados);
+      for (const svg of svgs) {
+        svg.classList.add("com-escolha");
+        svg.querySelectorAll<SVGElement>("[data-id]").forEach((el) => el.toggleAttribute("data-ligado", ligados.has(el.dataset.id!)));
+      }
+    };
+    for (const svg of svgs) {
+      svg.addEventListener("click", (e) => {
+        const alvo = (e.target as Element).closest<SVGElement>("[data-id]");
+        if (alvo) escolher(alvo.dataset.id!);
+        else svgs.forEach((s) => s.classList.remove("com-escolha"));
+      });
+      svg.addEventListener("keydown", (e) => {
+        const alvo = (e.target as Element).closest<SVGElement>("[data-id]");
+        if (alvo && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); escolher(alvo.dataset.id!); }
+      });
+    }
+    // Quem quiser testar outro jeito de escolher (as outras versões) dispara este evento.
+    secao.addEventListener("escolher", (e) => escolher((e as CustomEvent<string>).detail));
+  });
+</script>

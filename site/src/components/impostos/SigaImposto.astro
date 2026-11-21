@@ -1,0 +1,168 @@
+---
+/**
+ * Parte 3 da página /impostos, "Siga o seu imposto": uma barra por imposto, do tamanho do que se arrecadou e pintada por
+ * quem fica com ele. O dia a dia (no salário, nas compras…) filtra a lista; clicando num imposto, o caminho explicado,
+ * e um botão leva ao diagrama da parte 2 com o caminho dele aceso (evento "escolher" em .parte-caminho).
+ */
+import Termo from "../Termo.astro";
+import { bi, COR, EXPLICA, partesInteiras, rotas, soma, type DocCaminho, type Esfera, type Rota } from "../../lib/caminho-impostos";
+
+interface Props { doc: DocCaminho }
+const { doc } = Astro.props;
+const rs = rotas(doc).sort((a, b) => b.total - a.total);
+const ORDEM: Esfera[] = ["uniao", "estados", "prefeituras", "fundos"];
+const em100 = (r: Rota) => {
+  const ds = ORDEM.map((e) => r.destinos.find((d) => d.esfera === e)).filter((d): d is Rota["destinos"][number] => !!d);
+  const n = partesInteiras(ds.map((d) => d.valor));
+  return ds.map((d, i) => ({ ...d, n: n[i] })).filter((d) => d.n > 0);
+};
+const porImposto = doc.deixa?.uniao?.por_imposto ?? {};
+const deixaDe = (id: string) => (id === "icms" ? doc.deixa?.estados?.total ?? 0 : porImposto[id] ?? 0);
+const DIA = [
+  { titulo: "No salário", impostos: ["ir", "inss"],
+    texto: "Do contracheque saem o imposto de renda e a contribuição ao INSS. O INSS fica todo com a União e volta como aposentadoria. O imposto de renda é o mais dividido de todos: perto da metade vai para estados e prefeituras, pelo FPE e pelo FPM." },
+  { titulo: "Nas compras", impostos: ["icms", "cofins", "ipi"],
+    texto: "No preço do que se compra vêm o ICMS, a Cofins e o PIS e, nos produtos industrializados, o IPI. O ICMS é do estado, mas um quarto é das prefeituras, e mais um pedaço chega a elas pelo Fundeb." },
+  { titulo: "No carro", impostos: ["ipva"],
+    texto: "O IPVA é dividido meio a meio entre o estado e a prefeitura da cidade onde o carro está registrado; da metade do estado, um pouco ainda vai para o Fundeb." },
+  { titulo: "Na casa", impostos: ["iptu", "itbi"],
+    texto: "O IPTU e o ITBI ficam inteiros com a prefeitura. No Distrito Federal, que não tem prefeituras, quem cobra é o governo do DF." },
+  { titulo: "Nos serviços", impostos: ["iss"],
+    texto: "O ISS vem embutido no preço do conserto, do plano de saúde, da academia. Também fica com a prefeitura." },
+];
+const maior = Math.max(...rs.map((r) => r.total + deixaDe(r.imposto)));
+const info = Object.fromEntries(rs.map((r) => [r.imposto, {
+  t: r.nome, v: `${bi(r.total)} em ${doc.ano}`, x: EXPLICA[r.imposto] ?? "",
+  d: em100(r).map((d) => ({ n: `R$ ${d.n} ${d.esfera === "uniao" ? "ficam com a União" : d.esfera === "fundos" ? "vão para os fundos regionais" : d.esfera === "estados" ? "com os estados" : "com as prefeituras"}`, p: d.porque, v: bi(d.valor) })),
+  z: deixaDe(r.imposto) ? `Deixaram de ser cobrados ${bi(deixaDe(r.imposto))} em benefícios fiscais.` : "",
+}]));
+const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") + soma(doc, (f) => f.chave === "fundeb-uniao");
+---
+
+<div class="siga">
+  <div class="dia" role="group" aria-label="Onde você paga">
+    <span>Onde você paga:</span>
+    {DIA.map((p) => <button type="button" data-impostos={p.impostos.join(" ")} data-texto={p.texto} aria-pressed="false">{p.titulo}</button>)}
+    <button type="button" data-impostos="" data-texto="" aria-pressed="true">Todos</button>
+  </div>
+  <p class="dia-texto" aria-live="polite" hidden></p>
+  <p class="dica">Cada barra tem o tamanho do que se arrecadou e a cor de quem fica com o dinheiro. Clique para ver o caminho.</p>
+  <label class="liga"><input type="checkbox" class="mostrar-deixa" /><span>Mostrar o que deixou de entrar (<Termo id="beneficio-fiscal">benefícios fiscais</Termo>)</span></label>
+  <div class="grade-rotas">
+    <ul class="lista-rotas">
+      {rs.map((r) => (
+        <li>
+          <button type="button" data-imposto={r.imposto} aria-pressed="false">
+            <span class="lr-nome">{r.nome.replace(" (ITCMD)", "")}</span>
+            <span class="lr-barra" style={`width: ${((r.total + deixaDe(r.imposto)) / maior) * 100}%`}>
+              {em100(r).map((d) => <span class="seg" style={`flex: ${d.valor}; --cor: ${COR[d.esfera]}`}></span>)}
+              {deixaDe(r.imposto) > 0 && <span class="seg fantasma" style={`flex: ${deixaDe(r.imposto)}`}></span>}
+            </span>
+            <span class="lr-valor">{bi(r.total)}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+    <aside class="rota-info" aria-live="polite">
+      <span class="painel-tipo">Você escolheu</span>
+      <h3></h3><strong class="ri-valor"></strong><p class="ri-texto"></p><ul class="ri-lista"></ul><p class="ri-deixa"></p>
+      <button type="button" class="ir-caminho">Ver no caminho inteiro ↑</button>
+    </aside>
+  </div>
+  <ul class="legenda-cores" aria-label="Cores">
+    <li><i style={`background: ${COR.uniao}`}></i>União</li><li><i style={`background: ${COR.estados}`}></i>Estados</li>
+    <li><i style={`background: ${COR.prefeituras}`}></i>Prefeituras</li><li><i style={`background: ${COR.fundos}`}></i>Fundos regionais</li>
+  </ul>
+  <p class="nota">As faixas seguem as regras da Constituição: o FPE, o FPM e os fundos regionais saem do imposto de renda e do IPI; no Fundeb, cada imposto do estado entra com o que põe no fundo. O que a União manda para programas e para o Fundeb ({bi(programas)}) sai do caixa geral dela, não de um imposto em especial, e por isso aparece aqui como "fica com a União".</p>
+  <script type="application/json" class="rotas-dados" set:html={JSON.stringify(info)} />
+</div>
+
+<style>
+  .siga { display: flex; flex-direction: column; gap: 12px; padding-bottom: 28px; }
+  .dia { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; }
+  .dia span { color: var(--texto-3); margin-right: 4px; }
+  .dia button { padding: 6px 12px; border: 1px solid var(--tinta); background: var(--papel); font: inherit; font-size: 14px; cursor: pointer; }
+  .dia button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
+  .dia-texto { margin: 0; font-size: 16px; line-height: 1.55; color: var(--texto-2); max-width: 760px; padding-left: 12px; border-left: 3px solid var(--marca-texto); }
+  .dica, .nota { margin: 0; color: var(--texto-3); font-size: 15px; line-height: 1.5; }
+  .nota { font-size: 14px; max-width: 820px; }
+  .liga { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; }
+  .grade-rotas { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 32px; align-items: start; }
+  .lista-rotas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .lista-rotas button { width: 100%; display: grid; grid-template-columns: 200px minmax(0, 1fr) 76px; gap: 12px; align-items: center; padding: 4px 0; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; color: var(--tinta); }
+  .lista-rotas button:hover .lr-nome, .lista-rotas button[aria-pressed="true"] .lr-nome { text-decoration: underline; }
+  .lista-rotas button[aria-pressed="true"] .lr-barra { outline: 2px solid var(--tinta); outline-offset: 2px; }
+  .lista-rotas :global(li[data-apagado]) { opacity: 0.28; }
+  .lr-nome { font-size: 15px; }
+  .lr-barra { display: flex; height: 20px; gap: 1px; }
+  .seg { background: var(--cor); min-width: 0; }
+  .seg.fantasma { background: repeating-linear-gradient(135deg, transparent 0 5px, rgba(0,0,0,0.12) 5px 6px); border: 1.5px dashed var(--texto-3); }
+  .grade-rotas:not(.com-deixa) .lr-barra .fantasma { display: none; }
+  .lr-valor { text-align: right; font-size: 14px; color: var(--texto-3); white-space: nowrap; }
+  .rota-info { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; border: 1px solid var(--tinta); }
+  .painel-tipo { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-3); }
+  .rota-info h3 { font-size: 22px; }
+  .ri-valor { font-family: var(--serifa); font-size: 20px; }
+  .ri-texto, .ri-deixa { margin: 0; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
+  .ri-deixa:empty { display: none; }
+  .ri-lista { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  .ri-lista :global(li) { display: flex; flex-direction: column; padding: 6px 0; border-top: 1px solid var(--regra-leve); }
+  .ri-lista :global(li span) { color: var(--texto-3); font-size: 13px; }
+  .ir-caminho { align-self: flex-start; margin-top: 4px; padding: 5px 10px; border: 1px solid var(--tinta); background: var(--papel); font: inherit; font-size: 14px; cursor: pointer; }
+  .legenda-cores { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: var(--texto-3); }
+  .legenda-cores i { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; }
+
+  @media (max-width: 900px) {
+    .grade-rotas { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+    .lista-rotas button { grid-template-columns: 96px minmax(0, 1fr) 62px; gap: 8px; }
+    .lr-nome { font-size: 13px; }
+    .lr-valor { font-size: 12px; }
+    .rota-info { position: static; }
+    .lista-rotas :global(li[data-apagado]) { display: none; }
+  }
+</style>
+
+<script>
+  type Info = { t: string; v: string; x: string; d: { n: string; p: string; v: string }[]; z: string };
+  document.querySelectorAll<HTMLElement>(".siga").forEach((raiz) => {
+    const dados = JSON.parse(raiz.querySelector(".rotas-dados")!.textContent!) as Record<string, Info>;
+    const aside = raiz.querySelector<HTMLElement>(".rota-info")!;
+    const botoes = [...raiz.querySelectorAll<HTMLButtonElement>(".lista-rotas button")];
+    let escolhido = "";
+    const escolher = (id: string) => {
+      const i = dados[id];
+      escolhido = id;
+      botoes.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.imposto === id)));
+      aside.querySelector("h3")!.textContent = i.t;
+      aside.querySelector(".ri-valor")!.textContent = i.v;
+      aside.querySelector(".ri-texto")!.textContent = i.x;
+      aside.querySelector(".ri-deixa")!.textContent = i.z;
+      aside.querySelector(".ri-lista")!.replaceChildren(...i.d.map((d) => {
+        const li = document.createElement("li");
+        li.append(document.createTextNode(`${d.n} (${d.v})`), Object.assign(document.createElement("span"), { textContent: d.p }));
+        return li;
+      }));
+    };
+    botoes.forEach((b) => b.addEventListener("click", () => escolher(b.dataset.imposto!)));
+    escolher(botoes[0].dataset.imposto!);
+    // O dia a dia filtra a lista e mostra o texto curto daquele momento.
+    const textoDia = raiz.querySelector<HTMLElement>(".dia-texto")!;
+    raiz.querySelectorAll<HTMLButtonElement>(".dia button").forEach((b) => b.addEventListener("click", () => {
+      raiz.querySelectorAll(".dia button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      const quais = new Set(b.dataset.impostos!.split(" ").filter(Boolean));
+      botoes.forEach((x) => x.closest("li")!.toggleAttribute("data-apagado", quais.size > 0 && !quais.has(x.dataset.imposto!)));
+      textoDia.textContent = b.dataset.texto!;
+      textoDia.hidden = !b.dataset.texto;
+      if (quais.size) escolher([...quais][0]);
+    }));
+    // Leva ao diagrama da parte 2 com o caminho do imposto aceso.
+    aside.querySelector<HTMLButtonElement>(".ir-caminho")!.addEventListener("click", () => {
+      const destino = document.querySelector<HTMLElement>(".parte-caminho");
+      if (!destino) return;
+      destino.scrollIntoView({ behavior: "smooth", block: "start" });
+      destino.dispatchEvent(new CustomEvent("escolher", { detail: `t-${escolhido}` }));
+    });
+    raiz.querySelector<HTMLInputElement>(".mostrar-deixa")!.addEventListener("change", (e) =>
+      raiz.querySelector(".grade-rotas")!.classList.toggle("com-deixa", (e.target as HTMLInputElement).checked));
+  });
+</script>

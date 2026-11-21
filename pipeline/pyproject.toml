@@ -26,6 +26,7 @@ ideb = "orcamento_pipeline.ideb:main"
 matriculas = "orcamento_pipeline.matriculas:main"
 divida = "orcamento_pipeline.divida:main"
 divida-federal = "orcamento_pipeline.divida_federal:main"
+contas-federal = "orcamento_pipeline.contas_federal:main"
 capag = "orcamento_pipeline.capag:main"
 saude = "orcamento_pipeline.saude:main"
 pessoal = "orcamento_pipeline.pessoal:main"
@@ -47,6 +48,7 @@ estado-sc = "orcamento_pipeline.estado_sc:main"
 pagamentos = "orcamento_pipeline.pagamentos:main"
 receitas-uniao = "orcamento_pipeline.receitas_uniao:main"
 gasto-federal = "orcamento_pipeline.gasto_federal:main"
+caminho-impostos = "orcamento_pipeline.caminho_impostos:main"
 
 [build-system]
 requires = ["hatchling"]

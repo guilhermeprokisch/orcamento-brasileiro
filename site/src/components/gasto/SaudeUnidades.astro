@@ -56,11 +56,17 @@ const ab = (u?.unidades ?? []).reduce((s, x) => ({
   atendimentos: s.atendimentos + x.ab.atendimentos, dentista: s.dentista + x.ab.dentista,
   procedimentos: s.procedimentos + x.ab.procedimentos, visitas: s.visitas + x.ab.visitas,
 }), { atendimentos: 0, dentista: 0, procedimentos: 0, visitas: 0 });
+// As atividades coletivas da cidade (relatório próprio do SISAB, que separa as reuniões da equipe).
+const col = u?.coletivas ?? null;
+// As doses de vacina (SI-PNI): na cidade toda, nas unidades da prefeitura e por morador, comparadas com o Brasil.
+const vac = u?.vacinas ?? null;
+const vacPrefeitura = (u?.unidades ?? []).reduce((s, x) => s + x.vacinas, 0);
+const porMorador = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const temAb = ab.atendimentos + ab.dentista + ab.procedimentos + ab.visitas > 0;
 // Na linha de cada posto ficam os atendimentos e as visitas; os procedimentos do SISAB só entram na soma (e quando
 // a unidade não tem outra coisa), para não se confundirem com os procedimentos do SIA na linha de baixo.
-const linhaAb = (x: { atendimentos: number; dentista: number; procedimentos: number; visitas: number }) => {
-  const partes = ([[x.atendimentos, "atendimento", "atendimentos"], [x.dentista, "no dentista", "no dentista"], [x.visitas, "visita em casa", "visitas em casa"]] as [number, string, string][])
+const linhaAb = (x: { atendimentos: number; dentista: number; procedimentos: number; visitas: number; coletivas: number; vacinas: number }) => {
+  const partes = ([[x.atendimentos, "atendimento", "atendimentos"], [x.dentista, "no dentista", "no dentista"], [x.visitas, "visita em casa", "visitas em casa"], [x.coletivas, "atividade em grupo", "atividades em grupo"], [x.vacinas, "dose de vacina", "doses de vacina"]] as [number, string, string][])
     .filter(([n]) => n > 0).map(([n, um, varios]) => contagem(n, um, varios));
   if (!partes.length && x.procedimentos > 0) partes.push(contagem(x.procedimentos, "procedimento", "procedimentos"));
   return partes.join(" · ");
@@ -125,6 +131,20 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
           {pBrasil && <> No Brasil todo, {pctInteiro(pBrasil.medico)} com médico e {pctInteiro(pBrasil.enfermeiro)} com enfermeiro.</>}
         </p>
       )}
+      {col && col.moradores > 0 && (
+        <p>
+          As equipes da cidade também fizeram <strong>{contagem(col.moradores, "atividade em grupo", "atividades em grupo")} com os moradores</strong>, como
+          {" "}palestras, grupos de gestantes ou de hipertensos e ações nas escolas, que somaram {contagem(col.participantes, "participação", "participações")}
+          {col.reunioes > 0 && <>, além de {contagem(col.reunioes, "reunião da equipe", "reuniões da equipe")}</>}.
+        </p>
+      )}
+      {vac && vac.doses > 0 && (
+        <p>
+          Em {u.ano}, as unidades da cidade aplicaram <strong>{contagem(vac.doses, "dose de vacina", "doses de vacina")}</strong>
+          {vacPrefeitura > 0 && vacPrefeitura < vac.doses && <>, {nf0.format(vacPrefeitura)} delas nas unidades da prefeitura</>}:
+          {" "}o equivalente a {porMorador(vac.doses / cidade.pop)} dose por morador no ano. No Brasil todo, {porMorador(vac.brasilPorMorador)}.
+        </p>
+      )}
       {cob && cob.populacao > 0 && (
         <p>
           {cob.capacidade > 0 ? (
@@ -162,6 +182,8 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
         agente comunitário ou de outro profissional a uma casa. Do SISAB entram só os registros aprovados pelo Ministério; eles
         não têm valor em reais, porque o SUS paga os postos pelo número de moradores e de equipes, não por consulta.
         {prof && " A divisão entre médico e enfermeiro vem do relatório de produção do SISAB, que só existe por cidade: conta todas as unidades, também as do estado, e não dá para ver posto por posto."}
+        {vac && " As doses de vacina vêm do sistema nacional de vacinação (SI-PNI), que recebe as vacinas de todos os sistemas usados pelas cidades; cada dose conta uma vez, não entram as vacinas pagas em clínicas particulares, e quem mora numa cidade vizinha e se vacina aqui também conta."}
+        {col && " As atividades em grupo da cidade vêm do relatório de atividades coletivas do SISAB, que também conta todas as unidades; uma pessoa que vai a cinco encontros soma cinco participações. Na linha de cada posto, as atividades em grupo incluem as reuniões da equipe."}
         {cob && " A cobertura conta 3.500 pessoas para cada equipe de saúde da família e menos para as de atenção primária (2.625 ou 1.750, conforme as horas); passa de 100% em muitas cidades pequenas e aparece como todos os moradores."}
       </p>
       <p class="menor">
@@ -202,7 +224,7 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
           <ul class="lista">
             {u.unidades.map((x, i) => (
               <li class:list={{ escondida: i >= VISIVEIS }} data-busca={`${x.nome} ${x.bairro} ${x.grupo}`.toLowerCase()}>
-                <span>{titulo(x.nome)}<small>{x.grupo}{x.bairro && ` · ${titulo(x.bairro)}`}</small>{linhaAb(x.ab) && <small class="producao">{linhaAb(x.ab)}</small>}{producao(x) && <small class="producao">{producao(x)}</small>}</span>
+                <span>{titulo(x.nome)}<small>{x.grupo}{x.bairro && ` · ${titulo(x.bairro)}`}</small>{linhaAb({ ...x.ab, vacinas: x.vacinas }) && <small class="producao">{linhaAb({ ...x.ab, vacinas: x.vacinas })}</small>}{producao(x) && <small class="producao">{producao(x)}</small>}</span>
               </li>
             ))}
           </ul>
