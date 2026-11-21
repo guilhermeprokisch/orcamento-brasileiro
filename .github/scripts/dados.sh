@@ -91,6 +91,9 @@ esperar() { while [ ! -e "$1" ] && kill -0 "$PID_SICONFI" 2>/dev/null; do sleep 
 fila_cidades() {
   esperar "$CIDADES_OK"
   pipe pode-falhar "População de cada ano (IBGE)" populacao
+  # Fundo de aposentadoria dos servidores (ISP-RPPS, Ministério da Previdência): planilha anual, achada pelo nome
+  # da cidade em municipios.json. Se o site do Ministério não responder, usa pipeline/referencia/previdencia.json.
+  pipe pode-falhar "Previdência dos servidores (ISP)" previdencia
   # Postos e hospitais: CNES, SIH e SIA baixados à mão; aqui só a cópia de referência.
   pipe pode-falhar "Postos e hospitais" unidades-saude --sem-baixar
   # Contratos (PNCP) e pagamentos (TCE-PB; TCE-AC e TCE-SC pelos painéis e TCE-PE pela API, que só respondem
