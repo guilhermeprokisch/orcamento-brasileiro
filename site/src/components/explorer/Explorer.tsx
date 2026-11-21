@@ -2,9 +2,10 @@ import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show
 import Treemap from "./Treemap";
 import Tabela from "./Tabela";
 import BarrasAno, { type Ponto } from "./BarrasAno";
+import FaixaTipo from "./FaixaTipo";
 import {
   agrupar, carregarAno, carregarResumo, DIMS, dimsDisponiveis, escalar, METRICAS, proximaSugerida,
-  ROTULO_DIM, taxaRealizacao, totaisDaTrilha, type Dim, type Filtro, type Item, type Metrica,
+  ROTULO_DIM, taxaRealizacao, temTipo, TIPOS_DESPESA, totaisDaTrilha, type Dim, type Filtro, type Item, type Metrica,
 } from "../../lib/dados";
 import { moedaExtenso, pct } from "../../lib/formato";
 import "./explorer.css";
@@ -24,11 +25,17 @@ interface Estado {
 /** Rótulos curtos das abas "Dividir por". */
 const ABA: Record<Dim, string> = {
   orgao: "Órgão", funcao: "Área", subfuncao: "Subárea", uo: "Unidade",
-  programa: "Programa", acao: "Ação", gnd: "Tipo de gasto",
+  programa: "Programa", acao: "Ação", gnd: "Tipo de gasto", tipo: "Obrigatório ou não",
 };
 
 /** Ordem das abas, como no mock: as mais usadas primeiro. */
-const ORDEM_ABAS: Dim[] = ["orgao", "programa", "uo", "acao", "gnd", "funcao", "subfuncao"];
+const ORDEM_ABAS: Dim[] = ["orgao", "tipo", "programa", "uo", "acao", "gnd", "funcao", "subfuncao"];
+
+/** No mapa dividido por tipo de despesa, cada bloco com a cor da legenda (FaixaTipo). */
+const corDoTipo = (item: Item) => {
+  const t = TIPOS_DESPESA.find((x) => x.cod === item.codigo);
+  return t && { fundo: t.cor, escuro: t.cod === "obr" };
+};
 
 const ehDim = (s: string | null): s is Dim => !!s && (DIMS as string[]).includes(s);
 
@@ -226,7 +233,7 @@ export default function Explorer() {
             <button type="button" class="link exp-voltar" onClick={subir}>← Voltar a {pai()}</button>
           </Show>
           <span class="sobretitulo">
-            {ultimo() ? `${ROTULO_DIM[ultimo()!.dim]} · ${ultimo()!.cod}` : "Orçamento federal"}
+            {ultimo() ? (ultimo()!.dim === "tipo" ? ROTULO_DIM.tipo : `${ROTULO_DIM[ultimo()!.dim]} · ${ultimo()!.cod}`) : "Orçamento federal"}
           </span>
           <h1>{ultimo()?.nome ?? `Todo o orçamento de ${ano() ?? ""}`}</h1>
           <Show when={grupo()}>
@@ -252,13 +259,23 @@ export default function Explorer() {
         </figure>
       </section>
 
+      <Show when={temTipo(doc()) && !estado().filtros.some((f) => f.dim === "tipo")}>
+        <FaixaTipo doc={doc()!} ano={ano()!} filtros={estado().filtros} metrica={estado().metrica} semRefin={estado().semRefin}
+          fator={fatorDe(ano())} onSemRefin={() => mudar({ semRefin: true })}
+          onEscolher={(cod) => {
+            const filtros = [...estado().filtros, { dim: "tipo" as Dim, cod }];
+            const por = estado().por;
+            mudar({ filtros, por: por && por !== "tipo" ? por : proximaSugerida(filtros) }, true);
+          }} />
+      </Show>
+
       <div class="exp-abas">
         <Show when={ultimo()}>
           <button type="button" class="exp-subir" onClick={subir} title={`Voltar a ${pai()}`}>← Voltar um nível</button>
         </Show>
         <span class="muted">Dividir por</span>
         <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
-          <For each={ORDEM_ABAS.filter((d) => dimsDisponiveis(estado().filtros).includes(d))}>
+          <For each={ORDEM_ABAS.filter((d) => dimsDisponiveis(estado().filtros).includes(d) && (d !== "tipo" || temTipo(doc())))}>
             {(d) => (
               <button type="button" role="tab" aria-selected={d === estado().por} onClick={() => mudar({ por: d })}>
                 {ABA[d]}
@@ -289,7 +306,7 @@ export default function Explorer() {
               rotuloNome={estado().por ? ROTULO_DIM[estado().por!] : "Nome"} podeDescer={podeDescer()} onEscolher={descer} />
           }>
             <Treemap itens={grupo()!.itens} metrica={estado().metrica} total={Math.max(1, total())}
-              podeDescer={podeDescer()} onEscolher={descer} />
+              podeDescer={podeDescer()} onEscolher={descer} corDe={estado().por === "tipo" ? corDoTipo : undefined} />
           </Show>
         </Show>
       </Show>

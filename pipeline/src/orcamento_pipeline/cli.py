@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
@@ -51,13 +52,22 @@ def main() -> None:
             print(f"  aviso: SIOP {ano} indisponível ({e}); usando nomes do Portal", flush=True)
 
     print("baixando o tipo de cada despesa (SIOP, resultado primário)…", flush=True)
-    rp_siop = {}
-    for ano in sorted(args.anos):
+
+    def rp_do_ano(ano: int):
         # O ano corrente muda todo dia; o anterior ainda fecha nos primeiros meses.
+        forcar = args.forcar or ano >= hoje.year - 1
         try:
-            rp_siop[ano] = baixar_rp_siop(ano, PASTA_SIOP, forcar=args.forcar or ano >= hoje.year - 1)
-        except Exception as e:  # sem o SIOP o ano sai sem a divisão por tipo, como antes
+            return baixar_rp_siop(ano, PASTA_SIOP, forcar=forcar)
+        except Exception as e:
+            if forcar and (PASTA_SIOP / f"rp-{ano}.json").exists():
+                print(f"  aviso: SIOP {ano} indisponível ({e}); usando a cópia baixada antes", flush=True)
+                return baixar_rp_siop(ano, PASTA_SIOP)
+            # Sem o SIOP o ano sai sem a divisão por tipo, como antes.
             print(f"  aviso: tipo de despesa do SIOP {ano} indisponível ({e}); o ano sai sem essa divisão", flush=True)
+            return None
+
+    with ThreadPoolExecutor(3) as fila:   # ~20 s por ano; três consultas de cada vez
+        rp_siop = {a: d for a, d in zip(sorted(args.anos), fila.map(rp_do_ano, sorted(args.anos))) if d}
 
     print("baixando IPCA…", flush=True)
     ipca = fatores_ipca(baixar_ipca(PASTA_IPCA), sorted(args.anos))
