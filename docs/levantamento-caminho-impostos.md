@@ -132,6 +132,25 @@ O "fica com" da União inclui o INSS, que volta quase todo como aposentadoria e 
 pagos em 2025, mais do que a arrecadação). E o que a União gasta também passa pelo que ela pega emprestado: o
 diagrama é só do imposto.
 
+## Quais impostos estão no diagrama
+
+Todos os tributos do país estão lá; os menores aparecem somados, e o painel do diagrama mostra o que há dentro de cada
+grupo (campo `composicao` do arquivo):
+
+- **Outros federais** (R$ 88 bi): salário-educação R$ 36 bi; ITR (terras rurais) R$ 4,1 bi, da arrecadação por estado
+  da Receita Federal, porque o RTN não o separa das "outras receitas administradas"; CIDE dos combustíveis R$ 3,3 bi; o
+  resto das outras receitas da Receita Federal (taxas, contribuições menores, multas) R$ 45 bi.
+- **Taxas** (R$ 90 bi): taxas dos estados e do DF R$ 51 bi, das prefeituras R$ 21 bi e contribuição de iluminação
+  pública R$ 17 bi.
+- O Simples Nacional não aparece à parte: o que se paga nele já vem dividido entre imposto de renda, Cofins, INSS, ICMS e
+  ISS nas duas fontes.
+- Ficam de fora: o FGTS (é do trabalhador, não do governo), as contribuições ao Sistema S (Sesi, Senai, Sesc…), que o
+  RTN já desconta da arrecadação do INSS, e a previdência própria dos servidores.
+
+Os **programas** também são abertos (campo `programas`), pelo que estados e prefeituras declararam: saúde (SUS, R$ 185 bi
+somando os três repasses), convênios, educação (merenda, transporte escolar), emendas sem destino definido
+("transferência especial"), assistência social e outros.
+
 ## O que deixa de entrar (benefícios fiscais)
 
 Fica num galho à parte, nunca somado ao que se pagou: é dinheiro que não foi cobrado.
@@ -143,7 +162,8 @@ Fica num galho à parte, nunca somado ao que se pagou: é dinheiro que não foi 
   "efetivo" de 2025. O DGT que acompanhou o projeto de orçamento de 2025 dava R$ 544 bi (sem a desoneração da folha,
   que ainda estava em votação); o do projeto de 2026 só traz 2026 (R$ 613 bi).
   - Por imposto: imposto de renda R$ 230 bi; Cofins e PIS R$ 156 bi; INSS R$ 98 bi; CSLL R$ 34 bi; IPI R$ 31 bi;
-    IOF R$ 11 bi; importação R$ 8 bi. O programa confere que os tributos somam o total do quadro.
+    IOF R$ 11 bi; importação R$ 8 bi. O programa confere que os tributos somam o total do quadro e guarda os cinco
+    maiores benefícios de cada imposto (`itens_por_imposto`).
   - Os maiores: Simples Nacional R$ 121 bi; cesta básica R$ 42 bi; despesas médicas no imposto de renda R$ 32 bi;
     Zona Franca de Manaus R$ 29 bi; aposentadoria de quem tem doença grave R$ 27 bi; entidades filantrópicas
     (previdência) R$ 23 bi.

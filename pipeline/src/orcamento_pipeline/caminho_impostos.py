@@ -126,6 +126,25 @@ def fundeb_liquido(dca: dict) -> dict:
     return por_uf
 
 
+def itr_receita_federal(ano: int) -> float | None:
+    """ITR arrecadado no ano (R$ bi), da arrecadação por estado da Receita Federal que o mapa já baixa
+    (data/raw/receita-federal/arrecadacao-estado.csv). O RTN não separa o ITR das outras receitas."""
+    import csv
+    try:
+        texto = (c.RAIZ / "data" / "raw" / "receita-federal" / "arrecadacao-estado.csv").read_bytes().decode("latin-1")
+    except OSError:
+        return None
+    linhas = list(csv.reader(io.StringIO(texto), delimiter=";"))
+    col = next((i for i, h in enumerate(linhas[0]) if "TERRITORIAL RURAL" in h.upper()), None)
+    if col is None:
+        return None
+    total = 0.0
+    for l in linhas[1:]:
+        if l and l[0] == str(ano) and col < len(l) and l[col]:
+            total += float(l[col].replace(".", "").replace(",", "."))
+    return total / 1e9 or None
+
+
 # ── RTN (União) ──────────────────────────────────────────────────────────────────────────────────
 
 def ler_rtn_22(xlsx: bytes, ano: int) -> dict[str, float]:
@@ -230,6 +249,32 @@ def montar(dca: dict, r: dict[str, float], ano: int) -> dict:
         "fundeb": fundeb_e_para_m,
     }
     prog_em = M("1.7.2.0.00.0.0") + M("2.4.2.0.00.0.0") - (M("1.7.2.1.00.0.0") + M("1.7.2.2.00.0.0"))
+
+    # O que há dentro dos programas, pelo que quem recebe declarou; "outros" fecha a conta com o total acima.
+    def detalhar(total: float, partes: list[tuple[str, float]]) -> list[dict]:
+        itens = [(n, v) for n, v in partes if v > 0.05]
+        resto = total - sum(v for _, v in itens)
+        if resto > 0.05:
+            itens.append(("Outros (precatórios do antigo Fundef, segurança pública, cultura…)", resto))
+        return [{"nome": n, "valor": round(v, 1)} for n, v in sorted(itens, key=lambda x: -x[1])]
+
+    def da_uniao(X) -> list[tuple[str, float]]:
+        return [
+            ("Saúde (SUS)", X("1.7.1.3.00.0.0") + X("2.4.1.1.00.0.0") + X("1.7.1.7.50.0.0") + X("2.4.1.4.50.0.0")),
+            ("Educação (merenda, transporte escolar, dinheiro direto na escola)",
+             X("1.7.1.4.00.0.0") - X("1.7.1.4.50.0.0") + X("2.4.1.2.00.0.0")),
+            ("Assistência social", X("1.7.1.6.00.0.0")),
+            ("Emendas parlamentares sem destino definido (transferência especial)", X("1.7.1.9.57.0.0") + X("2.4.1.9.51.0.0")),
+            ("Convênios", X("1.7.1.7.00.0.0") - X("1.7.1.7.50.0.0") + X("2.4.1.4.00.0.0") - X("2.4.1.4.50.0.0")),
+        ]
+    programas = {
+        "c-uniao>f-estados": detalhar(prog_ue, da_uniao(E)),
+        "c-uniao>f-prefeituras": detalhar(prog_um, da_uniao(M)),
+        "c-estados>f-prefeituras": detalhar(prog_em, [
+            ("Saúde (SUS)", M("1.7.2.3.00.0.0") + M("2.4.2.1.00.0.0")),
+            ("Convênios", M("1.7.2.4.00.0.0") + M("2.4.2.2.00.0.0")),
+        ]),
+    }
     fundos = rtn(r, "2.2.1 repasse total")
 
     nomes_repasse = {
@@ -286,7 +331,31 @@ def montar(dca: dict, r: dict[str, float], ano: int) -> dict:
     nos += [{"id": "f-fundos", "nome": "Fundos regionais", "coluna": 2, "esfera": "fundos"}]
 
     conferir(fluxos, governos)
-    return {"nos": nos, "fluxos": fluxos, "governos": governos,
+    # O que há dentro dos nós que juntam vários tributos (para o painel dizer quais são).
+    itr = itr_receita_federal(ano)
+    outras_rfb = rtn(r, "1.1.10 outras receitas administradas")
+    composicao = {
+        "outros-federais": [x for x in [
+            {"nome": "Salário-educação (das empresas, para a educação básica)", "valor": round(rtn(r, "1.4.6 contribuicao do salario educacao"), 1)},
+            {"nome": "ITR (imposto das terras rurais)", "valor": round(itr, 1)} if itr else None,
+            {"nome": "CIDE dos combustíveis", "valor": round(rtn(r, "1.1.09 cide"), 1)},
+            {"nome": "Outras receitas da Receita Federal (taxas, contribuições menores, multas)", "valor": round(outras_rfb - (itr or 0), 1)},
+        ] if x],
+        "taxas": [
+            {"nome": "Taxas dos estados e do DF (licenças, fiscalização, cartórios, Justiça)", "valor": round(EL("1.1.2.0.00.0.0"), 1)},
+            {"nome": "Taxas das prefeituras (licenças, coleta de lixo)", "valor": round(ML("1.1.2.0.00.0.0"), 1)},
+            {"nome": "Contribuição de iluminação pública (na conta de luz)", "valor": round(ML("1.2.4.0.00.0.0") + EL("1.2.4.0.00.0.0"), 1)},
+        ],
+        "cofins": [{"nome": "Cofins", "valor": round(rtn(r, "1.1.05 cofins"), 1)}, {"nome": "PIS/Pasep", "valor": round(rtn(r, "1.1.06 pis/pasep"), 1)}],
+        "ir": [{"nome": "Pessoas físicas (declaração anual)", "valor": round(rtn(r, "1.1.03.1 i.r. pessoa fisica"), 1)},
+               {"nome": "Empresas", "valor": round(rtn(r, "1.1.03.2 i.r. pessoa juridica"), 1)},
+               {"nome": "Descontado na fonte (salários, aplicações, remessas)", "valor": round(rtn(r, "1.1.03.3 i.r. retido na fonte"), 1)},
+               {"nome": "Descontado dos servidores dos estados (fica com eles)", "valor": round(EL("1.1.1.3.03.0.0"), 1)},
+               {"nome": "Descontado dos servidores das prefeituras (fica com elas)", "valor": round(ML("1.1.1.3.03.0.0"), 1)}],
+        "iptu": [{"nome": "IPTU das prefeituras", "valor": round(ML("1.1.1.2.50.0.0"), 1)},
+                 {"nome": "IPTU e ITBI do Distrito Federal", "valor": round(EL("1.1.1.2.50.0.0") + EL("1.1.1.2.53.0.0"), 1)}],
+    }
+    return {"nos": nos, "fluxos": fluxos, "governos": governos, "programas": programas, "composicao": composicao,
             "fundeb": {"por_uf": {uf: {k: round(x, 2) for k, x in v.items()} for uf, v in fundeb.items()},
                        "estados_poem": round(sum(v["estado_poe"] for v in fundeb.values()), 1),
                        "estados_tiram": round(sum(v["estado_tira"] for v in fundeb.values()), 1),
@@ -370,6 +439,8 @@ def gastos_tributarios(ano: int) -> dict:
     col = next(i for i, x in enumerate(cab) if str(x).strip() == str(ano))
     por_tributo: dict[str, float] = defaultdict(float)
     itens: dict[str, float] = defaultdict(float)
+    itens_por: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    atual = ""
     total = None
     tributo = None
     for l in linhas[linhas.index(cab) + 1:]:
@@ -384,17 +455,23 @@ def gastos_tributarios(ano: int) -> dict:
         if achado and tributo != nome:
             tributo = nome
             por_tributo[achado] += v / 1e9
+            atual = achado
         else:
             itens[nome] += v / 1e9
+            if tributo:
+                itens_por[atual][nome] += v / 1e9
     if total is None or abs(sum(por_tributo.values()) - total) > 0.01 * total:
         raise ValueError(f"DGT {ano}: os tributos ({sum(por_tributo.values()):.1f}) não somam o total ({total})")
     maiores = sorted(itens.items(), key=lambda x: -x[1])[:10]
+    maiores_por = {k: [{"nome": NOMES_DGT.get(n, n), "valor": round(v, 1)} for n, v in sorted(d.items(), key=lambda x: -x[1])[:5] if v >= 0.5]
+                   for k, d in itens_por.items()}
     return {
         "uniao": {"total": round(total, 1), "ano": ano, "estimativa": "projeção das bases efetivas de 2023",
                   "fonte": "Receita Federal, Demonstrativo dos Gastos Tributários (bases efetivas 2023, série 2021 a 2026)",
                   "url": URL_DGT, "pagina": PAGINA_DGT,
                   "por_imposto": {k: round(v, 1) for k, v in sorted(por_tributo.items(), key=lambda x: -x[1])},
-                  "itens": [{"nome": NOMES_DGT.get(n, n), "valor": round(v, 1)} for n, v in maiores]},
+                  "itens": [{"nome": NOMES_DGT.get(n, n), "valor": round(v, 1)} for n, v in maiores],
+                  "itens_por_imposto": maiores_por},
         "estados": ICMS_RENUNCIA,
     }
 

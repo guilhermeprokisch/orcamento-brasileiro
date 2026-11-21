@@ -10,6 +10,7 @@ import {
   agrupar, afastar, bi, COR, COR_CLARA, CURTO, desenhar, GRUPOS_ESTREITO, ORDEM_ESTREITO, totalPago,
   type DocCaminho, type FluxoDesenhado,
 } from "../../lib/caminho-impostos";
+import { barrasDeixa, explicacoes } from "../../lib/caminho-explica";
 
 interface Props { doc: DocCaminho; forma: "largo" | "estreito"; historia?: boolean; deixa?: { uniao: number; estados: number } | null; classe?: string }
 const { doc: original, forma, historia = false, deixa = null, classe = "" } = Astro.props;
@@ -67,14 +68,21 @@ const rotulosFluxo = largo
       ...f, x: (xFim(1) + o.colunas[2]) / 2, y: (f.y0 + f.y1) / 2 + topo,
     }))
   : [];
-// "O que deixa de entrar": barras tracejadas abaixo de tudo, na escala do diagrama.
-const fantasma = deixa ? [
-  { id: "deixa-uniao", nome: "Benefícios fiscais da União", valor: deixa.uniao, esfera: "uniao" as const },
-  { id: "deixa-estados", nome: "Incentivos de ICMS", valor: deixa.estados, esfera: "estados" as const },
-].filter((x) => x.valor > 0) : [];
+// "O que deixa de entrar": barras tracejadas abaixo dos impostos, uma por imposto, na mesma escala e do mesmo jeito.
+const barras = deixa ? barrasDeixa(original, !largo) : [];
+const yDeixa = H + (largo ? 44 : 40);
+let yb = yDeixa;
+const fantasma = barras.map((b) => { const h = b.valor * dd.escala; const r = { ...b, y: yb, h }; yb += h + o.vao; return r; });
+const alturaDeixa = fantasma.length ? yb - o.vao - H + 12 : 0;
+const ysDeixa = afastar(fantasma.map((b) => b.y + b.h / 2 - yDeixa), largo ? 17 : 14, alturaDeixa - (largo ? 44 : 40)).map((y) => y + yDeixa);
+const totalDeixa = barras.reduce((t, b) => t + b.valor, 0);
+// O balão: título, valor e explicação de cada pedaço deste desenho.
+const todas = explicacoes(original);
+const presentes = new Set([...dd.fluxos.map((f) => f.id), ...dd.nos.map((n) => n.id), ...barras.map((b) => b.id)]);
+const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((id) => [id, { t: todas[id].titulo, v: todas[id].valor, x: todas[id].texto }]));
 ---
 
-<svg class={`diagrama ${forma} ${classe}`} viewBox={`0 0 ${L} ${H + (fantasma.length ? (largo ? 110 : 96) : 0)}`} role="img"
+<svg class={`diagrama ${forma} ${classe}`} viewBox={`0 0 ${L} ${H + alturaDeixa}`} role="img"
   aria-label={`Diagrama: o que se pagou de impostos em ${doc.ano}, quem cobrou e quem ficou com o dinheiro.`} data-historia={historia ? "" : undefined}>
   <g class="fluxos">
     {fluxos.map((f) => (
@@ -124,21 +132,27 @@ const fantasma = deixa ? [
   </g>
   {fantasma.length > 0 && (
     <g class="deixa" data-desde={historia ? 8 : undefined} data-destaque={historia ? 8 : undefined}>
-      <text x={largo ? 20 : 8} y={H + 20} class="rotulo-deixa">O que deixa de entrar (benefícios fiscais)</text>
-      {fantasma.map((g, i) => {
-        const w = g.valor * dd.escala;
-        const x0 = largo ? 20 : 8;
-        const y = H + 34 + i * (largo ? 34 : 30);
-        return (
-          <g class="no" data-id={g.id} tabindex="0" role="button">
-            <rect x={x0} y={y} width={w} height={largo ? 18 : 16} class={`fantasma ${g.esfera}`} />
-            <text x={x0 + w + 8} y={y + (largo ? 13 : 12)} class="rotulo"><tspan class="nome">{g.nome}</tspan><tspan class="valor" dx="6">{bi(g.valor)}</tspan></text>
-          </g>
-        );
-      })}
+      <line x1={0} x2={L} y1={H + 6} y2={H + 6} class="divisa" />
+      <text x={o.colunas[0] + o.barra} y={H + 28} text-anchor="end" class="rotulo-deixa">O que deixa de entrar</text>
+      {largo && (
+        <text x={o.colunas[1]} y={yDeixa + 14} class="nota-deixa">
+          <tspan x={o.colunas[1]}>Benefícios fiscais: imposto que deixou de ser cobrado</tspan>
+          <tspan x={o.colunas[1]} dy="1.35em">com isenções, deduções e regimes especiais.</tspan>
+          <tspan x={o.colunas[1]} dy="1.35em">Não entra no caminho porque nunca foi pago.</tspan>
+          <tspan x={o.colunas[1]} dy="1.6em" class="forte">{bi(totalDeixa)} por ano, perto de R$ {Math.round((totalDeixa / total) * 100)} para cada R$ 100 cobrados.</tspan>
+        </text>
+      )}
+      {fantasma.map((b, i) => (
+        <g class="no" data-id={b.id} tabindex="0" role="button" aria-label={`${b.nome}: ${bi(b.valor)} deixam de entrar`}>
+          <rect x={o.colunas[0]} y={b.y} width={o.barra} height={Math.max(1, b.h)} class={`fantasma ${b.esfera}`} />
+          {Math.abs(ysDeixa[i] - (b.y + b.h / 2)) > 3 && <line x1={o.colunas[0] - 3} y1={b.y + b.h / 2} x2={o.colunas[0] - 9} y2={ysDeixa[i]} class="guia" />}
+          <text x={o.colunas[0] - 12} y={ysDeixa[i] + 4} text-anchor="end" class="rotulo"><tspan class="nome">{b.nome}</tspan>{largo && <tspan class="valor" dx="6">{bi(b.valor)}</tspan>}</text>
+        </g>
+      ))}
     </g>
   )}
 </svg>
+<script type="application/json" class="dicas-diagrama" set:html={JSON.stringify(dicas)} />
 
 <style>
   .diagrama { width: 100%; height: auto; display: block; overflow: visible; font-family: var(--sans); }
@@ -146,7 +160,7 @@ const fantasma = deixa ? [
   .fluxo.t-programa { stroke-opacity: 0.32; }
   .fluxo.t-fica { stroke-opacity: 0.7; }
   .no { cursor: pointer; transition: opacity 0.5s; }
-  .no:focus-visible { outline: none; }
+  .no:focus { outline: none; }
   .no:focus-visible rect { stroke: var(--tinta); stroke-width: 2; }
   .rotulo { font-size: 15px; fill: var(--tinta); }
   .estreito .rotulo { font-size: 11.5px; }
@@ -159,10 +173,20 @@ const fantasma = deixa ? [
   .rotulo-caixa.escuro { fill: var(--tinta); }
   .rotulo-fluxo { font-size: 13px; fill: var(--tinta); paint-order: stroke; stroke: var(--papel); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; transition: opacity 0.5s; }
   .guia { stroke: var(--texto-4); stroke-width: 0.8; }
-  .fantasma { fill: none; stroke-width: 1.5; stroke-dasharray: 4 3; }
   .fantasma.uniao { stroke: var(--verde-escuro); fill: rgba(10, 74, 41, 0.06); }
   .fantasma.estados { stroke: #2f8a55; fill: rgba(79, 174, 115, 0.08); }
   .rotulo-deixa { font-size: 15px; font-weight: 600; fill: var(--texto-2); }
+  .estreito .rotulo-deixa { font-size: 12px; }
+  .nota-deixa { font-size: 14px; fill: var(--texto-3); }
+  .nota-deixa .forte { fill: var(--tinta); font-weight: 600; }
+  .divisa { stroke: var(--regra); stroke-width: 1; stroke-dasharray: 2 3; }
+  .fantasma { stroke-width: 1.3; stroke-dasharray: 3 2; }
+  :global(.balao-diagrama) { position: fixed; z-index: 50; max-width: 300px; padding: 10px 12px; background: var(--papel); border: 1px solid var(--tinta);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12); font-size: 13.5px; line-height: 1.45; color: var(--texto-2); pointer-events: none; }
+  :global(.balao-diagrama strong) { display: block; color: var(--tinta); font-size: 14.5px; }
+  :global(.balao-diagrama .v) { display: block; font-family: var(--serifa); font-weight: 600; color: var(--tinta); margin: 2px 0 4px; }
+  :global(.balao-diagrama .dica) { display: block; margin-top: 6px; color: var(--texto-3); font-size: 12px; }
+  :global(.balao-diagrama[hidden]) { display: none; }
   .deixa { transition: opacity 0.5s; }
 
   /* História: o que ainda não apareceu some; o passo atual fica em evidência. */
@@ -176,3 +200,44 @@ const fantasma = deixa ? [
   .diagrama.com-escolha .rotulo-fluxo:not([data-ligado]) { opacity: 0.2; }
   .diagrama .fluxo[data-ligado] { stroke-opacity: 0.85; }
 </style>
+
+<script>
+  // O balão: ao passar o mouse sobre um pedaço (ou tocar, no desenho da história, que não tem painel), mostra o que é.
+  type Dica = { t: string; v: string; x: string };
+  const balao = document.createElement("div");
+  balao.className = "balao-diagrama";
+  balao.hidden = true;
+  balao.setAttribute("role", "tooltip");
+  document.body.append(balao);
+  const esconder = () => { balao.hidden = true; };
+  function mostrar(d: Dica | undefined, x: number, y: number, explorar: boolean) {
+    if (!d) return esconder();
+    balao.replaceChildren(
+      Object.assign(document.createElement("strong"), { textContent: d.t }),
+      Object.assign(document.createElement("span"), { className: "v", textContent: d.v }),
+      document.createTextNode(d.x.length > 220 ? `${d.x.slice(0, 217).replace(/\s\S*$/, "")}…` : d.x),
+      ...(explorar ? [Object.assign(document.createElement("span"), { className: "dica", textContent: "Clique para ver mais ao lado." })] : []),
+    );
+    balao.hidden = false;
+    const w = balao.offsetWidth, h = balao.offsetHeight;
+    balao.style.left = `${Math.max(8, Math.min(x + 14, innerWidth - w - 8))}px`;
+    balao.style.top = `${y + 18 + h > innerHeight ? Math.max(8, y - h - 12) : y + 18}px`;
+  }
+  document.querySelectorAll<SVGSVGElement>("svg.diagrama").forEach((svg) => {
+    const dados = JSON.parse((svg.nextElementSibling as HTMLElement)?.textContent || "{}") as Record<string, Dica>;
+    const explorar = svg.classList.contains("explorar-svg");
+    const alvo = (e: Event) => (e.target as Element).closest<SVGElement>("[data-id]");
+    svg.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "mouse") return;
+      const a = alvo(e);
+      if (a) mostrar(dados[a.dataset.id!], e.clientX, e.clientY, explorar); else esconder();
+    });
+    svg.addEventListener("pointerleave", esconder);
+    // No desenho da história (sem painel), tocar mostra o balão; no de explorar, o clique vai para o painel.
+    svg.addEventListener("click", (e) => {
+      const a = alvo(e);
+      if (a && !explorar) mostrar(dados[a.dataset.id!], e.clientX, e.clientY, false); else esconder();
+    });
+  });
+  addEventListener("scroll", esconder, { passive: true });
+</script>

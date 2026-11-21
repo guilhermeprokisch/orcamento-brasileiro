@@ -28,9 +28,13 @@ export interface DocCaminho {
     deducao_estados: Record<string, number>;
   };
   conferencia: { nome: string; lado_manda: string; manda: number; recebe: number }[];
+  /** O que há dentro dos repasses para programas, por ligação ("c-uniao>f-prefeituras"). */
+  programas?: Record<string, ItemDeixa[]>;
+  /** O que há dentro dos impostos que juntam vários tributos ("outros-federais", "taxas", "cofins", "ir", "iptu"). */
+  composicao?: Record<string, ItemDeixa[]>;
   /** "O que deixa de entrar": benefícios fiscais. */
   deixa?: {
-    uniao?: { total: number; ano: number; estimativa: string; fonte: string; url: string; pagina: string; itens: ItemDeixa[]; por_imposto: Record<string, number> };
+    uniao?: { total: number; ano: number; estimativa: string; fonte: string; url: string; pagina: string; itens: ItemDeixa[]; por_imposto: Record<string, number>; itens_por_imposto?: Record<string, ItemDeixa[]> };
     estados?: { total: number; ano_referencia: number; sem: string[]; em_2024: number; fonte: string; url: string };
   };
 }
@@ -63,8 +67,8 @@ export const EXPLICA: Record<string, string> = {
   importacao: "Cobrado sobre o que entra no país vindo de fora.",
   ipi: "Imposto federal sobre produtos industrializados. Junto com o imposto de renda, é a base do FPE e do FPM.",
   iof: "Imposto sobre empréstimos, câmbio, seguros e algumas aplicações.",
-  "outros-federais": "CIDE dos combustíveis, ITR (o imposto das terras rurais), salário-educação (pago pelas empresas sobre a folha, para a educação básica) e outros menores.",
-  royalties: "Não é imposto: é o que as empresas pagam ao país para tirar petróleo, gás e minérios. A lei manda dividir com estados e cidades onde há produção.",
+  "outros-federais": "Os tributos federais menores, somados: o salário-educação (pago pelas empresas sobre a folha, para a educação básica), o ITR (o imposto das terras rurais), a CIDE dos combustíveis e outras receitas da Receita Federal.",
+  royalties: "Não é imposto: é o que as empresas pagam ao país para tirar petróleo, gás e minérios (royalties, participação especial e compensação pela mineração). A lei manda dividir com os estados e as cidades onde há produção, e um pouco com os demais.",
   icms: "O imposto estadual embutido no preço das mercadorias, da luz, do combustível e da conta de telefone. O maior imposto do país.",
   ipva: "Imposto anual sobre carros e motos, pago ao estado. Metade vai para a cidade onde o veículo está registrado.",
   itcmd: "Imposto estadual cobrado sobre heranças e doações.",
@@ -72,8 +76,8 @@ export const EXPLICA: Record<string, string> = {
   iptu: "Imposto anual das prefeituras sobre casas, apartamentos e terrenos na cidade.",
   itbi: "Imposto das prefeituras sobre a compra e venda de imóveis.",
   taxas: "Taxas por serviços e fiscalização (como licenças e coleta de lixo) e a contribuição de iluminação pública na conta de luz.",
-  fpe: "A Constituição manda a União dar 21,5% do imposto de renda e do IPI aos estados, mais aos mais pobres.",
-  fpm: "25,5% do imposto de renda e do IPI vão para as prefeituras, mais para as cidades pequenas. Para a maioria delas, é a maior fonte de dinheiro.",
+  fpe: "Fundo de Participação dos Estados: a Constituição manda a União dar 21,5% do imposto de renda e do IPI aos estados e ao DF, mais aos do Norte, do Nordeste e do Centro-Oeste. Para os estados mais pobres, é a maior fonte de dinheiro.",
+  fpm: "Fundo de Participação dos Municípios: 25,5% do imposto de renda e do IPI vão para as prefeituras, mais para as cidades pequenas. Para a maioria delas, é a maior fonte de dinheiro.",
   "ipi-exportacao": "10% do IPI vão para os estados, conforme o quanto cada um exporta; o estado passa um quarto disso às suas prefeituras.",
   itr: "O imposto das terras rurais é dividido meio a meio com a prefeitura onde fica a terra (ou fica inteiro com ela, se ela mesma cobrar).",
   "salario-educacao": "A contribuição das empresas para a educação básica: dois terços vão para estados e prefeituras, pelo número de alunos.",
@@ -83,8 +87,8 @@ export const EXPLICA: Record<string, string> = {
   "cota-ipva": "Metade do IPVA vai para a prefeitura da cidade onde o veículo está registrado.",
   "cota-ipi": "A parte das prefeituras no IPI-exportação, na CIDE e nos royalties que o estado recebe.",
   fundeb: "O fundo da educação básica: estado e prefeituras põem 20% de vários impostos e repasses, e cada um tira pelo número de alunos da sua rede. Como as prefeituras têm mais alunos, o estado põe mais do que tira.",
-  programas: "Dinheiro mandado para programas, não divisão de imposto: o SUS, a merenda, a assistência social, convênios e emendas parlamentares. Boa parte também é obrigatória por lei.",
-  fundos: "3% do imposto de renda e do IPI vão para três fundos que emprestam a empresas e produtores do Norte, do Nordeste e do Centro-Oeste.",
+  programas: "Dinheiro mandado com destino certo, não divisão de imposto: a maior parte é do SUS (consultas, exames, hospitais, agentes de saúde), e o resto vai para merenda e transporte escolar, assistência social, convênios para obras e emendas de deputados e senadores. Boa parte também é obrigatória por lei.",
+  fundos: "3% do imposto de renda e do IPI vão para três fundos regionais: o FNO (Norte), o FNE (Nordeste) e o FCO (Centro-Oeste). Não são governos: é dinheiro que o Banco da Amazônia, o Banco do Nordeste e o Banco do Brasil emprestam, com juros menores, a empresas e produtores dessas regiões, e que volta quando os empréstimos são pagos.",
   fica: "O que o governo cobrou e não precisou repassar.",
 };
 

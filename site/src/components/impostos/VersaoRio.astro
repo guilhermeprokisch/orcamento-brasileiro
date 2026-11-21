@@ -24,6 +24,7 @@ const obrigUniao = soma(doc, (x) => x.de === "c-uniao" && x.tipo === "obrigatori
 const progUniao = soma(doc, (x) => x.de === "c-uniao" && x.tipo === "programa");
 const progEstados = soma(doc, (x) => x.de === "c-estados" && x.tipo === "programa");
 const fb = doc.fundeb;
+const sus = Object.values(doc.programas ?? {}).flat().filter((i) => i.nome.startsWith("Saúde")).reduce((t, i) => t + i.valor, 0);
 ---
 
 <section class={`v-rio ${parte ? "parte" : ""}`}>
@@ -53,7 +54,7 @@ const fb = doc.fundeb;
       </li>
       <li data-passo="3">
         <h2>A União divide</h2>
-        <p>A Constituição manda a União dar parte do imposto de renda e do IPI aos estados (o FPE, {bi(f("fpe"))}) e às prefeituras (o <Termo id="fpm" />, {bi(f("fpm"))}). Somando royalties, salário-educação e a parte dela no <Termo id="fundeb" />, são {biExtenso(obrigUniao)} repassados por obrigação.</p>
+        <p>A Constituição manda a União dar parte do imposto de renda e do IPI aos estados (o <Termo id="fpe" />, {bi(f("fpe"))}) e às prefeituras (o <Termo id="fpm" />, {bi(f("fpm"))}), e uma fatia aos <Termo id="fundos-regionais" /> ({bi(f("fundos"))}). Somando os <Termo id="royalties" />, o salário-educação e a parte dela no <Termo id="fundeb" />, são {biExtenso(obrigUniao)} repassados por obrigação.</p>
       </li>
       <li data-passo="4">
         <h2>Os estados também dividem</h2>
@@ -65,7 +66,7 @@ const fb = doc.fundeb;
       </li>
       <li data-passo="6">
         <h2>E os programas</h2>
-        <p>Fora a divisão dos impostos, a União manda {bi(progUniao)} para programas (o SUS, a merenda, a assistência social, convênios e emendas) e os estados mandam {bi(progEstados)} às prefeituras. Esse dinheiro vem com destino certo.</p>
+        <p>Fora a divisão dos impostos, a União manda {bi(progUniao)} para programas e os estados mandam {bi(progEstados)} às prefeituras. Esse dinheiro vem com destino certo: a maior parte, {bi(sus)}, é do SUS (consultas, exames, hospitais, agentes de saúde); o resto vai para merenda e transporte escolar, assistência social, convênios para obras e emendas de deputados e senadores.</p>
       </li>
       <li data-passo="7">
         <h2>Quem fica com o dinheiro</h2>
@@ -74,7 +75,7 @@ const fb = doc.fundeb;
       {deixa && (
         <li data-passo="8">
           <h2>O que deixa de entrar</h2>
-          <p>Isenções e regimes especiais fazem a União deixar de cobrar perto de {biExtenso(deixa.uniao)} por ano{deixa.estados > 0 && <>, e os estados, {biExtenso(deixa.estados)} de ICMS</>}. É dinheiro que não aparece no caminho, mas é uma escolha de gasto como outra qualquer.</p>
+          <p>Isenções e regimes especiais (os <Termo id="beneficio-fiscal">benefícios fiscais</Termo>) fazem a União deixar de cobrar perto de {biExtenso(deixa.uniao)} por ano{deixa.estados > 0 && <>, e os estados, {biExtenso(deixa.estados)} de ICMS</>}. As barras tracejadas, embaixo, mostram em que imposto: o maior pedaço é do imposto de renda e da Cofins (o Simples Nacional, a cesta básica, as deduções de saúde). É dinheiro que não aparece no caminho, mas é uma escolha como um gasto.</p>
         </li>
       )}
     </ol>
@@ -153,7 +154,9 @@ const fb = doc.fundeb;
       pedido = false;
       if (raiz.offsetParent === null) return;   // escondida (outra versão do protótipo na tela): nada a medir
       let n = Number(passos[0].dataset.passo);
-      for (const p of passos) if (p.getBoundingClientRect().top < innerHeight * 0.6) n = Number(p.dataset.passo);
+      // No celular o desenho ocupa o alto da tela: o passo muda quando o texto aparece embaixo dele.
+      const limite = innerWidth <= 900 ? 0.88 : 0.6;
+      for (const p of passos) if (p.getBoundingClientRect().top < innerHeight * limite) n = Number(p.dataset.passo);
       if (fixo && fixo !== "explorar") n = Number(fixo);
       if (n !== ultimo) { ultimo = n; mostrar(n); }
     };

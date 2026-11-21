@@ -4,114 +4,12 @@
  * .explorar-svg na mesma seção), mostra o que é, quanto passou por ali e de onde veio ou para onde foi.
  * Os textos vão prontos num JSON dentro da página; o script só troca o conteúdo.
  */
-import { agrupar, bi, EXPLICA, GOVERNOS, GRUPOS_ESTREITO, porMorador, soma, totalPago, type DocCaminho } from "../../lib/caminho-impostos";
+import { explicacoes } from "../../lib/caminho-explica";
+import type { DocCaminho } from "../../lib/caminho-impostos";
 
 interface Props { doc: DocCaminho; deixa: { uniao: number; estados: number } | null; inicial?: string }
-const { doc, deixa, inicial = "c-uniao" } = Astro.props;
-const total = totalPago(doc);
-const nomeNo = new Map(doc.nos.map((n) => [n.id, n.nome]));
-const em100 = (v: number) => { const x = (v / total) * 100; return x >= 1 ? `R$ ${Math.round(x)}` : `menos de R$ 1`; };
-const linha = (v: number) => `${bi(v)} · ${em100(v)} de cada R$ 100`;
-
-/** Os repasses que saem de cada imposto, pelas regras de divisão. */
-const SEGUE: Record<string, string[]> = {
-  ir: ["fpe", "fpm", "fundos"], ipi: ["fpe", "fpm", "fundos", "ipi-exportacao", "cota-ipi"], royalties: ["royalties", "cota-ipi"],
-  "outros-federais": ["salario-educacao", "itr", "outros-obrigatorios"], icms: ["cota-icms", "fundeb"], ipva: ["cota-ipva", "fundeb"],
-  itcmd: ["fundeb"],
-};
-interface Info { titulo: string; valor: string; texto: string; lista?: { nome: string; valor: string }[]; ligados: string[] }
-const info: Record<string, Info> = {};
-for (const f of doc.fluxos) {
-  const de = nomeNo.get(f.de)!, para = nomeNo.get(f.para)!;
-  const titulo = f.tipo === "imposto" ? `${f.nome} cobrado por ${para === "União" ? "a União" : para === "Prefeituras" ? "as prefeituras" : "os estados"}`
-    : f.tipo === "fica" ? `${de}: o que fica` : `${f.nome}: ${de.replace(" e DF", "")} → ${para.replace(" e DF", "")}`;
-  info[f.id] = {
-    titulo, valor: linha(f.valor),
-    texto: EXPLICA[f.chave] ?? "",
-    ligados: [f.id, f.de, f.para],
-  };
-}
-for (const n of doc.nos) {
-  const entram = doc.fluxos.filter((f) => f.para === n.id), saem = doc.fluxos.filter((f) => f.de === n.id);
-  const valor = Math.max(entram.reduce((t, f) => t + f.valor, 0), saem.reduce((t, f) => t + f.valor, 0));
-  const gov = GOVERNOS.find((g) => n.id.endsWith(g.chave));
-  let texto = n.coluna === 0 ? EXPLICA[n.id.slice(2)] ?? "" : "";
-  let lista: Info["lista"];
-  if (n.coluna === 1 && gov) {
-    const gg = doc.governos[gov.chave];
-    texto = `Cobrou ${bi(gg.cobra)} em impostos e repassou ${bi(gg.repassa)} a outros governos.`;
-    lista = saem.sort((a, b) => b.valor - a.valor).map((f) => ({ nome: f.tipo === "fica" ? "Fica com ele mesmo" : `${f.nome} → ${nomeNo.get(f.para)!.replace(" e DF", "")}`, valor: bi(f.valor) }));
-  } else if (n.coluna === 2 && gov) {
-    const gg = doc.governos[gov.chave];
-    texto = `Ficou com ${bi(gg.fica)}${porMorador(doc, gg.fica) ? ` (${porMorador(doc, gg.fica)} por morador do país)` : ""}: ${bi(gg.cobra - gg.repassa)} do que cobrou e ${bi(gg.recebe)} de repasses.`;
-    lista = entram.sort((a, b) => b.valor - a.valor).map((f) => ({ nome: f.tipo === "fica" ? "Do que ele mesmo cobrou" : `${f.nome} (${nomeNo.get(f.de)!.replace(" e DF", "")})`, valor: bi(f.valor) }));
-  } else if (n.id === "f-fundos") {
-    texto = EXPLICA.fundos;
-  } else if (n.coluna === 0) {
-    lista = saem.length > 1 ? saem.map((f) => ({ nome: `Cobrado por ${nomeNo.get(f.para)}`, valor: bi(f.valor) })) : undefined;
-  }
-  // Um imposto acende também os repasses que saem dele (o FPM do imposto de renda, a cota do ICMS…) e o que fica.
-  const depois = n.coluna === 0 ? doc.fluxos.filter((f) => (SEGUE[n.id.slice(2)] ?? []).includes(f.chave)
-    || (f.tipo === "fica" && saem.some((s) => s.para === f.de))) : [];
-  info[n.id] = {
-    titulo: n.nome, valor: linha(valor), texto, lista,
-    ligados: [n.id, ...entram.map((f) => f.id), ...saem.map((f) => f.id), ...entram.map((f) => f.de), ...saem.map((f) => f.para),
-      ...depois.flatMap((f) => [f.id, f.para])],
-  };
-}
-if (deixa) {
-  info["deixa-uniao"] = { titulo: "Benefícios fiscais da União", valor: `${bi(deixa.uniao)} por ano`, ligados: ["deixa-uniao"],
-    texto: "O que a Receita Federal estima deixar de cobrar com isenções, deduções e regimes especiais: o Simples Nacional, a Zona Franca de Manaus, a cesta básica, as deduções de saúde e educação do imposto de renda e outros. Não está no caminho acima porque nunca foi pago." };
-  if (deixa.estados > 0) info["deixa-estados"] = { titulo: "Incentivos de ICMS dos estados", valor: `${bi(deixa.estados)} por ano`, ligados: ["deixa-estados"],
-    texto: "O ICMS que os estados dizem deixar de cobrar com incentivos a empresas e setores, somando o que cada um estima na sua lei de diretrizes orçamentárias." };
-}
-
-// Atalhos (botões "Mostrar…"): um conjunto de faixas acesas de uma vez, com um resumo.
-const ids = (filtro: (f: DocCaminho["fluxos"][number]) => boolean) => doc.fluxos.filter(filtro);
-function grupo(id: string, titulo: string, texto: string, fluxos: DocCaminho["fluxos"], total?: number) {
-  const valor = total ?? fluxos.reduce((t, f) => t + f.valor, 0);
-  info[id] = {
-    titulo, valor: linha(valor), texto,
-    lista: [...fluxos].sort((a, b) => b.valor - a.valor).map((f) => ({
-      nome: f.tipo === "imposto" ? `${f.nome} cobrado pelos ${nomeNo.get(f.para)!.replace(" e DF", "").toLowerCase()}`
-        : f.tipo === "fica" ? `${nomeNo.get(f.de)!.replace(" e DF", "")} fica com`
-        : `${f.nome} (${nomeNo.get(f.de)!.replace(" e DF", "")} → ${nomeNo.get(f.para)!.replace(" e DF", "")})`,
-      valor: bi(f.valor) })),
-    ligados: [...new Set(fluxos.flatMap((f) => [f.id, f.de, f.para]))],
-  };
-}
-const fb = doc.fundeb;
-grupo("g-uniao", "A União divide", "O que a Constituição e as leis mandam a União passar a estados, prefeituras e aos fundos regionais: a maior parte é do imposto de renda e do IPI.",
-  ids((f) => f.de === "c-uniao" && f.tipo === "obrigatorio"));
-grupo("g-icms", "O caminho do ICMS", `Os estados cobraram ${bi(soma(doc, (f) => f.de === "t-icms"))} de ICMS. Um quarto vai para as prefeituras, e mais um pedaço chega a elas pelo Fundeb.`,
-  ids((f) => f.de === "t-icms" || f.chave === "cota-icms" || f.chave === "fundeb"), soma(doc, (f) => f.de === "t-icms"));
-grupo("g-fundeb", "O Fundeb", `Estados puseram ${bi(fb.estados_poem)} no fundo e tiraram ${bi(fb.estados_tiram)}; prefeituras puseram ${bi(fb.prefeituras_poem)} e tiraram ${bi(fb.prefeituras_tiram)}. A União completa onde o dinheiro por aluno fica abaixo do mínimo.`,
-  ids((f) => f.chave === "fundeb" || f.chave === "fundeb-uniao"));
-grupo("g-programas", "Os programas", EXPLICA.programas, ids((f) => f.tipo === "programa"));
-grupo("g-fica", "O que cada um guarda", "O que cada governo cobrou e não precisou repassar.", ids((f) => f.tipo === "fica"));
-
-// O diagrama do celular junta impostos pequenos num nó só: os ids juntados ganham texto próprio, e os ids
-// originais acendem também o nó juntado.
-const estreito = agrupar(doc, GRUPOS_ESTREITO);
-const grupoDe = new Map(Object.entries(GRUPOS_ESTREITO).flatMap(([g, x]) => x.ids.map((id) => [id, g] as const)));
-for (const n of estreito.nos) if (!info[n.id]) {
-  const g = GRUPOS_ESTREITO[n.id as keyof typeof GRUPOS_ESTREITO];
-  const saem = estreito.fluxos.filter((f) => f.de === n.id);
-  info[n.id] = { titulo: n.nome, valor: linha(saem.reduce((t, f) => t + f.valor, 0)), texto: "",
-    lista: g?.ids.map((id) => ({ nome: nomeNo.get(id) ?? id, valor: bi(soma(doc, (f) => f.de === id)) })),
-    ligados: [n.id, ...saem.map((f) => f.id), ...saem.map((f) => f.para)] };
-}
-for (const f of estreito.fluxos) if (!info[f.id]) info[f.id] = { ...info[f.de], ligados: [f.id, f.de, f.para] };
-for (const [id, i] of Object.entries(info)) {
-  const extra = i.ligados.flatMap((l) => {
-    const g = grupoDe.get(l);
-    if (g) return [g];
-    const m = l.match(/^(t-[^>]+)>(.+):/);
-    const gf = m && grupoDe.get(m[1]);
-    return gf ? [`${gf}>${m![2]}:${gf.slice(2)}`] : [];
-  });
-  if (extra.length) info[id] = { ...i, ligados: [...i.ligados, ...extra] };
-}
+const { doc, inicial = "c-uniao" } = Astro.props;
+const info = explicacoes(doc);
 const ini = info[inicial];
 ---
 
@@ -137,7 +35,7 @@ const ini = info[inicial];
 </style>
 
 <script>
-  type Info = { titulo: string; valor: string; texto: string; lista?: { nome: string; valor: string }[]; ligados: string[] };
+  import type { Info } from "../../lib/caminho-explica";
   document.querySelectorAll<HTMLElement>(".painel").forEach((painel) => {
     const secao = painel.closest("section")!;
     const dados = JSON.parse(painel.querySelector(".painel-dados")!.textContent!) as Record<string, Info>;
