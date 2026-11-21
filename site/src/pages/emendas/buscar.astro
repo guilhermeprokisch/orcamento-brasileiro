@@ -11,6 +11,7 @@ import Base from "../../layouts/Base.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import EmendasAbas from "../../components/emendas/EmendasAbas.astro";
 import "../../styles/onde.css";
+import "../../styles/degraus.css";
 
 interface Resumo {
   fonte: string; ano: number; anos: number[]; pagamentos: string; textos: string; total: number;
@@ -34,9 +35,10 @@ const TIPOS: [string, string, string][] = [
 
 <Base title="Buscar emendas parlamentares · Orçamento Brasileiro" description="Procure emendas parlamentares emenda por emenda: por cidade, deputado, senador, entidade ou o que foi feito.">
   <div class="wrap"><EmendasAbas ativa="busca" /></div>
-  <div class="wrap explorador" data-emendas data-pagamentos={r?.pagamentos} data-textos={r?.textos} data-ano={r?.ano}>
+  <div class="wrap explorador" data-emendas data-pagamentos={r?.pagamentos} data-textos={r?.textos} data-ano={r?.ano}
+    data-total={r?.total} data-total-texto={r ? `${moedaCurta(r.total)} pagos` : undefined}>
+    <nav class="degraus" aria-label="Caminho" data-voltar hidden></nav>
     <section class="topo" data-topo>
-      <nav class="trilha" aria-label="Caminho" data-voltar hidden></nav>
       <span class="sobretitulo" data-sobretitulo hidden></span>
       <h1 data-titulo>Busque emenda por emenda</h1>
       {r && (
@@ -78,6 +80,7 @@ const TIPOS: [string, string, string][] = [
       <p class="exemplos" data-exemplos>Exemplos: <a href="/emendas/buscar?autor=Romario">Romário</a> · <a href="/emendas/buscar?q=pavimentação&fonte=Plano de emenda Pix">pavimentação nas emendas Pix</a> · <a href="/emendas/buscar?q=ambulância">ambulância</a> · <a href="/emendas/buscar?q=show">shows</a></p>
     </form>
 
+    <div class="voltar-resultado" data-voltar-botao hidden></div>
     <section class="resultado" data-resultado hidden aria-live="polite"></section>
 
     {r && (
@@ -125,10 +128,18 @@ const TIPOS: [string, string, string][] = [
   for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
   const saida = document.querySelector("[data-resultado]");
   const pergunta = ["q", "autor", "entidade", "ente", "uf", "fonte"].some((k) => params.get(k));
-  // A trilha (public/explorador/trilha.js): por onde a pessoa veio, com um link para cada passo.
+  // Os degraus (public/explorador/trilha.js): por onde a pessoa veio, um degrau por passo, com o valor de cada um.
   const { ligarTrilha } = await import("/explorador/trilha.js");
-  const trilha = pergunta ? ligarTrilha(document.querySelector("[data-voltar]"), { chave: "emendas", inicio: { url: "/emendas/buscar", titulo: "Emendas" } }) : null;
-  trilha?.titulo(params.get("q") ? `“${params.get("q")}”` : "Resultado");
+  const trilha = ligarTrilha(document.querySelector("[data-voltar]"), {
+    chave: "emendas", botao: document.querySelector("[data-voltar-botao]"),
+    inicio: { url: "/emendas/buscar", tipo: "Todas as emendas", titulo: `Brasil, ${raiz?.dataset.ano ?? ""}`, valor: raiz?.dataset.totalTexto,
+      v: Number(raiz?.dataset.total), base: "pagamentos", ano: raiz?.dataset.ano, de: "do Brasil", volta: "todas as emendas" },
+  });
+  // O tipo do passo e como o seguinte se refere a ele ("40% do que mandou").
+  const [tipoPasso, dePasso] = params.get("autor") ? ["Quem mandou", "do que mandou"] : params.get("entidade") ? ["Quem recebeu", "do que recebeu"]
+    : params.get("q") ? ["O que você procurou", "da busca"] : params.get("ente") ? ["Onde", params.get("ente").length === 2 ? "do estado" : "da cidade"]
+    : ["Busca", "da busca"];
+  trilha.passo({ tipo: tipoPasso, de: dePasso, titulo: params.get("q") ? `“${params.get("q")}”` : "Resultado" });
 
   // O campo "Onde" (public/explorador/onde.js): uma cidade abre a página das emendas dela; um estado, tudo o
   // que foi pago a quem fica nele (prefeituras, governo, entidades). Com palavras, a busca fica no lugar.
@@ -140,7 +151,7 @@ const TIPOS: [string, string, string][] = [
     const q = new URLSearchParams();
     for (const [k, v] of new FormData(form)) if (v && !["autor", "entidade", "ente", "uf"].includes(k)) q.set(k, v);
     if (campoOnde.escolhido) q.set("ente", campoOnde.escolhido.codigo);
-    trilha?.novaBusca();
+    trilha.novaBusca();
     location.href = `/emendas/buscar${q.size ? `?${q}` : ""}`;
   });
 
@@ -149,7 +160,7 @@ const TIPOS: [string, string, string][] = [
     document.querySelector("[data-titulo]").textContent = titulo_;
     const p = document.querySelector("[data-frase]"); if (p) p.innerHTML = frase;
     const s = document.querySelector("[data-sobretitulo]"); s.hidden = !sobretitulo; s.textContent = sobretitulo || "";
-    trilha?.titulo(titulo_);
+    if (!params.get("q")) trilha.titulo(titulo_);   // numa busca, o degrau é o que se procurou
     document.querySelector("[data-exemplos]")?.setAttribute("hidden", "");
     document.title = `${titulo_} · Emendas · Orçamento Brasileiro`;
   }
@@ -236,6 +247,7 @@ const TIPOS: [string, string, string][] = [
     const ent = await consulta(`SELECT favorecido, codigo, sum(valor) AS valor FROM x WHERE grupo IN ('Entidade sem fins lucrativos', 'Empresa') GROUP BY ALL ORDER BY valor DESC LIMIT 8`);
     const pix = await consulta(`SELECT beneficiario, objeto, valor FROM t WHERE autor = ? AND fonte = 'Plano de emenda Pix' AND ano = ? ORDER BY valor DESC LIMIT 10`, [a, ano]);
     const coletivo = /^(Bancada|Comissão|Relator)/.test(a);
+    trilha.passo({ valor: `${curto(s.valor)} · ${s.emendas === 1 ? "1 emenda" : `${nf0.format(s.emendas)} emendas`}`, v: s.valor, base: "pagamentos", ano: String(ano) });
     topo(a, `Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> em ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, para <strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong>${s.pix > 0 ? `, ${curto(s.pix)} deles por emenda Pix` : ""}.`,
       coletivo ? "Emendas coletivas" : "Parlamentar");
     saida.innerHTML = `
@@ -260,6 +272,7 @@ const TIPOS: [string, string, string][] = [
     if (!s.valor) { saida.innerHTML = `<p>Nenhum pagamento de emenda para esse CNPJ.</p>`; return; }
     etapa(3, "Organizando o resultado…");
     const anos = await consulta(`SELECT ano, sum(valor) AS valor FROM x GROUP BY ano ORDER BY ano`);
+    trilha.passo({ valor: `${curto(s.valor)} em todos os anos`, v: s.valor, base: "pagamentos", ano: "todos" });
     const autores = await consulta(`SELECT autor, sum(valor) AS valor FROM x GROUP BY autor ORDER BY valor DESC LIMIT 10`);
     const textos = await consulta(`SELECT fonte, ano, autor, objeto, valor FROM t WHERE codigo = ? ORDER BY valor DESC LIMIT 15`, [cod]);
     topo(titulo(s.nome), `${esc(s.municipio)}${s.uf ? ` (${esc(s.uf)})` : ""}. Recebeu <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, somando todos os anos.`,
@@ -285,6 +298,7 @@ const TIPOS: [string, string, string][] = [
     await consulta(`CREATE OR REPLACE TEMP TABLE x AS SELECT * FROM p WHERE ${col} = ? AND ano = ?`, [val, ano]);
     etapa(3, "Organizando o resultado…");
     const [s] = await consulta(`SELECT any_value(municipio) AS municipio, any_value(uf) AS uf, sum(valor) AS valor, count(DISTINCT emenda)::INTEGER AS emendas FROM x`);
+    trilha.passo({ valor: `${curto(s.valor)} · ${s.emendas === 1 ? "1 emenda" : `${nf0.format(s.emendas)} emendas`}`, v: s.valor, base: "pagamentos", ano: String(ano) });
     const autores = await consulta(`SELECT autor, sum(valor) AS valor FROM x GROUP BY autor ORDER BY valor DESC LIMIT 10`);
     const quem = await consulta(`SELECT favorecido, codigo, grupo, sum(valor) AS valor FROM x GROUP BY ALL ORDER BY valor DESC LIMIT 10`);
     const area = await consulta(`SELECT coalesce(nullif(area, ''), 'Sem área') AS area, sum(valor) AS valor FROM x GROUP BY 1 ORDER BY valor DESC LIMIT 6`);
@@ -331,6 +345,7 @@ const TIPOS: [string, string, string][] = [
     await consulta(`CREATE OR REPLACE TEMP TABLE r AS SELECT * FROM t ${onde.length ? `WHERE ${onde.join(" AND ")}` : ""}`, v);
     etapa(3, "Organizando o resultado…");
     const [s] = await consulta(`SELECT count(*)::INTEGER AS n, coalesce(sum(valor), 0) AS valor, count(DISTINCT beneficiario)::INTEGER AS quem FROM r`);
+    trilha.passo({ valor: `${curto(s.valor)} · ${s.n === 1 ? "1 registro" : `${nf0.format(s.n)} registros`}`, v: s.valor, base: "textos", ano: params.get("ano") || "todos" });
     let por = "texto", pagina = 0;
     const desenhar = async () => {
       let corpo;
@@ -371,6 +386,9 @@ const TIPOS: [string, string, string][] = [
   /* Global, mas só dentro do explorador: as páginas da busca são montadas no navegador, fora do escopo do Astro. */
   @keyframes corre { from { left: -35%; } to { left: 100%; } }
   [data-emendas] {
+    > .degraus { padding-top: 20px; }
+    > .degraus:not([hidden]) + .topo { padding-top: 24px; }
+    .voltar-resultado { padding: 4px 0 12px; }
     .topo { padding: 36px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
     .topo h1 { font-size: 56px; line-height: 1; letter-spacing: -0.025em; }
 

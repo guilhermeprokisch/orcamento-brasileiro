@@ -6,7 +6,10 @@
 .exp .forte { font-weight: 600; }
 .exp .sep { color: var(--texto-4); }
 
-/* barra do caminho + controles: uma linha; o caminho corta com reticências */
+/* os degraus (components/explorer/Degraus.tsx, styles/degraus.css), com os controles na linha de cima */
+.exp-degraus { padding: 10px 0 16px; border-bottom: 1px solid var(--regra); font-size: 15px; }
+
+/* barra do caminho + controles: uma linha; o caminho corta com reticências (receitas e emendas) */
 .exp-barra {
   display: flex; align-items: center; justify-content: space-between; gap: 10px 24px;
   padding: 10px 0; border-bottom: 1px solid var(--regra); font-size: 15px;

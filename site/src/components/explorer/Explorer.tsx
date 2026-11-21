@@ -2,11 +2,12 @@ import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show
 import Treemap from "./Treemap";
 import Tabela from "./Tabela";
 import BarrasAno, { type Ponto } from "./BarrasAno";
+import Degraus, { deQuem, Voltar, type Degrau } from "./Degraus";
 import {
   agrupar, carregarAno, carregarResumo, DIMS, dimsDisponiveis, escalar, METRICAS, proximaSugerida,
   ROTULO_DIM, taxaRealizacao, totaisDaTrilha, type Dim, type Filtro, type Item, type Metrica,
 } from "../../lib/dados";
-import { moedaExtenso, pct } from "../../lib/formato";
+import { moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import "./explorer.css";
 
 type Vista = "mapa" | "lista";
@@ -25,6 +26,12 @@ interface Estado {
 const ABA: Record<Dim, string> = {
   orgao: "Órgão", funcao: "Área", subfuncao: "Subárea", uo: "Unidade",
   programa: "Programa", acao: "Ação", gnd: "Tipo de gasto",
+};
+
+/** Nos degraus, de quem é a fatia do passo seguinte: "44% do programa". */
+const DE: Record<Dim, string> = {
+  orgao: "do órgão", funcao: "da área", subfuncao: "da subárea", uo: "da unidade",
+  programa: "do programa", acao: "da ação", gnd: "do tipo de gasto",
 };
 
 /** Ordem das abas, como no mock: as mais usadas primeiro. */
@@ -53,7 +60,7 @@ function lerUrl(): Estado {
   };
 }
 
-function escreverUrl(e: Estado, push: boolean) {
+function montarUrl(e: Estado): string {
   const p = new URLSearchParams();
   if (e.ano) p.set("ano", String(e.ano));
   if (e.metrica !== "atualizado") p.set("metrica", e.metrica);
@@ -62,7 +69,11 @@ function escreverUrl(e: Estado, push: boolean) {
   if (e.semRefin) p.set("refin", "0");
   if (e.vista === "lista") p.set("vista", "lista");
   if (e.real) p.set("ipca", "1");
-  const url = `${location.pathname}?${p.toString().replaceAll("%3A", ":").replaceAll("%2C", ",")}`;
+  return `${location.pathname}?${p.toString().replaceAll("%3A", ":").replaceAll("%2C", ",")}`;
+}
+
+function escreverUrl(e: Estado, push: boolean) {
+  const url = montarUrl(e);
   if (push) history.pushState(null, "", url);
   else history.replaceState(null, "", url);
 }
@@ -171,49 +182,60 @@ export default function Explorer() {
   const pai = () => (trilha().length > 1 ? trilha().at(-2)!.nome : `todo o orçamento de ${ano() ?? ""}`);
   const subir = () => irPara(estado().filtros.slice(0, -1));
 
+  // Os degraus: o orçamento inteiro e cada passo da trilha, com o valor e a fatia no passo anterior.
+  const degraus = createMemo<Degrau[]>(() => {
+    const d = doc();
+    const e = estado();
+    const urlDe = (filtros: Filtro[]) => montarUrl({ ...e, ano: ano(), filtros, por: proximaSugerida(filtros) });
+    const raiz = d ? agrupar(d, [], null, e.semRefin).total[e.metrica] * fatorDe(ano()) : 0;
+    const passos: Degrau[] = [{
+      tipo: `Orçamento ${ano() ?? ""}`, nome: "Todo o orçamento", valor: d ? moedaCurta(raiz) : undefined,
+      href: urlDe([]), ir: () => irPara([]),
+    }];
+    let antes = raiz;
+    trilha().forEach((t, i) => {
+      const anterior = trilha()[i - 1];
+      passos.push({
+        tipo: ABA[t.dim], nome: t.nome, valor: moedaCurta(t.total),
+        fatia: antes > 0 ? Math.min(1, Math.max(0, t.total / antes)) : null,
+        de: anterior ? deQuem(anterior.nome, DE[anterior.dim]) : "do orçamento",
+        href: urlDe(t.filtros), ir: () => irPara(t.filtros),
+      });
+      antes = t.total;
+    });
+    return passos;
+  });
+
   const legendaSerie = () =>
     estado().real && ipca() ? `Dotação por ano, em reais de ${ipca()!.base}` : "Dotação por ano, em valores nominais";
 
   return (
     <div class="exp">
-      <div class="exp-barra">
-        <nav aria-label="Caminho" class="exp-caminho">
-          <Show when={trilha().length > 0} fallback={<span class="forte">Orçamento {ano() ?? ""}</span>}>
-            <button type="button" class="link" onClick={() => irPara([])}>Orçamento {ano() ?? ""}</button>
-          </Show>
-          <For each={trilha()}>
-            {(passo, i) => (
-              <>
-                <span class="sep" aria-hidden="true">/</span>
-                <Show when={i() < trilha().length - 1} fallback={<span class="forte corta" title={passo.nome}>{passo.nome}</span>}>
-                  <button type="button" class="link corta" title={passo.nome} onClick={() => irPara(passo.filtros)}>{passo.nome}</button>
-                </Show>
-              </>
-            )}
-          </For>
-        </nav>
-        <div class="exp-controles">
-          <label class="exp-ano">
-            <span class="visually-hidden">Ano</span>
-            <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })} disabled={!resumo()}>
-              <For each={[...(resumo()?.anos ?? [])].reverse()}>
-                {(a) => <option value={a.ano} selected={a.ano === ano()}>{a.ano}{a.ano === anoCorrente ? " (em execução)" : ""}</option>}
-              </For>
-            </select>
-          </label>
-          <button type="button" class="pilula" aria-pressed={estado().real} disabled={!ipca()}
-            title={ipca() ? `Valores em reais de ${ipca()!.base}, corrigidos pelo IPCA` : undefined}
-            onClick={() => mudar({ real: !estado().real })}>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
-            Corrigir inflação
-          </button>
-          <button type="button" class="pilula" aria-pressed={estado().semRefin}
-            title="Tira das contas a rolagem da dívida pública (subfunções 841 e 842)"
-            onClick={() => mudar({ semRefin: !estado().semRefin })}>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
-            Sem refinanciamento
-          </button>
-        </div>
+      <div class="exp-degraus">
+        <Degraus passos={degraus()} dicaInicio="Clique num bloco do mapa para descer um nível" extra={
+          <div class="exp-controles">
+            <label class="exp-ano">
+              <span class="visually-hidden">Ano</span>
+              <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })} disabled={!resumo()}>
+                <For each={[...(resumo()?.anos ?? [])].reverse()}>
+                  {(a) => <option value={a.ano} selected={a.ano === ano()}>{a.ano}{a.ano === anoCorrente ? " (em execução)" : ""}</option>}
+                </For>
+              </select>
+            </label>
+            <button type="button" class="pilula" aria-pressed={estado().real} disabled={!ipca()}
+              title={ipca() ? `Valores em reais de ${ipca()!.base}, corrigidos pelo IPCA` : undefined}
+              onClick={() => mudar({ real: !estado().real })}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
+              Corrigir inflação
+            </button>
+            <button type="button" class="pilula" aria-pressed={estado().semRefin}
+              title="Tira das contas a rolagem da dívida pública (subfunções 841 e 842)"
+              onClick={() => mudar({ semRefin: !estado().semRefin })}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
+              Sem refinanciamento
+            </button>
+          </div>
+        } />
       </div>
 
       <Show when={doc.error || resumo.error}>
@@ -222,9 +244,6 @@ export default function Explorer() {
 
       <section class="exp-topo">
         <div class="exp-titulo">
-          <Show when={ultimo()}>
-            <button type="button" class="link exp-voltar" onClick={subir}>← Voltar a {pai()}</button>
-          </Show>
           <span class="sobretitulo">
             {ultimo() ? `${ROTULO_DIM[ultimo()!.dim]} · ${ultimo()!.cod}` : "Orçamento federal"}
           </span>
@@ -254,7 +273,7 @@ export default function Explorer() {
 
       <div class="exp-abas">
         <Show when={ultimo()}>
-          <button type="button" class="exp-subir" onClick={subir} title={`Voltar a ${pai()}`}>← Voltar um nível</button>
+          <Voltar para={pai()} onClick={subir} />
         </Show>
         <span class="muted">Dividir por</span>
         <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">

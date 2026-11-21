@@ -9,6 +9,7 @@
 import Base from "../../layouts/Base.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import "../../styles/onde.css";
+import "../../styles/degraus.css";
 
 interface Empresa { cnpj: string; nome: string; lugares: number; n: number; valor: number; teto: boolean }
 interface Resumo {
@@ -34,9 +35,10 @@ const tem = (e: string) => !!r?.esferas[e];
 ---
 
 <Base title="Contratos · Orçamento Brasileiro" description="Busque os contratos que prefeituras, governos estaduais e o governo federal assinaram e publicaram no Portal Nacional de Contratações Públicas.">
-  <div class="wrap explorador" data-explorador data-arquivo={r?.arquivo} data-por-cnpj={r?.porCnpj} data-ano={r?.ano}>
+  <div class="wrap explorador" data-explorador data-arquivo={r?.arquivo} data-por-cnpj={r?.porCnpj} data-ano={r?.ano}
+    data-total={r?.total.valor} data-total-texto={r ? `${moedaCurta(r.total.valor)} · ${nf0.format(r.total.n)} contratos` : undefined}>
+    <nav class="degraus" aria-label="Caminho" data-voltar hidden></nav>
     <section class="topo" data-topo>
-      <nav class="trilha" aria-label="Caminho" data-voltar hidden></nav>
       <span class="sobretitulo" data-sobretitulo hidden></span>
       <h1 data-titulo>Os contratos</h1>
       {r && (
@@ -90,6 +92,7 @@ const tem = (e: string) => !!r?.esferas[e];
       <p class="exemplos" data-exemplos>Exemplos: <a href="/contratos?q=merenda ou gêneros alimentícios&uf=CE">merenda no Ceará</a> · <a href="/contratos?q=coleta de lixo">coleta de lixo</a> · <a href="/contratos?q=show artístico">shows</a> · <a href="/contratos?q=locação de veículos">aluguel de carros</a></p>
     </form>
 
+    <div class="voltar-resultado" data-voltar-botao hidden></div>
     <section class="resultado" data-resultado hidden aria-live="polite"></section>
 
     {r && (
@@ -145,10 +148,18 @@ const tem = (e: string) => !!r?.esferas[e];
   for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
   const pergunta = ["q", "uf", "esfera", "tipo", "min", "ente", "orgao", "empresa"].some((k) => params.get(k));
   const saida = document.querySelector("[data-resultado]");
-  // A trilha (public/explorador/trilha.js): por onde a pessoa veio, com um link para cada passo.
+  // Os degraus (public/explorador/trilha.js): por onde a pessoa veio, um degrau por passo, com o valor de cada um.
   const { ligarTrilha } = await import("/explorador/trilha.js");
-  const trilha = pergunta ? ligarTrilha(document.querySelector("[data-voltar]"), { chave: "contratos", inicio: { url: "/contratos", titulo: "Contratos" } }) : null;
-  trilha?.titulo(params.get("q") ? `“${params.get("q")}”` : "Resultado");
+  const trilha = ligarTrilha(document.querySelector("[data-voltar]"), {
+    chave: "contratos", botao: document.querySelector("[data-voltar-botao]"),
+    inicio: { url: "/contratos", tipo: "Todos os contratos", titulo: `Brasil, ${raiz?.dataset.ano ?? ""}`, valor: raiz?.dataset.totalTexto,
+      v: Number(raiz?.dataset.total), base: "contratos", ano: raiz?.dataset.ano, de: "do Brasil", volta: "todos os contratos" },
+  });
+  // O tipo do passo e como o seguinte se refere a ele ("12% da cidade").
+  const [tipoPasso, dePasso] = params.get("empresa") ? ["Empresa", "da empresa"] : params.get("q") ? ["O que você procurou", "da busca"]
+    : params.get("orgao") ? ["Quem contratou", "do órgão"] : params.get("ente") ? ["Onde", params.get("ente").length === 2 ? "do governo" : "da cidade"]
+    : params.get("uf") ? ["Onde", "do estado"] : ["Filtros", "do resultado"];
+  trilha.passo({ tipo: tipoPasso, de: dePasso, titulo: params.get("q") ? `“${params.get("q")}”` : "Resultado" });
 
   // O campo "Onde" (public/explorador/onde.js): cidade ou estado. Num estado, a pergunta: só o governo
   // ou o governo e as prefeituras. Numa cidade, nada mais de lugar faz sentido.
@@ -181,7 +192,7 @@ const tem = (e: string) => !!r?.esferas[e];
     else if (l.tipo === "mun") q.set("ente", l.codigo);
     else if (new FormData(form).get("escopo") === "tudo") q.set("uf", l.sigla);
     else q.set("ente", l.codigo);
-    trilha?.novaBusca();
+    trilha.novaBusca();
     location.href = `/contratos${q.size ? `?${q}` : ""}`;   // procurar sai da página da empresa
   });
 
@@ -190,7 +201,7 @@ const tem = (e: string) => !!r?.esferas[e];
     document.querySelector("[data-titulo]").textContent = titulo_;
     const p = document.querySelector("[data-frase]"); if (p) p.innerHTML = frase;
     const s = document.querySelector("[data-sobretitulo]"); s.hidden = !sobretitulo; s.textContent = sobretitulo || "";
-    trilha?.titulo(titulo_);
+    if (!params.get("q")) trilha.titulo(titulo_);   // numa busca, o degrau é o que se procurou
     document.querySelector("[data-exemplos]")?.setAttribute("hidden", "");
     document.title = `${titulo_} · Contratos · Orçamento Brasileiro`;
   }
@@ -303,6 +314,7 @@ const tem = (e: string) => !!r?.esferas[e];
     etapa(3, "Organizando o resultado…");
     const where = "", v = [];
     const [s] = await consulta(`SELECT count(*)::INTEGER AS n, coalesce(sum(valor), 0) AS valor, count(DISTINCT coalesce(nullif(ente, ''), quem))::INTEGER AS lugares, count(DISTINCT fornecedor)::INTEGER AS fornecedores FROM r`);
+    trilha.passo({ valor: `${curto(s.valor)} · ${s.n === 1 ? "1 contrato" : `${nf0.format(s.n)} contratos`}`, v: s.valor, base: "contratos", ano: raiz.dataset.ano });
     const ente = params.get("ente");
     const orgao = params.get("orgao");
     const outros = ["q", "esfera", "tipo", "min"].some((k) => params.get(k)) || (!!ente && !!params.get("uf"));
@@ -400,6 +412,7 @@ const tem = (e: string) => !!r?.esferas[e];
     const quem = await consulta(`SELECT quem, any_value(ente) AS ente, count(*)::INTEGER AS n, sum(valor) AS valor FROM e GROUP BY quem ORDER BY valor DESC LIMIT 10`);
     const contratos = await consulta(`SELECT id, quem, ente, uf, objeto, fornecedor, pessoa, cnpj, data, valor, teto FROM e ORDER BY valor DESC LIMIT 30`);
     const maior = ufs[0]?.valor || 1;
+    trilha.passo({ valor: `${curto(s.valor)} · ${s.n === 1 ? "1 contrato" : `${nf0.format(s.n)} contratos`}`, v: s.valor, base: "contratos", ano: raiz.dataset.ano });
     const raizCnpj = (s.cnpj || "").slice(0, 8);
     topo(titulo(s.nome), `Em ${raiz.dataset.ano}, <strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong> assinaram com ela <strong>${nf0.format(s.n)} ${s.n === 1 ? "contrato" : "contratos"}</strong>, que somam ${curto(s.valor)}.`,
       `Empresa · CNPJ ${raizCnpj.replace(/^(\d{2})(\d{3})(\d{3})$/, "$1.$2.$3")}`);
@@ -421,6 +434,9 @@ const tem = (e: string) => !!r?.esferas[e];
   @keyframes corre { from { left: -35%; } to { left: 100%; } }
   .explorador {
 
+  > .degraus { padding-top: 24px; }
+  > .degraus:not([hidden]) + .topo { padding-top: 28px; }
+  .voltar-resultado { padding: 4px 0 12px; }
   .topo { padding: 44px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
   .topo h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
 

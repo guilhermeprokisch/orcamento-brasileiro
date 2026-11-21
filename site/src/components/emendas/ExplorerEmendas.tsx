@@ -9,6 +9,7 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Sh
 import Treemap from "../explorer/Treemap";
 import Tabela from "../explorer/Tabela";
 import BarrasAno, { type Ponto } from "../explorer/BarrasAno";
+import Degraus, { Voltar, type Degrau } from "../explorer/Degraus";
 import type { Item, Rotulos, Valores } from "../../lib/dados";
 import { moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import "../explorer/explorer.css";
@@ -52,6 +53,11 @@ const DIMS: Record<Dim, { aba: string; rotulo: string; cod: string; nome?: strin
   grupo: { aba: "Tipo de recebedor", rotulo: "Tipo de recebedor", cod: "grupo", dic: GRUPO },
   favorecido: { aba: "Quem recebeu", rotulo: "Quem recebeu", cod: "coalesce(nullif(codigo, ''), favorecido)", nome: "favorecido", fmt: titulo },
   area: { aba: "Área", rotulo: "Área", cod: "coalesce(nullif(area, ''), 'Sem área')", fmt: (s) => AREA[s] ?? s },
+};
+/** Nos degraus, de quem é a fatia do passo seguinte: "40% do que mandou". */
+const DE: Record<Dim, string> = {
+  autoria: "do grupo", autor: "do que mandou", tipo: "do tipo", uf: "do estado", mun: "da cidade",
+  grupo: "do grupo", favorecido: "do que recebeu", area: "da área",
 };
 const ORDEM: Dim[] = ["autoria", "autor", "tipo", "uf", "mun", "grupo", "favorecido", "area"];
 /** Depois de escolher algo numa dimensão, a próxima mais útil. */
@@ -111,16 +117,19 @@ export default function ExplorerEmendas(props: Props) {
     };
   };
   const [estado, setEstado] = createSignal<Estado>(lerUrl());
-  const mudar = (parcial: Partial<Estado>, push = false) => {
-    const e = { ...estado(), ...parcial };
-    setEstado(e);
+  const urlDe = (e: Estado) => {
     const p = new URLSearchParams(location.search);
     for (const k of ["ano", "f", "por", "vista"]) p.delete(k);
     if (e.ano !== props.ano) p.set("ano", String(e.ano));
     if (e.filtros.length) p.set("f", e.filtros.map((f) => `${f.dim}:${f.cod}`).join("|"));
     if (e.por && e.por !== proxima(e.filtros)) p.set("por", e.por);
     if (e.vista) p.set("vista", e.vista);
-    const url = `${location.pathname}${p.size ? `?${p}` : ""}${location.hash}`;
+    return `${location.pathname}${p.size ? `?${p}` : ""}${location.hash}`;
+  };
+  const mudar = (parcial: Partial<Estado>, push = false) => {
+    const e = { ...estado(), ...parcial };
+    setEstado(e);
+    const url = urlDe(e);
     if (push) history.pushState(null, "", url); else history.replaceState(null, "", url);
   };
   onMount(() => {
@@ -134,6 +143,7 @@ export default function ExplorerEmendas(props: Props) {
   const [totalAno, setTotalAno] = createSignal(0);
   const [serie, setSerie] = createSignal<Ponto[] | null>(null);
   const [nomes, setNomes] = createSignal<Record<string, string>>({});
+  const [totaisTrilha, setTotaisTrilha] = createSignal<number[]>([]);
   const [erro, setErro] = createSignal("");
   const [carregando, setCarregando] = createSignal(true);
   const [primeira, setPrimeira] = createSignal(true);
@@ -165,9 +175,17 @@ export default function ExplorerEmendas(props: Props) {
         if (dd.nome) { const [x] = await consulta(props.parquet, `SELECT mode(${dd.nome}) AS nome FROM p WHERE ${dd.cod} = ?`, [f.cod]); n[`${f.dim}:${f.cod}`] = nomeDe(f.dim, f.cod, x?.nome); }
         else n[`${f.dim}:${f.cod}`] = nomeDe(f.dim, f.cod);
       }
+      // O total de cada passo da trilha, para os degraus.
+      const tt: number[] = [];
+      for (let i = 0; i < filtros.length - 1; i++) {
+        const wi = onde(filtros.slice(0, i + 1));
+        const [x] = await consulta(props.parquet, `SELECT coalesce(sum(valor), 0) AS v FROM p WHERE ano = ? AND ${wi.sql.join(" AND ")}`, [ano, ...wi.v]);
+        tt.push(x.v);
+      }
+      if (filtros.length) tt.push(t.v);
       if (minha !== vez) return;
       setItens(por ? lista.map((x: any) => ({ codigo: String(x.cod), nome: nomeDe(por, String(x.cod), x.nome ?? undefined), valores: valores(x.v) })) : []);
-      setTotal(t.v); setTotalAno(tAno.v); setNomes(n);
+      setTotal(t.v); setTotalAno(tAno.v); setNomes(n); setTotaisTrilha(tt);
       setSerie(s.map((x: any) => ({ ano: x.ano, valores: valores(x.v) })));
     } catch (e: any) {
       if (minha === vez) setErro(String(e?.message ?? e));
@@ -212,40 +230,45 @@ export default function ExplorerEmendas(props: Props) {
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   const anoCorrente = new Date().getFullYear();
+  // Os degraus: todas as emendas do ano e cada passo da trilha, com o valor pago e a fatia no passo anterior.
+  const degraus = createMemo<Degrau[]>(() => {
+    const e = estado();
+    const tt = totaisTrilha();
+    const em = (filtros: Filtro[]) => ({ href: urlDe({ ...e, filtros, por: proxima(filtros), vista: null }), ir: () => irPara(filtros) });
+    const passos: Degrau[] = [{ tipo: `Emendas ${e.ano}`, nome: "Todas as emendas", valor: primeira() ? undefined : moedaCurta(totalAno()), ...em([]) }];
+    let antes = totalAno();
+    trilha().forEach((t, i) => {
+      const v = tt[i];
+      const anterior = trilha()[i - 1];
+      passos.push({
+        tipo: DIMS[t.dim].rotulo, nome: t.nome, valor: v == null ? undefined : moedaCurta(v),
+        fatia: v != null && antes > 0 ? Math.min(1, v / antes) : null, de: anterior ? DE[anterior.dim] : "das emendas do ano",
+        ...em(t.filtros),
+      });
+      antes = v ?? 0;
+    });
+    return passos;
+  });
 
   return (
     <div class="exp exp-emendas">
-      <div class="exp-barra">
-        <nav aria-label="Caminho" class="exp-caminho">
-          <Show when={trilha().length > 0} fallback={<span class="forte">Emendas {estado().ano}</span>}>
-            <button type="button" class="link" onClick={() => irPara([])}>Emendas {estado().ano}</button>
-          </Show>
-          <For each={trilha()}>
-            {(passo, i) => (
-              <>
-                <span class="sep" aria-hidden="true">/</span>
-                <Show when={i() < trilha().length - 1} fallback={<span class="forte corta" title={passo.nome}>{passo.nome}</span>}>
-                  <button type="button" class="link corta" title={passo.nome} onClick={() => irPara(passo.filtros)}>{passo.nome}</button>
-                </Show>
-              </>
-            )}
-          </For>
-        </nav>
-        <div class="exp-controles">
-          <label class="exp-ano">
-            <span class="visually-hidden">Ano</span>
-            <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })}>
-              <For each={[...props.anos].reverse()}>{(a) => <option value={a} selected={a === estado().ano}>{a}{a === anoCorrente ? " (até agora)" : ""}</option>}</For>
-            </select>
-          </label>
-        </div>
+      <div class="exp-degraus">
+        <Degraus passos={degraus()} dicaInicio="Clique num bloco do mapa para descer um nível" extra={
+          <div class="exp-controles">
+            <label class="exp-ano">
+              <span class="visually-hidden">Ano</span>
+              <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })}>
+                <For each={[...props.anos].reverse()}>{(a) => <option value={a} selected={a === estado().ano}>{a}{a === anoCorrente ? " (até agora)" : ""}</option>}</For>
+              </select>
+            </label>
+          </div>
+        } />
       </div>
 
       <Show when={erro()}><p class="exp-erro">Não foi possível consultar as emendas agora ({erro()}). Tente de novo em instantes.</p></Show>
 
       <section class="exp-topo">
         <div class="exp-titulo">
-          <Show when={ultimo()}><button type="button" class="link exp-voltar" onClick={subir}>← Voltar a {pai()}</button></Show>
           <span class="sobretitulo">{ultimo() ? DIMS[ultimo()!.dim].rotulo : "Emendas parlamentares pagas"}</span>
           <h1>{ultimo()?.nome ?? `Todas as emendas de ${estado().ano}`}</h1>
           <Show when={!primeira()}>
@@ -265,7 +288,7 @@ export default function ExplorerEmendas(props: Props) {
       </section>
 
       <div class="exp-abas">
-        <Show when={ultimo()}><button type="button" class="exp-subir" onClick={subir} title={`Voltar a ${pai()}`}>← Voltar um nível</button></Show>
+        <Show when={ultimo()}><Voltar para={pai()} onClick={subir} /></Show>
         <span class="muted">Dividir por</span>
         <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
           <For each={livres(estado().filtros)}>
