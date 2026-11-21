@@ -113,11 +113,78 @@ def nome_oficial(nomes_siop: dict[int, dict], dim: str, ano: int, cod: str) -> s
     return None
 
 
+# Tipo de despesa pelo identificador de resultado primário (RP) do SIOP: código no JSON → nome no site.
+TIPOS = {
+    "obr": "Obrigatória",
+    "esc": "Escolha do governo",
+    "eme": "Emendas parlamentares",
+    "fin": "Financeira (dívida)",
+}
+# RP 0 financeira; 1 obrigatória; 2 discricionária e 3 PAC (discricionária); 6 a 9 emendas individuais,
+# de bancada, de comissão e de relator. Outros códigos, se aparecerem, contam como escolha do governo.
+TIPO_DO_RP = {"0": "fin", "1": "obr", "2": "esc", "3": "esc", "6": "eme", "7": "eme", "8": "eme", "9": "eme"}
+# Valor do Portal → valor do SIOP usado para repartir uma linha entre os tipos.
+MEDIDA_SIOP = {"inicial": "inicial", "atualizado": "atualizado", "empenhado": "empenhado", "realizado": "pago"}
+
+
+def separar_por_tipo(linhas: list[list], rp: dict) -> tuple[list[list], int]:
+    """Acrescenta o tipo de despesa a cada linha (orgao, uo, funcao, subfuncao, programa, acao, gnd, valores…).
+
+    A chave UO × função × subfunção × programa × ação × GND é a mesma no Portal e no SIOP. Quando ela tem
+    um tipo só, a linha recebe esse tipo; quando tem mais de um (uma ação com gasto próprio e emendas, por
+    exemplo), a linha é repartida na proporção do SIOP, valor a valor (o pago do SIOP reparte o realizado).
+    Linhas sem par no SIOP ficam com tipo "sem". Devolve (linhas novas, quantas ficaram sem tipo).
+    """
+    cols = rp["colunas"]
+    i_rp = cols.index("rp")
+    i_med = {m: cols.index(MEDIDA_SIOP[m]) for m in VALORES}
+    por_chave: dict[tuple, dict[str, dict[str, float]]] = {}
+    for l in rp["linhas"]:
+        tipos = por_chave.setdefault(tuple(l[:6]), {})
+        t = tipos.setdefault(TIPO_DO_RP.get(l[i_rp], "esc"), dict.fromkeys(VALORES, 0.0))
+        for m, i in i_med.items():
+            t[m] += l[i]
+
+    saida, sem = [], 0
+    for l in linhas:
+        tipos = por_chave.get(tuple(l[1:7]))
+        if not tipos:
+            saida.append(l[:7] + ["sem"] + l[7:])
+            sem += 1
+            continue
+        if len(tipos) == 1:
+            saida.append(l[:7] + [next(iter(tipos))] + l[7:])
+            continue
+        nomes = sorted(tipos)
+        partes = {t: [] for t in nomes}
+        for j, m in enumerate(VALORES):
+            # Proporção pela mesma medida; se ela não servir (zero ou sinais trocados), pela dotação atualizada,
+            # depois pela inicial; sem nenhuma, tudo vai para o tipo com mais dotação.
+            for med in (m, "atualizado", "inicial", "empenhado", "realizado"):
+                pesos = [tipos[t][med] for t in nomes]
+                if sum(pesos) > 0 and min(pesos) >= 0:
+                    break
+            else:
+                maior = max(nomes, key=lambda t: abs(tipos[t]["atualizado"]))
+                pesos = [1.0 if t == maior else 0.0 for t in nomes]
+            # Valores inteiros: o último tipo fica com o resto, para a soma bater com a linha original.
+            total, soma = l[7 + j], sum(pesos)
+            fatias = [round(total * p / soma) for p in pesos[:-1]]
+            fatias.append(total - sum(fatias))
+            for t, v in zip(nomes, fatias):
+                partes[t].append(v)
+        for t in nomes:
+            if any(partes[t]):
+                saida.append(l[:7] + [t] + partes[t])
+    return saida, sem
+
+
 def exportar_explorer(
     con: duckdb.DuckDBPyConnection,
     pasta: Path,
     ipca: dict | None = None,
     nomes_siop: dict[int, dict] | None = None,
+    rp_siop: dict[int, dict] | None = None,
 ) -> list[dict]:
     """Um JSON compacto por ano, agregado até o nível de ação × GND (sem elemento).
 
@@ -162,19 +229,35 @@ def exportar_explorer(
         ).fetchall()
 
         totais = dict(zip(VALORES, (sum(l[len(codigos) + i] for l in linhas) for i in range(len(VALORES)))))
+        colunas = [n for n, _, _ in DIMENSOES]
+        fonte = "Portal da Transparência (CGU) — Orçamento da Despesa"
+        linhas = [list(l) for l in linhas]
+        com_tipo = None
+        # Tipo de despesa (obrigatória, escolha do governo, emendas, financeira), do SIOP. Sem o SIOP
+        # do ano, o arquivo sai como antes, sem a coluna, e o site esconde essa divisão.
+        if (rp_siop or {}).get(ano):
+            linhas, _ = separar_por_tipo(linhas, rp_siop[ano])
+            colunas.append("tipo")
+            dims["tipo"] = {c: n for c, n in TIPOS.items()}
+            if any(l[7] == "sem" for l in linhas):
+                dims["tipo"]["sem"] = "Sem informação"
+            fonte += "; tipo de despesa: SIOP (identificador de resultado primário)"
+            i_at = len(colunas) + VALORES.index("atualizado")
+            com_tipo = round(sum(abs(l[i_at]) for l in linhas if l[7] != "sem") / max(1, sum(abs(l[i_at]) for l in linhas)), 4)
         doc = {
             "ano": ano,
             "gerado_em": gerado_em,
-            "fonte": "Portal da Transparência (CGU) — Orçamento da Despesa",
-            "colunas": [n for n, _, _ in DIMENSOES] + VALORES,
+            "fonte": fonte,
+            "colunas": colunas + VALORES,
             "dims": dims,
-            "linhas": [list(l) for l in linhas],
+            "linhas": linhas,
         }
         (pasta / f"{ano}.json").write_text(
             json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
         )
         resumo.append({"ano": ano, "linhas": len(linhas), **totais,
-                       "nomes_oficiais": round(trocados / max(1, total_nomes), 4)})
+                       "nomes_oficiais": round(trocados / max(1, total_nomes), 4),
+                       **({"com_tipo": com_tipo} if com_tipo is not None else {})})
 
     (pasta / "anos.json").write_text(
         json.dumps({"gerado_em": gerado_em, "anos": resumo, "ipca": ipca}, ensure_ascii=False, indent=1),

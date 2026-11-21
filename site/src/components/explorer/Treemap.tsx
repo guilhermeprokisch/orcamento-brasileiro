@@ -12,6 +12,8 @@ interface Props {
   podeDescer: boolean;
   onEscolher: (item: Item) => void;
   rotulos?: Rotulos;
+  /** cor fixa de um bloco (ex.: tipo de despesa); sem ela, a cor vem da posição no ranking */
+  corDe?: (item: Item) => { fundo: string; escuro: boolean } | undefined;
 }
 
 type Dado = { item?: Item; children?: Dado[] };
@@ -80,7 +82,7 @@ export default function Treemap(props: Props) {
             const item = n.data.item!;
             const w = n.x1 - n.x0;
             const h = n.y1 - n.y0;
-            const c = cor(rank());
+            const c = props.corDe?.(item) ?? cor(rank());
             const parcela = (n.value ?? 0) / props.total;
             const area = w * h;
             const tamPct = Math.max(18, Math.min(64, Math.sqrt(area) / 5.5));

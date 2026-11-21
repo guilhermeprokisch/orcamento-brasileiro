@@ -15,9 +15,9 @@ interface Entrada {
 
 const GRUPO: Record<Dim, string> = {
   orgao: "Órgãos", funcao: "Áreas (funções)", subfuncao: "Subfunções", programa: "Programas",
-  uo: "Unidades", acao: "Ações", gnd: "Tipos de gasto",
+  uo: "Unidades", acao: "Ações", gnd: "Tipos de gasto", tipo: "Tipos de despesa",
 };
-const PRIORIDADE: Record<Dim, number> = { orgao: 0, funcao: 1, programa: 2, uo: 3, subfuncao: 4, acao: 5, gnd: 6 };
+const PRIORIDADE: Record<Dim, number> = { orgao: 0, funcao: 1, programa: 2, uo: 3, subfuncao: 4, acao: 5, gnd: 6, tipo: 7 };
 const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 let indice: Promise<{ itens: Entrada[]; ultimoAno: number }> | null = null;
