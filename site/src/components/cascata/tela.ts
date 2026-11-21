@@ -54,12 +54,19 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       <button type="button" data-acao="cheia" class="cc4-cheia-btn"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg><span>Tela cheia</span></button>
     </div>
     <div class="cc4-botoes cc4-zoom">
+      <button type="button" data-acao="procurar" class="cc4-procurar-btn"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg><span>Procurar</span></button>
       <button type="button" data-acao="mais" aria-label="Aproximar">+</button>
       <button type="button" data-acao="menos" aria-label="Afastar">−</button>
       <button type="button" data-acao="ajustar">Ver tudo</button>
       <button type="button" data-acao="fechar">Fechar galhos</button>
     </div>
-    <div class="cc4-dica">Arraste para andar · roda ou pinça para o zoom · clique numa caixa para abrir · duplo clique para focar</div>
+    <div class="cc4-dica">Arraste para andar · roda ou pinça: zoom · clique: abrir · duplo clique: focar · /: procurar</div>
+    <div class="cc4-busca" hidden>
+      <input type="search" placeholder="Procurar órgão, programa, ação, fornecedor…" aria-label="Procurar na árvore" autocomplete="off" />
+      <ol class="cc4-resultados" aria-live="polite"></ol>
+    </div>
+    <canvas class="cc4-mapa" aria-hidden="true"></canvas>
+    <nav class="cc4-lista visually-hidden" aria-label="A árvore aberta, em lista"></nav>
     <div class="cc4-balao" hidden></div>
     <aside class="cc4-cartao" hidden><button type="button" class="cc4-x" data-acao="fechar-cartao" aria-label="Fechar">×</button><div></div></aside>
   </div>`;
@@ -69,6 +76,12 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
   const balao = caixa.querySelector<HTMLElement>(".cc4-balao")!;
   const cartao = caixa.querySelector<HTMLElement>(".cc4-cartao")!;
   const fioEl = caixa.querySelector<HTMLElement>(".cc4-fio")!;
+  const busca = caixa.querySelector<HTMLElement>(".cc4-busca")!;
+  const campo = busca.querySelector<HTMLInputElement>("input")!;
+  const resultados = busca.querySelector<HTMLElement>(".cc4-resultados")!;
+  const mapa = caixa.querySelector<HTMLCanvasElement>(".cc4-mapa")!;
+  const mctx = mapa.getContext("2d")!;
+  const listaEl = caixa.querySelector<HTMLElement>(".cc4-lista")!;
 
   // ——— estado ———
   const abertos = new Set<No>();
@@ -173,6 +186,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     for (const n of pos.keys()) agora.set(n, posDe(n)!);
     antes = agora;
     pos = calcular();
+    atualizarLista();
     animT = animar ? 0 : 1;
     animIni = performance.now();
     pedir();
@@ -306,6 +320,66 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     });
   }
 
+  const rotulosTela: { x: number; y: number; w: number; h: number; n: No }[] = [];
+
+  function cortar(t: string, larg: number): string {
+    if (ctx.measureText(t).width <= larg) return t;
+    let u = t;
+    while (u.length > 1 && ctx.measureText(`${u}…`).width > larg) u = u.slice(0, -1);
+    return `${u.trimEnd()}…`;
+  }
+
+  /** Caixa alta (os níveis de cima, ou um item que é quase tudo): em vez de espaço vazio, o resumo do que tem dentro. */
+  function caixaGrande(n: No, p: Pos, fx: number, larg: number, parte: number) {
+    const x = p.x + fx + 12;
+    let y = p.y + 18;
+    const fim = p.y + p.h - 10;
+    ctx.fillStyle = "#5c574c";
+    ctx.font = "600 10.5px Inter, system-ui, sans-serif";
+    ctx.fillText(n.nivel.toUpperCase(), x, y);
+    y += 8;
+    const tam = Math.max(15, Math.min(20, p.h / 10));
+    ctx.font = `700 ${tam}px "Source Serif 4", Georgia, serif`;
+    ctx.fillStyle = TINTA;
+    for (const l of linhasDe(n.nome, larg - 4, 4)) { y += tam * 1.15; if (y > fim) return; ctx.fillText(l, x, y); }
+    y += tam * 1.1;
+    if (y > fim) return;
+    ctx.font = `600 ${Math.round(tam * 0.85)}px Inter, system-ui, sans-serif`;
+    ctx.fillStyle = VERDE;
+    ctx.fillText(moedaCurta(n.valor), x, y);
+    if (n.pai) {
+      y += 18;
+      if (y > fim) return;
+      ctx.font = "400 12.5px Inter, system-ui, sans-serif";
+      ctx.fillStyle = "#3d3a33";
+      ctx.fillText(cortar(`${pctCurto(parte)} de ${n.pai.nome}`, larg + 20), x, y);
+    }
+    const qtos = filhos(n).length;
+    if (qtos) {
+      y += 17;
+      if (y > fim) return;
+      ctx.font = "400 12.5px Inter, system-ui, sans-serif";
+      ctx.fillStyle = "#3d3a33";
+      const pl = filhos(n)[0].nivel;
+      ctx.fillText(`${qtos} ${qtos > 1 ? F.plural[pl] ?? "itens" : pl.toLowerCase()} dentro`, x, y);
+    }
+    // a mistura por categoria (obrigatória, escolha do governo…), uma linha por categoria
+    if (F.cats.length > 1) {
+      const t = n.mix.reduce((s2, v) => s2 + Math.max(0, v), 0) || 1;
+      const linhas = n.mix.map((v, i) => ({ i, f: Math.max(0, v) / t })).filter((m) => m.f >= 0.01).sort((a, b) => b.f - a.f);
+      y += 10;
+      for (const m of linhas) {
+        y += 17;
+        if (y > fim) return;
+        ctx.fillStyle = F.cats[m.i].cor;
+        ctx.fillRect(x, y - 9, 10, 10);
+        ctx.font = "400 12.5px Inter, system-ui, sans-serif";
+        ctx.fillStyle = "#3d3a33";
+        ctx.fillText(cortar(`${F.cats[m.i].nome} ${pctCurto(m.f)}`, larg), x + 16, y);
+      }
+    }
+  }
+
   function retangulo(x: number, y: number, w: number, h: number, r: number) {
     const rr = Math.min(r, h / 2, w / 2);
     ctx.beginPath();
@@ -393,44 +467,61 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       }
       // textos, só quando a caixa tem tamanho na tela
       const alturaTela = p.h * cam.k;
+      const pai = n.pai;
+      const parte = pai ? n.valor / Math.max(1, pai.valor) : 1;
       if (alturaTela >= 14 && 12 * cam.k >= 6) {
-        const pai = n.pai;
-        const parte = pai ? n.valor / Math.max(1, pai.valor) : 1;
         const larg = LARG - fx - 40;
         ctx.textBaseline = "alphabetic";
-        ctx.font = `${n.ehOutros ? "italic " : ""}600 13px Inter, system-ui, sans-serif`;
-        ctx.fillStyle = n.ehOutros ? "#5c574c" : TINTA;
-        const cabem = Math.max(1, Math.min(3, Math.floor((p.h - 26) / 16)));
-        const linhas = alturaTela >= 26 ? linhasDe(n.nome, larg, cabem) : linhasDe(n.nome, larg, 1);
-        const blocoTxt = linhas.length * 16 + (alturaTela >= 30 ? 15 : 0);
-        let y = p.y + Math.max(15, (p.h - blocoTxt) / 2 + 12);
-        for (const l of linhas) { ctx.fillText(l, p.x + fx + 9, y); y += 16; }
-        if (alturaTela >= 30) {
-          ctx.font = "400 12px Inter, system-ui, sans-serif";
-          ctx.fillStyle = "#5c574c";
-          let v = `${moedaCurta(n.valor)}${pai ? ` · ${pctCurto(parte)}` : ""}${n.ehOutros ? " · clique para ver mais" : ""}`;
-          while (v.length > 4 && ctx.measureText(v).width > larg) v = `${v.slice(0, -2)}…`.replace(/…+$/, "…");
-          ctx.fillText(v, p.x + fx + 9, y - 1);
+        if (p.h >= 120 && !n.ehOutros) caixaGrande(n, p, fx, larg, parte);
+        else {
+          ctx.font = `${n.ehOutros ? "italic " : ""}600 13px Inter, system-ui, sans-serif`;
+          ctx.fillStyle = n.ehOutros ? "#5c574c" : TINTA;
+          const cabem = Math.max(1, Math.min(3, Math.floor((p.h - 26) / 16)));
+          const linhas = alturaTela >= 26 ? linhasDe(n.nome, larg, cabem) : linhasDe(n.nome, larg, 1);
+          const blocoTxt = linhas.length * 16 + (alturaTela >= 30 ? 15 : 0);
+          let y = p.y + Math.max(15, (p.h - blocoTxt) / 2 + 12);
+          for (const l of linhas) { ctx.fillText(l, p.x + fx + 9, y); y += 16; }
+          if (alturaTela >= 30) {
+            ctx.font = "400 12px Inter, system-ui, sans-serif";
+            ctx.fillStyle = "#5c574c";
+            ctx.fillText(cortar(`${moedaCurta(n.valor)}${pai ? ` · ${pctCurto(parte)}` : ""}${n.ehOutros ? " · clique para ver mais" : ""}`, larg), p.x + fx + 9, y - 1);
+          }
         }
         // + / − / › à direita
-        const cx = p.x + LARG - 18, cy = p.y + p.h / 2;
-        if (abre(n) || n.ehOutros || !abre(n)) {
-          ctx.beginPath();
-          ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-          ctx.fillStyle = aberto ? TINTA : n.ehOutros ? PAPEL : "#fff";
-          ctx.fill();
-          ctx.lineWidth = 1.2 * px;
-          ctx.strokeStyle = TINTA;
-          ctx.stroke();
-          ctx.fillStyle = aberto ? "#fff" : TINTA;
-          ctx.font = "600 14px Inter, system-ui, sans-serif";
-          ctx.textAlign = "center";
-          ctx.fillText(aberto ? "−" : n.ehOutros ? "…" : abre(n) ? "+" : "›", cx, cy + 5);
-          ctx.textAlign = "start";
-        }
+        const cx = p.x + LARG - 18, cy = p.y + Math.min(p.h / 2, 26);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+        ctx.fillStyle = aberto ? TINTA : n.ehOutros ? PAPEL : "#fff";
+        ctx.fill();
+        ctx.lineWidth = 1.2 * px;
+        ctx.strokeStyle = TINTA;
+        ctx.stroke();
+        ctx.fillStyle = aberto ? "#fff" : TINTA;
+        ctx.font = "600 14px Inter, system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(aberto ? "−" : n.ehOutros ? "…" : abre(n) ? "+" : "›", cx, cy + 5);
+        ctx.textAlign = "start";
+      } else if (LARG * cam.k >= 46 && alturaTela >= 12) {
+        // zoom afastado: o nome em letra de tamanho fixo na tela, para não virar só caixa
+        rotulosTela.push({ x: (p.x + fx) * cam.k + cam.x + 4, y: p.y * cam.k + cam.y, w: (LARG - fx) * cam.k - 8, h: alturaTela, n });
       }
     }
     ctx.globalAlpha = 1;
+
+    // os nomes do zoom afastado, já em pixels de tela
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const r of rotulosTela) {
+      ctx.font = `${r.n.ehOutros ? "italic " : ""}600 11px Inter, system-ui, sans-serif`;
+      ctx.fillStyle = r.n.ehOutros ? "#5c574c" : TINTA;
+      const duas = r.h >= 30;
+      ctx.fillText(cortar(r.n.nome, r.w), r.x, r.y + (duas ? r.h / 2 - 2 : r.h / 2 + 4));
+      if (duas) {
+        ctx.font = "400 10.5px Inter, system-ui, sans-serif";
+        ctx.fillStyle = "#5c574c";
+        ctx.fillText(cortar(moedaCurta(r.n.valor), r.w), r.x, r.y + r.h / 2 + 11);
+      }
+    }
+    rotulosTela.length = 0;
 
     // cabeçalhos das colunas, presos no alto da tela
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -441,7 +532,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     ctx.strokeStyle = "#ddd6c6";
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, 44.5); ctx.lineTo(W, 44.5); ctx.stroke();
-    let inicioProximo = Infinity;
+    let inicioProximo = W >= 720 ? W - 150 : W;
     for (const [d, nivel] of [...niveis].sort((a, b) => b[0] - a[0])) {
       const sx = d * COL * cam.k + cam.x;
       if (sx > W || sx + LARG * cam.k < 0) continue;
@@ -459,11 +550,121 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
         ctx.font = "400 11px Inter, system-ui, sans-serif";
         ctx.fillStyle = "#8a8475";
         let t = F.explica[nivel];
-        const lim = Math.max(80, Math.min(COL * cam.k - 16, 320));
+        const lim = Math.min(Math.max(80, Math.min(COL * cam.k - 16, 320)), (W >= 720 ? W - 160 : W - 8) - x);
         while (t.length > 3 && ctx.measureText(t).width > lim) t = `${t.slice(0, -2)}…`.replace(/…+$/, "…");
         ctx.fillText(t, x, 34);
       }
     }
+    desenharMapa();
+  }
+
+  // ——— minimapa: a árvore inteira, com o retângulo do que está na tela ———
+  const MW = 200, MH = 128;
+  let mapaT = { s: 1, x0: 0, y0: 0, ox: 0, oy: 0 };
+  function desenharMapa() {
+    if (getComputedStyle(mapa).display === "none") return;
+    if (mapa.width !== MW * dpr) { mapa.width = MW * dpr; mapa.height = MH * dpr; mapa.style.width = `${MW}px`; mapa.style.height = `${MH}px`; }
+    const b = caixaDe([...pos.keys()]);
+    if (!Number.isFinite(b.x0)) return;
+    const s = Math.min((MW - 12) / (b.x1 - b.x0), (MH - 12) / (b.y1 - b.y0));
+    const ox = (MW - (b.x1 - b.x0) * s) / 2, oy = (MH - (b.y1 - b.y0) * s) / 2;
+    mapaT = { s, x0: b.x0, y0: b.y0, ox, oy };
+    mctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    mctx.clearRect(0, 0, MW, MH);
+    mctx.fillStyle = "rgba(255,255,255,0.92)";
+    mctx.fillRect(0, 0, MW, MH);
+    const trilha = noCaminho();
+    for (const [n, p] of pos) {
+      mctx.fillStyle = trilha.has(n) ? VERDE : n.ehOutros ? "#ddd5c3" : "#b5ad9b";
+      mctx.fillRect(ox + (p.x - b.x0) * s, oy + (p.y - b.y0) * s, Math.max(1, LARG * s), Math.max(1, p.h * s));
+    }
+    const v = { x0: -cam.x / cam.k, y0: -cam.y / cam.k, x1: (W - cam.x) / cam.k, y1: (H - cam.y) / cam.k };
+    mctx.strokeStyle = TINTA;
+    mctx.lineWidth = 1.5;
+    mctx.strokeRect(ox + (v.x0 - b.x0) * s, oy + (v.y0 - b.y0) * s, (v.x1 - v.x0) * s, (v.y1 - v.y0) * s);
+  }
+  // clicar ou arrastar no minimapa leva a tela até ali
+  let arrastandoMapa = false;
+  const irPeloMapa = (e: PointerEvent) => {
+    const r = mapa.getBoundingClientRect();
+    const wx = (e.clientX - r.left - mapaT.ox) / mapaT.s + mapaT.x0, wy = (e.clientY - r.top - mapaT.oy) / mapaT.s + mapaT.y0;
+    camT = 1;
+    cam.x = W / 2 - wx * cam.k;
+    cam.y = H / 2 - wy * cam.k;
+    pedir();
+  };
+  mapa.addEventListener("pointerdown", (e) => { arrastandoMapa = true; mapa.setPointerCapture(e.pointerId); irPeloMapa(e); });
+  mapa.addEventListener("pointermove", (e) => { if (arrastandoMapa) irPeloMapa(e); });
+  mapa.addEventListener("pointerup", () => { arrastandoMapa = false; });
+
+  // ——— lista para leitor de tela: a mesma árvore aberta, em HTML ———
+  let alvosLista: No[] = [];
+  function atualizarLista() {
+    alvosLista = [];
+    const item = (n: No): string => {
+      const aberto = abertos.has(n) && abre(n);
+      const ks = aberto ? visiveis(n) : [];
+      alvosLista.push(n);
+      const rot = `${n.nivel}: ${n.nome}, ${moedaCurta(n.valor)}${n.pai ? `, ${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${n.pai.nome}` : ""}`;
+      return `<li><button type="button" data-l="${alvosLista.length - 1}" ${abre(n) ? `aria-expanded="${aberto}"` : ""}>${esc(rot)}</button>${ks.length ? `<ul>${ks.map(item).join("")}</ul>` : ""}</li>`;
+    };
+    listaEl.innerHTML = `<ul>${item(F.raiz)}</ul>`;
+  }
+  listaEl.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-l]");
+    if (b) escolher(alvosLista[Number(b.dataset.l)], true);
+  });
+
+  // ——— procurar ———
+  const normal = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  let indice: { n: No; chave: string }[] | null = null;
+  function montarIndice() {
+    const out: { n: No; chave: string }[] = [];
+    const andar = (n: No) => { for (const f of filhos(n)) { out.push({ n: f, chave: normal(f.nome) }); andar(f); } };
+    andar(F.raiz);
+    return out;
+  }
+  let achados: No[] = [];
+  function procurar() {
+    const q = normal(campo.value.trim());
+    if (q.length < 2) { resultados.innerHTML = ""; achados = []; return; }
+    indice ??= montarIndice();
+    const partes = q.split(/\s+/);
+    achados = indice.filter((i) => partes.every((t) => i.chave.includes(t))).map((i) => i.n).sort((a, b) => b.valor - a.valor).slice(0, 14);
+    resultados.innerHTML = achados.length
+      ? achados.map((n, i) => `<li><button type="button" data-r="${i}"><span class="cc4-r-nome">${esc(n.nome)}</span>
+          <span class="cc4-r-onde">${esc(n.nivel)} · ${esc(caminhoAte(n).slice(1, -1).map((x) => x.nome).join(" › ") || "primeiro nível")}</span>
+          <span class="cc4-r-valor">${moedaCurta(n.valor)}</span></button></li>`).join("")
+      : `<li class="cc4-r-nada">Nada com “${esc(campo.value.trim())}”.</li>`;
+  }
+  campo.addEventListener("input", procurar);
+  campo.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { abrirBusca(false); caixa.focus(); }
+    if (e.key === "Enter" && achados[0]) irAte(achados[0]);
+    e.stopPropagation();
+  });
+  resultados.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-r]");
+    if (b) irAte(achados[Number(b.dataset.r)]);
+  });
+  function abrirBusca(abrir = busca.hidden) {
+    busca.hidden = !abrir;
+    if (abrir) { campo.focus(); campo.select(); }
+  }
+  /** Abre o caminho até o item (mostrando-o mesmo que esteja no "mais N") e leva a tela até ele. */
+  function irAte(n: No) {
+    const cam2 = caminhoAte(n);
+    for (let i = 1; i < cam2.length; i++) {
+      const pai = cam2[i - 1], filho = cam2[i];
+      if (!visiveis(pai).includes(filho)) mostrar.set(pai, Math.max(mostrar.get(pai) ?? K_INICIAL, filhos(pai).indexOf(filho) + 2));
+      if (!visiveis(pai).includes(filho)) mostrar.set(pai, filhos(pai).length);
+    }
+    abrirBusca(false);
+    escolher(n, false);
+    setTimeout(() => {
+      enquadrar(caixaDe([n, ...(abertos.has(n) ? visiveis(n) : [])]), 1);
+      if (!cartao.hidden) setTimeout(() => desviarDoCartao(n), 460);
+    }, 40);
   }
 
   // ——— o fio (degraus) e o cartão ———
@@ -613,6 +814,8 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     else if (e.key === "ArrowUp") cam.y += passo; else if (e.key === "ArrowDown") cam.y -= passo;
     else if (e.key === "+" || e.key === "=") zoomEm(1.25, W / 2, H / 2);
     else if (e.key === "-") zoomEm(0.8, W / 2, H / 2);
+    else if (e.key === "/") abrirBusca(true);
+    else if (e.key === "Escape" && !busca.hidden) abrirBusca(false);
     else if (e.key === "Escape" && caixa.classList.contains("cheia")) alternarCheia();
     else return;
     e.preventDefault();
@@ -642,6 +845,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     if (!b) return;
     const a = b.dataset.acao;
     if (a === "cheia") alternarCheia();
+    else if (a === "procurar") abrirBusca();
     else if (a === "mais") zoomEm(1.3, W / 2, H / 2);
     else if (a === "menos") zoomEm(1 / 1.3, W / 2, H / 2);
     else if (a === "ajustar") enquadrar(caixaDe([...pos.keys()]), 1.1);
@@ -667,6 +871,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
 
   medirTela();
   pos = calcular();
+  atualizarLista();
   atualizarFio();
   mostrarCartao(sel);
   // começa mostrando o último galho aberto (ou tudo, se só a raiz estiver aberta)
