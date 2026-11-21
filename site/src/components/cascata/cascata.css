@@ -1,0 +1,160 @@
+/* Protótipo da cascata do gasto (/prototipo-cascata). */
+.cc { padding-top: 20px; padding-bottom: 64px; }
+.cc-aviso { margin: 0 0 20px; padding: 10px 14px; background: var(--marca-texto-fundo); border-left: 4px solid var(--marca-texto); font-size: 14px; }
+.cc-cabecalho h1 { font-size: clamp(30px, 4vw, 44px); line-height: 1.1; margin: 4px 0 16px; }
+
+.cc-controles { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+.cc-formas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cc-formas a {
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; text-decoration: none; color: var(--tinta);
+  border: 1px solid var(--regra); background: #fff;
+}
+.cc-formas a:hover { border-color: var(--tinta); color: var(--tinta); }
+.cc-formas a[aria-current] { border: 2px solid var(--tinta); padding: 9px 11px; background: var(--marca-texto-fundo); }
+.cc-forma-n { font-family: var(--serifa); font-weight: 700; font-size: 24px; line-height: 1; color: var(--verde); }
+.cc-formas strong { display: block; font-size: 15px; }
+.cc-formas small { display: block; font-size: 12.5px; color: var(--texto-3); line-height: 1.3; }
+.cc-opcoes { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: center; font-size: 14px; }
+.cc-onde, .cc-cores { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cc-onde a, .cc-cores button {
+  font: inherit; font-size: 14px; padding: 5px 11px; border: 1px solid var(--regra); background: transparent; color: var(--tinta);
+  text-decoration: none; cursor: pointer;
+}
+.cc-onde a[aria-current], .cc-cores button[aria-pressed="true"] { background: var(--tinta); color: #fff; border-color: var(--tinta); }
+.cc-cores[hidden] { display: none; }
+
+.cc-frase { font-family: var(--serifa); font-size: 19px; line-height: 1.4; margin: 6px 0 8px; max-width: 70ch; }
+.cc-topo-linha { min-height: 4px; }
+.cc-legenda { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; margin: 0 0 12px; padding: 0; font-size: 13px; color: var(--texto-2); }
+.cc-legenda i { display: inline-block; width: 11px; height: 11px; margin-right: 6px; vertical-align: -1px; }
+.cc-dica { font-size: 13.5px; margin: 8px 0 12px; }
+
+/* o caminho (formas 1 e 3) */
+.cc-degraus { display: flex; list-style: none; margin: 0; padding: 0; overflow-x: auto; scrollbar-width: thin; }
+.cc-degraus > li { flex: 0 1 230px; min-width: 120px; margin-left: -6px; }
+.cc-degraus > li:first-child { margin-left: 0; }
+.cc-degrau {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; height: 100%; box-sizing: border-box; text-align: left;
+  font: inherit; color: var(--tinta); border: 0; cursor: pointer; padding: 9px 20px 9px 22px; background: var(--papel-escuro);
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
+}
+.cc-degraus > li:first-child .cc-degrau { padding-left: 12px; clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%); }
+.cc-degrau:hover { background: var(--regra-leve); }
+.cc-degrau[aria-current] { background: var(--marca-texto-fundo); }
+.cc-degrau-tipo { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+.cc-degrau-nome { font-size: 14px; font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cc-degrau-valor { font-size: 12.5px; }
+.cc-degrau-valor strong { color: var(--verde); }
+.cc-degrau-parte { color: var(--texto-3); }
+
+.cc-desenho { position: relative; min-height: 200px; }
+.cc-carregando, .cc-erro { padding: 40px 0; color: var(--texto-3); }
+
+/* SVG comum */
+.cc-svg { display: block; overflow: visible; font-family: var(--sans); }
+.cc-svg [role="button"] { cursor: pointer; }
+.cc-svg [role="button"]:focus { outline: none; }
+.cc-svg [role="button"]:focus-visible rect:not([fill="transparent"]) { stroke: var(--tinta); stroke-width: 2; }
+.cc-fita { transition: opacity 0.15s; }
+.cc-no:hover rect:not([fill="transparent"]) { filter: brightness(0.92); }
+.cc-rotulos text { paint-order: stroke; stroke: var(--papel); stroke-width: 4px; stroke-linejoin: round; }
+.cc-r-nome { font-size: 13px; font-weight: 600; fill: var(--tinta); }
+.cc-r-valor { font-size: 12px; fill: var(--texto-3); font-variant-numeric: tabular-nums; }
+.cc-rot.cc-sel .cc-r-nome { fill: var(--verde); }
+.cc-rot-outros .cc-r-nome { fill: var(--texto-3); font-style: italic; }
+.cc-rot { cursor: pointer; }
+.cc-rot:hover .cc-r-nome { text-decoration: underline; }
+.cc-guia { stroke: var(--texto-4); stroke-width: 0.8; fill: none; }
+.cc-cab { font-size: 11px; letter-spacing: 0.08em; fill: var(--texto-3); font-weight: 600; }
+.cc-cab-explica { font-size: 11.5px; fill: var(--texto-4); }
+.cc-mais { font-size: 18px; fill: var(--texto-3); }
+
+/* forma 2 */
+.cc-degrau-fundo { fill: var(--papel-escuro); }
+.cc-degrau-svg.atual .cc-degrau-fundo { fill: var(--marca-texto-fundo); }
+.cc-degrau-svg.vazio .cc-degrau-fundo { fill: transparent; stroke: var(--regra); stroke-dasharray: 3 3; }
+.cc-degrau-svg[role="button"]:hover .cc-degrau-fundo { fill: var(--regra-leve); }
+.cc-d-tipo { font-size: 10.5px; letter-spacing: 0.06em; fill: var(--texto-3); }
+.cc-d-nome { font-size: 14px; font-weight: 600; fill: var(--tinta); }
+.cc-d-valor { font-size: 12px; fill: var(--texto-2); }
+.cc-funil { fill: var(--verde); opacity: 0.1; }
+.cc-p-txt { font-size: 12px; fill: var(--tinta); pointer-events: none; font-variant-numeric: tabular-nums; }
+.cc-p-txt.cc-p-nome { font-weight: 600; }
+.cc-p-txt.claro { fill: #fff; }
+.cc-p-txt.halo { paint-order: stroke; stroke: rgba(247, 244, 236, 0.85); stroke-width: 3px; stroke-linejoin: round; }
+
+/* painel embaixo */
+.cc-painel { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--regra); }
+.cc-painel[hidden] { display: none; }
+.cc-painel-cab { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-bottom: 8px; }
+.cc-painel-cab h3 { font-size: 20px; }
+.cc-fechar { margin-left: auto; font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid var(--tinta); background: transparent; cursor: pointer; }
+.cc-linhas { list-style: none; margin: 0; padding: 0; columns: 2 340px; column-gap: 32px; }
+.cc-linhas li { break-inside: avoid; }
+.cc-linhas button {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; width: 100%; padding: 7px 4px; text-align: left;
+  font: inherit; font-size: 14px; color: var(--tinta); background: transparent; border: 0; border-bottom: 1px solid var(--regra-leve); cursor: pointer;
+}
+.cc-linhas button:hover { background: var(--papel-escuro); }
+.cc-l-nome { overflow-wrap: anywhere; }
+.cc-l-valor { color: var(--texto-3); font-size: 13px; white-space: nowrap; }
+.cc-l-barra { grid-column: 1 / -1; display: block; height: 5px; background: var(--regra-leve); }
+.cc-l-barra > i { display: block; height: 100%; }
+.cc-l-barra b { display: block; height: 100%; }
+
+.cc-cartao { max-width: 640px; }
+.cc-cartao h3 { font-size: 24px; margin: 4px 0 6px; }
+.cc-cartao-valor { font-size: 17px; margin: 0 0 10px; }
+.cc-cartao p { margin: 0 0 10px; line-height: 1.5; }
+.cc-cartao dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 12px; font-size: 14px; }
+.cc-cartao dt { color: var(--texto-3); }
+.cc-cartao dd { margin: 0; }
+.cc-fio { font-size: 13px; }
+
+/* forma 3 */
+.cc3 { position: relative; overflow: hidden; }
+.cc3-trilho { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 56px; position: relative; z-index: 1; }
+.cc3-fios { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.cc3-col { min-width: 0; max-height: 640px; overflow-y: auto; scrollbar-width: thin; }
+.cc3-col header { min-height: 52px; margin-bottom: 6px; }
+.cc3-col h3 { font-family: var(--sans); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--texto-3); font-weight: 600; }
+.cc3-dentro { display: block; font-size: 12.5px; color: var(--texto-2); }
+.cc3-explica { margin: 2px 0 0; font-size: 12px; color: var(--texto-4); line-height: 1.3; }
+.cc3-col ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.cc3-linha {
+  display: grid; grid-template-columns: 1fr; gap: 2px; width: 100%; padding: 8px 10px; text-align: left;
+  font: inherit; font-size: 14px; line-height: 1.25; color: var(--tinta); background: #fff; border: 1px solid var(--regra-leve); cursor: pointer;
+}
+.cc3-linha:hover { border-color: var(--tinta); }
+.cc3-linha.sel { background: var(--marca-texto-fundo); border-color: var(--tinta); font-weight: 600; box-shadow: inset 4px 0 0 var(--verde); }
+.cc3-linha.outros { background: transparent; border-style: dashed; color: var(--texto-2); font-style: italic; }
+.cc3-extra .cc3-linha { background: var(--papel); font-size: 13px; padding: 6px 10px; }
+.cc3-extra.muted { font-size: 12.5px; padding: 4px 10px; }
+.cc3-nome { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.cc3-valor { font-size: 12.5px; color: var(--texto-3); font-weight: 400; }
+.cc3-vazia { color: var(--texto-4); font-size: 13px; padding: 12px 0; }
+.cc3-fim .cc-cartao h3 { font-family: var(--serifa); font-size: 21px; text-transform: none; letter-spacing: -0.01em; color: var(--tinta); font-weight: 700; }
+.cc3-fim .cc-cartao { font-size: 14px; }
+
+@media (max-width: 720px) {
+  .cc-formas { grid-template-columns: 1fr; gap: 6px; }
+  .cc-formas a { padding: 8px 10px; align-items: center; }
+  .cc-formas small { display: none; }
+  .cc-frase { font-size: 17px; }
+  .cc-degraus > li { flex-basis: 150px; min-width: 110px; }
+  .cc-degrau { padding: 7px 16px 7px 18px; }
+  .cc-degrau-nome { font-size: 13px; }
+  .cc-linhas { columns: 1; }
+  /* forma 3 no celular: a coluna do pai vira uma tira estreita, só com as barras */
+  .cc3-trilho { grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1.15fr); gap: 14px; }
+  .cc3-col.a header { visibility: hidden; }
+  .cc3-col.a .cc3-nome, .cc3-col.a .cc3-valor { display: none; }
+  .cc3-col.a .cc3-linha { padding: 6px 4px; min-height: 40px; }
+  .cc3-col.a .cc3-linha.sel { box-shadow: inset 3px 0 0 var(--verde); }
+  .cc3-col.a .cc3-vazia { display: none; }
+  .cc3-linha { padding: 7px 8px; font-size: 13px; }
+  .cc3-valor { font-size: 11.5px; }
+  .cc3-explica { display: none; }
+  .cc3-col header { min-height: 40px; }
+  .cc3-col { max-height: none; }
+}

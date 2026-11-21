@@ -1,0 +1,54 @@
+---
+/**
+ * PROTÓTIPO (fora do menu): a cascata do gasto, em três formas, para o usuário clicar e escolher uma.
+ * Código em components/cascata/; os dados de João Pessoa saem de pipeline/prototipo/cascata_joao_pessoa.py.
+ */
+import Base from "../layouts/Base.astro";
+import "../components/cascata/cascata.css";
+
+const FORMAS = [
+  { v: 1, nome: "Cascata de foco", desc: "uma coluna por nível; as antigas encolhem" },
+  { v: 2, nome: "Degraus", desc: "uma faixa por nível, com zoom no pedaço" },
+  { v: 3, nome: "Três colunas", desc: "pai, atual e filhos; tudo anda uma coluna" },
+];
+---
+
+<Base title="Protótipo: cascata do gasto · Orçamento Brasileiro" description="Protótipo: por onde o dinheiro passa, nível a nível, até o fornecedor.">
+  <div class="wrap cc" id="cascata">
+    <p class="cc-aviso"><strong>Protótipo.</strong> Três formas de ver o mesmo caminho do dinheiro. Teste as três e diga qual fica.</p>
+
+    <header class="cc-cabecalho">
+      <span class="sobretitulo verde">Por onde o dinheiro passa</span>
+      <h1>A cascata do gasto</h1>
+    </header>
+
+    <div class="cc-controles">
+      <nav class="cc-formas" aria-label="Forma">
+        {FORMAS.map((f) => (
+          <a href={`?v=${f.v}`} data-v={f.v}><span class="cc-forma-n">{f.v}</span><span><strong>{f.nome}</strong><small>{f.desc}</small></span></a>
+        ))}
+      </nav>
+      <div class="cc-opcoes">
+        <nav class="cc-onde" aria-label="Onde">
+          <span class="muted">Onde:</span>
+          <a href="?" data-onde="uniao">União</a>
+          <a href="?onde=joao-pessoa" data-onde="joao-pessoa">João Pessoa (até o fornecedor)</a>
+        </nav>
+        <div class="cc-cores" role="group" aria-label="Cor">
+          <span class="muted">Cor:</span>
+          <button type="button" data-cor="tipo">Tipo</button>
+          <button type="button" data-cor="tamanho">Só o caminho</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="cc-topo"></div>
+    <div id="cc-desenho" class="cc-desenho"></div>
+    <div id="cc-painel" class="cc-painel" hidden></div>
+  </div>
+</Base>
+
+<script>
+  import { iniciar } from "../components/cascata/cascata";
+  iniciar(document.getElementById("cascata")!);
+</script>
