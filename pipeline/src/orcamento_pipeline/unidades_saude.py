@@ -1,10 +1,11 @@
-"""Postos, UPAs e hospitais de cada cidade, o que o SUS pagou a cada hospital por internações e os
-atendimentos sem internação de cada unidade.
+"""Postos, UPAs e hospitais de cada cidade, o que o SUS pagou a cada hospital por internações, os
+atendimentos sem internação de cada unidade e o trabalho dos postos (atenção básica).
 
-    uv run unidades-saude              # último ano fechado (~1,1 GB do SIH e ~28 GB do SIA, lidos em memória)
-    uv run unidades-saude --sem-baixar # só copia pipeline/referencia/unidades-saude.json (publicação)
+    uv run unidades-saude                    # último ano fechado (~1,1 GB do SIH e ~28 GB do SIA, lidos em memória)
+    uv run unidades-saude --so-atencao-basica # só refaz o SISAB e a cobertura sobre a referência que já existe
+    uv run unidades-saude --sem-baixar       # só copia pipeline/referencia/unidades-saude.json (publicação)
 
-Duas fontes do Ministério da Saúde:
+Fontes do Ministério da Saúde:
 - CNES (Cadastro Nacional de Estabelecimentos de Saúde, OpenDataSUS, CSV atualizado todo mês): cada
   estabelecimento ativo, com o tipo, a natureza jurídica e o bairro. Daqui saem as unidades da
   prefeitura: natureza jurídica de órgão ou entidade municipal (1031, 1120, 1155, 1244, 1279). A
@@ -23,21 +24,37 @@ Duas fontes do Ministério da Saúde:
   arquivos (~28 GB por ano) não ficam no disco: cada um é baixado e aberto na memória, e só o total por
   unidade é guardado em data/raw/datasus/sia/. Postos e unidades básicas quase não aparecem: o SUS os
   paga pelo número de moradores, e as consultas deles vão para outro sistema (e-SUS APS/SISAB).
+- SISAB (Sistema de Informação em Saúde para a Atenção Básica, relatório público de validação, sem login
+  nem captcha): o que cada estabelecimento (CNES) registrou no e-SUS APS, por mês e tipo de ficha, só os
+  registros aprovados. Por unidade, no ano: atendimentos individuais (consulta com médico, enfermeiro e
+  outros profissionais), atendimentos de dentista, procedimentos (medir a pressão, curativo, injeção) e
+  visitas domiciliares (sobretudo dos agentes comunitários). Uma planilha por mês e ficha, com o país
+  inteiro; só os totais por CNES ficam em data/raw/datasus/sisab/. Ver docs/levantamento-sisab.md.
+- Cobertura da atenção primária (relatorioaps.saude.gov.br, API aberta): por cidade, em dezembro do ano,
+  as equipes (saúde da família e atenção primária), quantas pessoas elas dão conta de acompanhar pela
+  conta do Ministério (3.500 por equipe de saúde da família, 2.625 por equipe de 30 horas e 1.750 por
+  equipe de 20 horas, mais os cadastrados das equipes ribeirinhas, de rua e prisionais) e a cobertura em %.
 
 O valor do SIH é o que o SUS paga pela tabela por internação; não é o orçamento do hospital, que tem
 salários e outros custos pagos por fora (sobretudo nos hospitais públicos).
 
-Cache em data/raw/datasus/cnes/, data/raw/datasus/sih/ e data/raw/datasus/sia/. Saída em
+Cache em data/raw/datasus/cnes/, sih/, sia/ e sisab/. Saída em
 site/public/data/indicadores/unidades-saude.json, com cópia em pipeline/referencia/:
-    {"fonte", "ano": 2025, "cnes": "2026-11",
-     "mun": {ibge: {"unidades": [[CNES, nome, grupo, bairro, atendimentos, exames, cirurgias, valor], ...],
-                    "hospitais": [[CNES, nome, quem administra, internações, valor, bairro], ...]}}}
+    {"fonte", "ano": 2025, "cnes": "2026-11", "cobertura": {"mes": "2025-12", "brasil": 83.2},
+     "mun": {ibge: {"unidades": [[CNES, nome, grupo, bairro, atendimentos, exames, cirurgias, valor,
+                                  atendimentos individuais, de dentista, procedimentos, visitas], ...],
+                    "hospitais": [[CNES, nome, quem administra, internações, valor, bairro], ...],
+                    "cobertura": [cobertura %, população, pessoas que as equipes dão conta, equipes de
+                                  saúde da família, de atenção primária, ribeirinhas, de rua ou prisionais]}}}
+Os quatro primeiros números de cada unidade vêm do SIA; os quatro últimos, do SISAB.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import html
+import http.cookiejar
 import io
 import json
 import os
@@ -45,6 +62,7 @@ import re
 import struct
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 import zipfile
 from collections import defaultdict
@@ -61,7 +79,12 @@ MUNICIPIOS = c.RAIZ / "site" / "public" / "data" / "cidades" / "municipios.json"
 URL_CNES = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/cnes_estabelecimentos_csv.zip"
 URL_SIH = "ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Dados/RD{uf}{aa}{mm}.dbc"
 PASTA_SIA = "ftp://ftp.datasus.gov.br/dissemin/publicos/SIASUS/200801_/Dados/"
-FONTE = "Ministério da Saúde: CNES (estabelecimentos), SIH/SUS (internações) e SIA/SUS (atendimentos ambulatoriais), pelo DATASUS"
+URL_SISAB = "https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/envio/RelValidacao.xhtml"
+URL_COBERTURA = "https://relatorioaps-prd.saude.gov.br/cobertura/aps"
+FONTE = ("Ministério da Saúde: CNES (estabelecimentos), SIH/SUS (internações) e SIA/SUS (atendimentos ambulatoriais), "
+         "pelo DATASUS; SISAB (produção dos postos, registros aprovados) e Relatórios da APS (cobertura da atenção primária)")
+# Fichas do e-SUS APS no relatório de validação do SISAB → posição na lista de cada unidade.
+FICHAS_SISAB = {"4": 0, "5": 1, "7": 2, "8": 3}   # atendimento individual, odontológico, procedimentos, visita domiciliar
 
 MUNICIPAL = {"1031", "1120", "1155", "1244", "1279"}
 # Tipo de unidade do CNES → grupo mostrado na página (os que não estão aqui ficam de fora).
@@ -231,18 +254,144 @@ def sia(ano: int, paralelo: int) -> dict[str, list]:
     return total
 
 
+def ler_planilha(dados: bytes) -> list[list[str]]:
+    """O .xlsx do SISAB (texto em células inlineStr, uma aba) → linhas de texto."""
+    with zipfile.ZipFile(io.BytesIO(dados)) as z:
+        xml = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+    return [[html.unescape(t) for t in re.findall(r"<t[^>]*>([^<]*)</t>", linha)]
+            for linha in re.findall(r"<row[^>]*>(.*?)</row>", xml, re.S)]
+
+
+def sisab_mes(competencia: str, ficha: str) -> dict[str, int]:
+    """Registros aprovados de uma ficha num mês, por CNES, do relatório público de validação do SISAB.
+
+    É uma página JSF: abre a página (cookie da sessão e ViewState), depois manda o formulário pedindo a
+    planilha do Brasil inteiro com as colunas IBGE, CNES e tipo de unidade, só os aprovados, pela data da
+    produção (não do envio)."""
+    cache = PASTA / "sisab" / f"{competencia}-{ficha}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())
+    for t in range(4):
+        try:
+            abre = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+            abre.addheaders = [("User-Agent", USER_AGENT)]
+            with abre.open(URL_SISAB, timeout=120) as resp:
+                pagina = resp.read().decode("utf-8", "replace")
+            estado = re.search(r'id="javax.faces.ViewState" value="([^"]+)"', pagina).group(1)
+            campos = [("j_idt44", "j_idt44"), ("unidGeo", "brasil"), ("periodo", "producao"), ("j_idt70", competencia),
+                      ("colunas", "ibge"), ("colunas", "cnes"), ("colunas", "tp_unidade"), ("j_idt77", "1%"),
+                      ("j_idt87", ficha), ("j_idt99", "j_idt99"), ("javax.faces.ViewState", estado)]
+            with abre.open(URL_SISAB, urllib.parse.urlencode(campos).encode(), timeout=900) as resp:
+                dados = resp.read()
+            if dados[:2] != b"PK":
+                raise ValueError("o SISAB não devolveu a planilha")
+            break
+        except Exception as erro:
+            if t == 3:
+                print(f"  SISAB {competencia} ficha {ficha}: {erro}", flush=True)
+                return {}
+            time.sleep(20 * (t + 1))
+    linhas = ler_planilha(dados)
+    cab = next(i for i, l in enumerate(linhas) if l[:2] == ["IBGE", "CNES"])
+    if linhas[cab][-1] != "Total" or not any(f"Produção: {competencia[4:]}/{competencia[:4]}" in " ".join(l) for l in linhas[:cab]):
+        raise ValueError(f"SISAB {competencia} ficha {ficha}: planilha em formato inesperado")
+    por: dict[str, int] = defaultdict(int)
+    for l in linhas[cab + 1:]:
+        if len(l) >= 5 and l[1].isdigit():
+            por[l[1].zfill(7)] += int(l[-1].replace(".", ""))
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(por, separators=(",", ":")))
+    return por
+
+
+def sisab(ano: int, paralelo: int) -> dict[str, list[int]]:
+    """Soma o ano: {CNES: [atendimentos individuais, de dentista, procedimentos, visitas domiciliares]}."""
+    pedidos = [(f"{ano}{m:02d}", f) for m in range(1, 13) for f in FICHAS_SISAB]
+    total: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0])
+    faltam = []
+    with ThreadPoolExecutor(paralelo) as ex:
+        for (comp, ficha), parte in zip(pedidos, ex.map(lambda p: sisab_mes(*p), pedidos)):
+            if not parte:
+                faltam.append(f"{comp}/{ficha}")
+            for cod, n in parte.items():
+                total[cod][FICHAS_SISAB[ficha]] += n
+    if faltam:
+        raise SystemExit(f"SISAB {ano}: sem resposta para {', '.join(faltam)}; rode de novo (o que já veio fica no cache)")
+    print(f"  SISAB {ano}: {len(total)} estabelecimentos; " + ", ".join(
+        f"{nome} {sum(v[i] for v in total.values()) / 1e6:.0f} mi" for i, nome in
+        enumerate(["atendimentos", "de dentista", "procedimentos", "visitas"])), flush=True)
+    return total
+
+
+def cobertura(ano: int) -> tuple[dict[str, list], float]:
+    """Cobertura da atenção primária em dezembro do ano, por cidade (ibge de 6 dígitos), e a do Brasil."""
+    cache = PASTA / "sisab" / f"cobertura-{ano}12.json"
+    if not cache.exists():
+        url = f"{URL_COBERTURA}?unidadeGeografica=MUNICIPIO&nuCompInicio={ano}12&nuCompFim={ano}12"
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=300) as resp:
+            dados = json.loads(resp.read())
+        if len(dados) < 5000:
+            raise SystemExit(f"cobertura {ano}12: só {len(dados)} cidades")
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps(dados, ensure_ascii=False, separators=(",", ":")))
+    dados = json.loads(cache.read_text())
+    por = {}
+    for x in dados:
+        pop, cap = int(x["qtPopulacao"] or 0), int(x["qtCapacidadeEquipe"] or 0)
+        por[x["coMunicipioIbge"]] = [round(min(100.0, float(x["qtCobertura"] or 0)), 1), pop, min(cap, pop),
+                                     int(x["qtEsf"] or 0), int(x["qtEap30"] or 0) + int(x["qtEap20"] or 0),
+                                     sum(int(x[k] or 0) for k in ("qtEsfr", "qtEcr", "qtEapp20", "qtEapp30"))]
+    pop = sum(v[1] for v in por.values())
+    return por, round(100 * sum(v[2] for v in por.values()) / pop, 1) if pop else 0.0
+
+
+def juntar_atencao_basica(doc: dict, paralelo: int) -> None:
+    """Põe a produção do SISAB em cada unidade (pelo CNES) e a cobertura em cada cidade."""
+    ano = doc["ano"]
+    producao = sisab(ano, paralelo)
+    por_cidade, brasil = cobertura(ano)
+    for ibge, v in doc["mun"].items():
+        for u in v["unidades"]:
+            u[:] = u[:8] + [0] * (8 - len(u)) + producao.get(u[0], [0, 0, 0, 0])
+        if ibge[:6] in por_cidade:
+            v["cobertura"] = por_cidade[ibge[:6]]
+    doc["cobertura"] = {"mes": f"{ano}-12", "brasil": brasil}
+    doc["fonte"] = FONTE
+    com = [u for v in doc["mun"].values() for u in v["unidades"] if sum(u[8:]) > 0]
+    print(f"SISAB {ano}: {len(com)} unidades da prefeitura com produção; "
+          f"{sum(u[8] for u in com) / 1e6:.0f} mi atendimentos, {sum(u[11] for u in com) / 1e6:.0f} mi visitas; "
+          f"cobertura da atenção primária no Brasil {brasil}%", flush=True)
+
+
+def gravar(doc: dict) -> str:
+    texto = json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
+    for destino in (SAIDA, REFERENCIA):
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(texto, encoding="utf-8")
+    return texto
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="unidades-saude", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--ano", type=int, default=date.today().year - 1)
     p.add_argument("--paralelo", type=int, default=4)
     p.add_argument("--paralelo-sia", type=int, default=2, help="arquivos do SIA abertos ao mesmo tempo (cada um usa até ~3 GB de memória)")
+    p.add_argument("--paralelo-sisab", type=int, default=3, help="planilhas do SISAB pedidas ao mesmo tempo")
     p.add_argument("--sem-baixar", action="store_true")
+    p.add_argument("--so-atencao-basica", action="store_true", help="refaz só o SISAB e a cobertura, sobre a referência")
     args = p.parse_args()
     if args.sem_baixar:
         if REFERENCIA.exists():
             SAIDA.parent.mkdir(parents=True, exist_ok=True)
             SAIDA.write_text(REFERENCIA.read_text(encoding="utf-8"), encoding="utf-8")
             print(f"saída: {SAIDA.relative_to(c.RAIZ)} (cópia da referência)")
+        return
+    if args.so_atencao_basica:
+        doc = json.loads(REFERENCIA.read_text(encoding="utf-8"))
+        juntar_atencao_basica(doc, args.paralelo_sisab)
+        texto = gravar(doc)
+        print(f"saída: {SAIDA.relative_to(c.RAIZ)} e {REFERENCIA.relative_to(c.RAIZ)} ({len(texto) / 1e6:.1f} MB)")
         return
 
     estab, mes = cnes()
@@ -273,10 +422,8 @@ def main() -> None:
         v["hospitais"].sort(key=lambda h: -h[3])
 
     doc = {"fonte": FONTE, "ano": args.ano, "cnes": mes, "mun": dict(sorted(mun.items()))}
-    texto = json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
-    for destino in (SAIDA, REFERENCIA):
-        destino.parent.mkdir(parents=True, exist_ok=True)
-        destino.write_text(texto, encoding="utf-8")
+    juntar_atencao_basica(doc, args.paralelo_sisab)
+    texto = gravar(doc)
     n_h = sum(len(v["hospitais"]) for v in mun.values())
     tot = sum(h[3] for v in mun.values() for h in v["hospitais"])
     val = sum(h[4] for v in mun.values() for h in v["hospitais"])
