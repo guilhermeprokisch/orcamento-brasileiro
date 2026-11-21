@@ -276,12 +276,14 @@ const listaPt = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction
       }
     }
     arrumar("um");
-    // O passo atual é o último cujo texto já passou de 60% da altura da tela.
+    // O passo atual é o último cujo texto já passou de 60% da altura da tela (ou o da URL, nas capturas).
+    const fixo = new URLSearchParams(location.search).get("passo");
     let pedido = false;
     const medir = () => {
       pedido = false;
       let alvo = passos[0];
       for (const p of passos) if (p.getBoundingClientRect().top < innerHeight * 0.6) alvo = p;
+      if (fixo && fixo !== "explorar") alvo = passos.find((x) => x.dataset.passo === fixo) ?? alvo;
       if (alvo.dataset.passo !== atual) { passos.forEach((x) => x.toggleAttribute("data-atual", x === alvo)); arrumar(alvo.dataset.passo!); }
     };
     addEventListener("scroll", () => { if (!pedido) { pedido = true; requestAnimationFrame(medir); } }, { passive: true });

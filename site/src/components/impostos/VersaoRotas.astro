@@ -179,7 +179,7 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
     .passos li { background: var(--papel); border: 1px solid var(--regra); padding: 14px 16px; opacity: 1; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
     .passos h2 { font-size: 22px; }
     .passos p { font-size: 15.5px; }
-    .grade-rotas { display: flex; flex-direction: column; gap: 16px; }
+    .grade-rotas { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
     .lista-rotas button { grid-template-columns: 96px minmax(0, 1fr) 62px; gap: 8px; }
     .lr-nome { font-size: 13px; }
     .lr-valor { font-size: 12px; }
@@ -196,12 +196,14 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
       passos.forEach((p) => p.toggleAttribute("data-atual", p.dataset.passo === id));
       cartoes.forEach((c) => c.toggleAttribute("data-atual", c.dataset.passo === id));
     };
-    // O passo atual é o último cujo texto já passou de 60% da altura da tela.
+    // O passo atual é o último cujo texto já passou de 60% da altura da tela (ou o da URL, nas capturas).
+    const fixo = new URLSearchParams(location.search).get("passo");
     let ultimo = "", pedido = false;
     const medir = () => {
       pedido = false;
       let id = passos[0].dataset.passo!;
       for (const p of passos) if (p.getBoundingClientRect().top < innerHeight * 0.6) id = p.dataset.passo!;
+      if (fixo && fixo !== "explorar") id = fixo;
       if (id !== ultimo) { ultimo = id; mostrar(id); }
     };
     addEventListener("scroll", () => { if (!pedido) { pedido = true; requestAnimationFrame(medir); } }, { passive: true });

@@ -116,7 +116,7 @@ const fb = doc.fundeb;
     .passos li { background: var(--papel); border: 1px solid var(--regra); padding: 14px 16px; opacity: 1; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
     .passos h2 { font-size: 22px; }
     .passos p { font-size: 15.5px; }
-    .explorar-grade { display: flex; flex-direction: column; gap: 16px; }
+    .explorar-grade { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
     :global(.v-rio .so-largo) { display: none !important; }
     :global(.v-rio .so-estreito) { display: block !important; }
     .palco :global(svg) { max-height: 100%; width: auto; margin: 0 auto; }
@@ -139,12 +139,14 @@ const fb = doc.fundeb;
         if (!svg.querySelector("[data-em-destaque]")) svg.classList.remove("com-destaque");
       }
     };
-    // O passo atual é o último cujo texto já passou de 60% da altura da tela.
+    // O passo atual é o último cujo texto já passou de 60% da altura da tela (ou o da URL, nas capturas).
+    const fixo = new URLSearchParams(location.search).get("passo");
     let ultimo = 0, pedido = false;
     const medir = () => {
       pedido = false;
       let n = Number(passos[0].dataset.passo);
       for (const p of passos) if (p.getBoundingClientRect().top < innerHeight * 0.6) n = Number(p.dataset.passo);
+      if (fixo && fixo !== "explorar") n = Number(fixo);
       if (n !== ultimo) { ultimo = n; mostrar(n); }
     };
     addEventListener("scroll", () => { if (!pedido) { pedido = true; requestAnimationFrame(medir); } }, { passive: true });

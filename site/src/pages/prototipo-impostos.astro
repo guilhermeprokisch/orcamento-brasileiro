@@ -18,6 +18,11 @@ const VERSOES = [
 ---
 
 <Base title="Protótipo: o caminho dos impostos · Orçamento Brasileiro" description="Rascunho de três versões da página sobre o caminho dos impostos.">
+  <script is:inline>
+    // Para as capturas de tela: &passo=… mostra a história parada naquele passo, no alto da página;
+    // &passo=explorar mostra só a parte de clicar.
+    (function () { var p = new URLSearchParams(location.search).get("passo"); if (p) document.documentElement.dataset.captura = p; })();
+  </script>
   <div class="faixa-prototipo">
     <div class="wrap">
       <strong>Protótipo</strong> para escolher a versão. Não é a página final.
@@ -45,6 +50,12 @@ const VERSOES = [
   .faixa-prototipo a[aria-current] { background: var(--tinta); color: var(--papel); }
   .faixa-prototipo a span { color: inherit; opacity: 0.7; }
   @media (max-width: 640px) { .faixa-prototipo a span { display: none; } }
+  :global(html[data-captura] .abre) { display: none !important; }
+  :global(html[data-captura] .passos) { padding: 24px 0 !important; gap: 0 !important; }
+  :global(html[data-captura] .passos li:not([data-atual])) { display: none !important; }
+  :global(html[data-captura="explorar"] .rolagem) { display: none !important; }
+  :global(html[data-captura] astro-dev-toolbar) { display: none !important; }
+  :global(html[data-captura] *) { transition: none !important; }
 </style>
 
 <script>
