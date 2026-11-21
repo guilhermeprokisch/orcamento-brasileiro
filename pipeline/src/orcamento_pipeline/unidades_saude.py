@@ -30,6 +30,8 @@ Fontes do Ministério da Saúde:
   outros profissionais), atendimentos de dentista, procedimentos (medir a pressão, curativo, injeção) e
   visitas domiciliares (sobretudo dos agentes comunitários). Uma planilha por mês e ficha, com o país
   inteiro; só os totais por CNES ficam em data/raw/datasus/sisab/. Ver docs/levantamento-sisab.md.
+  Do Relatório de Produção do mesmo SISAB sai, por cidade, quem fez os atendimentos individuais do ano
+  (médico, enfermeiro ou outro profissional); ele não desce ao posto e só dá as cidades estado por estado.
 - Cobertura da atenção primária (relatorioaps.saude.gov.br, API aberta): por cidade, em dezembro do ano,
   as equipes (saúde da família e atenção primária), quantas pessoas elas dão conta de acompanhar pela
   conta do Ministério (3.500 por equipe de saúde da família, 2.625 por equipe de 30 horas e 1.750 por
@@ -45,7 +47,9 @@ site/public/data/indicadores/unidades-saude.json, com cópia em pipeline/referen
                                   atendimentos individuais, de dentista, procedimentos, visitas], ...],
                     "hospitais": [[CNES, nome, quem administra, internações, valor, bairro], ...],
                     "cobertura": [cobertura %, população, pessoas que as equipes dão conta, equipes de
-                                  saúde da família, de atenção primária, ribeirinhas, de rua ou prisionais]}}}
+                                  saúde da família, de atenção primária, ribeirinhas, de rua ou prisionais],
+                    "profissionais": [atendimentos individuais com médico, com enfermeiro, com outros]}},
+     "profissionais": [as mesmas contas do Brasil]}
 Os quatro primeiros números de cada unidade vêm do SIA; os quatro últimos, do SISAB.
 """
 
@@ -80,7 +84,10 @@ URL_CNES = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/CNES/cnes_estab
 URL_SIH = "ftp://ftp.datasus.gov.br/dissemin/publicos/SIHSUS/200801_/Dados/RD{uf}{aa}{mm}.dbc"
 PASTA_SIA = "ftp://ftp.datasus.gov.br/dissemin/publicos/SIASUS/200801_/Dados/"
 URL_SISAB = "https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/envio/RelValidacao.xhtml"
+URL_PRODUCAO = "https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/saude/RelSauProducao.xhtml"
 URL_COBERTURA = "https://relatorioaps-prd.saude.gov.br/cobertura/aps"
+UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR",
+       "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"]
 FONTE = ("Ministério da Saúde: CNES (estabelecimentos), SIH/SUS (internações) e SIA/SUS (atendimentos ambulatoriais), "
          "pelo DATASUS; SISAB (produção dos postos, registros aprovados) e Relatórios da APS (cobertura da atenção primária)")
 # Fichas do e-SUS APS no relatório de validação do SISAB → posição na lista de cada unidade.
@@ -323,6 +330,84 @@ def sisab(ano: int, paralelo: int) -> dict[str, list[int]]:
     return total
 
 
+def profissionais_estado(ano: int, uf: str) -> dict[str, list[int]]:
+    """Atendimentos individuais do ano em cada cidade do estado, por categoria do profissional, do Relatório
+    de Produção do SISAB: {ibge de 6 dígitos: [com médico, com enfermeiro, com outros profissionais]}.
+
+    O relatório só dá a linha por cidade com o estado escolhido. Escolher "Estado" na página é um pedido
+    AJAX do JSF que traz a lista de estados; depois o formulário pede o .csv com as cidades nas linhas e as
+    26 categorias de profissional nas colunas, nos 12 meses do ano."""
+    cache = PASTA / "sisab" / f"profissionais-{ano}-{uf}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())
+    for t in range(4):
+        try:
+            abre = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+            abre.addheaders = [("User-Agent", USER_AGENT)]
+            with abre.open(URL_PRODUCAO, timeout=120) as resp:
+                pagina = resp.read().decode("utf-8", "replace")
+            estado = re.search(r'id="javax.faces.ViewState" value="([^"]+)"', pagina).group(1)
+            categorias = re.findall(r'<option value="(\d+)"', re.search(
+                r'name="categoriaProfissional"[^>]*>(.*?)</select>', pagina, re.S).group(1))
+            ajax = [("j_idt44", "j_idt44"), ("unidGeo", "estado"), ("javax.faces.source", "unidGeo"),
+                    ("javax.faces.partial.event", "change"), ("javax.faces.partial.execute", "unidGeo unidGeo"),
+                    ("javax.faces.partial.render", "regioes script"), ("javax.faces.behavior.event", "valueChange"),
+                    ("javax.faces.partial.ajax", "true"), ("javax.faces.ViewState", estado)]
+            req = urllib.request.Request(URL_PRODUCAO, urllib.parse.urlencode(ajax).encode(), headers={"Faces-Request": "partial/ajax"})
+            with abre.open(req, timeout=120) as resp:
+                resp.read()
+            campos = ([("j_idt44", "j_idt44"), ("lsCid", ""), ("lsSigtap", ""), ("unidGeo", "estado"), ("estados", uf)]
+                      + [("j_idt76", f"{ano}{m:02d}") for m in range(1, 13)]
+                      + [("categoriaProfissional", k) for k in categorias]
+                      + [("selectLinha", "MUN.CO_MUNICIPIO_IBGE"), ("selectcoluna", "CO_CATEGORIA_PROFISSIONAL"),
+                         ("idadeInicio", "0"), ("idadeFim", "0"), ("tpProducao", "4"), ("j_idt192", "j_idt192"),
+                         ("javax.faces.ViewState", estado)])
+            with abre.open(URL_PRODUCAO, urllib.parse.urlencode(campos).encode(), timeout=900) as resp:
+                tipo, dados = resp.headers.get("Content-Type", ""), resp.read()
+            if "csv" not in tipo:
+                raise ValueError("o SISAB não devolveu o .csv")
+            break
+        except Exception as erro:
+            if t == 3:
+                print(f"  SISAB profissionais {ano} {uf}: {erro}", flush=True)
+                return {}
+            time.sleep(20 * (t + 1))
+    linhas = list(csv.reader(io.StringIO(dados.decode("latin-1")), delimiter=";"))
+    cab = next(i for i, l in enumerate(linhas) if l[:3] == ["Uf", "Ibge", "Municipio"])
+    nomes = linhas[cab]
+    filtros = " ".join(" ".join(l) for l in linhas[:cab])
+    if ("Médico" not in nomes or "Enfermeiro" not in nomes or f"Estado: {uf}." not in filtros
+            or "Atendimento Individual" not in filtros or f"DEZ/{ano}" not in filtros or f"JAN/{ano}" not in filtros):
+        raise ValueError(f"SISAB profissionais {ano} {uf}: .csv em formato inesperado")
+    med, enf = nomes.index("Médico"), nomes.index("Enfermeiro")
+    por = {}
+    for l in linhas[cab + 1:]:
+        if len(l) > enf and l[0] == uf and l[1].isdigit():
+            n = [int(x.replace(".", "") or 0) for x in l[3:len(nomes)] if x.replace(".", "").isdigit()]
+            m, e = int(l[med].replace(".", "")), int(l[enf].replace(".", ""))
+            por[l[1]] = [m, e, sum(n) - m - e]
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(por, separators=(",", ":")))
+    return por
+
+
+def profissionais(ano: int, paralelo: int) -> dict[str, list[int]]:
+    """Junta os 27 estados: {ibge de 6 dígitos: [atendimentos com médico, com enfermeiro, com outros]}."""
+    total: dict[str, list[int]] = {}
+    faltam = []
+    with ThreadPoolExecutor(paralelo) as ex:
+        for uf, parte in zip(UFS, ex.map(lambda uf: profissionais_estado(ano, uf), UFS)):
+            if not parte:
+                faltam.append(uf)
+            total.update(parte)
+    if faltam:
+        raise SystemExit(f"SISAB profissionais {ano}: sem resposta para {', '.join(faltam)}; rode de novo (o que já veio fica no cache)")
+    soma = [sum(v[i] for v in total.values()) for i in range(3)]
+    print(f"  SISAB {ano}, atendimentos por profissional: {len(total)} cidades; médico {soma[0] / 1e6:.0f} mi, "
+          f"enfermeiro {soma[1] / 1e6:.0f} mi, outros {soma[2] / 1e6:.0f} mi", flush=True)
+    return total
+
+
 def cobertura(ano: int) -> tuple[dict[str, list], float]:
     """Cobertura da atenção primária em dezembro do ano, por cidade (ibge de 6 dígitos), e a do Brasil."""
     cache = PASTA / "sisab" / f"cobertura-{ano}12.json"
@@ -351,12 +436,16 @@ def juntar_atencao_basica(doc: dict, paralelo: int) -> None:
     ano = doc["ano"]
     producao = sisab(ano, paralelo)
     por_cidade, brasil = cobertura(ano)
+    por_profissional = profissionais(ano, paralelo)
     for ibge, v in doc["mun"].items():
         for u in v["unidades"]:
             u[:] = u[:8] + [0] * (8 - len(u)) + producao.get(u[0], [0, 0, 0, 0])
         if ibge[:6] in por_cidade:
             v["cobertura"] = por_cidade[ibge[:6]]
+        if sum(por_profissional.get(ibge[:6], [])) > 0:
+            v["profissionais"] = por_profissional[ibge[:6]]
     doc["cobertura"] = {"mes": f"{ano}-12", "brasil": brasil}
+    doc["profissionais"] = [sum(v[i] for v in por_profissional.values()) for i in range(3)]
     doc["fonte"] = FONTE
     com = [u for v in doc["mun"].values() for u in v["unidades"] if sum(u[8:]) > 0]
     print(f"SISAB {ano}: {len(com)} unidades da prefeitura com produção; "

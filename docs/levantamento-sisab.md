@@ -12,8 +12,10 @@ estabelecimento (CNES), para todas as cidades? E a cobertura da atenção básic
 - **A cobertura também.** A API do painel *Relatórios da APS* (<https://relatorioaps.saude.gov.br>, que
   substituiu os relatórios públicos do e-Gestor) devolve, numa chamada, a cobertura da atenção primária de
   todas as 5.569 cidades num mês, com as equipes e a população. JSON aberto, sem chave.
-- **O que não dá por posto:** a divisão por profissional (médico, enfermeiro, dentista…). Ela só existe no
-  *Relatório de Produção* do SISAB, que vai no máximo até a cidade.
+- **Quem atendeu, só por cidade:** a divisão por profissional (médico, enfermeiro, outros) só existe no
+  *Relatório de Produção* do SISAB, que vai no máximo até a cidade e só dá as cidades estado por estado.
+  O site pede os 27 estados e mostra, na página da cidade, a parte dos atendimentos com médico e com
+  enfermeiro.
 
 ## As fontes olhadas
 
@@ -90,6 +92,32 @@ Dos 50.014 postos e unidades básicas da prefeitura no CNES, 45.099 têm produç
 4.915 estão sem nenhum registro aprovado. Podem ser postos de apoio sem equipe própria, ou que lançam a
 produção no CNES de outra unidade; não conferimos um a um.
 
+## Quem atendeu (médico, enfermeiro, outros)
+
+O Relatório de Produção
+(<https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/saude/RelSauProducao.xhtml>) cruza a
+ficha de atendimento individual com a categoria do profissional. A linha "Município" só sai com um recorte
+geográfico menor que o Brasil, então pedimos um estado por vez:
+
+1. `GET` na página (cookie e `javax.faces.ViewState`);
+2. o pedido AJAX que a página faz quando se escolhe "Estado" (`unidGeo=estado`, `javax.faces.partial.ajax=true`,
+   `javax.faces.partial.render=regioes script`); sem ele o campo `estados` não é aceito;
+3. o `POST` com `estados=UF`, os 12 meses em `j_idt76`, `selectLinha=MUN.CO_MUNICIPIO_IBGE`,
+   `selectcoluna=CO_CATEGORIA_PROFISSIONAL`, `tpProducao=4` (atendimento individual), todas as 26 categorias em
+   `categoriaProfissional` (é obrigatório escolher pelo menos uma) e `j_idt192=j_idt192`, que devolve um .csv.
+
+Cada estado leva de 5 a 30 segundos; os 27 juntos, cerca de 2 minutos. O programa confere no cabeçalho do
+.csv o estado, o tipo de produção e os meses antes de usar.
+
+2025, Brasil: **259 milhões de atendimentos com médico (62%), 124 milhões com enfermeiro (30%) e 32 milhões
+com outros profissionais (8%)**: psicólogo, nutricionista, fisioterapeuta, assistente social. A soma (414,5
+milhões) bate com o total do Relatório de Produção na tabela acima. Na metade das cidades a parte do médico
+fica entre 52% e 70%; a mediana é 61%. Nas pontas há cidades com 11% (o enfermeiro faz quase tudo) e com 99%.
+
+Esse relatório conta todas as unidades da cidade, também as do estado, e pela competência do registro; por
+isso a página mostra só as proporções, não os números, ao lado da soma das unidades da prefeitura tirada do
+relatório de validação. Nas cidades que conferimos as duas somas diferem em até 6% (São Paulo 1%, Cacoal 3%, Conceição do Araguaia 6%).
+
 ## Comparação com o SIA
 
 O SIA mede outra coisa: procedimentos que o SUS paga pela tabela, sobretudo de UPAs, policlínicas, CAPS e
@@ -111,15 +139,15 @@ página mostra "todos os moradores". Dezembro de 2025: 83,2% no Brasil (176,9 mi
 - `pipeline/src/orcamento_pipeline/unidades_saude.py`: `sisab()` baixa as 48 planilhas, guarda só o total
   por CNES em `data/raw/datasus/sisab/AAAAMM-ficha.json` e soma o ano; `cobertura()` guarda a resposta da API
   em `data/raw/datasus/sisab/cobertura-AAAA12.json`. `uv run unidades-saude --so-atencao-basica` refaz só essa
-  parte sobre a referência que já existe.
+  parte sobre a referência que já existe. `profissionais()` pede o Relatório de Produção estado por estado e
+  guarda cada um em `data/raw/datasus/sisab/profissionais-AAAA-UF.json`.
 - Cada unidade ganha quatro números no fim da lista (atendimentos, dentista, procedimentos, visitas) e cada
-  cidade ganha `cobertura`.
-- `SaudeUnidades.astro`: uma frase com a soma do SISAB das unidades da prefeitura, uma com a cobertura, a
+  cidade ganha `cobertura` e `profissionais` (atendimentos com médico, com enfermeiro, com outros).
+- `SaudeUnidades.astro`: uma frase com a soma do SISAB das unidades da prefeitura, uma com a parte dos
+  atendimentos com médico e com enfermeiro (e a do Brasil), uma com a cobertura, a
   frase do SIA com o nome do sistema e, em cada posto, a linha do SISAB acima da do SIA.
 
 ## O que fica para depois
 
-- Atendimentos por profissional (médico x enfermeiro) por cidade, pelo Relatório de Produção, pedindo
-  estado por estado.
 - Vacinação e atividades coletivas (as fichas 14 e 6 do mesmo relatório de validação).
 - A série de anos anteriores (o relatório vai até 2013), para mostrar se o trabalho dos postos cresceu.

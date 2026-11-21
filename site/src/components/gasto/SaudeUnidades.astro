@@ -79,6 +79,15 @@ const equipes = nEquipes === 0 ? "as equipes da atenção básica da cidade"
   : tiposEquipe.length === 1 ? `as ${nf0.format(nEquipes)} equipes ${tiposEquipe[0][1]} da cidade`
   : `as ${nf0.format(nEquipes)} equipes da atenção básica da cidade (${emLista(tiposEquipe.map(([n, t]) => `${nf0.format(n)} ${tipo(n, t)}`))})`;
 const davam = nEquipes === 1 ? "dava" : "davam";
+// Quem atendeu: a parte dos atendimentos individuais com médico, com enfermeiro e com outros profissionais, na cidade e no Brasil.
+const prof = u?.profissionais ?? null;
+const fatias = (x: { medico: number; enfermeiro: number; outros: number }) => {
+  const t = x.medico + x.enfermeiro + x.outros;
+  return t > 0 ? { medico: (100 * x.medico) / t, enfermeiro: (100 * x.enfermeiro) / t, outros: (100 * x.outros) / t } : null;
+};
+const pProf = prof ? fatias(prof) : null;
+const pBrasil = prof ? fatias(prof.brasil) : null;
+const pctInteiro = (n: number) => n > 0 && n < 1 ? "menos de 1%" : `${Math.round(n)}%`;
 const producao = (x: { atendimentos: number; exames: number; cirurgias: number; valor: number }) => {
   const partes = ([[x.atendimentos, "procedimento", "procedimentos"], [x.exames, "exame", "exames"], [x.cirurgias, "cirurgia", "cirurgias"]] as [number, string, string][])
     .filter(([n]) => n > 0).sort((a, b) => b[0] - a[0]).slice(0, 2).map(([n, um, varios]) => contagem(n, um, varios));
@@ -105,6 +114,15 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
           {ab.dentista > 0 && <>, {contagem(ab.dentista, "atendimento de dentista", "atendimentos de dentista")}</>}
           {ab.visitas > 0 && <> e <strong>{contagem(ab.visitas, "visita", "visitas")}</strong> às casas dos moradores</>}
           {ab.procedimentos > 0 && <>, além de {contagem(ab.procedimentos, "procedimento", "procedimentos")}, como medir a pressão ou fazer um curativo</>}.
+        </p>
+      )}
+      {pProf && (
+        <p>
+          Contando todas as unidades da cidade, <strong>{pctInteiro(pProf.medico)} dos atendimentos foram com médico</strong>
+          {pProf.outros >= 0.5
+            ? <>, {pctInteiro(pProf.enfermeiro)} com enfermeiro e {pctInteiro(pProf.outros)} com outros profissionais, como psicólogo, nutricionista ou fisioterapeuta.</>
+            : <> e {pctInteiro(pProf.enfermeiro)} com enfermeiro.</>}
+          {pBrasil && <> No Brasil todo, {pctInteiro(pBrasil.medico)} com médico e {pctInteiro(pBrasil.enfermeiro)} com enfermeiro.</>}
         </p>
       )}
       {cob && cob.populacao > 0 && (
@@ -143,6 +161,7 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
         curativo e, no SIA, a própria consulta; por isso há muito mais procedimentos do que atendimentos. Uma <em>visita</em> é a ida de um
         agente comunitário ou de outro profissional a uma casa. Do SISAB entram só os registros aprovados pelo Ministério; eles
         não têm valor em reais, porque o SUS paga os postos pelo número de moradores e de equipes, não por consulta.
+        {prof && " A divisão entre médico e enfermeiro vem do relatório de produção do SISAB, que só existe por cidade: conta todas as unidades, também as do estado, e não dá para ver posto por posto."}
         {cob && " A cobertura conta 3.500 pessoas para cada equipe de saúde da família e menos para as de atenção primária (2.625 ou 1.750, conforme as horas); passa de 100% em muitas cidades pequenas e aparece como todos os moradores."}
       </p>
       <p class="menor">
