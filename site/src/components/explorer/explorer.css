@@ -52,6 +52,8 @@
 .exp-vistas { display: flex; align-items: center; gap: 10px; color: var(--regra); }
 .exp-vistas button:disabled { opacity: 0.5; cursor: default; }
 
+/* aviso quando o ano não tem o tipo de despesa (o filtro de tipo fica de fora) */
+.exp-aviso { margin: 0 0 14px; padding: 10px 14px; font-size: 15px; line-height: 1.5; background: var(--marca-texto-fundo); }
 .exp-carregando { padding: 64px 0; text-align: center; color: var(--texto-3); display: grid; justify-items: center; gap: 12px; }
 .exp-erro { color: #b42318; }
 .exp-nota { margin: 12px 0 0; font-size: 12px; color: var(--texto-3); }

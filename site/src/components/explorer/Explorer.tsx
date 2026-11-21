@@ -38,6 +38,10 @@ const DE: Record<Dim, string> = {
 /** Ordem das abas, como no mock: as mais usadas primeiro. */
 const ORDEM_ABAS: Dim[] = ["orgao", "tipo", "programa", "uo", "acao", "gnd", "funcao", "subfuncao"];
 
+/** O nome de um tipo de despesa ("Obrigatória"), para quando o arquivo do ano não traz os nomes. */
+const nomeDoTipo = (f: Filtro): string | undefined =>
+  f.dim === "tipo" ? TIPOS_DESPESA.find((t) => t.cod === f.cod)?.nome : undefined;
+
 /** No mapa dividido por tipo de despesa, cada bloco com a cor da legenda (FaixaTipo). */
 const corDoTipo = (item: Item) => {
   const t = TIPOS_DESPESA.find((x) => x.cod === item.codigo);
@@ -133,6 +137,19 @@ export default function Explorer() {
     return estado().real && i && a ? i.fatores[String(a)] ?? 1 : 1;
   };
 
+  // Um ano sem a coluna "tipo" (gerado sem o SIOP) não sabe filtrar nem dividir por obrigatório ou não: nele, o
+  // filtro de tipo fica de fora das contas (com um aviso) e volta a valer num ano que tenha a coluna.
+  const semTipo = () => !!doc() && !temTipo(doc());
+  const vale = createMemo<Estado>(() => {
+    const e = estado();
+    if (!semTipo()) return e;
+    const filtros = e.filtros.filter((f) => f.dim !== "tipo");
+    const sugerida = proximaSugerida(filtros);
+    return { ...e, filtros, por: e.por === "tipo" ? (sugerida === "tipo" ? null : sugerida) : e.por };
+  });
+  const tipoDeFora = () => (semTipo() ? estado().filtros.find((f) => f.dim === "tipo") : undefined);
+  const dimsAqui = () => dimsDisponiveis(vale().filtros).filter((d) => d !== "tipo" || temTipo(doc()));
+
   // Série histórica (todos os anos, carregados uma vez).
   const anosLista = () => resumo()?.anos.map((a) => a.ano) ?? [];
   const [todos] = createResource(
@@ -142,8 +159,11 @@ export default function Explorer() {
   const serie = createMemo<Ponto[] | null>(() => {
     const ds = todos();
     if (!ds) return null;
-    const e = estado();
+    const e = vale();
+    // Com o filtro de tipo, os anos sem a coluna ficam fora da série (não dá para saber o valor deles).
+    const comTipo = e.filtros.some((f) => f.dim === "tipo");
     return ds
+      .filter((d) => !comTipo || temTipo(d))
       .map((d) => ({ ano: d.ano, valores: escalar(agrupar(d, e.filtros, null, e.semRefin).total, fatorDe(d.ano)) }))
       .sort((a, b) => a.ano - b.ano);
   });
@@ -151,7 +171,7 @@ export default function Explorer() {
   const grupo = createMemo(() => {
     const d = doc();
     if (!d) return null;
-    const e = estado();
+    const e = vale();
     const g = agrupar(d, e.filtros, e.por, e.semRefin);
     const f = fatorDe(ano());
     return { total: escalar(g.total, f), itens: g.itens.map((i) => ({ ...i, valores: escalar(i.valores, f) })) };
@@ -166,11 +186,11 @@ export default function Explorer() {
   const trilha = createMemo(() => {
     const d = doc();
     if (!d) return [];
-    const e = estado();
+    const e = vale();
     const totais = totaisDaTrilha(d, e.filtros, e.metrica, e.semRefin);
     return e.filtros.map((f, i) => ({
       ...f,
-      nome: d.dims[f.dim][f.cod] ?? f.cod,
+      nome: d.dims[f.dim]?.[f.cod] ?? nomeDoTipo(f) ?? f.cod,
       total: totais[i] * fatorDe(ano()),
       filtros: e.filtros.slice(0, i + 1),
     }));
@@ -178,16 +198,16 @@ export default function Explorer() {
   const ultimo = () => trilha().at(-1);
 
   const descer = (item: Item) => {
-    const e = estado();
+    const e = vale();
     if (!e.por) return;
     const filtros = [...e.filtros, { dim: e.por, cod: item.codigo }];
     mudar({ filtros, por: proximaSugerida(filtros) }, true);
   };
   const irPara = (filtros: Filtro[]) => mudar({ filtros, por: proximaSugerida(filtros) }, true);
-  const podeDescer = () => dimsDisponiveis(estado().filtros).length > 1;
+  const podeDescer = () => dimsAqui().length > 1;
   // Voltar um nível: o passo anterior da trilha, ou o orçamento inteiro.
   const pai = () => (trilha().length > 1 ? trilha().at(-2)!.nome : `todo o orçamento de ${ano() ?? ""}`);
-  const subir = () => irPara(estado().filtros.slice(0, -1));
+  const subir = () => irPara(vale().filtros.slice(0, -1));
 
   // Os degraus: o orçamento inteiro e cada passo da trilha, com o valor e a fatia no passo anterior.
   const degraus = createMemo<Degrau[]>(() => {
@@ -278,6 +298,16 @@ export default function Explorer() {
         </figure>
       </section>
 
+      <Show when={tipoDeFora()}>
+        {(f) => (
+          <p class="exp-aviso" role="status">
+            Os dados de {ano()} não dizem se cada gasto é obrigatório ou não. Por isso o filtro “{nomeDoTipo(f()) ?? f().cod}”
+            ficou de fora: os números abaixo são de todo o gasto.{" "}
+            <button type="button" class="link" onClick={() => mudar({ filtros: vale().filtros, por: vale().por })}>Tirar o filtro</button>
+          </p>
+        )}
+      </Show>
+
       <Show when={temTipo(doc()) && !estado().filtros.some((f) => f.dim === "tipo")}>
         <FaixaTipo doc={doc()!} ano={ano()!} filtros={estado().filtros} metrica={estado().metrica} semRefin={estado().semRefin}
           fator={fatorDe(ano())} onSemRefin={() => mudar({ semRefin: true })}
@@ -294,9 +324,9 @@ export default function Explorer() {
         </Show>
         <span class="muted">Dividir por</span>
         <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
-          <For each={ORDEM_ABAS.filter((d) => dimsDisponiveis(estado().filtros).includes(d) && (d !== "tipo" || temTipo(doc())))}>
+          <For each={ORDEM_ABAS.filter((d) => dimsAqui().includes(d))}>
             {(d) => (
-              <button type="button" role="tab" aria-selected={d === estado().por} onClick={() => mudar({ por: d })}>
+              <button type="button" role="tab" aria-selected={d === vale().por} onClick={() => mudar({ por: d })}>
                 {ABA[d]}
               </button>
             )}
@@ -308,8 +338,8 @@ export default function Explorer() {
           <span aria-hidden="true">|</span>
           <button type="button" aria-pressed={estado().vista === "lista"} onClick={() => mudar({ vista: "lista" })}>Lista</button>
           <span aria-hidden="true">|</span>
-          <button type="button" disabled={!grupo() || !estado().por}
-            onClick={() => baixarCsv(grupo()!.itens, estado().por!, ano()!, estado().real)}>Baixar CSV</button>
+          <button type="button" disabled={!grupo() || !vale().por}
+            onClick={() => baixarCsv(grupo()!.itens, vale().por!, ano()!, estado().real)}>Baixar CSV</button>
         </div>
       </div>
 
@@ -322,10 +352,10 @@ export default function Explorer() {
         }>
           <Show when={estado().vista === "mapa"} fallback={
             <Tabela itens={grupo()!.itens} metrica={estado().metrica} total={Math.max(1, total())}
-              rotuloNome={estado().por ? ROTULO_DIM[estado().por!] : "Nome"} podeDescer={podeDescer()} onEscolher={descer} />
+              rotuloNome={vale().por ? ROTULO_DIM[vale().por!] : "Nome"} podeDescer={podeDescer()} onEscolher={descer} />
           }>
             <Treemap itens={grupo()!.itens} metrica={estado().metrica} total={Math.max(1, total())}
-              podeDescer={podeDescer()} onEscolher={descer} corDe={estado().por === "tipo" ? corDoTipo : undefined} />
+              podeDescer={podeDescer()} onEscolher={descer} corDe={vale().por === "tipo" ? corDoTipo : undefined} />
           </Show>
         </Show>
       </Show>
