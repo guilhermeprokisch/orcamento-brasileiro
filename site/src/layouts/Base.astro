@@ -20,9 +20,6 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
 // Menu principal: as páginas agrupadas pela pergunta de quem chega. Para incluir uma página,
 // acrescente um item ao grupo dela; o menu do computador e o do celular saem desta lista.
 const GRUPOS = [
-  { nome: "Impostos", itens: [
-    { href: "/impostos", nome: "Para quem vai o seu imposto", desc: "Quem cobra cada imposto, o que é repassado a estados e prefeituras e quem fica com o dinheiro." },
-  ] },
   { nome: "Governo federal", itens: [
     { href: "/explorer", nome: "Gastos", desc: "Para onde vai o dinheiro: por órgão, área, programa e ação." },
     { href: "/receitas", nome: "Receitas", desc: "De onde vem o dinheiro: impostos, contribuições, royalties e empréstimos." },
@@ -40,6 +37,9 @@ const GRUPOS = [
   { nome: "Contratos e emendas", itens: [
     { href: "/contratos", nome: "Contratos", desc: "O que prefeituras e governos estaduais contrataram, e de quem." },
     { href: "/emendas", nome: "Emendas", desc: "O dinheiro que deputados e senadores mandam: para onde e para quem." },
+  ] },
+  { nome: "Impostos", itens: [
+    { href: "/impostos", nome: "Para quem vai o seu imposto", desc: "Quem cobra cada imposto, o que é repassado a estados e prefeituras e quem fica com o dinheiro." },
   ] },
   { nome: "Aprenda", itens: [
     { href: "/aprenda", nome: "Lições", desc: "Como funciona o orçamento e como ler os números." },
@@ -213,7 +213,7 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
     font-family: var(--serifa); font-size: 25px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap;
   }
   .marca-site:hover { color: var(--tinta); }
-  .nav { display: flex; align-items: center; gap: 28px; font-size: 15px; }
+  .nav { display: flex; align-items: center; gap: 24px; font-size: 15px; }
 
   /* Grupos do menu: o nome abre uma lista com uma frase por página. */
   .grupo { position: relative; }
@@ -276,9 +276,9 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
 
   /* Entre o celular e a tela larga o menu completo não cabe ao lado da marca: fica o menu
      recolhido, como no celular (as classes so-largo e so-celular trocam em 640px). A marca, os
-     quatro grupos e a busca pedem ~1.040px, ou seja, uma tela de ~1.170px. Páginas novas entram
-     dentro dos grupos e não mudam essa conta. */
-  @media (min-width: 641px) and (max-width: 1180px) {
+     cinco grupos e a busca pedem ~1.130px, ou seja, uma tela de ~1.280px. Páginas novas entram
+     dentro dos grupos e não mudam essa conta; um grupo novo muda. */
+  @media (min-width: 641px) and (max-width: 1280px) {
     .topo .nav.so-largo { display: none !important; }
     .topo .nav-celular.so-celular { display: flex !important; }
   }
