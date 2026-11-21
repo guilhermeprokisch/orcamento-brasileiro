@@ -2,12 +2,13 @@ import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show
 import Treemap from "./Treemap";
 import Tabela from "./Tabela";
 import BarrasAno, { type Ponto } from "./BarrasAno";
+import Degraus, { deQuem, Voltar, type Degrau } from "./Degraus";
 import FaixaTipo, { AvisoEmendas } from "./FaixaTipo";
 import {
   agrupar, carregarAno, carregarResumo, DIMS, dimsDisponiveis, escalar, METRICAS, proximaSugerida,
   ROTULO_DIM, taxaRealizacao, temTipo, TIPOS_DESPESA, totaisDaTrilha, type Dim, type Filtro, type Item, type Metrica,
 } from "../../lib/dados";
-import { moedaExtenso, pct } from "../../lib/formato";
+import { moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import "./explorer.css";
 
 type Vista = "mapa" | "lista";
@@ -28,8 +29,18 @@ const ABA: Record<Dim, string> = {
   programa: "Programa", acao: "Ação", gnd: "Tipo de gasto", tipo: "Obrigatório ou não",
 };
 
+/** Nos degraus, de quem é a fatia do passo seguinte: "44% do programa". */
+const DE: Record<Dim, string> = {
+  orgao: "do órgão", funcao: "da área", subfuncao: "da subárea", uo: "da unidade",
+  programa: "do programa", acao: "da ação", gnd: "do tipo de gasto", tipo: "deste tipo",
+};
+
 /** Ordem das abas, como no mock: as mais usadas primeiro. */
 const ORDEM_ABAS: Dim[] = ["orgao", "tipo", "programa", "uo", "acao", "gnd", "funcao", "subfuncao"];
+
+/** O nome de um tipo de despesa ("Obrigatória"), para quando o arquivo do ano não traz os nomes. */
+const nomeDoTipo = (f: Filtro): string | undefined =>
+  f.dim === "tipo" ? TIPOS_DESPESA.find((t) => t.cod === f.cod)?.nome : undefined;
 
 /** No mapa dividido por tipo de despesa, cada bloco com a cor da legenda (FaixaTipo). */
 const corDoTipo = (item: Item) => {
@@ -60,7 +71,7 @@ function lerUrl(): Estado {
   };
 }
 
-function escreverUrl(e: Estado, push: boolean) {
+function montarUrl(e: Estado): string {
   const p = new URLSearchParams();
   if (e.ano) p.set("ano", String(e.ano));
   if (e.metrica !== "atualizado") p.set("metrica", e.metrica);
@@ -69,7 +80,11 @@ function escreverUrl(e: Estado, push: boolean) {
   if (e.semRefin) p.set("refin", "0");
   if (e.vista === "lista") p.set("vista", "lista");
   if (e.real) p.set("ipca", "1");
-  const url = `${location.pathname}?${p.toString().replaceAll("%3A", ":").replaceAll("%2C", ",")}`;
+  return `${location.pathname}?${p.toString().replaceAll("%3A", ":").replaceAll("%2C", ",")}`;
+}
+
+function escreverUrl(e: Estado, push: boolean) {
+  const url = montarUrl(e);
   if (push) history.pushState(null, "", url);
   else history.replaceState(null, "", url);
 }
@@ -122,6 +137,19 @@ export default function Explorer() {
     return estado().real && i && a ? i.fatores[String(a)] ?? 1 : 1;
   };
 
+  // Um ano sem a coluna "tipo" (gerado sem o SIOP) não sabe filtrar nem dividir por obrigatório ou não: nele, o
+  // filtro de tipo fica de fora das contas (com um aviso) e volta a valer num ano que tenha a coluna.
+  const semTipo = () => !!doc() && !temTipo(doc());
+  const vale = createMemo<Estado>(() => {
+    const e = estado();
+    if (!semTipo()) return e;
+    const filtros = e.filtros.filter((f) => f.dim !== "tipo");
+    const sugerida = proximaSugerida(filtros);
+    return { ...e, filtros, por: e.por === "tipo" ? (sugerida === "tipo" ? null : sugerida) : e.por };
+  });
+  const tipoDeFora = () => (semTipo() ? estado().filtros.find((f) => f.dim === "tipo") : undefined);
+  const dimsAqui = () => dimsDisponiveis(vale().filtros).filter((d) => d !== "tipo" || temTipo(doc()));
+
   // Série histórica (todos os anos, carregados uma vez).
   const anosLista = () => resumo()?.anos.map((a) => a.ano) ?? [];
   const [todos] = createResource(
@@ -131,8 +159,11 @@ export default function Explorer() {
   const serie = createMemo<Ponto[] | null>(() => {
     const ds = todos();
     if (!ds) return null;
-    const e = estado();
+    const e = vale();
+    // Com o filtro de tipo, os anos sem a coluna ficam fora da série (não dá para saber o valor deles).
+    const comTipo = e.filtros.some((f) => f.dim === "tipo");
     return ds
+      .filter((d) => !comTipo || temTipo(d))
       .map((d) => ({ ano: d.ano, valores: escalar(agrupar(d, e.filtros, null, e.semRefin).total, fatorDe(d.ano)) }))
       .sort((a, b) => a.ano - b.ano);
   });
@@ -140,7 +171,7 @@ export default function Explorer() {
   const grupo = createMemo(() => {
     const d = doc();
     if (!d) return null;
-    const e = estado();
+    const e = vale();
     const g = agrupar(d, e.filtros, e.por, e.semRefin);
     const f = fatorDe(ano());
     return { total: escalar(g.total, f), itens: g.itens.map((i) => ({ ...i, valores: escalar(i.valores, f) })) };
@@ -155,11 +186,11 @@ export default function Explorer() {
   const trilha = createMemo(() => {
     const d = doc();
     if (!d) return [];
-    const e = estado();
+    const e = vale();
     const totais = totaisDaTrilha(d, e.filtros, e.metrica, e.semRefin);
     return e.filtros.map((f, i) => ({
       ...f,
-      nome: d.dims[f.dim][f.cod] ?? f.cod,
+      nome: d.dims[f.dim]?.[f.cod] ?? nomeDoTipo(f) ?? f.cod,
       total: totais[i] * fatorDe(ano()),
       filtros: e.filtros.slice(0, i + 1),
     }));
@@ -167,60 +198,71 @@ export default function Explorer() {
   const ultimo = () => trilha().at(-1);
 
   const descer = (item: Item) => {
-    const e = estado();
+    const e = vale();
     if (!e.por) return;
     const filtros = [...e.filtros, { dim: e.por, cod: item.codigo }];
     mudar({ filtros, por: proximaSugerida(filtros) }, true);
   };
   const irPara = (filtros: Filtro[]) => mudar({ filtros, por: proximaSugerida(filtros) }, true);
-  const podeDescer = () => dimsDisponiveis(estado().filtros).length > 1;
+  const podeDescer = () => dimsAqui().length > 1;
   // Voltar um nível: o passo anterior da trilha, ou o orçamento inteiro.
   const pai = () => (trilha().length > 1 ? trilha().at(-2)!.nome : `todo o orçamento de ${ano() ?? ""}`);
-  const subir = () => irPara(estado().filtros.slice(0, -1));
+  const subir = () => irPara(vale().filtros.slice(0, -1));
+
+  // Os degraus: o orçamento inteiro e cada passo da trilha, com o valor e a fatia no passo anterior.
+  const degraus = createMemo<Degrau[]>(() => {
+    const d = doc();
+    const e = estado();
+    const urlDe = (filtros: Filtro[]) => montarUrl({ ...e, ano: ano(), filtros, por: proximaSugerida(filtros) });
+    const raiz = d ? agrupar(d, [], null, e.semRefin).total[e.metrica] * fatorDe(ano()) : 0;
+    const passos: Degrau[] = [{
+      tipo: `Orçamento ${ano() ?? ""}`, nome: "Todo o orçamento", valor: d ? moedaCurta(raiz) : undefined,
+      href: urlDe([]), ir: () => irPara([]),
+    }];
+    let antes = raiz;
+    trilha().forEach((t, i) => {
+      const anterior = trilha()[i - 1];
+      passos.push({
+        tipo: ABA[t.dim], nome: t.nome, valor: moedaCurta(t.total),
+        fatia: antes > 0 ? Math.min(1, Math.max(0, t.total / antes)) : null,
+        de: anterior ? deQuem(anterior.nome, DE[anterior.dim]) : "do orçamento",
+        href: urlDe(t.filtros), ir: () => irPara(t.filtros),
+      });
+      antes = t.total;
+    });
+    return passos;
+  });
 
   const legendaSerie = () =>
     estado().real && ipca() ? `Dotação por ano, em reais de ${ipca()!.base}` : "Dotação por ano, em valores nominais";
 
   return (
     <div class="exp">
-      <div class="exp-barra">
-        <nav aria-label="Caminho" class="exp-caminho">
-          <Show when={trilha().length > 0} fallback={<span class="forte">Orçamento {ano() ?? ""}</span>}>
-            <button type="button" class="link" onClick={() => irPara([])}>Orçamento {ano() ?? ""}</button>
-          </Show>
-          <For each={trilha()}>
-            {(passo, i) => (
-              <>
-                <span class="sep" aria-hidden="true">/</span>
-                <Show when={i() < trilha().length - 1} fallback={<span class="forte corta" title={passo.nome}>{passo.nome}</span>}>
-                  <button type="button" class="link corta" title={passo.nome} onClick={() => irPara(passo.filtros)}>{passo.nome}</button>
-                </Show>
-              </>
-            )}
-          </For>
-        </nav>
-        <div class="exp-controles">
-          <label class="exp-ano">
-            <span class="visually-hidden">Ano</span>
-            <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })} disabled={!resumo()}>
-              <For each={[...(resumo()?.anos ?? [])].reverse()}>
-                {(a) => <option value={a.ano} selected={a.ano === ano()}>{a.ano}{a.ano === anoCorrente ? " (em execução)" : ""}</option>}
-              </For>
-            </select>
-          </label>
-          <button type="button" class="pilula" aria-pressed={estado().real} disabled={!ipca()}
-            title={ipca() ? `Valores em reais de ${ipca()!.base}, corrigidos pelo IPCA` : undefined}
-            onClick={() => mudar({ real: !estado().real })}>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
-            Corrigir inflação
-          </button>
-          <button type="button" class="pilula" aria-pressed={estado().semRefin}
-            title="Tira das contas a rolagem da dívida pública (subfunções 841 e 842)"
-            onClick={() => mudar({ semRefin: !estado().semRefin })}>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
-            Sem refinanciamento
-          </button>
-        </div>
+      <div class="exp-degraus">
+        <Degraus passos={degraus()} dicaInicio="Clique num bloco do mapa para descer um nível" extra={
+          <div class="exp-controles">
+            <label class="exp-ano">
+              <span class="visually-hidden">Ano</span>
+              <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })} disabled={!resumo()}>
+                <For each={[...(resumo()?.anos ?? [])].reverse()}>
+                  {(a) => <option value={a.ano} selected={a.ano === ano()}>{a.ano}{a.ano === anoCorrente ? " (em execução)" : ""}</option>}
+                </For>
+              </select>
+            </label>
+            <button type="button" class="pilula" aria-pressed={estado().real} disabled={!ipca()}
+              title={ipca() ? `Valores em reais de ${ipca()!.base}, corrigidos pelo IPCA` : undefined}
+              onClick={() => mudar({ real: !estado().real })}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
+              Corrigir inflação
+            </button>
+            <button type="button" class="pilula" aria-pressed={estado().semRefin}
+              title="Tira das contas a rolagem da dívida pública (subfunções 841 e 842)"
+              onClick={() => mudar({ semRefin: !estado().semRefin })}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
+              Sem refinanciamento
+            </button>
+          </div>
+        } />
       </div>
 
       <Show when={doc.error || resumo.error}>
@@ -229,9 +271,6 @@ export default function Explorer() {
 
       <section class="exp-topo">
         <div class="exp-titulo">
-          <Show when={ultimo()}>
-            <button type="button" class="link exp-voltar" onClick={subir}>← Voltar a {pai()}</button>
-          </Show>
           <span class="sobretitulo">
             {ultimo() ? (ultimo()!.dim === "tipo" ? ROTULO_DIM.tipo : `${ROTULO_DIM[ultimo()!.dim]} · ${ultimo()!.cod}`) : "Orçamento federal"}
           </span>
@@ -259,6 +298,16 @@ export default function Explorer() {
         </figure>
       </section>
 
+      <Show when={tipoDeFora()}>
+        {(f) => (
+          <p class="exp-aviso" role="status">
+            Os dados de {ano()} não dizem se cada gasto é obrigatório ou não. Por isso o filtro “{nomeDoTipo(f()) ?? f().cod}”
+            ficou de fora: os números abaixo são de todo o gasto.{" "}
+            <button type="button" class="link" onClick={() => mudar({ filtros: vale().filtros, por: vale().por })}>Tirar o filtro</button>
+          </p>
+        )}
+      </Show>
+
       <Show when={temTipo(doc()) && !estado().filtros.some((f) => f.dim === "tipo")}>
         <FaixaTipo doc={doc()!} ano={ano()!} filtros={estado().filtros} metrica={estado().metrica} semRefin={estado().semRefin}
           fator={fatorDe(ano())} onSemRefin={() => mudar({ semRefin: true })}
@@ -269,19 +318,19 @@ export default function Explorer() {
           }} />
       </Show>
 
-      <Show when={ano() && estado().filtros.some((f) => f.dim === "tipo" && f.cod === "eme")}>
+      <Show when={ano() && vale().filtros.some((f) => f.dim === "tipo" && f.cod === "eme")}>
         <AvisoEmendas ano={ano()!} />
       </Show>
 
       <div class="exp-abas">
         <Show when={ultimo()}>
-          <button type="button" class="exp-subir" onClick={subir} title={`Voltar a ${pai()}`}>← Voltar um nível</button>
+          <Voltar para={pai()} onClick={subir} />
         </Show>
         <span class="muted">Dividir por</span>
         <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
-          <For each={ORDEM_ABAS.filter((d) => dimsDisponiveis(estado().filtros).includes(d) && (d !== "tipo" || temTipo(doc())))}>
+          <For each={ORDEM_ABAS.filter((d) => dimsAqui().includes(d))}>
             {(d) => (
-              <button type="button" role="tab" aria-selected={d === estado().por} onClick={() => mudar({ por: d })}>
+              <button type="button" role="tab" aria-selected={d === vale().por} onClick={() => mudar({ por: d })}>
                 {ABA[d]}
               </button>
             )}
@@ -293,8 +342,8 @@ export default function Explorer() {
           <span aria-hidden="true">|</span>
           <button type="button" aria-pressed={estado().vista === "lista"} onClick={() => mudar({ vista: "lista" })}>Lista</button>
           <span aria-hidden="true">|</span>
-          <button type="button" disabled={!grupo() || !estado().por}
-            onClick={() => baixarCsv(grupo()!.itens, estado().por!, ano()!, estado().real)}>Baixar CSV</button>
+          <button type="button" disabled={!grupo() || !vale().por}
+            onClick={() => baixarCsv(grupo()!.itens, vale().por!, ano()!, estado().real)}>Baixar CSV</button>
         </div>
       </div>
 
@@ -307,10 +356,10 @@ export default function Explorer() {
         }>
           <Show when={estado().vista === "mapa"} fallback={
             <Tabela itens={grupo()!.itens} metrica={estado().metrica} total={Math.max(1, total())}
-              rotuloNome={estado().por ? ROTULO_DIM[estado().por!] : "Nome"} podeDescer={podeDescer()} onEscolher={descer} />
+              rotuloNome={vale().por ? ROTULO_DIM[vale().por!] : "Nome"} podeDescer={podeDescer()} onEscolher={descer} />
           }>
             <Treemap itens={grupo()!.itens} metrica={estado().metrica} total={Math.max(1, total())}
-              podeDescer={podeDescer()} onEscolher={descer} corDe={estado().por === "tipo" ? corDoTipo : undefined} />
+              podeDescer={podeDescer()} onEscolher={descer} corDe={vale().por === "tipo" ? corDoTipo : undefined} />
           </Show>
         </Show>
       </Show>

@@ -175,7 +175,7 @@ export function agrupar(doc: DocAno, filtros: Filtro[], por: Dim | null, semRefi
   const itens: Item[] = por
     ? [...grupos].map(([codigo, valores]) => ({
         codigo,
-        nome: doc.dims[por][codigo] ?? codigo,
+        nome: doc.dims[por]?.[codigo] ?? codigo,
         valores,
       }))
     : [];
