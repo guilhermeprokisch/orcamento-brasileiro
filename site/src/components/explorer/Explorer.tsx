@@ -240,8 +240,8 @@ export default function Explorer() {
 
   return (
     <div class="exp">
-      <div class="exp-degraus">
-        <Degraus passos={degraus()} dicaInicio={estado().vista === "cascata" ? "Clique numa caixa da cascata para abrir o que tem dentro" : "Clique num bloco do mapa para descer um nível"} extra={
+      {/* Em cima, os controles que mudam a ficha toda; os degraus ficam junto das vistas, mais abaixo. */}
+      <div class="exp-barra-topo">
           <div class="exp-controles">
             <label class="exp-ano">
               <span class="visually-hidden">Ano</span>
@@ -264,7 +264,6 @@ export default function Explorer() {
               Sem refinanciamento
             </button>
           </div>
-        } />
       </div>
 
       <Show when={doc.error || resumo.error}>
@@ -324,13 +323,17 @@ export default function Explorer() {
         <AvisoEmendas ano={ano()!} />
       </Show>
 
+      {/* Os degraus logo acima das vistas (mapa, lista e cascata): clicar no gráfico muda o degrau sem rolar a página. */}
+      <div class="exp-degraus">
+        <Degraus passos={degraus()} dicaInicio={estado().vista === "cascata" ? "Clique numa caixa da cascata para abrir o que tem dentro" : "Clique num bloco do mapa para descer um nível"} />
+      </div>
+
       <div class="exp-abas">
         <Show when={ultimo()}>
           <Voltar para={pai()} onClick={subir} />
         </Show>
-        <Show when={estado().vista !== "cascata"} fallback={
-          <span class="muted exp-cascata-niveis">Órgão › unidade › programa › ação › tipo de gasto, com vários galhos abertos</span>
-        }>
+        {/* Na cascata, a ordem dos níveis já está nos títulos das colunas dela: aqui não se repete. */}
+        <Show when={estado().vista !== "cascata"}>
           <span class="muted">Dividir por</span>
           <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
             <For each={ORDEM_ABAS.filter((d) => dimsAqui().includes(d))}>
@@ -358,6 +361,7 @@ export default function Explorer() {
 
       <Show when={estado().vista === "cascata" && doc() && ano()}>
         <CascataVista doc={doc()!} ano={ano()!} metrica={estado().metrica} semRefin={estado().semRefin} fator={fatorDe(ano())}
+          legendaAcima={temTipo(doc()) && !estado().filtros.some((f) => f.dim === "tipo")}
           filtros={vale().filtros}
           onCaminho={(filtros) => mudar({ filtros, por: proximaSugerida(filtros) })}
           onVerMapa={(filtros) => mudar({ filtros, por: proximaSugerida(filtros), vista: "mapa" }, true)} />

@@ -68,7 +68,7 @@ export function ligarTrilha(el, { chave, inicio, botao }) {
     el.hidden = false;
     if (botao) {
       const ant = passos.at(-2);
-      botao.innerHTML = `<a class="degraus-voltar" href="${esc(ant.url)}" title="Voltar a ${esc(ant.volta || ant.titulo)}">← <span>Voltar a ${esc(ant.volta || ant.titulo)}</span></a>`;
+      botao.innerHTML = `<a class="degraus-voltar" href="${esc(ant.url)}">← <span>Voltar a ${esc(ant.volta || ant.titulo)}</span></a>`;
       botao.hidden = false;
     }
   };

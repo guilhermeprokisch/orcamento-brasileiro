@@ -24,6 +24,8 @@ interface Props {
   filtros: Filtro[];
   onCaminho: (filtros: Filtro[]) => void;
   onVerMapa: (filtros: Filtro[]) => void;
+  /** A faixa "obrigatório ou não", com a mesma legenda de cores, já está acima da cascata: não repetir. */
+  legendaAcima?: boolean;
 }
 
 const ABA: Record<string, string> = { funcao: "área", subfuncao: "subárea", tipo: "obrigatório ou não" };
@@ -97,7 +99,7 @@ export default function CascataVista(props: Props) {
   return (
     <div class="exp-cascata-vista">
       <div class="exp-cascata-barra">
-        <Show when={comTipo() && cor() === "tipo"} fallback={<ul class="cc-legenda"><li><i class="cc-hachura" />os menores, juntos (“mais N”)</li></ul>}>
+        <Show when={comTipo() && cor() === "tipo" && !props.legendaAcima} fallback={<ul class="cc-legenda"><li><i class="cc-hachura" />os menores, juntos (“mais N”)</li></ul>}>
           <ul class="cc-legenda">
             <For each={TIPOS_DESPESA.filter((t) => t.cod !== "sem")}>{(t) => <li><i style={{ background: t.cor }} />{t.nome}</li>}</For>
             <li><i class="cc-hachura" />os menores, juntos (“mais N”)</li>
