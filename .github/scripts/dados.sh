@@ -90,8 +90,9 @@ fila_cidades() {
   pipe pode-falhar "População de cada ano (IBGE)" populacao
   # Postos e hospitais: CNES, SIH e SIA baixados à mão; aqui só a cópia de referência.
   pipe pode-falhar "Postos e hospitais" unidades-saude --sem-baixar
-  # Contratos (PNCP) e pagamentos (TCE-PB; TCE-AC e TCE-SC pelos painéis, que só respondem do Brasil, e
-  # este robô roda fora do país): cargas feitas à mão (uv run pagamentos [--uf AC|SC]); aqui só as cópias.
+  # Contratos (PNCP) e pagamentos (TCE-PB; TCE-AC e TCE-SC pelos painéis e TCE-PE pela API, que só respondem
+  # do Brasil, e este robô roda fora do país): cargas feitas à mão (uv run pagamentos [--uf AC|SC|PE]); aqui
+  # só as cópias (pipeline/referencia/pagamentos*.json, todas de uma vez).
   pipe pode-falhar "Contratos das prefeituras" contratos --sem-baixar
   pipe pode-falhar "Pagamentos das prefeituras" pagamentos --sem-baixar
 }
