@@ -34,8 +34,8 @@ export interface DocCaminho {
   composicao?: Record<string, ItemDeixa[]>;
   /** "O que deixa de entrar": benefícios fiscais. */
   deixa?: {
-    uniao?: { total: number; ano: number; estimativa: string; fonte: string; url: string; pagina: string; itens: ItemDeixa[]; por_imposto: Record<string, number>; itens_por_imposto?: Record<string, ItemDeixa[]> };
-    estados?: { total: number; ano_referencia: number; sem: string[]; em_2024: number; fonte: string; url: string };
+    uniao?: { total: number; ano: number; estimativa: string; fonte: string; url: string; pagina: string; itens: ItemDeixa[]; por_imposto: Record<string, number>; itens_por_imposto?: Record<string, ItemDeixa[]>; serie?: { ano: number; valor: number; efetivo: boolean; pib: number | null }[] };
+    estados?: { total: number; ano_referencia: number; sem: string[]; em_2024: number; fonte: string; url: string; serie?: { ano: number; valor: number; efetivo: boolean }[] };
   };
 }
 

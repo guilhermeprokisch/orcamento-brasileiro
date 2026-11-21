@@ -421,6 +421,9 @@ NOMES_DGT = {"Simples Nacional": "Simples Nacional (impostos menores para pequen
 ICMS_RENUNCIA = {"total": 258.3, "ano_referencia": 2025, "sem": ["PR", "MA"], "em_2024": 258.9,
                  "fonte": "Tesouro Nacional, Boletim de Finanças dos Entes Subnacionais 2025 (projeção dos estados)",
                  "url": "https://www.tesourotransparente.gov.br/publicacoes/boletim-de-financas-dos-entes-subnacionais"}
+# A série do mesmo gráfico 12 (tempo determinado + indeterminado, R$ bi): 2023 e 2024 informados, 2025 e 2026 projetados.
+ICMS_SERIE = [{"ano": 2023, "valor": 218.1, "efetivo": True}, {"ano": 2024, "valor": 259.0, "efetivo": True},
+              {"ano": 2025, "valor": 258.3, "efetivo": False}, {"ano": 2026, "valor": 283.2, "efetivo": False}]
 
 
 def gastos_tributarios(ano: int) -> dict:
@@ -463,6 +466,19 @@ def gastos_tributarios(ano: int) -> dict:
     if total is None or abs(sum(por_tributo.values()) - total) > 0.01 * total:
         raise ValueError(f"DGT {ano}: os tributos ({sum(por_tributo.values()):.1f}) não somam o total ({total})")
     maiores = sorted(itens.items(), key=lambda x: -x[1])[:10]
+    # A série do quadro: o total e o total em % do PIB de cada ano; a linha de cima diz o que é efetivo e o que é projeção.
+    anos_col = {int(str(x).strip()): i for i, x in enumerate(cab) if re.fullmatch(r"\d{4}", str(x or "").strip())}
+    acima = linhas[linhas.index(cab) - 1]
+    marca, efetivo_col = None, {}
+    for i, x in enumerate(acima):
+        if x:
+            marca = str(x).strip().upper()
+        efetivo_col[i] = marca == "EFETIVO"
+    linha_total = next(l for l in linhas if str(l[0] or "").strip() == "TOTAL")
+    linha_pib = next((l for l in linhas if str(l[0] or "").strip().upper().replace(" ", "") == "GT/PIB"), None)
+    serie = [{"ano": a, "valor": round(linha_total[i] / 1e9, 1), "efetivo": efetivo_col.get(i, False),
+              "pib": round(linha_pib[i] * 100, 2) if linha_pib and isinstance(linha_pib[i], (int, float)) else None}
+             for a, i in sorted(anos_col.items()) if isinstance(linha_total[i], (int, float))]
     maiores_por = {k: [{"nome": NOMES_DGT.get(n, n), "valor": round(v, 1)} for n, v in sorted(d.items(), key=lambda x: -x[1])[:5] if v >= 0.5]
                    for k, d in itens_por.items()}
     return {
@@ -471,8 +487,8 @@ def gastos_tributarios(ano: int) -> dict:
                   "url": URL_DGT, "pagina": PAGINA_DGT,
                   "por_imposto": {k: round(v, 1) for k, v in sorted(por_tributo.items(), key=lambda x: -x[1])},
                   "itens": [{"nome": NOMES_DGT.get(n, n), "valor": round(v, 1)} for n, v in maiores],
-                  "itens_por_imposto": maiores_por},
-        "estados": ICMS_RENUNCIA,
+                  "itens_por_imposto": maiores_por, "serie": serie},
+        "estados": {**ICMS_RENUNCIA, "serie": ICMS_SERIE},
     }
 
 

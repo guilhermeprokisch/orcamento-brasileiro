@@ -12,6 +12,7 @@ import Painel from "./Painel.astro";
 import VersaoCem from "./VersaoCem.astro";
 import VersaoRio from "./VersaoRio.astro";
 import VersaoRotas from "./VersaoRotas.astro";
+import SerieDeixa from "./SerieDeixa.astro";
 import { bi, biExtenso, partesInteiras, porMorador, totalPago, type DocCaminho } from "../../lib/caminho-impostos";
 
 interface Props { doc: DocCaminho; deixa: { uniao: number; estados: number } | null; inicio?: "cem" | "rio" }
@@ -74,10 +75,23 @@ const ATALHOS = [
     <div class="atalhos" role="group" aria-label="Mostrar">
       {ATALHOS.map((a) => <button type="button" data-grupo={a.id}>{a.nome}</button>)}
     </div>
+    {deixa && (
+      <label class="liga-deixa"><input type="checkbox" class="mostrar-x" /> Mostrar o que deixa de entrar (benefícios fiscais)</label>
+    )}
     <div class="explorar-grade">
       <div>
-        <Diagrama doc={doc} forma="largo" deixa={deixa} classe="so-largo explorar-svg" />
-        <Diagrama doc={doc} forma="estreito" deixa={deixa} classe="so-estreito explorar-svg" />
+        {/* Dois desenhos: sem e com o que deixa de entrar (que muda o espaço de cada barra); o botão troca um pelo outro. */}
+        <div class="desenho-sem-x">
+          <Diagrama doc={doc} forma="largo" classe="so-largo explorar-svg" />
+          <Diagrama doc={doc} forma="estreito" classe="so-estreito explorar-svg" />
+        </div>
+        {deixa && (
+          <div class="desenho-com-x" hidden>
+            <Diagrama doc={doc} forma="largo" deixa={deixa} classe="so-largo explorar-svg" />
+            <Diagrama doc={doc} forma="estreito" deixa={deixa} classe="so-estreito explorar-svg" />
+            <SerieDeixa doc={doc} />
+          </div>
+        )}
       </div>
       <Painel doc={doc} deixa={deixa} inicial="g-uniao" />
     </div>
@@ -117,6 +131,8 @@ const ATALHOS = [
   .explorar-grade { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 32px; align-items: start; }
   .v-junta :global(.so-estreito) { display: none; }
   #siga-o-seu-imposto { border-top: 2px solid var(--tinta); }
+  .liga-deixa { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; padding-left: 56px; cursor: pointer; }
+  .liga-deixa input { accent-color: var(--verde-escuro); width: 16px; height: 16px; }
   .cobertura { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: var(--texto-3); max-width: 880px; }
   .cobertura strong { color: var(--tinta); }
 
@@ -131,6 +147,7 @@ const ATALHOS = [
     .titulo-parte h2 { font-size: 26px; }
     .titulo-parte p { font-size: 15.5px; }
     .atalhos { padding-left: 0; }
+    .liga-deixa { padding-left: 0; }
     .explorar-grade { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
     :global(.v-junta .so-largo) { display: none !important; }
     :global(.v-junta .so-estreito) { display: block !important; }
@@ -151,6 +168,15 @@ const ATALHOS = [
       botoes.forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.grupo === id)));
     });
     secao.querySelectorAll("svg").forEach((svg) => svg.addEventListener("click", () => botoes.forEach((x) => x.setAttribute("aria-pressed", "false"))));
+    // Ligar e desligar o que deixa de entrar; o botão "O que deixa de entrar" liga sozinho.
+    const liga = secao.querySelector<HTMLInputElement>(".mostrar-x");
+    const sem = secao.querySelector<HTMLElement>(".desenho-sem-x"), com = secao.querySelector<HTMLElement>(".desenho-com-x");
+    const aplicar = () => { if (sem && com && liga) { com.hidden = !liga.checked; sem.hidden = liga.checked; } };
+    liga?.addEventListener("change", aplicar);
+    secao.addEventListener("escolher", (e) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (liga && (id === "g-deixa" || id.startsWith("x-") || id.startsWith("g-t-") || id.startsWith("g-c-")) && !liga.checked) { liga.checked = true; aplicar(); }
+    });
   });
   // Para as capturas de tela: &escolher=g-icms acende um pedaço do diagrama; &dia=compras aperta um filtro da parte 3.
   const q = new URLSearchParams(location.search);

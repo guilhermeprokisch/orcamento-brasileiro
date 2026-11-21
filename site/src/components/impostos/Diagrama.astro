@@ -146,9 +146,11 @@ const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((i
           </>
         )}
         {n.coluna === 1 && (
-          <text x={n.x + n.w / 2} y={n.y + Math.min(n.h / 2, 40) + (n.h < 40 ? 4 : 0)} text-anchor="middle" class={`rotulo-caixa ${n.esfera === "prefeituras" ? "escuro" : ""}`}>
-            <tspan x={n.x + n.w / 2} dy="-0.2em" class="nome">{largo ? n.nome : n.nome.replace(" e DF", "")}</tspan>
-            <tspan x={n.x + n.w / 2} dy="1.25em" class="valor">{bi(n.valor)}</tspan>
+          // Caixa baixa (as prefeituras): as duas linhas menores e centradas, para não escapar da caixa.
+          <text x={n.x + n.w / 2} y={n.h < 46 ? n.y + n.h / 2 : n.y + Math.min(n.h / 2, 40)} text-anchor="middle"
+            class={`rotulo-caixa ${n.esfera === "prefeituras" ? "escuro" : ""} ${n.h < 46 ? "baixa" : ""}`}>
+            <tspan x={n.x + n.w / 2} dy={n.h < 46 ? "-0.15em" : "-0.2em"} class="nome">{largo ? n.nome : n.nome.replace(" e DF", "")}</tspan>
+            <tspan x={n.x + n.w / 2} dy="1.05em" class="valor">{bi(n.valor)}</tspan>
           </text>
         )}
         {n.coluna === 2 && largo && (
@@ -178,6 +180,9 @@ const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((i
             <text x={c.x + c.w / 2} y={c.y + c.h / 2 + 4} text-anchor="middle" class="rotulo-x dentro">
               <tspan x={c.x + c.w / 2} dy="-0.5em">não cobrado</tspan><tspan x={c.x + c.w / 2} dy="1.25em">{bi(c.valor)}</tspan>
             </text>
+          )}
+          {c.coluna === 1 && c.h < 30 && c.h >= 11 && (
+            <text x={c.x + c.w / 2} y={c.y + c.h / 2 + 4} text-anchor="middle" class="rotulo-x dentro linha">{largo ? `não cobrado ${bi(c.valor)}` : bi(c.valor)}</text>
           )}
           {c.coluna === 2 && largo && c.esfera !== "fundos" && (
             <text x={c.x + c.w + 10} y={c.y + Math.min(c.h / 2, 14) + 4} class="rotulo rotulo-x">deixou de receber {bi(c.valor)}</text>
@@ -228,6 +233,10 @@ const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((i
   .estreito .rotulo-caixa { font-size: 11.5px; }
   .estreito .rotulo-caixa .valor { font-size: 11px; }
   .rotulo-caixa.escuro { fill: var(--tinta); }
+  .rotulo-caixa.baixa { font-size: 13px; }
+  .rotulo-caixa.baixa .valor { font-size: 12.5px; }
+  .estreito .rotulo-caixa.baixa { font-size: 10.5px; }
+  .estreito .rotulo-caixa.baixa .valor { font-size: 10px; }
   .rotulo-fluxo { font-size: 13px; fill: var(--tinta); paint-order: stroke; stroke: var(--papel); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; transition: opacity 0.5s; }
   .guia { stroke: var(--texto-4); stroke-width: 0.8; }
   .fantasma.uniao { stroke: var(--verde-escuro); fill: rgba(10, 74, 41, 0.06); }
@@ -236,6 +245,7 @@ const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((i
   .estreito .rotulo-deixa { font-size: 12px; }
   .rotulo-x { font-size: 12.5px; fill: var(--texto-3); font-style: italic; }
   .rotulo-x.dentro { fill: var(--texto-2); font-size: 12px; pointer-events: none; }
+  .rotulo-x.dentro.linha { font-size: 10.5px; }
   .estreito .rotulo-x.dentro { font-size: 10px; }
   .fluxo-x { stroke-opacity: 0.13; stroke-dasharray: 6 4; transition: stroke-opacity 0.4s, opacity 0.5s; }
   .fluxo-x.e-uniao { stroke: var(--verde-escuro); }
