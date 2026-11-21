@@ -25,6 +25,7 @@ estabelecimento (CNES), para todas as cidades? E a cobertura da atenção básic
 | SISAB, Relatório de Produção | as mesmas fichas, com filtros e cruzamentos (profissional, tipo de atendimento, local, CID, procedimento…) | cidade, por mês | tela, .xlsx | aberto; a linha "Município" só sai com estado ou cidade escolhidos, não para o Brasil de uma vez |
 | SISAB, Indicadores de desempenho (Previne Brasil) | 7 indicadores por cidade | cidade, quadrimestre | tela | aberto; descontinuado em 2025 |
 | Relatórios da APS, `/cobertura/aps` | população, equipes (eSF, eAP 30h e 20h, ribeirinhas, de rua, prisionais), capacidade e cobertura | cidade, por mês | JSON | aberto (`relatorioaps-prd.saude.gov.br`) |
+| SI-PNI, doses aplicadas (Rede Nacional de Dados em Saúde) | cada dose de vacina, com o estabelecimento, a vacina, a dose e a estratégia | **CNES**, por dia | .csv em .zip mensal (~1,6 GB) | aberto (OpenDataSUS) |
 | SIA/SUS (o que o site já usa) | procedimentos ambulatoriais aprovados, com valor | CNES, por mês | .dbc no FTP | aberto |
 
 Não achamos microdados abertos do e-SUS APS no OpenDataSUS nem nos Dados Abertos do Ministério.
@@ -38,7 +39,7 @@ devolve a planilha. Os campos que usamos:
 - `j_idt70=AAAAMM` (um mês por pedido);
 - `colunas=ibge`, `colunas=cnes`, `colunas=tp_unidade`;
 - `j_idt77=1%` (só aprovados) e `j_idt87=<ficha>` (4 atendimento individual, 5 odontológico, 7 procedimentos,
-  8 visita domiciliar);
+  8 visita domiciliar, 6 atividade coletiva);
 - `j_idt99=j_idt99` (o botão que baixa o .xlsx).
 
 Cada pedido leva de 5 a 30 segundos e devolve 1 a 2 MB, com 35 a 45 mil estabelecimentos. O ano inteiro, com
@@ -118,6 +119,74 @@ Esse relatório conta todas as unidades da cidade, também as do estado, e pela 
 isso a página mostra só as proporções, não os números, ao lado da soma das unidades da prefeitura tirada do
 relatório de validação. Nas cidades que conferimos as duas somas diferem em até 6% (São Paulo 1%, Cacoal 3%, Conceição do Araguaia 6%).
 
+## Atividades coletivas
+
+Por posto, a ficha 6 do relatório de validação dá quantas atividades coletivas cada CNES registrou (8,6
+milhões nas unidades da prefeitura em 2025). Ela não separa o tipo, e as reuniões da própria equipe entram
+na conta; por isso a linha de cada posto diz "atividades em grupo" e o aviso explica que inclui as reuniões.
+
+Por cidade, o relatório de atividade coletiva
+(<https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/saude/RelSauAtivColetiva.xhtml>)
+separa os sete tipos e dá o número de participantes. Funciona como o de produção: estado por estado, com o
+mesmo pedido AJAX, os 12 meses em `j_idt72`, todos os tipos em `tipoAtividade`, `selectLinha=MUN.CO_MUNICIPIO_IBGE`,
+`selectcoluna=tpat`, `j_idt83=qtac` (quantidade de atividades) ou `ndp` (participantes) e `j_idt134=j_idt134`
+(.csv). São dois pedidos por estado.
+
+2025, Brasil:
+
+| Tipo | Atividades | Participações |
+|---|---:|---:|
+| Atendimento em grupo | 4.112.551 | 48.035.354 |
+| Avaliação ou procedimento coletivo (escovação supervisionada, medir peso e altura nas escolas…) | 1.854.678 | 37.775.973 |
+| Educação em saúde | 1.638.283 | 43.917.646 |
+| Mobilização social | 122.903 | 4.114.423 |
+| **Com os moradores** | **7.728.415** | **133.843.396** |
+| Reunião de equipe, com outras equipes ou intersetorial | 993.561 | 9.916.140 |
+
+A página da cidade mostra as atividades com os moradores, as participações (uma pessoa que vai a cinco
+encontros conta cinco vezes) e, à parte, as reuniões da equipe. Como o relatório de produção, esse conta
+todas as unidades da cidade.
+
+## Vacinação: pelo SI-PNI, não pelo SISAB
+
+A ficha de vacinação (14) existe no relatório de validação do SISAB, mas não serve para dizer o que cada
+posto fez:
+
+- O SISAB não valida a vacinação (ela vai para a Rede Nacional de Dados em Saúde). Não há nenhum registro
+  "Aprovado"; os de dezembro de 2025 vêm como "Não Aplicado" (2,7 milhões), "Duplicado" (621 mil) e
+  "Pendente" (178 mil). No ano, 65 milhões de registros "Não Aplicado".
+- Muitas cidades e estados lançam as vacinas direto no sistema nacional, sem passar pelo e-SUS APS. Em
+  dezembro de 2025, São Paulo, Fortaleza, Belo Horizonte e Vitória tinham zero registros nas unidades da
+  prefeitura; o Espírito Santo inteiro, 354. Por mil moradores no mês, o estado vai de 0,1 (ES), 3,4 (RJ) e
+  5,9 (SP) a 39 (AM) e 42 (TO), e 1.176 das 5.566 cidades ficam abaixo de 5.
+
+A fonte certa é o **SI-PNI**: o conjunto "Doses aplicadas pelo Programa Nacional de Imunizações (PNI) – 2025"
+do Portal de Dados Abertos do SUS (<https://dadosabertos.saude.gov.br/dataset/doses-aplicadas-pelo-programa-de-nacional-de-imunizacoes-pni-2025>),
+com os microdados da Rede Nacional de Dados em Saúde, que recebe as vacinas de todos os sistemas (e-SUS APS,
+VaciVida, SIGA, Vacina e Confia ES, prontuários próprios das cidades). Um .zip por mês
+(`https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/PNI/csv/vacinacao_<mes>_2025_csv.zip`, de 1,5 a 1,8 GB),
+com um .csv de 56 colunas e **uma linha por dose aplicada**: o estabelecimento (`co_cnes_estabelecimento`), a
+cidade dele (`co_municipio_estabelecimento`), a vacina, a dose, a estratégia (rotina, campanha, serviço
+privado…), a situação do registro e a data em que foi apagado, se foi. O dicionário está em
+<https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/dbbni/Dicionario_tb_ria_rotina.pdf>.
+
+Os 12 arquivos somam ~20 GB e não cabem no disco junto com o resto, então o programa não os grava: lê cada
+.zip enquanto baixa, descompacta o deflate na hora (o cabeçalho local do zip diz onde os dados começam) e
+guarda só o total por estabelecimento e por cidade em `data/raw/datasus/pni/AAAAMM.json`. Quatro meses ao
+mesmo tempo levam ~20 minutos. Ficam de fora os registros apagados e os que não estão na situação "final";
+nenhuma linha veio fora do formato.
+
+2025: **178 milhões de doses** em 50.316 estabelecimentos; o mês mais cheio é maio (33 milhões, a campanha
+da gripe). As unidades da prefeitura aplicaram 160 milhões (90%); 38.772 dos 50.014 postos têm alguma dose
+(nem todo posto tem sala de vacina). Por cidade, sem as doses do serviço privado (vacinas pagas em clínicas),
+são 172 milhões, ou 0,81 dose por morador; na metade das cidades fica entre 0,72 e 0,93. São Paulo, que
+tinha zero no SISAB, tem 10,5 milhões (0,86 por morador); Fortaleza 2,4 milhões; Belo Horizonte 2,2 milhões.
+As pontas são cidades que atendem gente de fora: Pacaraima (RR, fronteira com a Venezuela) passa de 13 doses
+por morador.
+
+Na página: a frase da cidade (doses na cidade, quantas nas unidades da prefeitura, doses por morador e a do
+Brasil) e "N doses de vacina" na linha de cada posto.
+
 ## Comparação com o SIA
 
 O SIA mede outra coisa: procedimentos que o SUS paga pela tabela, sobretudo de UPAs, policlínicas, CAPS e
@@ -140,14 +209,18 @@ página mostra "todos os moradores". Dezembro de 2025: 83,2% no Brasil (176,9 mi
   por CNES em `data/raw/datasus/sisab/AAAAMM-ficha.json` e soma o ano; `cobertura()` guarda a resposta da API
   em `data/raw/datasus/sisab/cobertura-AAAA12.json`. `uv run unidades-saude --so-atencao-basica` refaz só essa
   parte sobre a referência que já existe. `profissionais()` pede o Relatório de Produção estado por estado e
-  guarda cada um em `data/raw/datasus/sisab/profissionais-AAAA-UF.json`.
-- Cada unidade ganha quatro números no fim da lista (atendimentos, dentista, procedimentos, visitas) e cada
-  cidade ganha `cobertura` e `profissionais` (atendimentos com médico, com enfermeiro, com outros).
+  guarda cada um em `data/raw/datasus/sisab/profissionais-AAAA-UF.json`; `coletivas_estado()` faz o mesmo com o
+  relatório de atividade coletiva (`coletivas-AAAA-UF.json`).
+- Cada unidade ganha cinco números no fim da lista (atendimentos, dentista, procedimentos, visitas,
+  atividades coletivas) e cada cidade ganha `cobertura`, `profissionais` (atendimentos com médico, com
+  enfermeiro, com outros) e `coletivas` (atividades com os moradores, participações, reuniões da equipe).
+- `pni()` lê os 12 meses do SI-PNI; cada unidade ganha as doses do ano como último número e cada cidade, `vacinas`.
 - `SaudeUnidades.astro`: uma frase com a soma do SISAB das unidades da prefeitura, uma com a parte dos
-  atendimentos com médico e com enfermeiro (e a do Brasil), uma com a cobertura, a
+  atendimentos com médico e com enfermeiro (e a do Brasil), uma com as atividades em grupo, uma com as doses
+  de vacina, uma com a cobertura, a
   frase do SIA com o nome do sistema e, em cada posto, a linha do SISAB acima da do SIA.
 
 ## O que fica para depois
 
-- Vacinação e atividades coletivas (as fichas 14 e 6 do mesmo relatório de validação).
 - A série de anos anteriores (o relatório vai até 2013), para mostrar se o trabalho dos postos cresceu.
+- As doses por vacina e por idade (o SI-PNI tem as duas), para comparar com o calendário e a cobertura vacinal.
