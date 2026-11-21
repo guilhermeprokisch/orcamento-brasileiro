@@ -1,5 +1,5 @@
 /**
- * Forma 4 do protótipo da cascata: a tela livre, em Canvas 2D. Uma árvore da esquerda para a direita, como um mapa
+ * A cascata do gasto (/cascata): a tela livre, em Canvas 2D. Uma árvore da esquerda para a direita, como um mapa
  * mental, em que cada caixa abre os filhos (vários galhos abertos ao mesmo tempo). Arrasta para andar, roda ou pinça
  * para o zoom, e há tela cheia.
  *
@@ -154,7 +154,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     const resto = fs.slice(k);
     let o = outrosDe.get(n);
     if (!o) {
-      o = { cod: "#outros", chave: "#outros", nome: "", valor: 0, nivel: fs[0].nivel, prof: n.prof + 1, pai: n, mix: [], ehOutros: true };
+      o = { cod: "#outros", nome: "", valor: 0, nivel: fs[0].nivel, prof: n.prof + 1, pai: n, mix: [], ehOutros: true };
       outrosDe.set(n, o);
     }
     o.lista = resto;
@@ -712,13 +712,14 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       const largTitulo = ctx.measureText(titulo).width;
       // da direita para a esquerda: um título não pisa no seguinte (colunas estreitas, ou a de trás presa na borda)
       if (x + largTitulo + 12 > inicioProximo) continue;
+      const proximo = inicioProximo;
       inicioProximo = x;
       ctx.fillStyle = CINZA;
       ctx.fillText(titulo, x, 19);
       if (F.explica[nivel] && LARG * cam.k > 120) {
         ctx.font = "400 11px Inter, system-ui, sans-serif";
         ctx.fillStyle = "#8a8475";
-        const lim = Math.min(Math.max(80, Math.min(COL * cam.k - 16, 320)), (W >= 720 ? W - 160 : W - 8) - x);
+        const lim = Math.min(Math.max(80, Math.min(COL * cam.k - 16, 320)), (W >= 720 ? W - 160 : W - 8) - x, proximo - x - 12);
         ctx.fillText(cortar(F.explica[nivel], lim), x, 34);
       }
     }

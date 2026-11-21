@@ -1,7 +1,8 @@
 /**
- * Protótipo da cascata do gasto: a árvore de cada lugar (União e João Pessoa), com os filhos de cada nível calculados
- * na hora em que são abertos. Cada nó guarda a mistura por categoria (obrigatória ou não, na União; tipo de credor,
- * em João Pessoa), que pode servir de cor.
+ * A cascata do gasto: a árvore do orçamento federal (órgão › unidade › programa › ação › tipo de gasto), com os filhos
+ * de cada nível calculados na hora em que são abertos. Cada nó guarda a mistura por categoria (obrigatória, escolha do
+ * governo, emendas, financeira), que serve de cor. A versão com uma cidade até o fornecedor (João Pessoa, empenhos do
+ * TCE-PB) ficou guardada em pipeline/prototipo/cascata_joao_pessoa.py e pipeline/referencia/cascata-joao-pessoa-*.json.
  */
 import { SUBFUNCOES_REFINANCIAMENTO, TIPOS_DESPESA, type DocAno } from "../../lib/dados";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
@@ -20,8 +21,6 @@ export interface Info {
 
 export interface No {
   cod: string;
-  /** Igual de um ano para o outro (código na União; nome ou raiz do CNPJ em João Pessoa): acha a mesma caixa no ano anterior. */
-  chave: string;
   nome: string;
   valor: number;
   /** O tipo do nível: "Órgão", "Área", "Credor"… */
@@ -41,7 +40,7 @@ export interface No {
 }
 
 export interface Fonte {
-  chave: "uniao" | "joao-pessoa";
+  chave: "uniao";
   ano: number;
   /** Para os valores por pessoa: população do Brasil (União) ou da cidade, no ano. */
   populacao: number;
@@ -58,8 +57,6 @@ export interface Fonte {
   explica: Record<string, string>;
   frase: string;
   fonte: string;
-  /** Total pago a cada empresa no ano todo (João Pessoa), pela raiz do CNPJ. */
-  porCnpj?: Map<string, { valor: number; areas: Set<string> }>;
 }
 
 export function filhos(n: No): No[] {
@@ -109,7 +106,7 @@ export async function fonteUniao(ano = 2025, populacao = 1): Promise<Fonte> {
       autorizado += l[iA] as number;
       mix[iTipo >= 0 ? catDe.get(l[iTipo] as string) ?? 4 : 0] += v;
     }
-    const n: No = { cod, chave: cod, nome, valor, autorizado, nivel: prof === 0 ? "Orçamento" : NIVEIS_UNIAO[prof - 1][1], prof, pai, mix };
+    const n: No = { cod, nome, valor, autorizado, nivel: prof === 0 ? "Orçamento" : NIVEIS_UNIAO[prof - 1][1], prof, pai, mix };
     if (prof < NIVEIS_UNIAO.length) {
       n.carregar = () => {
         const [dim] = NIVEIS_UNIAO[prof];
@@ -156,92 +153,6 @@ export async function fonteUniao(ano = 2025, populacao = 1): Promise<Fonte> {
   };
 }
 
-// ——— João Pessoa: os empenhos do TCE-PB (pipeline/prototipo/cascata_joao_pessoa.py) ———
-
-interface NoJp {
-  nome: string; valor: number; filhos?: NoJp[];
-  n?: number; tipo?: number; cnpj?: string; licitacao?: string; pessoas?: number; resto?: number;
-}
-
-const CORES_CREDOR = ["#1f7a47", "#ffe14d", "#d9822b", "#eab98f", "#c3bba7", "#8a8475"];
-const ERROS: Record<string, string> = {
-  "Encargos Especias": "Encargos Especiais", "Assistêncial Social": "Assistência Social", "Subvenções Socias": "Subvenções Sociais",
-};
-const SIGLAS = new Set(["INSS", "CAGEPA", "SA", "S/A", "S.A.", "ME", "EPP", "JP", "BB", "BRB", "SFT", "URE-JP", "PB", "CNPJ", "LTDA-ME", "SPE", "UTI", "EIRELI"]);
-const MINUSCULAS = new Set(["de", "da", "do", "das", "dos", "e", "em", "para"]);
-
-/** "EXEMPLAR SERVICE E LIMPEZA LTDA" → "Exemplar Service e Limpeza Ltda" */
-export function nomeProprio(s: string): string {
-  if (s !== s.toUpperCase()) return s;
-  return s.split(/\s+/).map((p, i) => {
-    if (SIGLAS.has(p)) return p;
-    const b = p.toLowerCase();
-    if (i > 0 && MINUSCULAS.has(b)) return b;
-    return b.replace(/(^|[-/(])(\p{L})/gu, (_, a, l) => a + l.toUpperCase());
-  }).join(" ");
-}
-
-export const formatarCnpj = (c: string) => c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
-
-export async function fonteJoaoPessoa(ano = 2025, populacao = 1): Promise<Fonte> {
-  const r = await fetch(`/prototipo/cascata-joao-pessoa-${ano}.json`);
-  if (!r.ok) throw new Error(`Não consegui carregar João Pessoa (HTTP ${r.status})`);
-  const d: { ano: number; nome: string; valor: number; tipos: string[]; filhos: NoJp[]; fonte: string } = await r.json();
-  const cats: Categoria[] = d.tipos.map((nome, i) => ({ nome, cor: CORES_CREDOR[i], escuro: i === 0 }));
-  const NIV = ["Área", "Tipo de despesa", "Credor"];
-  const porCnpj = new Map<string, { valor: number; areas: Set<string> }>();
-
-  const conv = (o: NoJp, prof: number, pai: No | null, i: number): No => {
-    let nome = ERROS[o.nome] ?? o.nome;
-    const n: No = { cod: String(i), chave: nome, nome, valor: o.valor, nivel: prof === 0 ? "Prefeitura" : NIV[prof - 1], prof, pai, mix: new Array(cats.length).fill(0) };
-    if (o.filhos) {
-      n._filhos = [...o.filhos].sort((a, b) => b.valor - a.valor).map((f, j) => conv(f, prof + 1, n, j));
-      for (const f of n._filhos) f.mix.forEach((v, k) => (n.mix[k] += v));
-    } else {
-      const t = o.tipo ?? 0;
-      n.mix[t] = o.valor;
-      n.info = { empenhos: o.n, tipoCredor: t, cnpj: o.cnpj, licitacao: o.licitacao, pessoas: o.pessoas, resto: o.resto };
-      // a chave do credor é a raiz do CNPJ (o nome muda de grafia de um ano para o outro)
-      n.chave = o.cnpj ? `${t === 2 ? "folha:" : ""}${o.cnpj.slice(0, 8)}` : o.pessoas !== undefined ? "#pessoas" : o.resto ? "#resto" : nome;
-      if (t === 2 && o.cnpj) { n.info.via = nomeProprio(nome); nome = "Folha de pagamento"; }
-      else if (o.pessoas !== undefined) nome = `${o.pessoas.toLocaleString("pt-BR")} pessoas físicas`;
-      else if (o.resto) nome = `${o.resto} credores menores (fora do protótipo)`;
-      else nome = nomeProprio(nome);
-      n.nome = nome;
-      if (o.cnpj && t === 0) {
-        const raizCnpj = o.cnpj.slice(0, 8);
-        const e = porCnpj.get(raizCnpj) ?? { valor: 0, areas: new Set<string>() };
-        e.valor += o.valor;
-        let area: No | null = pai;
-        while (area && area.prof > 1) area = area.pai;
-        if (area) e.areas.add(area.nome);
-        porCnpj.set(raizCnpj, e);
-      }
-    }
-    return n;
-  };
-  const raiz = conv({ nome: `${d.nome} ${d.ano}`, valor: d.valor, filhos: d.filhos }, 0, null, 0);
-  return {
-    chave: "joao-pessoa", ano: d.ano, populacao, raiz, cats, rotuloCor: "Quem recebe", porCnpj,
-    explicaCat: [
-      "empresas e entidades contratadas pela prefeitura",
-      "pessoas pagas uma a uma: autônomos, bolsistas, microempreendedores (sem nome nem CPF aqui)",
-      "salários dos servidores, que a prefeitura manda para a conta da folha",
-      "aposentadorias, pensões e a contribuição ao INSS ou ao instituto de previdência",
-      "juros, parcelas da dívida e tarifas de bancos",
-      "repasses a outros governos, fundos e consórcios",
-    ],
-    plural: { Prefeitura: "prefeitura", Área: "áreas", "Tipo de despesa": "tipos de despesa", Credor: "credores" },
-    explica: {
-      Área: "saúde, educação, urbanismo… (a função do gasto)",
-      "Tipo de despesa": "salários, serviços, material, obras (o elemento de despesa)",
-      Credor: "quem recebeu: a empresa, o órgão ou, somadas, as pessoas físicas",
-    },
-    frase: `Em ${d.ano}, a prefeitura de João Pessoa (com Câmara, fundos e instituto de previdência) pagou ${moedaExtenso(d.valor)}.`,
-    fonte: "Tribunal de Contas da Paraíba (TCE-PB), empenhos pagos em 2025. Pessoas físicas só no total, sem nome nem CPF.",
-  };
-}
-
 // ——— "Não mostrar tudo": os maiores de cada nível e o resto junto ———
 
 export interface Visiveis { itens: No[]; outros: No | null }
@@ -264,7 +175,7 @@ export function visiveis(n: No, k: number, plural: Record<string, string>, escol
   for (const f of resto) f.mix.forEach((v, i) => (mix[i] += v));
   const nivel = resto[0].nivel;
   const outros: No = {
-    cod: "#outros", chave: "#outros", nome: `outros ${resto.reduce((s, f) => s + (f.info?.resto ?? 1), 0)} ${plural[nivel] ?? "itens"}`, valor: resto.reduce((s, f) => s + f.valor, 0),
+    cod: "#outros", nome: `outros ${resto.reduce((s, f) => s + (f.info?.resto ?? 1), 0)} ${plural[nivel] ?? "itens"}`, valor: resto.reduce((s, f) => s + f.valor, 0),
     nivel, prof: n.prof + 1, pai: n, mix, ehOutros: true, lista: resto,
   };
   return { itens: top, outros };

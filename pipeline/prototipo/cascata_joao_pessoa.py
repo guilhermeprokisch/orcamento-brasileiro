@@ -1,4 +1,4 @@
-"""Protótipo da cascata do gasto: o que a prefeitura de João Pessoa pagou num ano, área › tipo de despesa › credor.
+"""Cascata do gasto, para uma cidade (guardado para depois): o que a prefeitura de João Pessoa pagou num ano, área › tipo de despesa › credor.
 
     python pipeline/prototipo/cascata_joao_pessoa.py caminho/do/despesas-2025.zip 2025
     python pipeline/prototipo/cascata_joao_pessoa.py caminho/do/despesas-2024.zip 2024   # para comparar com o ano anterior
@@ -11,7 +11,7 @@ unidades do município (modalidade 91) e os consórcios. Empresas (CNPJ válido,
 juntando as filiais pela raiz do CNPJ. Pagamentos a pessoas físicas (servidores, aposentados, prestadores, MEIs)
 entram só como total e número de pessoas: **o CPF e o nome nunca são gravados**.
 
-Saída: site/public/prototipo/cascata-joao-pessoa-{ano}.json
+Saída: pipeline/referencia/cascata-joao-pessoa-{ano}.json (fora do site por enquanto: a página /cascata só tem a União)
     {"fonte", "ano", "nome", "valor", "tipos": [rótulos], "filhos": [
         {"nome": função, "valor", "filhos": [
             {"nome": elemento, "valor", "filhos": [
@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from orcamento_pipeline import pagamentos as p  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parents[2]
-PASTA_SAIDA = RAIZ / "site" / "public" / "prototipo"
+PASTA_SAIDA = RAIZ / "pipeline" / "referencia"   # guardado para quando a cascata ganhar cidades; não vai para o site
 MUNICIPIO = "JOAO PESSOA"
 MAIORES = 40
 PESSOAS_ROTULO = "Pagamentos a pessoas físicas"

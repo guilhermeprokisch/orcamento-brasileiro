@@ -13,6 +13,19 @@ import "./explorer.css";
 
 type Vista = "mapa" | "lista";
 
+/** Os níveis da cascata do gasto (/cascata), na ordem: o caminho do Explorer só vira caminho lá se seguir esta ordem. */
+const NIVEIS_CASCATA: Dim[] = ["orgao", "uo", "programa", "acao", "gnd"];
+
+/** O endereço da cascata no mesmo caminho (ou no começo, se o caminho usar outros recortes, como área ou tipo). */
+function urlCascata(filtros: Filtro[], ano: number | null, anoPadrao: number | null): string {
+  const p = new URLSearchParams();
+  if (ano && ano !== anoPadrao) p.set("ano", String(ano));
+  const segue = filtros.every((f, i) => f.dim === NIVEIS_CASCATA[i]);
+  if (segue && filtros.length) p.set("c", filtros.map((f) => f.cod).join("~"));
+  const q = p.toString().replaceAll("%7E", "~");
+  return `/cascata${q ? `?${q}` : ""}`;
+}
+
 interface Estado {
   ano: number | null;
   metrica: Metrica;
@@ -344,6 +357,9 @@ export default function Explorer() {
           <span aria-hidden="true">|</span>
           <button type="button" disabled={!grupo() || !vale().por}
             onClick={() => baixarCsv(grupo()!.itens, vale().por!, ano()!, estado().real)}>Baixar CSV</button>
+          <span aria-hidden="true">|</span>
+          <a class="exp-cascata" href={urlCascata(vale().filtros, ano(), resumo()?.anos.map((a) => a.ano).filter((a) => a < anoCorrente).at(-1) ?? null)}
+            title="O mesmo caminho na cascata do gasto: uma tela livre para abrir galho por galho">Ver como cascata →</a>
         </div>
       </div>
 
