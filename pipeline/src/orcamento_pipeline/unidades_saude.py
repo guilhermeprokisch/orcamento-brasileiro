@@ -35,6 +35,10 @@ Fontes do Ministério da Saúde:
   Do relatório de atividade coletiva, também por cidade e estado por estado, saem as atividades em grupo com
   os moradores (educação em saúde, grupos, ações nas escolas, mobilização), as participações nelas e as
   reuniões da equipe, que o relatório de validação (por posto) não separa.
+- SI-PNI (doses aplicadas pelo Programa Nacional de Imunizações, microdados da Rede Nacional de Dados em Saúde no
+  OpenDataSUS, um .zip de ~1,6 GB por mês): uma linha por dose, com o estabelecimento (CNES) e a cidade. Por
+  unidade e por cidade, as doses do ano. O SISAB não serve para vacinas: não as valida e muitas cidades
+  (São Paulo, Fortaleza, BH, o Espírito Santo inteiro) lançam direto na rede nacional.
 - Cobertura da atenção primária (relatorioaps.saude.gov.br, API aberta): por cidade, em dezembro do ano,
   as equipes (saúde da família e atenção primária), quantas pessoas elas dão conta de acompanhar pela
   conta do Ministério (3.500 por equipe de saúde da família, 2.625 por equipe de 30 horas e 1.750 por
@@ -47,14 +51,16 @@ Cache em data/raw/datasus/cnes/, sih/, sia/ e sisab/. Saída em
 site/public/data/indicadores/unidades-saude.json, com cópia em pipeline/referencia/:
     {"fonte", "ano": 2025, "cnes": "2026-11", "cobertura": {"mes": "2025-12", "brasil": 83.2},
      "mun": {ibge: {"unidades": [[CNES, nome, grupo, bairro, atendimentos, exames, cirurgias, valor,
-                                  atendimentos individuais, de dentista, procedimentos, visitas, atividades coletivas], ...],
+                                  atendimentos individuais, de dentista, procedimentos, visitas, atividades coletivas,
+                                 doses de vacina], ...],
                     "hospitais": [[CNES, nome, quem administra, internações, valor, bairro], ...],
                     "cobertura": [cobertura %, população, pessoas que as equipes dão conta, equipes de
                                   saúde da família, de atenção primária, ribeirinhas, de rua ou prisionais],
                     "profissionais": [atendimentos individuais com médico, com enfermeiro, com outros],
-                    "coletivas": [atividades coletivas com os moradores, participações nelas, reuniões da equipe]}},
-     "profissionais": [as mesmas contas do Brasil], "coletivas": [idem]}
-Os quatro primeiros números de cada unidade vêm do SIA; os cinco últimos, do SISAB.
+                    "coletivas": [atividades coletivas com os moradores, participações nelas, reuniões da equipe],
+                    "vacinas": doses de vacina aplicadas na cidade, sem as do serviço privado}},
+     "profissionais": [as mesmas contas do Brasil], "coletivas": [idem], "vacinas": [doses no Brasil, população]}
+Os quatro primeiros números de cada unidade vêm do SIA; os cinco seguintes, do SISAB; o último, do SI-PNI.
 """
 
 from __future__ import annotations
@@ -73,6 +79,7 @@ import time
 import urllib.parse
 import urllib.request
 import zipfile
+import zlib
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from datetime import date
@@ -90,11 +97,13 @@ PASTA_SIA = "ftp://ftp.datasus.gov.br/dissemin/publicos/SIASUS/200801_/Dados/"
 URL_SISAB = "https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/envio/RelValidacao.xhtml"
 URL_PRODUCAO = "https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/saude/RelSauProducao.xhtml"
 URL_COLETIVA = "https://sisab.saude.gov.br/paginas/acessoRestrito/relatorio/federal/saude/RelSauAtivColetiva.xhtml"
+URL_PNI = "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/PNI/csv/vacinacao_{mes}_{ano}_csv.zip"
 URL_COBERTURA = "https://relatorioaps-prd.saude.gov.br/cobertura/aps"
 UFS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR",
        "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO"]
 FONTE = ("Ministério da Saúde: CNES (estabelecimentos), SIH/SUS (internações) e SIA/SUS (atendimentos ambulatoriais), "
-         "pelo DATASUS; SISAB (produção dos postos, registros aprovados) e Relatórios da APS (cobertura da atenção primária)")
+         "pelo DATASUS; SISAB (produção dos postos, registros aprovados), SI-PNI (doses de vacina, Rede Nacional de Dados em Saúde) "
+         "e Relatórios da APS (cobertura da atenção primária)")
 # Fichas do e-SUS APS no relatório de validação do SISAB → posição na lista de cada unidade.
 # Atendimento individual, odontológico, procedimentos, visita domiciliar e atividade coletiva. A vacinação (ficha
 # 14) fica de fora: o SISAB não a valida e muitas cidades (São Paulo, Fortaleza, BH, o Espírito Santo inteiro)
@@ -478,6 +487,92 @@ def por_estado(ano: int, paralelo: int, funcao, nome: str, partes: list[str]) ->
     return total
 
 
+MESES_PNI = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+
+
+def pni_mes(ano: int, mes: int) -> dict[str, dict[str, int]]:
+    """Doses de vacina aplicadas num mês (SI-PNI, microdados da Rede Nacional de Dados em Saúde no OpenDataSUS):
+    {"cnes": {CNES: doses}, "mun": {ibge de 6 dígitos: doses sem as do serviço privado}}.
+
+    Cada mês é um .zip de 1,5 a 1,8 GB com um .csv de uma linha por dose. O .zip não vai para o disco: é lido
+    enquanto baixa, descompactando o deflate na hora (o cabeçalho local do zip diz onde os dados começam), e só
+    o total por estabelecimento e por cidade fica no cache. Ficam de fora os registros apagados e os que não
+    estão na situação "final"."""
+    cache = PASTA / "pni" / f"{ano}{mes:02d}.json"
+    if cache.exists():
+        return json.loads(cache.read_text())
+    url = URL_PNI.format(mes=MESES_PNI[mes - 1], ano=ano)
+    for t in range(4):
+        try:
+            por_cnes: dict[bytes, int] = defaultdict(int)
+            por_mun: dict[bytes, int] = defaultdict(int)
+            linhas_ruins = 0
+            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                cab = resp.read(30)
+                if cab[:4] != b"PK\x03\x04" or struct.unpack("<H", cab[8:10])[0] != 8:
+                    raise ValueError("o .zip não começa com um arquivo comprimido em deflate")
+                nome, extra = struct.unpack("<HH", cab[26:30])
+                resp.read(nome + extra)
+                z = zlib.decompressobj(-15)
+                resto, colunas = b"", None
+                while not z.eof:
+                    bloco = resp.read(1 << 20)
+                    if not bloco:
+                        raise ValueError("o .zip acabou antes do fim do .csv")
+                    partes = (resto + z.decompress(bloco)).split(b"\n")
+                    resto = partes.pop()
+                    if colunas is None:
+                        colunas = partes.pop(0).decode("latin-1").strip().split(";")
+                        i_cnes, i_mun = colunas.index("co_cnes_estabelecimento"), colunas.index("co_municipio_estabelecimento")
+                        i_st, i_del, i_estr = colunas.index("st_documento"), colunas.index("dt_deletado_rnds"), colunas.index("no_estrategia")
+                    for l in partes:
+                        c = l.split(b";")
+                        if len(c) != len(colunas):
+                            linhas_ruins += 1
+                            continue
+                        if c[i_st] != b"final" or c[i_del].strip():
+                            continue
+                        por_cnes[c[i_cnes]] += 1
+                        if c[i_estr] != b"Servi\xe7o Privado":
+                            por_mun[c[i_mun]] += 1
+            break
+        except Exception as erro:
+            if t == 3:
+                print(f"  SI-PNI {ano}-{mes:02d}: {erro}", flush=True)
+                return {}
+            time.sleep(30 * (t + 1))
+    total = sum(por_cnes.values())
+    if total < 1_000_000 or linhas_ruins > total / 1000:
+        raise SystemExit(f"SI-PNI {ano}-{mes:02d}: {total} doses e {linhas_ruins} linhas fora do formato; confira o arquivo")
+    doc = {"cnes": {k.decode().zfill(7): v for k, v in por_cnes.items() if k.strip()},
+           "mun": {k.decode(): v for k, v in por_mun.items() if k.strip()}, "ruins": linhas_ruins}
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(doc, separators=(",", ":")))
+    print(f"  SI-PNI {ano}-{mes:02d}: {total / 1e6:.1f} mi doses", flush=True)
+    return doc
+
+
+def pni(ano: int, paralelo: int) -> tuple[dict[str, int], dict[str, int]]:
+    """Soma o ano: doses por estabelecimento (CNES) e por cidade (sem o serviço privado)."""
+    por_cnes: dict[str, int] = defaultdict(int)
+    por_mun: dict[str, int] = defaultdict(int)
+    faltam = []
+    with ProcessPoolExecutor(paralelo) as ex:
+        for mes, parte in zip(range(1, 13), ex.map(pni_mes, [ano] * 12, range(1, 13))):
+            if not parte:
+                faltam.append(f"{mes:02d}")
+                continue
+            for k, v in parte["cnes"].items():
+                por_cnes[k] += v
+            for k, v in parte["mun"].items():
+                por_mun[k] += v
+    if faltam:
+        raise SystemExit(f"SI-PNI {ano}: sem resposta para os meses {', '.join(faltam)}; rode de novo (o que já veio fica no cache)")
+    print(f"  SI-PNI {ano}: {sum(por_cnes.values()) / 1e6:.0f} mi doses em {len(por_cnes)} estabelecimentos", flush=True)
+    return por_cnes, por_mun
+
+
 def cobertura(ano: int) -> tuple[dict[str, list], float]:
     """Cobertura da atenção primária em dezembro do ano, por cidade (ibge de 6 dígitos), e a do Brasil."""
     cache = PASTA / "sisab" / f"cobertura-{ano}12.json"
@@ -501,16 +596,20 @@ def cobertura(ano: int) -> tuple[dict[str, list], float]:
     return por, round(100 * sum(v[2] for v in por.values()) / pop, 1) if pop else 0.0
 
 
-def juntar_atencao_basica(doc: dict, paralelo: int) -> None:
-    """Põe a produção do SISAB em cada unidade (pelo CNES) e a cobertura em cada cidade."""
+def juntar_atencao_basica(doc: dict, paralelo: int, paralelo_pni: int) -> None:
+    """Põe a produção do SISAB e as doses de vacina (SI-PNI) em cada unidade (pelo CNES) e a cobertura, quem
+    atendeu, as atividades coletivas e as doses aplicadas em cada cidade."""
     ano = doc["ano"]
     producao = sisab(ano, paralelo)
     por_cidade, brasil = cobertura(ano)
     por_profissional = por_estado(ano, paralelo, profissionais_estado, "atendimentos por profissional", ["médico", "enfermeiro", "outros"])
     por_coletiva = por_estado(ano, paralelo, coletivas_estado, "atividades coletivas", ["com moradores", "participantes", "reuniões"])
+    doses_cnes, doses_mun = pni(ano, paralelo_pni)
     for ibge, v in doc["mun"].items():
         for u in v["unidades"]:
-            u[:] = u[:8] + [0] * (8 - len(u)) + producao.get(u[0], [0] * len(FICHAS_SISAB))
+            u[:] = u[:8] + [0] * (8 - len(u)) + producao.get(u[0], [0] * len(FICHAS_SISAB)) + [doses_cnes.get(u[0], 0)]
+        if doses_mun.get(ibge[:6], 0) > 0:
+            v["vacinas"] = doses_mun[ibge[:6]]
         if ibge[:6] in por_cidade:
             v["cobertura"] = por_cidade[ibge[:6]]
         if sum(por_profissional.get(ibge[:6], [])) > 0:
@@ -520,6 +619,7 @@ def juntar_atencao_basica(doc: dict, paralelo: int) -> None:
     doc["cobertura"] = {"mes": f"{ano}-12", "brasil": brasil}
     doc["profissionais"] = [sum(v[i] for v in por_profissional.values()) for i in range(3)]
     doc["coletivas"] = [sum(v[i] for v in por_coletiva.values()) for i in range(3)]
+    doc["vacinas"] = [sum(doses_mun.values()), sum(v[1] for v in por_cidade.values())]   # doses no Brasil e população
     doc["fonte"] = FONTE
     com = [u for v in doc["mun"].values() for u in v["unidades"] if sum(u[8:]) > 0]
     print(f"SISAB {ano}: {len(com)} unidades da prefeitura com produção; "
@@ -541,6 +641,7 @@ def main() -> None:
     p.add_argument("--paralelo", type=int, default=4)
     p.add_argument("--paralelo-sia", type=int, default=2, help="arquivos do SIA abertos ao mesmo tempo (cada um usa até ~3 GB de memória)")
     p.add_argument("--paralelo-sisab", type=int, default=3, help="planilhas do SISAB pedidas ao mesmo tempo")
+    p.add_argument("--paralelo-pni", type=int, default=4, help="meses do SI-PNI (vacinas, ~1,6 GB cada, lidos enquanto baixam) ao mesmo tempo")
     p.add_argument("--sem-baixar", action="store_true")
     p.add_argument("--so-atencao-basica", action="store_true", help="refaz só o SISAB e a cobertura, sobre a referência")
     args = p.parse_args()
@@ -552,7 +653,7 @@ def main() -> None:
         return
     if args.so_atencao_basica:
         doc = json.loads(REFERENCIA.read_text(encoding="utf-8"))
-        juntar_atencao_basica(doc, args.paralelo_sisab)
+        juntar_atencao_basica(doc, args.paralelo_sisab, args.paralelo_pni)
         texto = gravar(doc)
         print(f"saída: {SAIDA.relative_to(c.RAIZ)} e {REFERENCIA.relative_to(c.RAIZ)} ({len(texto) / 1e6:.1f} MB)")
         return
@@ -585,7 +686,7 @@ def main() -> None:
         v["hospitais"].sort(key=lambda h: -h[3])
 
     doc = {"fonte": FONTE, "ano": args.ano, "cnes": mes, "mun": dict(sorted(mun.items()))}
-    juntar_atencao_basica(doc, args.paralelo_sisab)
+    juntar_atencao_basica(doc, args.paralelo_sisab, args.paralelo_pni)
     texto = gravar(doc)
     n_h = sum(len(v["hospitais"]) for v in mun.values())
     tot = sum(h[3] for v in mun.values() for h in v["hospitais"])

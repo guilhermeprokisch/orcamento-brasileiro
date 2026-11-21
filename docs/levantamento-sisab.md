@@ -25,6 +25,7 @@ estabelecimento (CNES), para todas as cidades? E a cobertura da atenção básic
 | SISAB, Relatório de Produção | as mesmas fichas, com filtros e cruzamentos (profissional, tipo de atendimento, local, CID, procedimento…) | cidade, por mês | tela, .xlsx | aberto; a linha "Município" só sai com estado ou cidade escolhidos, não para o Brasil de uma vez |
 | SISAB, Indicadores de desempenho (Previne Brasil) | 7 indicadores por cidade | cidade, quadrimestre | tela | aberto; descontinuado em 2025 |
 | Relatórios da APS, `/cobertura/aps` | população, equipes (eSF, eAP 30h e 20h, ribeirinhas, de rua, prisionais), capacidade e cobertura | cidade, por mês | JSON | aberto (`relatorioaps-prd.saude.gov.br`) |
+| SI-PNI, doses aplicadas (Rede Nacional de Dados em Saúde) | cada dose de vacina, com o estabelecimento, a vacina, a dose e a estratégia | **CNES**, por dia | .csv em .zip mensal (~1,6 GB) | aberto (OpenDataSUS) |
 | SIA/SUS (o que o site já usa) | procedimentos ambulatoriais aprovados, com valor | CNES, por mês | .dbc no FTP | aberto |
 
 Não achamos microdados abertos do e-SUS APS no OpenDataSUS nem nos Dados Abertos do Ministério.
@@ -146,9 +147,10 @@ A página da cidade mostra as atividades com os moradores, as participações (u
 encontros conta cinco vezes) e, à parte, as reuniões da equipe. Como o relatório de produção, esse conta
 todas as unidades da cidade.
 
-## Vacinação: fica de fora
+## Vacinação: pelo SI-PNI, não pelo SISAB
 
-A ficha de vacinação (14) existe no relatório de validação, mas não serve para dizer o que cada posto fez:
+A ficha de vacinação (14) existe no relatório de validação do SISAB, mas não serve para dizer o que cada
+posto fez:
 
 - O SISAB não valida a vacinação (ela vai para a Rede Nacional de Dados em Saúde). Não há nenhum registro
   "Aprovado"; os de dezembro de 2025 vêm como "Não Aplicado" (2,7 milhões), "Duplicado" (621 mil) e
@@ -158,8 +160,32 @@ A ficha de vacinação (14) existe no relatório de validação, mas não serve 
   prefeitura; o Espírito Santo inteiro, 354. Por mil moradores no mês, o estado vai de 0,1 (ES), 3,4 (RJ) e
   5,9 (SP) a 39 (AM) e 42 (TO), e 1.176 das 5.566 cidades ficam abaixo de 5.
 
-Mostrar esse número faria os postos dessas cidades parecerem não vacinar. Para a vacinação, a fonte certa é
-o SI-PNI (doses aplicadas, pela Rede Nacional de Dados em Saúde), que fica para outro levantamento.
+A fonte certa é o **SI-PNI**: o conjunto "Doses aplicadas pelo Programa Nacional de Imunizações (PNI) – 2025"
+do Portal de Dados Abertos do SUS (<https://dadosabertos.saude.gov.br/dataset/doses-aplicadas-pelo-programa-de-nacional-de-imunizacoes-pni-2025>),
+com os microdados da Rede Nacional de Dados em Saúde, que recebe as vacinas de todos os sistemas (e-SUS APS,
+VaciVida, SIGA, Vacina e Confia ES, prontuários próprios das cidades). Um .zip por mês
+(`https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/PNI/csv/vacinacao_<mes>_2025_csv.zip`, de 1,5 a 1,8 GB),
+com um .csv de 56 colunas e **uma linha por dose aplicada**: o estabelecimento (`co_cnes_estabelecimento`), a
+cidade dele (`co_municipio_estabelecimento`), a vacina, a dose, a estratégia (rotina, campanha, serviço
+privado…), a situação do registro e a data em que foi apagado, se foi. O dicionário está em
+<https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/dbbni/Dicionario_tb_ria_rotina.pdf>.
+
+Os 12 arquivos somam ~20 GB e não cabem no disco junto com o resto, então o programa não os grava: lê cada
+.zip enquanto baixa, descompacta o deflate na hora (o cabeçalho local do zip diz onde os dados começam) e
+guarda só o total por estabelecimento e por cidade em `data/raw/datasus/pni/AAAAMM.json`. Quatro meses ao
+mesmo tempo levam ~20 minutos. Ficam de fora os registros apagados e os que não estão na situação "final";
+nenhuma linha veio fora do formato.
+
+2025: **178 milhões de doses** em 50.316 estabelecimentos; o mês mais cheio é maio (33 milhões, a campanha
+da gripe). As unidades da prefeitura aplicaram 160 milhões (90%); 38.772 dos 50.014 postos têm alguma dose
+(nem todo posto tem sala de vacina). Por cidade, sem as doses do serviço privado (vacinas pagas em clínicas),
+são 172 milhões, ou 0,81 dose por morador; na metade das cidades fica entre 0,72 e 0,93. São Paulo, que
+tinha zero no SISAB, tem 10,5 milhões (0,86 por morador); Fortaleza 2,4 milhões; Belo Horizonte 2,2 milhões.
+As pontas são cidades que atendem gente de fora: Pacaraima (RR, fronteira com a Venezuela) passa de 13 doses
+por morador.
+
+Na página: a frase da cidade (doses na cidade, quantas nas unidades da prefeitura, doses por morador e a do
+Brasil) e "N doses de vacina" na linha de cada posto.
 
 ## Comparação com o SIA
 
@@ -188,11 +214,13 @@ página mostra "todos os moradores". Dezembro de 2025: 83,2% no Brasil (176,9 mi
 - Cada unidade ganha cinco números no fim da lista (atendimentos, dentista, procedimentos, visitas,
   atividades coletivas) e cada cidade ganha `cobertura`, `profissionais` (atendimentos com médico, com
   enfermeiro, com outros) e `coletivas` (atividades com os moradores, participações, reuniões da equipe).
+- `pni()` lê os 12 meses do SI-PNI; cada unidade ganha as doses do ano como último número e cada cidade, `vacinas`.
 - `SaudeUnidades.astro`: uma frase com a soma do SISAB das unidades da prefeitura, uma com a parte dos
-  atendimentos com médico e com enfermeiro (e a do Brasil), uma com as atividades em grupo, uma com a cobertura, a
+  atendimentos com médico e com enfermeiro (e a do Brasil), uma com as atividades em grupo, uma com as doses
+  de vacina, uma com a cobertura, a
   frase do SIA com o nome do sistema e, em cada posto, a linha do SISAB acima da do SIA.
 
 ## O que fica para depois
 
 - A série de anos anteriores (o relatório vai até 2013), para mostrar se o trabalho dos postos cresceu.
-- A vacinação por cidade pelo SI-PNI (doses aplicadas), já que o SISAB não tem as vacinas de muitas cidades.
+- As doses por vacina e por idade (o SI-PNI tem as duas), para comparar com o calendário e a cobertura vacinal.
