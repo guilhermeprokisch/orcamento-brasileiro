@@ -9,7 +9,7 @@ import { MAPA_ESTADOS } from "../../lib/mapa-estados";
 import { corDaRampa, LIMIAR_TEXTO_ESCURO } from "../../lib/cores";
 
 interface Props { ano?: number; /** para onde leva o clique num estado (recebe a sigla e o código) */ link?: (uf: string, codigo: string) => string }
-const { ano = ANO, link = (_uf: string, codigo: string) => `/emendas?ente=${codigo}&ano=${ano}` } = Astro.props;
+const { ano = ANO, link = (_uf: string, codigo: string) => `/emendas/buscar?ente=${codigo}&ano=${ano}` } = Astro.props;
 const estados = porEstado(ano);
 const por = new Map(estados.map((e) => [e.uf, e]));
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });

@@ -1,6 +1,6 @@
 ---
 /**
- * PROTÓTIPO, "A história": a página conta, de cima para baixo, o que é uma emenda, os tipos, como cresceram,
+ * A história das emendas (/emendas): a página conta, de cima para baixo, o que é uma emenda, os tipos, como cresceram,
  * para onde vão, onde chega mais por morador e quem manda; no fim, as portas do explorador (página própria) e da busca.
  */
 import Termo from "../Termo.astro";
@@ -146,12 +146,12 @@ const ATALHOS: [string, string, string][] = [
     <div class="duas">
       <div>
         <h3>Deputados e senadores (individuais e Pix)</h3>
-        <ol class="lista">{resumo!.autores.slice(0, 8).map(([a, v]) => <li><a href={`/emendas?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a><span class="num">{moedaCurta(v)}</span></li>)}</ol>
+        <ol class="lista">{resumo!.autores.slice(0, 8).map(([a, v]) => <li><a href={`/emendas/buscar?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a><span class="num">{moedaCurta(v)}</span></li>)}</ol>
         <p class="ver-todos"><a href={noExplorador(["autoria:parlamentares"], true)}>Ver todos os deputados e senadores →</a></p>
       </div>
       <div>
         <h3>Comissões e bancadas</h3>
-        <ol class="lista">{p.coletivos.slice(0, 8).map(([a, t, v]) => <li><span><a href={`/emendas?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a> <small style={`color:${TIPO[t].cor === "#f2c919" ? "#8a6d00" : TIPO[t].cor}`}>{TIPO[t].nome.toLowerCase()}</small></span><span class="num">{moedaCurta(v)}</span></li>)}</ol>
+        <ol class="lista">{p.coletivos.slice(0, 8).map(([a, t, v]) => <li><span><a href={`/emendas/buscar?autor=${encodeURIComponent(a)}&ano=${ANO}`}>{a}</a> <small style={`color:${TIPO[t].cor === "#f2c919" ? "#8a6d00" : TIPO[t].cor}`}>{TIPO[t].nome.toLowerCase()}</small></span><span class="num">{moedaCurta(v)}</span></li>)}</ol>
         <p class="ver-todos"><a href={noExplorador(["autoria:comissoes"], true)}>Todas as comissões</a> · <a href={noExplorador(["autoria:bancadas"], true)}>todas as bancadas →</a></p>
       </div>
     </div>

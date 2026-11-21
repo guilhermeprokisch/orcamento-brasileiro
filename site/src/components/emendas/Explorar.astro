@@ -46,14 +46,14 @@ const nomes = (resumo?.nomes ?? []).filter((n) => tipoDe(n) !== "outro")
         <div class="onde-lista" id={`${id}-quem-lista`} role="listbox" data-onde-lista hidden></div>
       </div>
     </div>
-    <form class="porta" action="/emendas" method="get">
+    <form class="porta" action="/emendas/buscar" method="get">
       <h3><span>3</span> Um assunto</h3>
       <p>O que prefeituras e entidades disseram que fariam com o dinheiro.</p>
       <div class="linha">
         <input name="q" type="search" placeholder="Ex.: ambulância" aria-label="Assunto" />
         <button type="submit">Procurar</button>
       </div>
-      <p class="sugestoes">{ASSUNTOS.map((a) => <a href={`/emendas?q=${encodeURIComponent(a)}`}>{a}</a>)}</p>
+      <p class="sugestoes">{ASSUNTOS.map((a) => <a href={`/emendas/buscar?q=${encodeURIComponent(a)}`}>{a}</a>)}</p>
     </form>
   </div>
 </section>
@@ -89,12 +89,12 @@ const nomes = (resumo?.nomes ?? []).filter((n) => tipoDe(n) !== "outro")
   const { ligarOnde, fonteDeNomes } = await import("/explorador/onde.js");
   document.querySelectorAll("[data-explorar] [data-onde]").forEach((raiz) => {
     const ano = raiz.closest("[data-explorar]").querySelector("[data-quem]")?.dataset.ano;
-    ligarOnde(raiz, (l) => { if (l) location.href = `/emendas?ente=${l.codigo}${ano ? `&ano=${ano}` : ""}`; }, { prefixo: `${raiz.closest("[data-explorar]").id}-onde` });
+    ligarOnde(raiz, (l) => { if (l) location.href = `/emendas/buscar?ente=${l.codigo}${ano ? `&ano=${ano}` : ""}`; }, { prefixo: `${raiz.closest("[data-explorar]").id}-onde` });
   });
   document.querySelectorAll("[data-explorar] [data-quem]").forEach((raiz) => {
     const fonte = fonteDeNomes(JSON.parse(raiz.dataset.nomes),
       [["parl", "Deputados e senadores", 8], ["banc", "Bancadas", 3], ["com", "Comissões", 3]], "Nenhum deputado, senador, bancada ou comissão com");
-    ligarOnde(raiz, (l) => { if (l) location.href = `/emendas?autor=${encodeURIComponent(l.codigo)}&ano=${raiz.dataset.ano}`; },
+    ligarOnde(raiz, (l) => { if (l) location.href = `/emendas/buscar?autor=${encodeURIComponent(l.codigo)}&ano=${raiz.dataset.ano}`; },
       { fonte, prefixo: `${raiz.closest("[data-explorar]").id}-quem` });
   });
 </script>

@@ -197,10 +197,10 @@ export default function ExplorerEmendas(props: Props) {
   const detalhe = () => {
     const u = ultimo(); const a = estado().ano;
     if (!u) return null;
-    if (u.dim === "autor") return { href: `/emendas?autor=${encodeURIComponent(u.cod)}&ano=${a}`, texto: "Ver as emendas uma a uma: para onde, para quem e o plano das Pix" };
-    if (u.dim === "mun" && u.cod !== "—") return { href: `/emendas?ente=${u.cod}&ano=${a}`, texto: "Ver quem recebeu na cidade, emenda por emenda" };
-    if (u.dim === "uf" && UF_CODIGO[u.cod]) return { href: `/emendas?ente=${UF_CODIGO[u.cod]}&ano=${a}`, texto: "Ver quem recebeu no estado, emenda por emenda" };
-    if (u.dim === "favorecido" && /^\d{14}$/.test(u.cod)) return { href: `/emendas?entidade=${u.cod}`, texto: "Ver todos os anos e o que foi feito" };
+    if (u.dim === "autor") return { href: `/emendas/buscar?autor=${encodeURIComponent(u.cod)}&ano=${a}`, texto: "Ver as emendas uma a uma: para onde, para quem e o plano das Pix" };
+    if (u.dim === "mun" && u.cod !== "—") return { href: `/emendas/buscar?ente=${u.cod}&ano=${a}`, texto: "Ver quem recebeu na cidade, emenda por emenda" };
+    if (u.dim === "uf" && UF_CODIGO[u.cod]) return { href: `/emendas/buscar?ente=${UF_CODIGO[u.cod]}&ano=${a}`, texto: "Ver quem recebeu no estado, emenda por emenda" };
+    if (u.dim === "favorecido" && /^\d{14}$/.test(u.cod)) return { href: `/emendas/buscar?entidade=${u.cod}`, texto: "Ver todos os anos e o que foi feito" };
     return null;
   };
   const baixarCsv = () => {
