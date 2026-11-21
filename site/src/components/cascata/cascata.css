@@ -21,6 +21,19 @@
   font: inherit; font-size: 14px; padding: 5px 11px; border: 1px solid var(--regra); background: transparent; color: var(--tinta);
   text-decoration: none; cursor: pointer;
 }
+.cc-tempo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cc-tempo button, .cc-ano select {
+  font: inherit; font-size: 14px; padding: 5px 11px; border: 1px solid var(--regra); background: transparent; color: var(--tinta); cursor: pointer;
+}
+.cc-ano select { padding: 5px 8px; background: #fff; }
+.cc-tempo button[aria-pressed="true"] { background: var(--tinta); color: #fff; border-color: var(--tinta); }
+.cc-tempo button:disabled { opacity: 0.45; cursor: not-allowed; }
+.cc-sobe { color: #b4561f; }
+.cc-desce { color: #2f5d8a; }
+.cc-legenda .cc-sobe, .cc-legenda .cc-desce { font-weight: 700; margin-right: 6px; }
+.cc-pessoa { display: block; font-size: 16px; margin-top: 4px; font-family: var(--sans); color: var(--texto-2); }
+.cc4-b-comp { color: #fff !important; }
+.cc4-b-comp b { color: #ffe14d; }
 .cc-onde a[aria-current], .cc-cores button[aria-pressed="true"] { background: var(--tinta); color: #fff; border-color: var(--tinta); }
 .cc-cores[hidden] { display: none; }
 

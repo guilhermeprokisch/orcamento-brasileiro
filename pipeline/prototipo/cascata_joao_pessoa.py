@@ -1,16 +1,17 @@
-"""Protótipo da cascata do gasto: o que a prefeitura de João Pessoa pagou em 2025, área › tipo de despesa › credor.
+"""Protótipo da cascata do gasto: o que a prefeitura de João Pessoa pagou num ano, área › tipo de despesa › credor.
 
-    python pipeline/prototipo/cascata_joao_pessoa.py caminho/do/despesas-2025.zip
+    python pipeline/prototipo/cascata_joao_pessoa.py caminho/do/despesas-2025.zip 2025
+    python pipeline/prototipo/cascata_joao_pessoa.py caminho/do/despesas-2024.zip 2024   # para comparar com o ano anterior
 
-O ZIP é o mesmo dos pagamentos da Paraíba (pagamentos.py, cerca de 190 MB):
-https://download.tce.pb.gov.br/dados-abertos/dados-consolidados/despesas/despesas-2025.zip
+O ZIP é o mesmo dos pagamentos da Paraíba (pagamentos.py, cerca de 190 MB por ano):
+https://download.tce.pb.gov.br/dados-abertos/dados-consolidados/despesas/despesas-{ano}.zip
 
 As regras são as de pagamentos.py, para o total bater com /cidades: só o valor pago; fora as operações entre
 unidades do município (modalidade 91) e os consórcios. Empresas (CNPJ válido, sem cara de MEI) aparecem pelo nome,
 juntando as filiais pela raiz do CNPJ. Pagamentos a pessoas físicas (servidores, aposentados, prestadores, MEIs)
 entram só como total e número de pessoas: **o CPF e o nome nunca são gravados**.
 
-Saída: site/public/prototipo/cascata-joao-pessoa.json
+Saída: site/public/prototipo/cascata-joao-pessoa-{ano}.json
     {"fonte", "ano", "nome", "valor", "tipos": [rótulos], "filhos": [
         {"nome": função, "valor", "filhos": [
             {"nome": elemento, "valor", "filhos": [
@@ -30,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from orcamento_pipeline import pagamentos as p  # noqa: E402
 
 RAIZ = Path(__file__).resolve().parents[2]
-SAIDA = RAIZ / "site" / "public" / "prototipo" / "cascata-joao-pessoa.json"
+PASTA_SAIDA = RAIZ / "site" / "public" / "prototipo"
 MUNICIPIO = "JOAO PESSOA"
 MAIORES = 40
 PESSOAS_ROTULO = "Pagamentos a pessoas físicas"
@@ -43,7 +44,7 @@ def _por_tipo(itens: list[dict]) -> Counter:
     return soma
 
 
-def main(arq: str) -> None:
+def main(arq: str, ano: int) -> None:
     # (função, elemento) -> credor -> [nome Counter, pago, empenhos, tipo, licitação Counter]
     arvore: dict[tuple[str, str], dict[str, list]] = defaultdict(dict)
     pessoas: dict[tuple[str, str], set] = defaultdict(set)   # só para contar; jogado fora no fim
@@ -105,8 +106,9 @@ def main(arq: str) -> None:
             for f, els in funcoes.items()]
     raiz.sort(key=lambda f: -f["valor"])
     total = sum(f["valor"] for f in raiz)
-    doc = {"fonte": p.FONTE, "ano": 2025, "nome": "Prefeitura de João Pessoa", "valor": total,
+    doc = {"fonte": p.FONTE, "ano": ano, "nome": "Prefeitura de João Pessoa", "valor": total,
            "tipos": p.TIPOS, "filhos": raiz}
+    SAIDA = PASTA_SAIDA / f"cascata-joao-pessoa-{ano}.json"
     SAIDA.parent.mkdir(parents=True, exist_ok=True)
     texto = json.dumps(doc, ensure_ascii=False, separators=(",", ":"))
     SAIDA.write_text(texto, encoding="utf-8")
@@ -116,4 +118,4 @@ def main(arq: str) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1])
+    main(sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 2025)

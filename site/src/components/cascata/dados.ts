@@ -4,7 +4,7 @@
  * em João Pessoa), que pode servir de cor.
  */
 import { SUBFUNCOES_REFINANCIAMENTO, TIPOS_DESPESA, type DocAno } from "../../lib/dados";
-import { moedaExtenso } from "../../lib/formato";
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
 
 export interface Categoria { nome: string; cor: string; escuro?: boolean }
 
@@ -20,6 +20,8 @@ export interface Info {
 
 export interface No {
   cod: string;
+  /** Igual de um ano para o outro (código na União; nome ou raiz do CNPJ em João Pessoa): acha a mesma caixa no ano anterior. */
+  chave: string;
   nome: string;
   valor: number;
   /** O tipo do nível: "Órgão", "Área", "Credor"… */
@@ -38,8 +40,19 @@ export interface No {
   carregar?: () => No[];
 }
 
+export interface Comparacao {
+  /** O valor do ano anterior, já em reais do ano mostrado (corrigido pelo IPCA). */
+  antes: number;
+  variacao: number;
+}
+
 export interface Fonte {
   chave: "uniao" | "joao-pessoa";
+  ano: number;
+  /** Para os valores por pessoa: população do Brasil (União) ou da cidade, no ano. */
+  populacao: number;
+  /** Ligado quando o usuário pede a comparação: o mesmo nó no ano anterior (null: não existia). */
+  comparar?: (n: No) => Comparacao | null;
   raiz: No;
   cats: Categoria[];
   /** Nome da cor por categoria: "Obrigatório ou não", "Quem recebe". */
@@ -76,7 +89,7 @@ const NIVEIS_UNIAO: [string, string][] = [
   ["orgao", "Órgão"], ["uo", "Unidade"], ["programa", "Programa"], ["acao", "Ação"], ["gnd", "Tipo de gasto"],
 ];
 
-export async function fonteUniao(ano = 2025): Promise<Fonte> {
+export async function fonteUniao(ano = 2025, populacao = 1): Promise<Fonte> {
   const r = await fetch(`/data/explorer/${ano}.json`);
   if (!r.ok) throw new Error(`Não consegui carregar ${ano} (HTTP ${r.status})`);
   const doc: DocAno = await r.json();
@@ -104,7 +117,7 @@ export async function fonteUniao(ano = 2025): Promise<Fonte> {
       autorizado += l[iA] as number;
       mix[iTipo >= 0 ? catDe.get(l[iTipo] as string) ?? 4 : 0] += v;
     }
-    const n: No = { cod, nome, valor, autorizado, nivel: prof === 0 ? "Orçamento" : NIVEIS_UNIAO[prof - 1][1], prof, pai, mix };
+    const n: No = { cod, chave: cod, nome, valor, autorizado, nivel: prof === 0 ? "Orçamento" : NIVEIS_UNIAO[prof - 1][1], prof, pai, mix };
     if (prof < NIVEIS_UNIAO.length) {
       n.carregar = () => {
         const [dim] = NIVEIS_UNIAO[prof];
@@ -126,7 +139,7 @@ export async function fonteUniao(ano = 2025): Promise<Fonte> {
   };
   const raiz = criar(linhas, "uniao", `Orçamento federal ${ano}`, 0, null);
   return {
-    chave: "uniao", raiz, cats, rotuloCor: "Obrigatório ou não",
+    chave: "uniao", ano, populacao, raiz, cats, rotuloCor: "Obrigatório ou não",
     explicaCat: [
       "o governo é obrigado por lei ou pela Constituição a pagar: aposentadorias, salários, repasses a estados e cidades",
       "o governo decide se gasta e quanto: obras, compras, programas",
@@ -178,8 +191,8 @@ export function nomeProprio(s: string): string {
 
 export const formatarCnpj = (c: string) => c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
 
-export async function fonteJoaoPessoa(): Promise<Fonte> {
-  const r = await fetch("/prototipo/cascata-joao-pessoa.json");
+export async function fonteJoaoPessoa(ano = 2025, populacao = 1): Promise<Fonte> {
+  const r = await fetch(`/prototipo/cascata-joao-pessoa-${ano}.json`);
   if (!r.ok) throw new Error(`Não consegui carregar João Pessoa (HTTP ${r.status})`);
   const d: { ano: number; nome: string; valor: number; tipos: string[]; filhos: NoJp[]; fonte: string } = await r.json();
   const cats: Categoria[] = d.tipos.map((nome, i) => ({ nome, cor: CORES_CREDOR[i], escuro: i === 0 }));
@@ -188,7 +201,7 @@ export async function fonteJoaoPessoa(): Promise<Fonte> {
 
   const conv = (o: NoJp, prof: number, pai: No | null, i: number): No => {
     let nome = ERROS[o.nome] ?? o.nome;
-    const n: No = { cod: String(i), nome, valor: o.valor, nivel: prof === 0 ? "Prefeitura" : NIV[prof - 1], prof, pai, mix: new Array(cats.length).fill(0) };
+    const n: No = { cod: String(i), chave: nome, nome, valor: o.valor, nivel: prof === 0 ? "Prefeitura" : NIV[prof - 1], prof, pai, mix: new Array(cats.length).fill(0) };
     if (o.filhos) {
       n._filhos = [...o.filhos].sort((a, b) => b.valor - a.valor).map((f, j) => conv(f, prof + 1, n, j));
       for (const f of n._filhos) f.mix.forEach((v, k) => (n.mix[k] += v));
@@ -196,6 +209,8 @@ export async function fonteJoaoPessoa(): Promise<Fonte> {
       const t = o.tipo ?? 0;
       n.mix[t] = o.valor;
       n.info = { empenhos: o.n, tipoCredor: t, cnpj: o.cnpj, licitacao: o.licitacao, pessoas: o.pessoas, resto: o.resto };
+      // a chave do credor é a raiz do CNPJ (o nome muda de grafia de um ano para o outro)
+      n.chave = o.cnpj ? `${t === 2 ? "folha:" : ""}${o.cnpj.slice(0, 8)}` : o.pessoas !== undefined ? "#pessoas" : o.resto ? "#resto" : nome;
       if (t === 2 && o.cnpj) { n.info.via = nomeProprio(nome); nome = "Folha de pagamento"; }
       else if (o.pessoas !== undefined) nome = `${o.pessoas.toLocaleString("pt-BR")} pessoas físicas`;
       else if (o.resto) nome = `${o.resto} credores menores (fora do protótipo)`;
@@ -215,7 +230,7 @@ export async function fonteJoaoPessoa(): Promise<Fonte> {
   };
   const raiz = conv({ nome: `${d.nome} ${d.ano}`, valor: d.valor, filhos: d.filhos }, 0, null, 0);
   return {
-    chave: "joao-pessoa", raiz, cats, rotuloCor: "Quem recebe", porCnpj,
+    chave: "joao-pessoa", ano: d.ano, populacao, raiz, cats, rotuloCor: "Quem recebe", porCnpj,
     explicaCat: [
       "empresas e entidades contratadas pela prefeitura",
       "pessoas pagas uma a uma: autônomos, bolsistas, microempreendedores (sem nome nem CPF aqui)",
@@ -257,7 +272,7 @@ export function visiveis(n: No, k: number, plural: Record<string, string>, escol
   for (const f of resto) f.mix.forEach((v, i) => (mix[i] += v));
   const nivel = resto[0].nivel;
   const outros: No = {
-    cod: "#outros", nome: `outros ${resto.reduce((s, f) => s + (f.info?.resto ?? 1), 0)} ${plural[nivel] ?? "itens"}`, valor: resto.reduce((s, f) => s + f.valor, 0),
+    cod: "#outros", chave: "#outros", nome: `outros ${resto.reduce((s, f) => s + (f.info?.resto ?? 1), 0)} ${plural[nivel] ?? "itens"}`, valor: resto.reduce((s, f) => s + f.valor, 0),
     nivel, prof: n.prof + 1, pai: n, mix, ehOutros: true, lista: resto,
   };
   return { itens: top, outros };
@@ -268,4 +283,36 @@ export function catPrincipal(n: No): number {
   let m = 0;
   n.mix.forEach((v, i) => { if (v > n.mix[m]) m = i; });
   return m;
+}
+
+// ——— valores por pessoa ———
+
+export const exibir = { porPessoa: false, populacao: 1 };
+const nfP0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const nfP2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** "R$ 93,3 bi" ou, por pessoa, "R$ 437/pessoa". */
+export function dinheiro(v: number, longo = false): string {
+  if (!exibir.porPessoa) return moedaCurta(v);
+  const p = v / Math.max(1, exibir.populacao);
+  const t = Math.abs(p) >= 100 ? `R$ ${nfP0.format(p)}` : Math.abs(p) >= 0.01 ? `R$ ${nfP2.format(p)}` : "menos de R$ 0,01";
+  return `${t}${longo ? " por pessoa" : "/pessoa"}`;
+}
+
+/** O mesmo nó na árvore do ano anterior, seguindo as chaves do caminho. */
+export function noAnterior(n: No, raizAntes: No): No | null {
+  let x: No = raizAntes;
+  for (const y of caminhoAte(n).slice(1)) {
+    const f = filhos(x).find((z) => z.chave === y.chave);
+    if (!f) return null;
+    x = f;
+  }
+  return x;
+}
+
+/** "▲ 12%", "▼ 3,4%", "= 0%". */
+export function setaVariacao(v: number): string {
+  const p = Math.abs(v) * 100;
+  const t = p >= 10 ? nfP0.format(p) : p.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  return Math.abs(v) < 0.0005 ? "= 0%" : `${v > 0 ? "▲" : "▼"} ${t}%`;
 }

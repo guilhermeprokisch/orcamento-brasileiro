@@ -7,11 +7,11 @@
  *   ?onde=uniao | joao-pessoa      ?c=códigos do caminho, separados por "~"      ?cor=tamanho
  * Regra de ouro: não mostrar tudo. Em cada nível só os maiores; o resto vira "outros", que abre a lista.
  */
-import { moedaCurta, pct } from "../../lib/formato";
+import { pct } from "../../lib/formato";
 import { OUTRAS, RAMPA } from "../../lib/cores";
 import {
-  caminhoAte, catPrincipal, filhos, fonteJoaoPessoa, fonteUniao, formatarCnpj, temFilhos, visiveis,
-  type Fonte, type No, type Visiveis,
+  caminhoAte, catPrincipal, dinheiro, exibir, filhos, fonteJoaoPessoa, fonteUniao, formatarCnpj, noAnterior, setaVariacao,
+  temFilhos, visiveis, type Comparacao, type Fonte, type No, type Visiveis,
 } from "./dados";
 import { criarTela, type Tela } from "./tela";
 
@@ -25,6 +25,11 @@ interface Estado {
   caminho: No[];
   /** "outros" aberto no painel (formas 1 e 2) ou na coluna (forma 3). */
   outros: No | null;
+  ano: number | null;
+  /** Valores divididos pela população. */
+  pessoa: boolean;
+  /** Variação sobre o ano anterior, descontada a inflação. */
+  comparar: boolean;
 }
 
 const VERDE = "#0e6b3b";
@@ -165,6 +170,9 @@ function lerUrl(): Estado {
     cor: p.get("cor") === "tamanho" ? "tamanho" : "tipo",
     caminho: [],
     outros: null,
+    ano: Number(p.get("ano")) || null,
+    pessoa: p.get("pessoa") === "1",
+    comparar: p.get("comparar") === "1",
   };
 }
 
@@ -178,13 +186,17 @@ function resolverCaminho(raiz: No, codigos: string[]): No[] {
   return c;
 }
 
-function urlCom(mud: Partial<{ v: Versao; onde: string; cor: ModoCor; c: string | null }>) {
+function urlCom(mud: Partial<{ v: Versao; onde: string; cor: ModoCor; c: string | null; ano: number | null }>) {
   const p = new URLSearchParams();
   const v = mud.v ?? E.v, onde = mud.onde ?? E.onde, cor = mud.cor ?? E.cor;
   const c = "c" in mud ? mud.c : E.caminho.slice(1).map((n) => n.cod).join("~");
+  const ano = "ano" in mud ? mud.ano : E.ano;
   if (v !== 1) p.set("v", String(v));
   if (onde !== "uniao") p.set("onde", onde);
+  if (ano) p.set("ano", String(ano));
   if (cor !== "tipo") p.set("cor", cor);
+  if (E.pessoa) p.set("pessoa", "1");
+  if (E.comparar) p.set("comparar", "1");
   if (c) p.set("c", c);
   const q = p.toString().replaceAll("%7E", "~");
   return `${location.pathname}${q ? `?${q}` : ""}`;
@@ -201,19 +213,29 @@ function atualizarControles() {
     a.toggleAttribute("aria-current", Number(a.dataset.v) === E.v);
   });
   document.querySelectorAll<HTMLAnchorElement>("[data-onde]").forEach((a) => {
-    a.href = urlCom({ onde: a.dataset.onde, c: null });
+    a.href = urlCom({ onde: a.dataset.onde, c: null, ano: null });
     a.toggleAttribute("aria-current", a.dataset.onde === E.onde);
   });
   document.querySelectorAll<HTMLButtonElement>("[data-cor]").forEach((b) => {
     b.setAttribute("aria-pressed", String(b.dataset.cor === E.cor));
     if (b.dataset.cor === "tipo") b.textContent = F?.rotuloCor ?? "Tipo";
   });
+  document.querySelector("[data-pessoa]")?.setAttribute("aria-pressed", String(E.pessoa));
+  const comp = document.querySelector<HTMLButtonElement>("[data-comparar]");
+  if (comp && F) {
+    const temAnterior = anosDisponiveis().includes(F.ano - 1);
+    comp.textContent = `Comparar com ${F.ano - 1}`;
+    comp.disabled = !temAnterior;
+    comp.title = temAnterior ? "Quanto cada caixa subiu ou caiu, descontada a inflação (IPCA)" : `Não há dados de ${F.ano - 1}`;
+    comp.setAttribute("aria-pressed", String(E.comparar && temAnterior));
+  }
 }
 
 // ——— cabeçalho comum: frase, legenda de cores e o caminho (degraus) ———
 
 function htmlLegenda() {
-  const menores = E.v === 4 ? `<li><i class="cc-hachura"></i>os menores, juntos (“mais N”)</li>` : "";
+  const comp = F.comparar ? `<li><b class="cc-sobe">▲ subiu</b> <b class="cc-desce">▼ caiu</b> sobre ${F.ano - 1}, descontada a inflação</li>` : "";
+  const menores = (E.v === 4 ? `<li><i class="cc-hachura"></i>os menores, juntos (“mais N”)</li>` : "") + comp;
   if (!usaTipo()) return menores ? `<ul class="cc-legenda">${menores}</ul>` : "";
   return `<ul class="cc-legenda">${F.cats.filter((c) => c.nome !== "Sem informação").map((c) =>
     `<li><i style="background:${c.cor}"></i>${esc(c.nome)}</li>`).join("")}${menores}</ul>`;
@@ -227,7 +249,7 @@ function htmlDegraus() {
     return `<li><button type="button" class="cc-degrau" data-k="${alvo(n)}" ${ultimo ? 'aria-current="step"' : ""}>
       <span class="cc-degrau-tipo">${esc(n.nivel)}</span>
       <span class="cc-degrau-nome" title="${esc(n.nome)}">${esc(n.nome)}</span>
-      <span class="cc-degrau-valor"><strong>${moedaCurta(n.valor)}</strong> ${fatia}</span>
+      <span class="cc-degrau-valor"><strong>${dinheiro(n.valor)}</strong> ${fatia}</span>
     </button></li>`;
   }).join("")}</ol>`;
 }
@@ -239,7 +261,7 @@ function htmlPainel(): string {
     const v = vis(E.outros, E.caminho.find((n) => n.pai === E.outros) ?? null);
     const resto = v.outros?.lista ?? [];
     return `<div class="cc-painel-cab"><h3>${esc(v.outros?.nome ?? "")}</h3>
-      <span class="muted">dentro de ${esc(E.outros.nome)} · somam ${moedaCurta(v.outros?.valor ?? 0)}</span>
+      <span class="muted">dentro de ${esc(E.outros.nome)} · somam ${dinheiro(v.outros?.valor ?? 0)}</span>
       <button type="button" class="cc-fechar" data-fechar>Fechar</button></div>
       ${htmlLinhas(resto.slice(0, 80), E.outros)}
       ${resto.length > 80 ? `<p class="muted">e mais ${resto.length - 80}, menores.</p>` : ""}`;
@@ -255,7 +277,7 @@ function htmlPainel(): string {
 function htmlLinhas(ns: No[], pai: No) {
   return `<ol class="cc-linhas">${ns.map((n) => `<li><button type="button" data-k="${alvo(n)}">
     <span class="cc-l-nome">${esc(n.nome)}</span>
-    <span class="cc-l-valor num">${moedaCurta(n.valor)} · ${pctCurto(n.valor / Math.max(1, pai.valor))}</span>
+    <span class="cc-l-valor num">${dinheiro(n.valor)} · ${pctCurto(n.valor / Math.max(1, pai.valor))}</span>
     <span class="cc-l-barra">${htmlBarra(n, n.valor / Math.max(1, pai.valor))}</span>
   </button></li>`).join("")}</ol>`;
 }
@@ -290,23 +312,34 @@ function htmlCartao(n: No): string {
     if (tipo) linhas.push(`<dt>Quem é</dt><dd>${esc(tipo === "Fornecedores" ? "Empresa ou entidade (fornecedor)" : tipo)}</dd>`);
     if (info.cnpj) linhas.push(`<dt>CNPJ</dt><dd class="num">${formatarCnpj(info.cnpj)}</dd>`);
     if (info.licitacao) linhas.push(`<dt>Como foi escolhido</dt><dd>${esc(info.licitacao)}</dd>`);
+    const comp = htmlComparacao(n);
+    if (comp) linhas.push(comp);
     const ano = info.cnpj ? F.porCnpj?.get(info.cnpj.slice(0, 8)) : undefined;
     if (ano && ano.valor > n.valor * 1.01) {
-      linhas.push(`<dt>No ano todo</dt><dd>${moedaCurta(ano.valor)} da prefeitura, em ${ano.areas.size} ${ano.areas.size > 1 ? "áreas" : "área"}</dd>`);
+      linhas.push(`<dt>No ano todo</dt><dd>${dinheiro(ano.valor)} da prefeitura, em ${ano.areas.size} ${ano.areas.size > 1 ? "áreas" : "área"}</dd>`);
     }
-    texto = `Recebeu <strong>${moedaCurta(n.valor)}</strong> neste tipo de despesa${info.empenhos ? `, em ${info.empenhos} ${info.empenhos > 1 ? "empenhos" : "empenho"} (as notas de reserva do dinheiro)` : ""}.`;
+    texto = `Recebeu <strong>${dinheiro(n.valor)}</strong> neste tipo de despesa${info.empenhos ? `, em ${info.empenhos} ${info.empenhos > 1 ? "empenhos" : "empenho"} (as notas de reserva do dinheiro)` : ""}.`;
   }
   const cam = E.caminho;
   const fio = cam.slice(1).map((x) => esc(x.nome)).join(" › ");
   return `<div class="cc-cartao">
     <span class="sobretitulo">${esc(n.nivel)} · fim do caminho</span>
     <h3>${esc(titulo)}</h3>
-    <p class="cc-cartao-valor"><strong class="marca">${moedaCurta(n.valor)}</strong> · ${pctCurto(parte(n))} ${n.pai ? `de ${esc(n.pai.nome)}` : ""}</p>
+    <p class="cc-cartao-valor"><strong class="marca">${dinheiro(n.valor)}</strong> · ${pctCurto(parte(n))} ${n.pai ? `de ${esc(n.pai.nome)}` : ""}</p>
     <p>${texto}</p>
     ${linhas.length ? `<dl>${linhas.join("")}</dl>` : ""}
     ${F.chave === "joao-pessoa" && info.cnpj && info.tipoCredor === 0 ? `<p><a href="/contratos?q=${encodeURIComponent(n.nome)}">Procurar contratos com esse nome</a></p>` : ""}
     <p class="cc-fio muted">${fio}</p>
   </div>`;
+}
+
+/** A linha "Em 2024" dos detalhes: o valor do ano anterior (em reais do ano mostrado) e quanto mudou. */
+function htmlComparacao(n: No): string {
+  if (!F.comparar || n.ehOutros) return "";
+  const c = F.comparar(n);
+  if (!c) return `<dt>Em ${F.ano - 1}</dt><dd>não existia (ou mudou de código)</dd>`;
+  const cls = c.variacao > 0.0005 ? "cc-sobe" : c.variacao < -0.0005 ? "cc-desce" : "";
+  return `<dt>Em ${F.ano - 1}</dt><dd>${dinheiro(c.antes)} em reais de ${F.ano}: <b class="${cls}">${setaVariacao(c.variacao)}</b></dd>`;
 }
 
 /** Os detalhes de qualquer caixa que tem algo dentro (na tela livre): o que é, quanto é, de que tipo e os maiores. */
@@ -321,7 +354,9 @@ export function htmlDetalhe(n: No): string {
     const cada = cem >= 1 ? `R$ ${cem.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} de cada R$ 100` : `R$ ${(cem * 10).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} de cada R$ 1.000`;
     linhas.push(`<dt>Do total</dt><dd>${pctCurto(n.valor / raiz.valor)}: ${cada} ${F.chave === "uniao" ? "do orçamento federal" : "da prefeitura"}</dd>`);
   }
-  if (n.autorizado) linhas.push(`<dt>Autorizado</dt><dd>${moedaCurta(n.autorizado)}; pagou ${pctCurto(n.valor / n.autorizado)} disso no ano</dd>`);
+  const comp = htmlComparacao(n);
+  if (comp) linhas.push(comp);
+  if (n.autorizado) linhas.push(`<dt>Autorizado</dt><dd>${dinheiro(n.autorizado)}; pagou ${pctCurto(n.valor / n.autorizado)} disso no ano</dd>`);
   const qtos = fs.reduce((a, f) => a + (f.info?.resto ?? 1), 0);   // "67 credores menores" conta como 67
   linhas.push(`<dt>Dentro</dt><dd>${qtos} ${qtos > 1 ? plural(fs[0].nivel) : fs[0].nivel.toLowerCase()}</dd>`);
   const t = n.mix.reduce((a, v) => a + Math.max(0, v), 0) || 1;
@@ -330,13 +365,13 @@ export function htmlDetalhe(n: No): string {
       <span class="cc-det-barra">${mix.map((m) => `<b style="flex:${m.f};background:${F.cats[m.i].cor}"></b>`).join("")}</span>
       <ul>${mix.map((m) => `<li><i style="background:${F.cats[m.i].cor}"></i><strong>${esc(F.cats[m.i].nome)} ${pctCurto(m.f)}</strong>
         <span>${esc(F.explicaCat[m.i] ?? "")}</span></li>`).join("")}</ul></div>` : "";
-  const maiores = fs.slice(0, 3).map((f) => `<li><span>${esc(f.nome)}</span><span class="num">${moedaCurta(f.valor)} · ${pctCurto(f.valor / Math.max(1, n.valor))}</span></li>`).join("");
+  const maiores = fs.slice(0, 3).map((f) => `<li><span>${esc(f.nome)}</span><span class="num">${dinheiro(f.valor)} · ${pctCurto(f.valor / Math.max(1, n.valor))}</span></li>`).join("");
   const link = F.linkExplorer ? `<p><a href="${F.linkExplorer(n)}">Ver no Explorer</a> (o mapa de blocos, com outros recortes)</p>` : "";
   return `<div class="cc-cartao cc-detalhe">
     <span class="sobretitulo">${esc(n.nivel)}</span>
     ${F.explica[n.nivel] ? `<p class="cc-det-explica">${esc(F.explica[n.nivel])}</p>` : ""}
     <h3>${esc(n.nome)}</h3>
-    <p class="cc-cartao-valor"><strong class="marca">${moedaCurta(n.valor)}</strong> pagos em 2025</p>
+    <p class="cc-cartao-valor"><strong class="marca">${dinheiro(n.valor, true)}</strong> pagos em ${F.ano}</p>
     <dl>${linhas.join("")}</dl>
     ${htmlMix}
     <h4>Os maiores dentro</h4>
@@ -434,8 +469,8 @@ function forma1(host: HTMLElement) {
     const x = xCol(i), w = largBar(i);
     pos[i].forEach((p, rank) => {
       const escolhido = p.n === c.sel;
-      const g = el("g", { class: `cc-no${escolhido ? " cc-sel" : ""}`, "data-k": alvo(p.n), tabindex: 0, role: "button", "aria-label": `${p.n.nome}: ${moedaCurta(p.n.valor)}` }, gBarras);
-      el("title", {}, g).textContent = `${p.n.nome}\n${moedaCurta(p.n.valor)} · ${pctCurto(p.n.valor / Math.max(1, c.pai?.valor ?? p.n.valor))}`;
+      const g = el("g", { class: `cc-no${escolhido ? " cc-sel" : ""}`, "data-k": alvo(p.n), tabindex: 0, role: "button", "aria-label": `${p.n.nome}: ${dinheiro(p.n.valor)}` }, gBarras);
+      el("title", {}, g).textContent = `${p.n.nome}\n${dinheiro(p.n.valor)} · ${pctCurto(p.n.valor / Math.max(1, c.pai?.valor ?? p.n.valor))}`;
       // área de clique maior que a barra
       el("rect", { x: x - 4, y: p.y0, width: w + 8, height: Math.max(6, p.y1 - p.y0), fill: "transparent" }, g);
       pintar(g, x, p.y0, w, p.y1 - p.y0, p.n, corTamanho(p.n, rank, escolhido || i === 0, ativo || escolhido), false, !escolhido && !ativo);
@@ -467,7 +502,7 @@ function forma1(host: HTMLElement) {
       const t1 = el("text", { x: xt, y: y - 3, "text-anchor": anchor, class: "cc-r-nome" }, g);
       t1.textContent = corta(p.n.nome, chars);
       const t2 = el("text", { x: xt, y: y + 12, "text-anchor": anchor, class: "cc-r-valor" }, g);
-      t2.textContent = `${moedaCurta(p.n.valor)} · ${pctCurto(p.n.valor / Math.max(1, c.pai?.valor ?? p.n.valor))}${p.n.ehOutros ? " · ver lista" : ""}`;
+      t2.textContent = `${dinheiro(p.n.valor)} · ${pctCurto(p.n.valor / Math.max(1, c.pai?.valor ?? p.n.valor))}${p.n.ehOutros ? " · ver lista" : ""}`;
     });
   };
   if (nc >= 2) {
@@ -548,14 +583,14 @@ function forma2(host: HTMLElement) {
       el("text", { x: 12, y: y + 15, class: "cc-d-tipo" }, gd).textContent = s ? nivel.toUpperCase() : `${plural(nivel).toUpperCase()}`;
       el("text", { x: 12, y: y + 33, class: "cc-d-nome" }, gd).textContent = s ? corta(s.nome, Math.floor((LW - 30) / 7.4)) : "Escolha um pedaço →";
       el("text", { x: 12, y: y + 49, class: "cc-d-valor" }, gd).textContent = s
-        ? `${moedaCurta(s.valor)}${d > 0 ? ` · ${pctCurto(parte(s))} ${d === 1 ? "do total" : "do anterior"}` : ""}`
+        ? `${dinheiro(s.valor)}${d > 0 ? ` · ${pctCurto(parte(s))} ${d === 1 ? "do total" : "do anterior"}` : ""}`
         : corta(F.explica[nivel] ?? "", Math.floor((LW - 30) / 6));
     } else {
       const gd = el("g", { class: `cc-degrau-svg${s === cur ? " atual" : ""}`, "data-k": s ? alvo(s) : undefined, role: s ? "button" : undefined }, g);
       el("text", { x: 0, y: y - 21, class: "cc-d-tipo" }, gd).textContent = s ? nivel.toUpperCase() : `${plural(nivel).toUpperCase()}: TOQUE NUM PEDAÇO`;
       if (s) {
         const t = el("text", { x: 0, y: y - 6, class: "cc-d-nome" }, gd);
-        t.textContent = `${corta(s.nome, 30)} · ${moedaCurta(s.valor)}${d > 0 ? ` · ${pctCurto(parte(s))}` : ""}`;
+        t.textContent = `${corta(s.nome, 30)} · ${dinheiro(s.valor)}${d > 0 ? ` · ${pctCurto(parte(s))}` : ""}`;
       }
     }
     // os pedaços
@@ -563,8 +598,8 @@ function forma2(host: HTMLElement) {
     geo[d].forEach((p, rank) => {
       const escolhido = p.n === s;
       const w = p.x1 - p.x0;
-      const gn = el("g", { class: `cc-no${escolhido ? " cc-sel" : ""}`, "data-k": alvo(p.n), role: "button", tabindex: 0, "aria-label": `${p.n.nome}: ${moedaCurta(p.n.valor)}` }, gp);
-      el("title", {}, gn).textContent = `${p.n.nome}\n${moedaCurta(p.n.valor)} · ${pctCurto(p.n.valor / Math.max(1, b.pai?.valor ?? p.n.valor))}`;
+      const gn = el("g", { class: `cc-no${escolhido ? " cc-sel" : ""}`, "data-k": alvo(p.n), role: "button", tabindex: 0, "aria-label": `${p.n.nome}: ${dinheiro(p.n.valor)}` }, gp);
+      el("title", {}, gn).textContent = `${p.n.nome}\n${dinheiro(p.n.valor)} · ${pctCurto(p.n.valor / Math.max(1, b.pai?.valor ?? p.n.valor))}`;
       const cor = corTamanho(p.n, rank, escolhido || d === 0, ultima || escolhido);
       const apagado = !escolhido && !ultima;
       pintar(gn, p.x0, y, w, BH, p.n, cor, true, apagado);
@@ -576,7 +611,7 @@ function forma2(host: HTMLElement) {
       if (w >= 58 && chars >= 6) {
         el("text", { x: p.x0 + 6, y: y + 18, class: `${classe} cc-p-nome` }, gn).textContent = corta(p.n.nome, chars);
         el("text", { x: p.x0 + 6, y: y + 34, class: classe }, gn).textContent =
-          corta(`${moedaCurta(p.n.valor)} · ${pctCurto(p.n.valor / Math.max(1, b.pai?.valor ?? p.n.valor))}`, chars);
+          corta(`${dinheiro(p.n.valor)} · ${pctCurto(p.n.valor / Math.max(1, b.pai?.valor ?? p.n.valor))}`, chars);
       } else if (w >= 26) {
         el("text", { x: p.x0 + w / 2, y: y + BH / 2 + 4, class: classe, "text-anchor": "middle" }, gn).textContent = pctCurto(p.n.valor / Math.max(1, b.pai?.valor ?? p.n.valor));
       }
@@ -631,14 +666,14 @@ function forma3(host: HTMLElement) {
       const frac = n.valor / Math.max(1, c.pai?.valor ?? n.valor);
       const linha = `<li><button type="button" class="cc3-linha${escolhido ? " sel" : ""}${n.ehOutros ? " outros" : ""}" data-k="${alvo(n)}" data-no>
         <span class="cc3-nome">${esc(n.nome)}</span>
-        <span class="cc3-valor num">${moedaCurta(n.valor)}${c.pai ? ` · ${pctCurto(frac)}` : ""}${n.ehOutros ? (aberto ? " · fechar" : " · abrir") : ""}</span>
+        <span class="cc3-valor num">${dinheiro(n.valor)}${c.pai ? ` · ${pctCurto(frac)}` : ""}${n.ehOutros ? (aberto ? " · fechar" : " · abrir") : ""}</span>
         <span class="cc-l-barra">${htmlBarra(n, c.pai ? frac : 1)}</span>
       </button></li>`;
       if (n.ehOutros && aberto) {
         const resto = n.lista ?? [];
         return linha + resto.slice(0, 60).map((r) => `<li class="cc3-extra"><button type="button" class="cc3-linha" data-k="${alvo(r)}" data-no>
           <span class="cc3-nome">${esc(r.nome)}</span>
-          <span class="cc3-valor num">${moedaCurta(r.valor)} · ${pctCurto(r.valor / Math.max(1, c.pai?.valor ?? 1))}</span>
+          <span class="cc3-valor num">${dinheiro(r.valor)} · ${pctCurto(r.valor / Math.max(1, c.pai?.valor ?? 1))}</span>
           <span class="cc-l-barra">${htmlBarra(r, r.valor / Math.max(1, c.pai?.valor ?? 1))}</span></button></li>`).join("") +
           (resto.length > 60 ? `<li class="cc3-extra muted">e mais ${resto.length - 60}, menores</li>` : "");
       }
@@ -699,6 +734,57 @@ function forma3(host: HTMLElement) {
   trilho.querySelectorAll(".cc3-col").forEach((c) => c.addEventListener("scroll", () => requestAnimationFrame(desenharFios), { passive: true }));
 }
 
+/** A frase do topo; por pessoa, com a conta feita. */
+function htmlFrase(): string {
+  let t = esc(F.frase);
+  if (E.pessoa) {
+    const pop = F.populacao.toLocaleString("pt-BR");
+    t += ` <span class="cc-pessoa">Por pessoa: <strong class="marca">${dinheiro(F.raiz.valor).replace("/pessoa", "")}</strong>, dividindo pelos ${pop} ${F.chave === "uniao" ? "brasileiros" : "moradores"} (IBGE, ${F.ano}).</span>`;
+  }
+  if (F.comparar) {
+    const c = F.comparar(F.raiz);
+    if (c) t += ` <span class="cc-pessoa">Em ${F.ano - 1} foram ${dinheiro(c.antes, true)} em reais de ${F.ano}: <b class="${c.variacao > 0 ? "cc-sobe" : "cc-desce"}">${setaVariacao(c.variacao)}</b>.</span>`;
+  }
+  return t;
+}
+
+// ——— anos, população e inflação ———
+
+interface Ipca { fatores: Record<string, number> }
+let populacao: Record<string, Record<string, number>> = {};
+let ipca: Ipca | null = null;
+let anosUniao: number[] = [];
+const ANOS_JP = [2024, 2025];
+const anosDisponiveis = () => (E.onde === "joao-pessoa" ? ANOS_JP : anosUniao);
+
+function populacaoDe(onde: string, ano: number): number {
+  const anos = Object.keys(populacao).map(Number).sort((a, b) => a - b);
+  if (!anos.length) return 1;
+  const a = anos.includes(ano) ? ano : anos.reduce((m, x) => (Math.abs(x - ano) < Math.abs(m - ano) ? x : m), anos[0]);
+  const t = populacao[String(a)];
+  if (onde === "joao-pessoa") return t["2507507"] ?? 1;
+  return Object.entries(t).filter(([k]) => k.length === 2).reduce((s, [, v]) => s + v, 0);
+}
+
+const carregarFonte = (ano: number) =>
+  E.onde === "joao-pessoa" ? fonteJoaoPessoa(ano, populacaoDe("joao-pessoa", ano)) : fonteUniao(ano, populacaoDe("uniao", ano));
+
+/** Liga (ou desliga) a comparação com o ano anterior: carrega aquele ano e acha cada caixa nele, pela chave. */
+async function ligarComparacao() {
+  F.comparar = undefined;
+  if (!E.comparar || !anosDisponiveis().includes(F.ano - 1)) return;
+  const antes = await carregarFonte(F.ano - 1);
+  const fa = ipca?.fatores[String(F.ano - 1)] ?? 1, fb = ipca?.fatores[String(F.ano)] ?? 1;
+  const cache = new Map<No, Comparacao | null>();
+  F.comparar = (n: No) => {
+    if (cache.has(n)) return cache.get(n)!;
+    const a = noAnterior(n, antes.raiz);
+    const r = a && a.valor > 0 ? { antes: (a.valor * fa) / fb, variacao: n.valor / ((a.valor * fa) / fb) - 1 } : null;
+    cache.set(n, r);
+    return r;
+  };
+}
+
 // ——— desenho geral ———
 
 function desenhar() {
@@ -710,7 +796,7 @@ function desenhar() {
   largura = Math.floor(desenho.getBoundingClientRect().width);
 
   if (E.v === 4) {
-    topo.innerHTML = `<p class="cc-frase">${esc(F.frase)}</p><div class="cc-topo-linha">${htmlLegenda()}</div>`;
+    topo.innerHTML = `<p class="cc-frase">${htmlFrase()}</p><div class="cc-topo-linha">${htmlLegenda()}</div>`;
     painel.innerHTML = "";
     painel.hidden = true;
     desenho.dataset.v = "4";
@@ -728,7 +814,7 @@ function desenhar() {
     return;
   }
   tela = null;
-  topo.innerHTML = `<p class="cc-frase">${esc(F.frase)}</p>
+  topo.innerHTML = `<p class="cc-frase">${htmlFrase()}</p>
     <div class="cc-topo-linha">${htmlLegenda()}</div>
     ${E.v === 2 ? "" : htmlDegraus()}
     <p class="cc-dica muted">${temFilhos(cur)
@@ -755,7 +841,20 @@ export async function iniciar(el: HTMLElement) {
   const desenho = el.querySelector<HTMLElement>("#cc-desenho")!;
   desenho.innerHTML = `<p class="cc-carregando">Carregando…</p>`;
   try {
-    F = E.onde === "joao-pessoa" ? await fonteJoaoPessoa() : await fonteUniao();
+    const [pop, anos] = await Promise.all([
+      fetch("/data/indicadores/populacao.json").then((r) => (r.ok ? r.json() : { anos: {} })),
+      fetch("/data/explorer/anos.json").then((r) => (r.ok ? r.json() : { anos: [] })),
+    ]);
+    populacao = pop.anos ?? {};
+    ipca = anos.ipca ?? null;
+    // anos completos (o corrente ainda está em execução)
+    anosUniao = (anos.anos ?? []).map((a: { ano: number }) => a.ano).filter((a: number) => a < new Date().getFullYear());
+    const lista = anosDisponiveis();
+    const ano = E.ano && lista.includes(E.ano) ? E.ano : lista[lista.length - 1] ?? 2025;
+    F = await carregarFonte(ano);
+    exibir.populacao = F.populacao;
+    exibir.porPessoa = E.pessoa;
+    await ligarComparacao();
   } catch (e) {
     desenho.innerHTML = `<p class="cc-erro">Não foi possível carregar os dados. ${esc(String((e as Error).message))}</p>`;
     return;
@@ -768,6 +867,27 @@ export async function iniciar(el: HTMLElement) {
     salvarUrl();
     desenhar();
   }));
+  // ano: troca os dados (recarrega a página; em João Pessoa o caminho é por posição e não vale para o outro ano)
+  const sel = el.querySelector<HTMLSelectElement>("#cc-ano");
+  if (sel) {
+    sel.innerHTML = [...anosDisponiveis()].reverse().map((a) => `<option value="${a}" ${a === F.ano ? "selected" : ""}>${a}</option>`).join("");
+    sel.addEventListener("change", () => {
+      E.ano = Number(sel.value);
+      location.href = urlCom({ ano: E.ano, ...(E.onde === "joao-pessoa" ? { c: null } : {}) });
+    });
+  }
+  el.querySelector("[data-pessoa]")?.addEventListener("click", () => {
+    E.pessoa = !E.pessoa;
+    exibir.porPessoa = E.pessoa;
+    salvarUrl();
+    desenhar();
+  });
+  el.querySelector("[data-comparar]")?.addEventListener("click", async () => {
+    E.comparar = !E.comparar;
+    await ligarComparacao();
+    salvarUrl();
+    desenhar();
+  });
   if (F.cats.length <= 1) el.querySelector<HTMLElement>(".cc-cores")?.setAttribute("hidden", "");
   desenhar();
   let ultimo = largura;

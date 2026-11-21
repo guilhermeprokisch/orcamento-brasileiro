@@ -9,9 +9,9 @@
  * - "tamanho real": todas as caixas na mesma escala do total (um sankey de verdade). Os pequenos viram fios; o zoom
  *   estica só na vertical, para enxergá-los sem as caixas ficarem largas demais.
  */
-import { moedaCurta, pct } from "../../lib/formato";
+import { pct } from "../../lib/formato";
 import { RAMPA } from "../../lib/cores";
-import { caminhoAte, catPrincipal, filhos, type Fonte, type No } from "./dados";
+import { caminhoAte, catPrincipal, dinheiro, filhos, setaVariacao, type Fonte, type No } from "./dados";
 
 export interface OpcoesTela {
   usaTipo: () => boolean;
@@ -154,7 +154,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     const resto = fs.slice(k);
     let o = outrosDe.get(n);
     if (!o) {
-      o = { cod: "#outros", nome: "", valor: 0, nivel: fs[0].nivel, prof: n.prof + 1, pai: n, mix: [], ehOutros: true };
+      o = { cod: "#outros", chave: "#outros", nome: "", valor: 0, nivel: fs[0].nivel, prof: n.prof + 1, pai: n, mix: [], ehOutros: true };
       outrosDe.set(n, o);
     }
     o.lista = resto;
@@ -380,16 +380,41 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     return out.map((s) => cortar(s, larg));
   }
 
-  /** "R$ 93,3 bi · 44% · 2,7% do total": o "do total" só entra se couber. */
-  function linhaValor(n: No, larg: number): string {
+  /** A variação sobre o ano anterior ("▲ 12%", "novo"), com a cor: subiu em laranja, caiu em azul (nem bom nem ruim). */
+  function variacao(n: No): { t: string; cor: string } | null {
+    if (!F.comparar || n.ehOutros) return null;
+    const c = F.comparar(n);
+    if (!c) return { t: "novo", cor: "#8a5a00" };
+    return { t: setaVariacao(c.variacao), cor: c.variacao > 0.0005 ? "#b4561f" : c.variacao < -0.0005 ? "#2f5d8a" : CINZA };
+  }
+
+  /** "R$ 93,3 bi · 44% · 2,7% do total" (o "do total" só entra se couber); comparando, a seta no lugar do total. */
+  function escreverValor(n: No, larg: number, x: number, y: number) {
     const pai = n.pai;
-    const base = `${moedaCurta(n.valor)}${pai ? ` · ${pctCurto(n.valor / Math.max(1, pai.valor))}` : ""}`;
-    if (n.ehOutros) return cortar(`${base} · clique para ver mais`, larg);
-    if (pai && pai !== F.raiz) {
-      const comTotal = `${base} · ${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total`;
-      if (ctx.measureText(comTotal).width <= larg) return comTotal;
+    const base = `${dinheiro(n.valor)}${pai ? ` · ${pctCurto(n.valor / Math.max(1, pai.valor))}` : ""}`;
+    const v = variacao(n);
+    if (v) {
+      const t = cortar(base, larg - ctx.measureText(` · ${v.t}`).width);
+      ctx.fillText(t, x, y);
+      const w = ctx.measureText(t).width;
+      const corAntes = ctx.fillStyle;
+      ctx.fillText(" · ", x + w, y);
+      ctx.fillStyle = v.cor;
+      const fonteAntes = ctx.font;
+      const xs = x + w + ctx.measureText(" · ").width;
+      ctx.font = `bold ${fonteAntes.replace(/^(normal|bold|\d{3})\s+/, "")}`;
+      ctx.fillText(v.t, xs, y);
+      ctx.font = fonteAntes;
+      ctx.fillStyle = corAntes;
+      return;
     }
-    return cortar(base, larg);
+    let t = cortar(base, larg);
+    if (n.ehOutros) t = cortar(`${base} · clique para ver mais`, larg);
+    else if (pai && pai !== F.raiz) {
+      const comTotal = `${base} · ${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total`;
+      if (ctx.measureText(comTotal).width <= larg) t = comTotal;
+    }
+    ctx.fillText(t, x, y);
   }
 
   /** Faixa da esquerda: a cor (ou a mistura por categoria, de cima para baixo). */
@@ -438,7 +463,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     if (y > fim) return;
     ctx.font = `600 ${Math.round(tam * 0.85)}px Inter, system-ui, sans-serif`;
     ctx.fillStyle = VERDE;
-    ctx.fillText(moedaCurta(n.valor), x, y);
+    ctx.fillText(dinheiro(n.valor), x, y);
     const linha = (t: string) => {
       y += 17;
       if (y > fim) return false;
@@ -449,6 +474,14 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     };
     if (n.pai && !linha(`${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${n.pai.nome}`)) return;
     if (n.pai && n.pai !== F.raiz && !linha(`${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total`)) return;
+    const v = variacao(n);
+    if (v) {
+      y += 17;
+      if (y > fim) return;
+      ctx.font = "700 12.5px Inter, system-ui, sans-serif";
+      ctx.fillStyle = v.cor;
+      ctx.fillText(v.t === "novo" ? `novo: não existia em ${F.ano - 1}` : `${v.t} sobre ${F.ano - 1}`, x, y);
+    }
     const qtos = filhos(n).length;
     if (qtos && !linha(`${qtos} ${qtos > 1 ? F.plural[filhos(n)[0].nivel] ?? "itens" : filhos(n)[0].nivel.toLowerCase()} dentro`)) return;
     if (F.cats.length > 1) {
@@ -588,7 +621,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
           if (alturaTela >= 30) {
             ctx.font = "400 12px Inter, system-ui, sans-serif";
             ctx.fillStyle = CINZA;
-            ctx.fillText(linhaValor(n, larg), p.x + fx + 9, y - 1);
+            escreverValor(n, larg, p.x + fx + 9, y - 1);
           }
         }
         botaoAbrir(n, p.x + LARG - 18, p.y + Math.min(p.h / 2, 26), 9, 1.2 * px);
@@ -608,7 +641,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       if (duas) {
         ctx.font = "400 10.5px Inter, system-ui, sans-serif";
         ctx.fillStyle = CINZA;
-        ctx.fillText(cortar(moedaCurta(r.n.valor), r.w), r.x, r.y + r.h / 2 + 11);
+        ctx.fillText(cortar(dinheiro(r.n.valor), r.w), r.x, r.y + r.h / 2 + 11);
       }
     }
   }
@@ -683,7 +716,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
         if (h >= 30) {
           ctx.font = "400 11.5px Inter, system-ui, sans-serif";
           ctx.fillStyle = CINZA;
-          ctx.fillText(linhaValor(n, larg), tx, ty - 1);
+          escreverValor(n, larg, tx, ty - 1);
         }
         if (h >= 22) botaoAbrir(n, x + w - 16, y + Math.min(h / 2, 24), 8, 1.2);
       }
@@ -768,7 +801,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     const item = (n: No): string => {
       const ks = galho(n) ? visiveis(n) : [];
       alvosLista.push(n);
-      const rot = `${n.nivel}: ${n.nome}, ${moedaCurta(n.valor)}${n.pai ? `, ${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${n.pai.nome}` : ""}`;
+      const rot = `${n.nivel}: ${n.nome}, ${dinheiro(n.valor)}${n.pai ? `, ${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${n.pai.nome}` : ""}`;
       return `<li><button type="button" data-l="${alvosLista.length - 1}" ${abre(n) ? `aria-expanded="${galho(n)}"` : ""}>${esc(rot)}</button>${ks.length ? `<ul>${ks.map(item).join("")}</ul>` : ""}</li>`;
     };
     listaEl.innerHTML = `<ul>${item(F.raiz)}</ul>`;
@@ -797,7 +830,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     resultados.innerHTML = achados.length
       ? achados.map((n, i) => `<li><button type="button" data-r="${i}"><span class="cc4-r-nome">${esc(n.nome)}</span>
           <span class="cc4-r-onde">${esc(n.nivel)} · ${esc(caminhoAte(n).slice(1, -1).map((x) => x.nome).join(" › ") || "primeiro nível")}</span>
-          <span class="cc4-r-valor">${moedaCurta(n.valor)}</span></button></li>`).join("")
+          <span class="cc4-r-valor">${dinheiro(n.valor)}</span></button></li>`).join("")
       : `<li class="cc4-r-nada">Nada com “${esc(campo.value.trim())}”.</li>`;
   }
   campo.addEventListener("input", procurar);
@@ -835,7 +868,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     const c = sel ? caminhoAte(sel) : [F.raiz];
     fioEl.innerHTML = c.map((n, i) => `<li><button type="button" data-fio="${i}" ${i === c.length - 1 ? 'aria-current="step"' : ""}>
       <span class="cc4-fio-tipo">${esc(n.nivel)}</span><span class="cc4-fio-nome">${esc(n.nome)}</span>
-      <span class="cc4-fio-valor">${moedaCurta(n.valor)}${i ? ` · ${pctCurto(n.valor / Math.max(1, n.pai!.valor))}` : ""}</span></button></li>`).join("");
+      <span class="cc4-fio-valor">${dinheiro(n.valor)}${i ? ` · ${pctCurto(n.valor / Math.max(1, n.pai!.valor))}` : ""}</span></button></li>`).join("");
     fioEl.querySelectorAll<HTMLButtonElement>("[data-fio]").forEach((b) => b.addEventListener("click", () => {
       const n = c[Number(b.dataset.fio)];
       escolher(n, false, false);
@@ -845,7 +878,7 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
 
   function mostrarCartao(n: No | null) {
     if (!n || n.ehOutros) { cartao.hidden = true; return; }
-    resumoEl.innerHTML = `<span class="cc4-resumo-nome">${esc(n.nome)}</span><span class="cc4-resumo-valor">${moedaCurta(n.valor)}</span><span class="cc4-resumo-abrir">Detalhes</span>`;
+    resumoEl.innerHTML = `<span class="cc4-resumo-nome">${esc(n.nome)}</span><span class="cc4-resumo-valor">${dinheiro(n.valor)}</span><span class="cc4-resumo-abrir">Detalhes</span>`;
     conteudo.innerHTML = op.cartao(n);
     cartao.classList.toggle("min", minimizado);
     cartao.hidden = false;
@@ -900,8 +933,13 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       : "";
     return `<span class="cc4-b-nivel">${esc(n.nivel)}${n.ehOutros ? " · os menores, juntos" : F.explica[n.nivel] ? ` · ${esc(F.explica[n.nivel])}` : ""}</span>
       <strong>${esc(n.nome)}</strong>
-      <span class="cc4-b-valor">${moedaCurta(n.valor)}${n.pai ? ` · ${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${esc(n.pai.nome)}` : ""}</span>
+      <span class="cc4-b-valor">${dinheiro(n.valor)}${n.pai ? ` · ${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${esc(n.pai.nome)}` : ""}</span>
       ${n !== F.raiz && n.pai !== F.raiz ? `<span>${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total</span>` : ""}
+      ${(() => {
+        if (!F.comparar || n.ehOutros) return "";
+        const c = F.comparar(n);
+        return c ? `<span class="cc4-b-comp">Em ${F.ano - 1}: ${dinheiro(c.antes)} · <b>${setaVariacao(c.variacao)}</b></span>` : `<span class="cc4-b-comp">Não existia em ${F.ano - 1}</span>`;
+      })()}
       ${barra}
       <span class="cc4-b-dica">${n.ehOutros ? "Clique para ver mais 10" : abre(n) ? (galho(n) ? "Clique para fechar · detalhes ao lado" : "Clique para abrir · detalhes ao lado") : "Clique para ver os detalhes"}</span>`;
   }
