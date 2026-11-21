@@ -40,19 +40,11 @@ export interface No {
   carregar?: () => No[];
 }
 
-export interface Comparacao {
-  /** O valor do ano anterior, já em reais do ano mostrado (corrigido pelo IPCA). */
-  antes: number;
-  variacao: number;
-}
-
 export interface Fonte {
   chave: "uniao" | "joao-pessoa";
   ano: number;
   /** Para os valores por pessoa: população do Brasil (União) ou da cidade, no ano. */
   populacao: number;
-  /** Ligado quando o usuário pede a comparação: o mesmo nó no ano anterior (null: não existia). */
-  comparar?: (n: No) => Comparacao | null;
   raiz: No;
   cats: Categoria[];
   /** Nome da cor por categoria: "Obrigatório ou não", "Quem recebe". */
@@ -299,20 +291,3 @@ export function dinheiro(v: number, longo = false): string {
   return `${t}${longo ? " por pessoa" : "/pessoa"}`;
 }
 
-/** O mesmo nó na árvore do ano anterior, seguindo as chaves do caminho. */
-export function noAnterior(n: No, raizAntes: No): No | null {
-  let x: No = raizAntes;
-  for (const y of caminhoAte(n).slice(1)) {
-    const f = filhos(x).find((z) => z.chave === y.chave);
-    if (!f) return null;
-    x = f;
-  }
-  return x;
-}
-
-/** "▲ 12%", "▼ 3,4%", "= 0%". */
-export function setaVariacao(v: number): string {
-  const p = Math.abs(v) * 100;
-  const t = p >= 10 ? nfP0.format(p) : p.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-  return Math.abs(v) < 0.0005 ? "= 0%" : `${v > 0 ? "▲" : "▼"} ${t}%`;
-}

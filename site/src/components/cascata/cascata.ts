@@ -10,8 +10,8 @@
 import { pct } from "../../lib/formato";
 import { OUTRAS, RAMPA } from "../../lib/cores";
 import {
-  caminhoAte, catPrincipal, dinheiro, exibir, filhos, fonteJoaoPessoa, fonteUniao, formatarCnpj, noAnterior, setaVariacao,
-  temFilhos, visiveis, type Comparacao, type Fonte, type No, type Visiveis,
+  caminhoAte, catPrincipal, dinheiro, exibir, filhos, fonteJoaoPessoa, fonteUniao, formatarCnpj,
+  temFilhos, visiveis, type Fonte, type No, type Visiveis,
 } from "./dados";
 import { criarTela, type Tela } from "./tela";
 
@@ -28,8 +28,6 @@ interface Estado {
   ano: number | null;
   /** Valores divididos pela população. */
   pessoa: boolean;
-  /** Variação sobre o ano anterior, descontada a inflação. */
-  comparar: boolean;
 }
 
 const VERDE = "#0e6b3b";
@@ -172,7 +170,6 @@ function lerUrl(): Estado {
     outros: null,
     ano: Number(p.get("ano")) || null,
     pessoa: p.get("pessoa") === "1",
-    comparar: p.get("comparar") === "1",
   };
 }
 
@@ -196,7 +193,6 @@ function urlCom(mud: Partial<{ v: Versao; onde: string; cor: ModoCor; c: string 
   if (ano) p.set("ano", String(ano));
   if (cor !== "tipo") p.set("cor", cor);
   if (E.pessoa) p.set("pessoa", "1");
-  if (E.comparar) p.set("comparar", "1");
   if (c) p.set("c", c);
   const q = p.toString().replaceAll("%7E", "~");
   return `${location.pathname}${q ? `?${q}` : ""}`;
@@ -221,21 +217,12 @@ function atualizarControles() {
     if (b.dataset.cor === "tipo") b.textContent = F?.rotuloCor ?? "Tipo";
   });
   document.querySelector("[data-pessoa]")?.setAttribute("aria-pressed", String(E.pessoa));
-  const comp = document.querySelector<HTMLButtonElement>("[data-comparar]");
-  if (comp && F) {
-    const temAnterior = anosDisponiveis().includes(F.ano - 1);
-    comp.textContent = `Comparar com ${F.ano - 1}`;
-    comp.disabled = !temAnterior;
-    comp.title = temAnterior ? "Quanto cada caixa subiu ou caiu, descontada a inflação (IPCA)" : `Não há dados de ${F.ano - 1}`;
-    comp.setAttribute("aria-pressed", String(E.comparar && temAnterior));
-  }
 }
 
 // ——— cabeçalho comum: frase, legenda de cores e o caminho (degraus) ———
 
 function htmlLegenda() {
-  const comp = F.comparar ? `<li><b class="cc-sobe">▲ subiu</b> <b class="cc-desce">▼ caiu</b> sobre ${F.ano - 1}, descontada a inflação</li>` : "";
-  const menores = (E.v === 4 ? `<li><i class="cc-hachura"></i>os menores, juntos (“mais N”)</li>` : "") + comp;
+  const menores = E.v === 4 ? `<li><i class="cc-hachura"></i>os menores, juntos (“mais N”)</li>` : "";
   if (!usaTipo()) return menores ? `<ul class="cc-legenda">${menores}</ul>` : "";
   return `<ul class="cc-legenda">${F.cats.filter((c) => c.nome !== "Sem informação").map((c) =>
     `<li><i style="background:${c.cor}"></i>${esc(c.nome)}</li>`).join("")}${menores}</ul>`;
@@ -312,8 +299,6 @@ function htmlCartao(n: No): string {
     if (tipo) linhas.push(`<dt>Quem é</dt><dd>${esc(tipo === "Fornecedores" ? "Empresa ou entidade (fornecedor)" : tipo)}</dd>`);
     if (info.cnpj) linhas.push(`<dt>CNPJ</dt><dd class="num">${formatarCnpj(info.cnpj)}</dd>`);
     if (info.licitacao) linhas.push(`<dt>Como foi escolhido</dt><dd>${esc(info.licitacao)}</dd>`);
-    const comp = htmlComparacao(n);
-    if (comp) linhas.push(comp);
     const ano = info.cnpj ? F.porCnpj?.get(info.cnpj.slice(0, 8)) : undefined;
     if (ano && ano.valor > n.valor * 1.01) {
       linhas.push(`<dt>No ano todo</dt><dd>${dinheiro(ano.valor)} da prefeitura, em ${ano.areas.size} ${ano.areas.size > 1 ? "áreas" : "área"}</dd>`);
@@ -333,15 +318,6 @@ function htmlCartao(n: No): string {
   </div>`;
 }
 
-/** A linha "Em 2024" dos detalhes: o valor do ano anterior (em reais do ano mostrado) e quanto mudou. */
-function htmlComparacao(n: No): string {
-  if (!F.comparar || n.ehOutros) return "";
-  const c = F.comparar(n);
-  if (!c) return `<dt>Em ${F.ano - 1}</dt><dd>não existia (ou mudou de código)</dd>`;
-  const cls = c.variacao > 0.0005 ? "cc-sobe" : c.variacao < -0.0005 ? "cc-desce" : "";
-  return `<dt>Em ${F.ano - 1}</dt><dd>${dinheiro(c.antes)} em reais de ${F.ano}: <b class="${cls}">${setaVariacao(c.variacao)}</b></dd>`;
-}
-
 /** Os detalhes de qualquer caixa que tem algo dentro (na tela livre): o que é, quanto é, de que tipo e os maiores. */
 export function htmlDetalhe(n: No): string {
   if (!temFilhos(n)) return htmlCartao(n);
@@ -354,8 +330,6 @@ export function htmlDetalhe(n: No): string {
     const cada = cem >= 1 ? `R$ ${cem.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} de cada R$ 100` : `R$ ${(cem * 10).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} de cada R$ 1.000`;
     linhas.push(`<dt>Do total</dt><dd>${pctCurto(n.valor / raiz.valor)}: ${cada} ${F.chave === "uniao" ? "do orçamento federal" : "da prefeitura"}</dd>`);
   }
-  const comp = htmlComparacao(n);
-  if (comp) linhas.push(comp);
   if (n.autorizado) linhas.push(`<dt>Autorizado</dt><dd>${dinheiro(n.autorizado)}; pagou ${pctCurto(n.valor / n.autorizado)} disso no ano</dd>`);
   const qtos = fs.reduce((a, f) => a + (f.info?.resto ?? 1), 0);   // "67 credores menores" conta como 67
   linhas.push(`<dt>Dentro</dt><dd>${qtos} ${qtos > 1 ? plural(fs[0].nivel) : fs[0].nivel.toLowerCase()}</dd>`);
@@ -741,18 +715,12 @@ function htmlFrase(): string {
     const pop = F.populacao.toLocaleString("pt-BR");
     t += ` <span class="cc-pessoa">Por pessoa: <strong class="marca">${dinheiro(F.raiz.valor).replace("/pessoa", "")}</strong>, dividindo pelos ${pop} ${F.chave === "uniao" ? "brasileiros" : "moradores"} (IBGE, ${F.ano}).</span>`;
   }
-  if (F.comparar) {
-    const c = F.comparar(F.raiz);
-    if (c) t += ` <span class="cc-pessoa">Em ${F.ano - 1} foram ${dinheiro(c.antes, true)} em reais de ${F.ano}: <b class="${c.variacao > 0 ? "cc-sobe" : "cc-desce"}">${setaVariacao(c.variacao)}</b>.</span>`;
-  }
   return t;
 }
 
 // ——— anos, população e inflação ———
 
-interface Ipca { fatores: Record<string, number> }
 let populacao: Record<string, Record<string, number>> = {};
-let ipca: Ipca | null = null;
 let anosUniao: number[] = [];
 const ANOS_JP = [2024, 2025];
 const anosDisponiveis = () => (E.onde === "joao-pessoa" ? ANOS_JP : anosUniao);
@@ -768,22 +736,6 @@ function populacaoDe(onde: string, ano: number): number {
 
 const carregarFonte = (ano: number) =>
   E.onde === "joao-pessoa" ? fonteJoaoPessoa(ano, populacaoDe("joao-pessoa", ano)) : fonteUniao(ano, populacaoDe("uniao", ano));
-
-/** Liga (ou desliga) a comparação com o ano anterior: carrega aquele ano e acha cada caixa nele, pela chave. */
-async function ligarComparacao() {
-  F.comparar = undefined;
-  if (!E.comparar || !anosDisponiveis().includes(F.ano - 1)) return;
-  const antes = await carregarFonte(F.ano - 1);
-  const fa = ipca?.fatores[String(F.ano - 1)] ?? 1, fb = ipca?.fatores[String(F.ano)] ?? 1;
-  const cache = new Map<No, Comparacao | null>();
-  F.comparar = (n: No) => {
-    if (cache.has(n)) return cache.get(n)!;
-    const a = noAnterior(n, antes.raiz);
-    const r = a && a.valor > 0 ? { antes: (a.valor * fa) / fb, variacao: n.valor / ((a.valor * fa) / fb) - 1 } : null;
-    cache.set(n, r);
-    return r;
-  };
-}
 
 // ——— desenho geral ———
 
@@ -846,7 +798,6 @@ export async function iniciar(el: HTMLElement) {
       fetch("/data/explorer/anos.json").then((r) => (r.ok ? r.json() : { anos: [] })),
     ]);
     populacao = pop.anos ?? {};
-    ipca = anos.ipca ?? null;
     // anos completos (o corrente ainda está em execução)
     anosUniao = (anos.anos ?? []).map((a: { ano: number }) => a.ano).filter((a: number) => a < new Date().getFullYear());
     const lista = anosDisponiveis();
@@ -854,7 +805,6 @@ export async function iniciar(el: HTMLElement) {
     F = await carregarFonte(ano);
     exibir.populacao = F.populacao;
     exibir.porPessoa = E.pessoa;
-    await ligarComparacao();
   } catch (e) {
     desenho.innerHTML = `<p class="cc-erro">Não foi possível carregar os dados. ${esc(String((e as Error).message))}</p>`;
     return;
@@ -882,12 +832,7 @@ export async function iniciar(el: HTMLElement) {
     salvarUrl();
     desenhar();
   });
-  el.querySelector("[data-comparar]")?.addEventListener("click", async () => {
-    E.comparar = !E.comparar;
-    await ligarComparacao();
-    salvarUrl();
-    desenhar();
-  });
+
   if (F.cats.length <= 1) el.querySelector<HTMLElement>(".cc-cores")?.setAttribute("hidden", "");
   desenhar();
   let ultimo = largura;

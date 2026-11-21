@@ -11,7 +11,7 @@
  */
 import { pct } from "../../lib/formato";
 import { RAMPA } from "../../lib/cores";
-import { caminhoAte, catPrincipal, dinheiro, filhos, setaVariacao, type Fonte, type No } from "./dados";
+import { caminhoAte, catPrincipal, dinheiro, filhos, type Fonte, type No } from "./dados";
 
 export interface OpcoesTela {
   usaTipo: () => boolean;
@@ -380,34 +380,10 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     return out.map((s) => cortar(s, larg));
   }
 
-  /** A variação sobre o ano anterior ("▲ 12%", "novo"), com a cor: subiu em laranja, caiu em azul (nem bom nem ruim). */
-  function variacao(n: No): { t: string; cor: string } | null {
-    if (!F.comparar || n.ehOutros) return null;
-    const c = F.comparar(n);
-    if (!c) return { t: "novo", cor: "#8a5a00" };
-    return { t: setaVariacao(c.variacao), cor: c.variacao > 0.0005 ? "#b4561f" : c.variacao < -0.0005 ? "#2f5d8a" : CINZA };
-  }
-
-  /** "R$ 93,3 bi · 44% · 2,7% do total" (o "do total" só entra se couber); comparando, a seta no lugar do total. */
+  /** "R$ 93,3 bi · 44% · 2,7% do total": o "do total" só entra se couber. */
   function escreverValor(n: No, larg: number, x: number, y: number) {
     const pai = n.pai;
     const base = `${dinheiro(n.valor)}${pai ? ` · ${pctCurto(n.valor / Math.max(1, pai.valor))}` : ""}`;
-    const v = variacao(n);
-    if (v) {
-      const t = cortar(base, larg - ctx.measureText(` · ${v.t}`).width);
-      ctx.fillText(t, x, y);
-      const w = ctx.measureText(t).width;
-      const corAntes = ctx.fillStyle;
-      ctx.fillText(" · ", x + w, y);
-      ctx.fillStyle = v.cor;
-      const fonteAntes = ctx.font;
-      const xs = x + w + ctx.measureText(" · ").width;
-      ctx.font = `bold ${fonteAntes.replace(/^(normal|bold|\d{3})\s+/, "")}`;
-      ctx.fillText(v.t, xs, y);
-      ctx.font = fonteAntes;
-      ctx.fillStyle = corAntes;
-      return;
-    }
     let t = cortar(base, larg);
     if (n.ehOutros) t = cortar(`${base} · clique para ver mais`, larg);
     else if (pai && pai !== F.raiz) {
@@ -474,14 +450,6 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
     };
     if (n.pai && !linha(`${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${n.pai.nome}`)) return;
     if (n.pai && n.pai !== F.raiz && !linha(`${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total`)) return;
-    const v = variacao(n);
-    if (v) {
-      y += 17;
-      if (y > fim) return;
-      ctx.font = "700 12.5px Inter, system-ui, sans-serif";
-      ctx.fillStyle = v.cor;
-      ctx.fillText(v.t === "novo" ? `novo: não existia em ${F.ano - 1}` : `${v.t} sobre ${F.ano - 1}`, x, y);
-    }
     const qtos = filhos(n).length;
     if (qtos && !linha(`${qtos} ${qtos > 1 ? F.plural[filhos(n)[0].nivel] ?? "itens" : filhos(n)[0].nivel.toLowerCase()} dentro`)) return;
     if (F.cats.length > 1) {
@@ -935,11 +903,6 @@ export function criarTela(host: HTMLElement, F: Fonte, op: OpcoesTela): Tela {
       <strong>${esc(n.nome)}</strong>
       <span class="cc4-b-valor">${dinheiro(n.valor)}${n.pai ? ` · ${pctCurto(n.valor / Math.max(1, n.pai.valor))} de ${esc(n.pai.nome)}` : ""}</span>
       ${n !== F.raiz && n.pai !== F.raiz ? `<span>${pctCurto(n.valor / Math.max(1, F.raiz.valor))} do total</span>` : ""}
-      ${(() => {
-        if (!F.comparar || n.ehOutros) return "";
-        const c = F.comparar(n);
-        return c ? `<span class="cc4-b-comp">Em ${F.ano - 1}: ${dinheiro(c.antes)} · <b>${setaVariacao(c.variacao)}</b></span>` : `<span class="cc4-b-comp">Não existia em ${F.ano - 1}</span>`;
-      })()}
       ${barra}
       <span class="cc4-b-dica">${n.ehOutros ? "Clique para ver mais 10" : abre(n) ? (galho(n) ? "Clique para fechar · detalhes ao lado" : "Clique para abrir · detalhes ao lado") : "Clique para ver os detalhes"}</span>`;
   }
