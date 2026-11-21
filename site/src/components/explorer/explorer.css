@@ -140,6 +140,7 @@
 .exp-tipo-item .num { color: var(--texto-3); }
 .exp-tipo-nota { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
 .exp-tipo-nota a { white-space: nowrap; }
+.exp-emendas p { margin: 0; }
 @media (max-width: 900px) {
   .exp-tipo-frase { font-size: 17px; }
   .exp-tipo-legenda { flex-direction: column; gap: 2px; }
