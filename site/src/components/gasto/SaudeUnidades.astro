@@ -1,8 +1,9 @@
 ---
 /**
- * Os postos, UPAs e hospitais da cidade: as unidades da prefeitura (CNES), com os atendimentos sem
- * internação de cada uma (SIA), e quantas internações pelo SUS cada hospital fez no ano, com o valor
- * pago pela tabela do SUS (SIH). Fonte: pipeline/…/unidades_saude.py.
+ * Os postos, UPAs e hospitais da cidade: as unidades da prefeitura (CNES), com o que cada posto registrou
+ * no sistema da atenção básica (SISAB) e os atendimentos sem internação das outras (SIA), quantas
+ * internações pelo SUS cada hospital fez no ano, com o valor pago pela tabela do SUS (SIH), e a cobertura
+ * da atenção primária. Fonte: pipeline/…/unidades_saude.py.
  */
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import { unidadesSaudeDe } from "../../lib/indicadores";
@@ -49,11 +50,49 @@ const VISIVEIS = 15;
 // Os atendimentos sem internação das unidades da prefeitura (SIA): a soma e a linha de cada uma.
 const amb = (u?.unidades ?? []).reduce((s, x) => ({ a: s.a + x.atendimentos, e: s.e + x.exames, c: s.c + x.cirurgias, v: s.v + x.valor }), { a: 0, e: 0, c: 0, v: 0 });
 const contagem = (n: number, um: string, varios: string) => `${nf0.format(n)} ${n === 1 ? um : varios}`;
+const emLista = (partes: string[]) => partes.length > 1 ? `${partes.slice(0, -1).join(", ")} e ${partes.at(-1)}` : partes[0] ?? "";
+// O que as unidades da prefeitura registraram no SISAB (atenção básica): a soma e a linha de cada uma.
+const ab = (u?.unidades ?? []).reduce((s, x) => ({
+  atendimentos: s.atendimentos + x.ab.atendimentos, dentista: s.dentista + x.ab.dentista,
+  procedimentos: s.procedimentos + x.ab.procedimentos, visitas: s.visitas + x.ab.visitas,
+}), { atendimentos: 0, dentista: 0, procedimentos: 0, visitas: 0 });
+const temAb = ab.atendimentos + ab.dentista + ab.procedimentos + ab.visitas > 0;
+// Na linha de cada posto ficam os atendimentos e as visitas; os procedimentos do SISAB só entram na soma (e quando
+// a unidade não tem outra coisa), para não se confundirem com os procedimentos do SIA na linha de baixo.
+const linhaAb = (x: { atendimentos: number; dentista: number; procedimentos: number; visitas: number }) => {
+  const partes = ([[x.atendimentos, "atendimento", "atendimentos"], [x.dentista, "no dentista", "no dentista"], [x.visitas, "visita em casa", "visitas em casa"]] as [number, string, string][])
+    .filter(([n]) => n > 0).map(([n, um, varios]) => contagem(n, um, varios));
+  if (!partes.length && x.procedimentos > 0) partes.push(contagem(x.procedimentos, "procedimento", "procedimentos"));
+  return partes.join(" · ");
+};
+const cob = u?.cobertura ?? null;
+const [anoCob, mesCob] = (cob?.mes ?? "").split("-");
+const quandoCob = mesCob ? `${MESES[Number(mesCob) - 1]} de ${anoCob}` : "";
+const pct = (n: number) => `${n.toLocaleString("pt-BR", { maximumFractionDigits: n < 10 ? 1 : 0 })}%`;
+// "a única equipe de saúde da família da cidade"; "as 12 equipes de saúde da família da cidade";
+// "as 15 equipes da atenção básica da cidade (12 de saúde da família e 3 de atenção primária)".
+const nEquipes = cob ? cob.esf + cob.eap + cob.outras : 0;
+const tipo = (n: number, t: string) => n === 1 ? t.replace("ribeirinhas, de rua ou prisionais", "ribeirinha, de rua ou prisional") : t;
+const tiposEquipe = cob ? ([[cob.esf, "de saúde da família"], [cob.eap, "de atenção primária"], [cob.outras, "ribeirinhas, de rua ou prisionais"]] as [number, string][]).filter(([n]) => n > 0) : [];
+const equipes = nEquipes === 0 ? "as equipes da atenção básica da cidade"
+  : nEquipes === 1 ? `a única equipe ${tipo(1, tiposEquipe[0][1])} da cidade`
+  : tiposEquipe.length === 1 ? `as ${nf0.format(nEquipes)} equipes ${tiposEquipe[0][1]} da cidade`
+  : `as ${nf0.format(nEquipes)} equipes da atenção básica da cidade (${emLista(tiposEquipe.map(([n, t]) => `${nf0.format(n)} ${tipo(n, t)}`))})`;
+const davam = nEquipes === 1 ? "dava" : "davam";
+// Quem atendeu: a parte dos atendimentos individuais com médico, com enfermeiro e com outros profissionais, na cidade e no Brasil.
+const prof = u?.profissionais ?? null;
+const fatias = (x: { medico: number; enfermeiro: number; outros: number }) => {
+  const t = x.medico + x.enfermeiro + x.outros;
+  return t > 0 ? { medico: (100 * x.medico) / t, enfermeiro: (100 * x.enfermeiro) / t, outros: (100 * x.outros) / t } : null;
+};
+const pProf = prof ? fatias(prof) : null;
+const pBrasil = prof ? fatias(prof.brasil) : null;
+const pctInteiro = (n: number) => n > 0 && n < 1 ? "menos de 1%" : `${Math.round(n)}%`;
 const producao = (x: { atendimentos: number; exames: number; cirurgias: number; valor: number }) => {
   const partes = ([[x.atendimentos, "procedimento", "procedimentos"], [x.exames, "exame", "exames"], [x.cirurgias, "cirurgia", "cirurgias"]] as [number, string, string][])
     .filter(([n]) => n > 0).sort((a, b) => b[0] - a[0]).slice(0, 2).map(([n, um, varios]) => contagem(n, um, varios));
   if (!partes.length && x.valor <= 0) return "";
-  return [partes.join(" e "), x.valor > 0 ? moedaCurta(x.valor) : ""].filter(Boolean).join(" · ");
+  return [partes.join(" e "), x.valor > 0 ? `${moedaCurta(x.valor)} pela tabela` : ""].filter(Boolean).join(" · ");
 };
 ---
 
@@ -68,9 +107,42 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
           {" "}em funcionamento: {lista(u.porGrupo)}.
         </p>
       )}
+      {temAb && (
+        <p>
+          Os postos registram o trabalho no sistema da atenção básica (SISAB). Em {u.ano}, as unidades da prefeitura
+          {" "}lançaram lá <strong>{contagem(ab.atendimentos, "atendimento", "atendimentos")}</strong> de médicos, enfermeiros e outros profissionais
+          {ab.dentista > 0 && <>, {contagem(ab.dentista, "atendimento de dentista", "atendimentos de dentista")}</>}
+          {ab.visitas > 0 && <> e <strong>{contagem(ab.visitas, "visita", "visitas")}</strong> às casas dos moradores</>}
+          {ab.procedimentos > 0 && <>, além de {contagem(ab.procedimentos, "procedimento", "procedimentos")}, como medir a pressão ou fazer um curativo</>}.
+        </p>
+      )}
+      {pProf && (
+        <p>
+          Contando todas as unidades da cidade, <strong>{pctInteiro(pProf.medico)} dos atendimentos foram com médico</strong>
+          {pProf.outros >= 0.5
+            ? <>, {pctInteiro(pProf.enfermeiro)} com enfermeiro e {pctInteiro(pProf.outros)} com outros profissionais, como psicólogo, nutricionista ou fisioterapeuta.</>
+            : <> e {pctInteiro(pProf.enfermeiro)} com enfermeiro.</>}
+          {pBrasil && <> No Brasil todo, {pctInteiro(pBrasil.medico)} com médico e {pctInteiro(pBrasil.enfermeiro)} com enfermeiro.</>}
+        </p>
+      )}
+      {cob && cob.populacao > 0 && (
+        <p>
+          {cob.capacidade > 0 ? (
+            <>
+              Em {quandoCob}, {equipes}{" "}
+              {cob.pct >= 100
+                ? <>{davam} conta de acompanhar <strong>todos os moradores</strong></>
+                : <>{davam} conta de acompanhar <strong>{pct(cob.pct)} dos moradores</strong> ({nf0.format(cob.capacidade)} de {nf0.format(cob.populacao)} pessoas)</>}, pela conta do Ministério da Saúde.
+              {" "}No Brasil todo, {pct(cob.brasil)}.
+            </>
+          ) : (
+            <>Em {quandoCob}, a cidade não tinha equipes de saúde da família ou de atenção primária registradas no Ministério da Saúde.</>
+          )}
+        </p>
+      )}
       {amb.v > 0 && (
         <p>
-          Sem contar as internações, as unidades da prefeitura registraram em {u.ano}{" "}
+          No sistema que o SUS usa para pagar o atendimento sem internação (SIA), as unidades da prefeitura registraram em {u.ano}{" "}
           <strong>{([[amb.a, "procedimento", "procedimentos"], [amb.e, "exame", "exames"], [amb.c, "cirurgia sem internação", "cirurgias sem internação"]] as [number, string, string][])
             .filter(([n]) => n > 0).map(([n, um, varios]) => contagem(n, um, varios)).reduce((s, t, i, l) => s + (i === 0 ? "" : i === l.length - 1 ? " e " : ", ") + t, "")}</strong>,
           pelos quais o SUS pagou {moedaExtenso(amb.v)} pela tabela.
@@ -84,11 +156,17 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
         </p>
       )}
       <p class="menor">
-        O valor das internações é o que o SUS paga por procedimento, pela tabela nacional; não é o custo do hospital,
-        que tem salários e outras despesas pagas por fora, sobretudo nos hospitais públicos. O mesmo vale para os
-        procedimentos das unidades. Um atendimento costuma gerar vários procedimentos (a consulta, o remédio aplicado, a
-        medição da pressão), por isso os números são altos. Postos e unidades básicas aparecem com poucos ou nenhum: o SUS os paga
-        pelo número de moradores, e as consultas deles são registradas em outro sistema. Os nomes vêm do cadastro, às vezes sem acentos.
+        O que cada número conta: um <em>atendimento</em> é uma pessoa atendida por um profissional (médico, enfermeiro,
+        psicólogo, dentista). Um <em>procedimento</em> é cada coisa feita: medir a pressão, aplicar um remédio, fazer um
+        curativo e, no SIA, a própria consulta; por isso há muito mais procedimentos do que atendimentos. Uma <em>visita</em> é a ida de um
+        agente comunitário ou de outro profissional a uma casa. Do SISAB entram só os registros aprovados pelo Ministério; eles
+        não têm valor em reais, porque o SUS paga os postos pelo número de moradores e de equipes, não por consulta.
+        {prof && " A divisão entre médico e enfermeiro vem do relatório de produção do SISAB, que só existe por cidade: conta todas as unidades, também as do estado, e não dá para ver posto por posto."}
+        {cob && " A cobertura conta 3.500 pessoas para cada equipe de saúde da família e menos para as de atenção primária (2.625 ou 1.750, conforme as horas); passa de 100% em muitas cidades pequenas e aparece como todos os moradores."}
+      </p>
+      <p class="menor">
+        O valor das internações e dos procedimentos do SIA é o que o SUS paga pela tabela nacional; não é o custo da
+        unidade, que tem salários e outras despesas pagas por fora, sobretudo nas públicas. Os nomes vêm do cadastro, às vezes sem acentos.
       </p>
     </div>
     <div class="lado">
@@ -124,14 +202,14 @@ const producao = (x: { atendimentos: number; exames: number; cirurgias: number; 
           <ul class="lista">
             {u.unidades.map((x, i) => (
               <li class:list={{ escondida: i >= VISIVEIS }} data-busca={`${x.nome} ${x.bairro} ${x.grupo}`.toLowerCase()}>
-                <span>{titulo(x.nome)}<small>{x.grupo}{x.bairro && ` · ${titulo(x.bairro)}`}</small>{producao(x) && <small class="producao">{producao(x)}</small>}</span>
+                <span>{titulo(x.nome)}<small>{x.grupo}{x.bairro && ` · ${titulo(x.bairro)}`}</small>{linhaAb(x.ab) && <small class="producao">{linhaAb(x.ab)}</small>}{producao(x) && <small class="producao">{producao(x)}</small>}</span>
               </li>
             ))}
           </ul>
           {u.unidades.length > VISIVEIS && <button type="button" class="mais" data-mais>Mostrar as {nf0.format(u.unidades.length)} unidades</button>}
         </div>
       )}
-      <p class="fonte">Fonte: {u.fonte}. Cadastro de {quando}; internações e atendimentos de {u.ano}.</p>
+      <p class="fonte">Fonte: {u.fonte}. Cadastro de {quando}; internações e atendimentos de {u.ano}{quandoCob && `; cobertura de ${quandoCob}`}.</p>
     </div>
   </section>
 )}

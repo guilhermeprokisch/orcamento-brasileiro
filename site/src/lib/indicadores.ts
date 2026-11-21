@@ -660,23 +660,52 @@ export function escolasDe(c: Cidade): Escolas | null {
   };
 }
 
-// Postos, UPAs e hospitais (pipeline/…/unidades_saude.py): CNES, internações do SIH/SUS e atendimentos do SIA/SUS.
+// Postos, UPAs e hospitais (pipeline/…/unidades_saude.py): CNES, internações do SIH/SUS, atendimentos do SIA/SUS,
+// o trabalho dos postos no SISAB e a cobertura da atenção primária.
 interface DocUnidadesSaude {
   fonte: string;
   ano: number;
   cnes: string;
-  /** unidades: [CNES, nome, grupo, bairro, atendimentos, exames, cirurgias, valor]; hospitais: [CNES, nome, quem administra, internações, valor, bairro] */
-  mun: Record<string, { unidades: [string, string, string, string, number?, number?, number?, number?][]; hospitais: [string, string, string, number, number, string][] }>;
+  /** mês da cobertura ("2025-12") e a do Brasil, em % */
+  cobertura?: { mes: string; brasil: number };
+  /** atendimentos individuais do ano no Brasil, com médico, com enfermeiro e com outros profissionais (Relatório de Produção do SISAB) */
+  profissionais?: [number, number, number];
+  /** unidades: [CNES, nome, grupo, bairro, procedimentos, exames, cirurgias, valor (SIA), atendimentos, de dentista, procedimentos, visitas (SISAB)];
+   *  hospitais: [CNES, nome, quem administra, internações, valor, bairro];
+   *  cobertura: [%, população, pessoas que as equipes dão conta, equipes de saúde da família, de atenção primária, ribeirinhas, de rua ou prisionais];
+   *  profissionais: atendimentos individuais na cidade, com médico, com enfermeiro e com outros profissionais */
+  mun: Record<string, {
+    unidades: [string, string, string, string, number?, number?, number?, number?, number?, number?, number?, number?][];
+    hospitais: [string, string, string, number, number, string][];
+    cobertura?: [number, number, number, number, number, number?];
+    profissionais?: [number, number, number];
+  }>;
 }
 const arquivosUnidades = import.meta.glob<DocUnidadesSaude>("../../public/data/indicadores/unidades-saude.json", { eager: true, import: "default" });
 const docUnidades: DocUnidadesSaude | null = Object.values(arquivosUnidades)[0] ?? null;
 
+export interface ProducaoAtencaoBasica {
+  /** atendimentos individuais: cada pessoa atendida por um médico, enfermeiro ou outro profissional */
+  atendimentos: number;
+  /** atendimentos de dentista */
+  dentista: number;
+  /** procedimentos: cada coisa feita (medir a pressão, curativo, injeção) */
+  procedimentos: number;
+  /** visitas às casas, sobretudo dos agentes comunitários */
+  visitas: number;
+}
+
 export interface UnidadesSaude {
   fonte: string; ano: number; mesCnes: string;
-  /** atendimentos, exames e cirurgias sem internação no ano, e o valor pago pela tabela do SUS (SIA) */
-  unidades: { cnes: string; nome: string; grupo: string; bairro: string; atendimentos: number; exames: number; cirurgias: number; valor: number }[];
+  /** atendimentos (procedimentos), exames e cirurgias sem internação no ano e o valor pago pela tabela do SUS (SIA);
+   *  ab: o que a unidade registrou no SISAB (atenção básica) */
+  unidades: { cnes: string; nome: string; grupo: string; bairro: string; atendimentos: number; exames: number; cirurgias: number; valor: number; ab: ProducaoAtencaoBasica }[];
   porGrupo: [string, number][];
   hospitais: { cnes: string; nome: string; quem: string; internacoes: number; valor: number; bairro: string }[];
+  /** cobertura da atenção primária no mês (pela conta do Ministério da Saúde) */
+  cobertura: { mes: string; pct: number; populacao: number; capacidade: number; esf: number; eap: number; outras: number; brasil: number } | null;
+  /** atendimentos individuais registrados no ano em todas as unidades da cidade, por quem atendeu, e as mesmas contas do Brasil */
+  profissionais: { medico: number; enfermeiro: number; outros: number; brasil: { medico: number; enfermeiro: number; outros: number } } | null;
 }
 
 export function unidadesSaudeDe(c: Cidade): UnidadesSaude | null {
@@ -685,7 +714,8 @@ export function unidadesSaudeDe(c: Cidade): UnidadesSaude | null {
   // Primeiro o que a pessoa mais procura: o posto, a urgência, o hospital.
   const ORDEM = ["Posto ou unidade básica", "Urgência", "Hospital", "Especialidades", "Saúde mental (CAPS)", "Exames", "Vacinação", "Atenção domiciliar", "Vigilância em saúde", "Academia da saúde"];
   const ordem = (g: string) => (ORDEM.indexOf(g) + 1 || 99);
-  const unidades = v.unidades.map(([cnes, nome, grupo, bairro, atendimentos = 0, exames = 0, cirurgias = 0, valor = 0]) => ({ cnes, nome, grupo, bairro, atendimentos, exames, cirurgias, valor }))
+  const unidades = v.unidades.map(([cnes, nome, grupo, bairro, atendimentos = 0, exames = 0, cirurgias = 0, valor = 0, abAt = 0, abDent = 0, abProc = 0, abVis = 0]) =>
+    ({ cnes, nome, grupo, bairro, atendimentos, exames, cirurgias, valor, ab: { atendimentos: abAt, dentista: abDent, procedimentos: abProc, visitas: abVis } }))
     .sort((x, y) => ordem(x.grupo) - ordem(y.grupo) || x.nome.localeCompare(y.nome, "pt-BR"));
   const conta = new Map<string, number>();
   for (const u of unidades) conta.set(u.grupo, (conta.get(u.grupo) ?? 0) + 1);
@@ -693,5 +723,12 @@ export function unidadesSaudeDe(c: Cidade): UnidadesSaude | null {
     fonte: docUnidades.fonte, ano: docUnidades.ano, mesCnes: docUnidades.cnes,
     unidades, porGrupo: [...conta].sort((a, b) => b[1] - a[1]),
     hospitais: v.hospitais.map(([cnes, nome, quem, internacoes, valor, bairro]) => ({ cnes, nome, quem, internacoes, valor, bairro })),
+    cobertura: v.cobertura && docUnidades.cobertura
+      ? { mes: docUnidades.cobertura.mes, brasil: docUnidades.cobertura.brasil, pct: v.cobertura[0], populacao: v.cobertura[1], capacidade: v.cobertura[2], esf: v.cobertura[3], eap: v.cobertura[4], outras: v.cobertura[5] ?? 0 }
+      : null,
+    profissionais: v.profissionais && docUnidades.profissionais
+      ? { medico: v.profissionais[0], enfermeiro: v.profissionais[1], outros: v.profissionais[2],
+          brasil: { medico: docUnidades.profissionais[0], enfermeiro: docUnidades.profissionais[1], outros: docUnidades.profissionais[2] } }
+      : null,
   };
 }
