@@ -3,6 +3,7 @@
  *   ?v=1  cascata de foco: uma coluna por nível, as antigas encolhem e deixam o fio do caminho
  *   ?v=2  degraus (icicle): uma faixa por nível, cada uma é o zoom do pedaço escolhido na de cima
  *   ?v=3  três colunas que deslizam: pai, atual e filhos; ao clicar, tudo anda uma coluna
+ *   ?v=4  tela livre (Canvas, tela.ts): arrastar, zoom, vários galhos abertos, tela cheia
  *   ?onde=uniao | joao-pessoa      ?c=códigos do caminho, separados por "~"      ?cor=tamanho
  * Regra de ouro: não mostrar tudo. Em cada nível só os maiores; o resto vira "outros", que abre a lista.
  */
@@ -12,8 +13,9 @@ import {
   caminhoAte, catPrincipal, filhos, fonteJoaoPessoa, fonteUniao, formatarCnpj, temFilhos, visiveis,
   type Fonte, type No, type Visiveis,
 } from "./dados";
+import { criarTela, type Tela } from "./tela";
 
-type Versao = 1 | 2 | 3;
+type Versao = 1 | 2 | 3 | 4;
 type ModoCor = "tipo" | "tamanho";
 
 interface Estado {
@@ -123,6 +125,7 @@ const fita = (x0: number, y0: number, y1: number, x1: number, t0: number, t1: nu
 
 /** Registro dos alvos clicáveis do desenho atual (data-k → nó). */
 let alvos: No[] = [];
+let tela: Tela | null = null;
 const alvo = (n: No) => (alvos.push(n), String(alvos.length - 1));
 
 function clicar(n: No) {
@@ -157,7 +160,7 @@ function lerUrl(): Estado {
   const p = new URLSearchParams(location.search);
   const v = Number(p.get("v"));
   return {
-    v: (v === 2 || v === 3 ? v : 1) as Versao,
+    v: (v === 2 || v === 3 || v === 4 ? v : 1) as Versao,
     onde: p.get("onde") === "joao-pessoa" ? "joao-pessoa" : "uniao",
     cor: p.get("cor") === "tamanho" ? "tamanho" : "tipo",
     caminho: [],
@@ -669,6 +672,25 @@ function desenhar() {
   const painel = raizEl.querySelector<HTMLElement>("#cc-painel")!;
   largura = Math.floor(desenho.getBoundingClientRect().width);
 
+  if (E.v === 4) {
+    topo.innerHTML = `<p class="cc-frase">${esc(F.frase)}</p><div class="cc-topo-linha">${htmlLegenda()}</div>`;
+    painel.innerHTML = "";
+    painel.hidden = true;
+    desenho.dataset.v = "4";
+    if (tela && tela.fonte === F && desenho.contains(tela.raiz)) tela.redesenhar();
+    else {
+      desenho.innerHTML = "";
+      tela = criarTela(desenho, F, {
+        usaTipo,
+        caminhoInicial: E.caminho,
+        aoEscolher: (n) => { E.caminho = caminhoAte(n); salvarUrl(); },
+        cartao: (n) => htmlCartao(n),
+      });
+    }
+    movimento = null;
+    return;
+  }
+  tela = null;
   topo.innerHTML = `<p class="cc-frase">${esc(F.frase)}</p>
     <div class="cc-topo-linha">${htmlLegenda()}</div>
     ${E.v === 2 ? "" : htmlDegraus()}
