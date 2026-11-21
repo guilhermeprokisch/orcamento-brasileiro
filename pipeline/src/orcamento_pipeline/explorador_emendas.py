@@ -37,7 +37,7 @@ ZIP = c.RAIZ / "data" / "raw" / "cgu" / "emendas" / "EmendasParlamentares.zip"
 PASTA = c.RAIZ / "data" / "publico"
 SAIDA_RESUMO = c.RAIZ / "site" / "public" / "data" / "emendas-explorador" / "resumo.json"
 REFERENCIA_RESUMO = c.RAIZ / "pipeline" / "referencia" / "emendas-explorador-resumo.json"
-URL = "https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/explorador"
+URL = "https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/explorador"
 FONTE = "Controladoria-Geral da União, Portal da Transparência: emendas parlamentares"
 
 # Bancadas e comissões por extenso (a mesma lista de site/src/lib/autores-emendas.ts).

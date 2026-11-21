@@ -94,3 +94,23 @@ jobs:
           B2_APPLICATION_KEY_ID: ${{ secrets.B2_KEY_ID }}
           B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
         run: uv run --project pipeline espelho
+
+      # Os nomes dos arquivos do espelho são fixos e sobrescritos a cada publicação, e a regra de
+      # cache da Cloudflare guarda cada um por 30 dias. Sem esta purga, a borda continuaria servindo
+      # pedaços do Parquet anterior — misturados com os novos, o que faz o DuckDB ler lixo.
+      # Precisa de um token com a permissão Zone → Cache Purge (não serve o do Pages).
+      - name: Limpar o cache do espelho
+        if: github.ref == 'refs/heads/main' && env.CF_PURGE_TOKEN != ''
+        continue-on-error: true
+        env:
+          CF_PURGE_TOKEN: ${{ secrets.CF_PURGE_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+        run: |
+          curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/purge_cache" \
+            -H "Authorization: Bearer $CF_PURGE_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{"hosts":["dados.orcamentobrasileiro.com.br"]}'
+
+      - name: Aviso sem purga
+        if: github.ref == 'refs/heads/main' && env.CF_PURGE_TOKEN == ''
+        run: echo "::warning::Dados publicados, mas o cache de dados.orcamentobrasileiro.com.br não foi limpo — faltam os secrets CF_PURGE_TOKEN e CF_ZONE_ID. A borda pode servir Parquet antigo por até 30 dias."

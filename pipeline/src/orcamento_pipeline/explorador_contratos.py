@@ -173,8 +173,8 @@ def main() -> None:
                             "valor": round(e["valor"]), "teto": e["teto"] > e["valor"] / 2}
     resumo = {
         "ano": args.ano, "fonte": "Portal Nacional de Contratações Públicas (PNCP)",
-        "arquivo": f"https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/explorador/{destino.name}",
-        "porCnpj": f"https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/explorador/{por_cnpj.name}",
+        "arquivo": f"https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/explorador/{destino.name}",
+        "porCnpj": f"https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/explorador/{por_cnpj.name}",
         "total": {"n": sum(t[0] for t in tot.values()), "valor": round(sum(t[1] for t in tot.values()))},
         "esferas": {k: {"n": v[0], "valor": round(v[1])} for k, v in tot.items()},
         "tipos": sorted(([k, v[0], round(v[1])] for k, v in por_tipo.items() if v[1] > 0), key=lambda x: -x[2]),
