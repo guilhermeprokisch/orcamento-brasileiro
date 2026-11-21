@@ -74,6 +74,9 @@ fila_independente() {
   # Os Parquet dos exploradores ficam no bucket e são gerados à mão; aqui só os resumos.
   pipe pode-falhar "Explorador de emendas" explorador-emendas --sem-baixar
   pipe pode-falhar "Receitas da União" receitas-uniao --sem-baixar
+  # As contas fecham? (/contas): resultado primário e nominal (Banco Central) e despesas obrigatórias e
+  # discricionárias (Resultado do Tesouro). Se o download falhar, usa pipeline/referencia/contas-federal.json.
+  pipe pode-falhar "Contas federais" contas-federal
   # O que o governo federal gasta ele mesmo em cada cidade (execução da despesa do Portal e cidade de
   # cada unidade no Compras.gov.br). Se um dos dois não responder, usa a cópia em pipeline/referencia/.
   pipe pode-falhar "Gasto federal direto nas cidades" gasto-federal 2025
@@ -87,8 +90,9 @@ fila_cidades() {
   pipe pode-falhar "População de cada ano (IBGE)" populacao
   # Postos e hospitais: CNES, SIH e SIA baixados à mão; aqui só a cópia de referência.
   pipe pode-falhar "Postos e hospitais" unidades-saude --sem-baixar
-  # Contratos (PNCP) e pagamentos (TCE-PB; TCE-AC e TCE-SC pelos painéis, que só respondem do Brasil, e
-  # este robô roda fora do país): cargas feitas à mão (uv run pagamentos [--uf AC|SC]); aqui só as cópias.
+  # Contratos (PNCP) e pagamentos (TCE-PB; TCE-AC e TCE-SC pelos painéis e TCE-PE pela API, que só respondem
+  # do Brasil, e este robô roda fora do país): cargas feitas à mão (uv run pagamentos [--uf AC|SC|PE]); aqui
+  # só as cópias (pipeline/referencia/pagamentos*.json, todas de uma vez).
   pipe pode-falhar "Contratos das prefeituras" contratos --sem-baixar
   pipe pode-falhar "Pagamentos das prefeituras" pagamentos --sem-baixar
   # (O passo acima copia também AM e TO, pagamentos-am.json e -to.json: uv run pagamentos --uf AM|TO, à mão.)

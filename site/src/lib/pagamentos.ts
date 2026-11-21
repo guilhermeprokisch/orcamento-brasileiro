@@ -1,6 +1,7 @@
 /**
  * Para quem cada prefeitura pagou no ano: os empenhos que o Tribunal de Contas do estado publica
- * (por enquanto Paraíba, Acre e Santa Catarina; pipeline/…/pagamentos.py e pagamentos_qlik.py).
+ * (por enquanto Paraíba, Acre, Santa Catarina e Pernambuco; pipeline/…/pagamentos.py, pagamentos_qlik.py
+ * e pagamentos_tcepe.py).
  * Um arquivo por estado: pagamentos.json (PB) e pagamentos-{uf}.json. Lido no build; sem arquivo, tudo vem null.
  */
 import type { Cidade } from "./cidades";
@@ -20,7 +21,7 @@ interface DocPagamentos {
 }
 const arquivos = import.meta.glob<DocPagamentos>("../../public/data/indicadores/pagamentos*.json", { eager: true, import: "default" });
 const docs = Object.values(arquivos);
-/** Estados com o arquivo de pagamentos no build (PB, AC, SC…). */
+/** Estados com o arquivo de pagamentos no build (PB, AC, SC, PE…). */
 export const ufsComPagamentos = (): string[] => docs.map((d) => d.uf.toUpperCase());
 
 export interface Credor { nome: string; cnpj: string; pago: number; empenhos: number }
