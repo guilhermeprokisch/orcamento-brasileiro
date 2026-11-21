@@ -48,6 +48,7 @@ estado-sc = "orcamento_pipeline.estado_sc:main"
 pagamentos = "orcamento_pipeline.pagamentos:main"
 receitas-uniao = "orcamento_pipeline.receitas_uniao:main"
 gasto-federal = "orcamento_pipeline.gasto_federal:main"
+caminho-impostos = "orcamento_pipeline.caminho_impostos:main"
 
 [build-system]
 requires = ["hatchling"]

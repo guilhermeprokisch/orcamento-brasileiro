@@ -77,6 +77,9 @@ fila_independente() {
   # As contas fecham? (/contas): resultado primário e nominal (Banco Central) e despesas obrigatórias e
   # discricionárias (Resultado do Tesouro). Se o download falhar, usa pipeline/referencia/contas-federal.json.
   pipe pode-falhar "Contas federais" contas-federal
+  # O caminho dos impostos (/impostos): montado à mão (uv run caminho-impostos) com a DCA de todos os estados e
+  # prefeituras e o Resultado do Tesouro; o ano é fechado, então aqui só a cópia de referência.
+  pipe pode-falhar "Caminho dos impostos" caminho-impostos --sem-baixar
   # O que o governo federal gasta ele mesmo em cada cidade (execução da despesa do Portal e cidade de
   # cada unidade no Compras.gov.br). Se um dos dois não responder, usa a cópia em pipeline/referencia/.
   pipe pode-falhar "Gasto federal direto nas cidades" gasto-federal 2025

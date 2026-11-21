@@ -1,0 +1,178 @@
+---
+/**
+ * O diagrama de fluxos do caminho dos impostos, em SVG desenhado na hora de gerar o site (lib/caminho-impostos.ts).
+ * Cada pedaço leva data-id (para o painel de explicação) e, com `historia`, data-desde (o passo da história em que
+ * aparece) e data-destaque (o passo em que fica em evidência). Sem JavaScript, aparece inteiro.
+ *
+ * Duas formas: "largo" (computador, todos os impostos) e "estreito" (celular, impostos menores juntos).
+ */
+import {
+  agrupar, afastar, bi, COR, COR_CLARA, CURTO, desenhar, GRUPOS_ESTREITO, ORDEM_ESTREITO, totalPago,
+  type DocCaminho, type FluxoDesenhado,
+} from "../../lib/caminho-impostos";
+
+interface Props { doc: DocCaminho; forma: "largo" | "estreito"; historia?: boolean; deixa?: { uniao: number; estados: number } | null; classe?: string }
+const { doc: original, forma, historia = false, deixa = null, classe = "" } = Astro.props;
+const largo = forma === "largo";
+const doc = largo ? original : agrupar(original, GRUPOS_ESTREITO);
+
+const L = largo ? 920 : 360;
+const H = largo ? 600 : 480;
+const topo = 8;
+const o = largo
+  ? { largura: L, altura: H - 2 * topo, vao: 7, barra: 10, colunas: [170, 400, 700] }
+  : { largura: L, altura: H - 2 * topo, vao: 8, barra: 8, colunas: [92, 150, 270] };
+const larguraCaixa = largo ? 118 : 70;
+/** Nomes curtos para caber ao lado das barras. */
+const ROTULO: Record<string, string> = {
+  "t-royalties": "Royalties", "t-itcmd": "Heranças e doações", "t-taxas": "Taxas", "t-outros-federais": "Outros federais",
+  "t-importacao": "Importação", "t-inss": "INSS", "t-ir": "Imposto de renda", "t-federais": "Outros federais",
+};
+const dd = desenhar(doc, { ...o, ordem: largo ? undefined : ORDEM_ESTREITO });
+// As caixas de "quem cobra" são largas, com o nome dentro; as barras dos impostos, finas. As faixas são refeitas
+// abaixo com essas larguras.
+const larguraDe = (col: number) => (col === 0 ? o.barra : col === 2 && largo ? 14 : larguraCaixa);
+const xFim = (col: number) => o.colunas[col] + larguraDe(col);
+const r1 = (v: number) => Math.round(v * 10) / 10;
+function caminho(f: FluxoDesenhado, colDe: number, colPara: number) {
+  const x0 = xFim(colDe), x1 = o.colunas[colPara], xm = (x0 + x1) / 2;
+  const y0 = f.y0 + topo, y1 = f.y1 + topo;
+  return `M${r1(x0)},${r1(y0)}C${r1(xm)},${r1(y0)} ${r1(xm)},${r1(y1)} ${r1(x1)},${r1(y1)}`;
+}
+const colDe = new Map(doc.nos.map((n) => [n.id, n.coluna]));
+const total = totalPago(doc);
+
+/** Em que passo da história cada fluxo aparece. */
+function passo(f: FluxoDesenhado): { desde: number; destaque: number } {
+  if (f.tipo === "imposto") return { desde: 2, destaque: 2 };
+  if (f.tipo === "fica") return { desde: 7, destaque: 7 };
+  if (f.tipo === "programa") return { desde: 6, destaque: 6 };
+  if (f.chave === "fundeb") return { desde: 5, destaque: 5 };
+  if (f.de === "c-estados") return { desde: 4, destaque: 4 };
+  return { desde: 3, destaque: 3 };
+}
+const cor = (f: FluxoDesenhado) =>
+  f.tipo === "imposto" ? COR_CLARA[f.esferaDestino] : f.tipo === "fica" ? COR_CLARA[f.esfera] : COR[f.esferaDestino];
+
+const nos = dd.nos.map((n) => ({ ...n, w: larguraDe(n.coluna), y: n.y + topo }));
+// Rótulos da coluna 1, à esquerda das barras, afastados para não se encostarem.
+const col0 = nos.filter((n) => n.coluna === 0);
+const ysRotulo = afastar(col0.map((n) => n.y + n.h / 2), largo ? 17 : 14, H);
+const rotulo0 = new Map(col0.map((n, i) => [n.id, ysRotulo[i]]));
+const fluxos = dd.fluxos.map((f) => ({ ...f, caminho: caminho(f, colDe.get(f.de)!, colDe.get(f.para)!), ...passo(f) }));
+const pct = (v: number) => Math.round((v / total) * 100);
+// Rótulos dos repasses maiores, no meio da faixa (só no computador).
+const rotulosFluxo = largo
+  ? fluxos.filter((f) => (f.tipo === "obrigatorio" || f.tipo === "programa") && f.largura >= 8).map((f) => ({
+      ...f, x: (xFim(1) + o.colunas[2]) / 2, y: (f.y0 + f.y1) / 2 + topo,
+    }))
+  : [];
+// "O que deixa de entrar": barras tracejadas abaixo de tudo, na escala do diagrama.
+const fantasma = deixa ? [
+  { id: "deixa-uniao", nome: "Benefícios fiscais da União", valor: deixa.uniao, esfera: "uniao" as const },
+  { id: "deixa-estados", nome: "Incentivos de ICMS", valor: deixa.estados, esfera: "estados" as const },
+].filter((x) => x.valor > 0) : [];
+---
+
+<svg class={`diagrama ${forma} ${classe}`} viewBox={`0 0 ${L} ${H + (fantasma.length ? (largo ? 110 : 96) : 0)}`} role="img"
+  aria-label={`Diagrama: o que se pagou de impostos em ${doc.ano}, quem cobrou e quem ficou com o dinheiro.`} data-historia={historia ? "" : undefined}>
+  <g class="fluxos">
+    {fluxos.map((f) => (
+      <path d={f.caminho} class={`fluxo t-${f.tipo}`} stroke={cor(f)} stroke-width={Math.max(0.8, f.largura)} fill="none"
+        data-id={f.id} data-de={f.de} data-para={f.para} data-desde={historia ? f.desde : undefined} data-destaque={historia ? f.destaque : undefined}>
+        <title>{f.nome}: {bi(f.valor)}</title>
+      </path>
+    ))}
+  </g>
+  {rotulosFluxo.map((f) => (
+    <text x={f.x} y={f.y + 4} class="rotulo-fluxo" text-anchor="middle" data-desde={historia ? f.desde : undefined} data-destaque={historia ? f.destaque : undefined}>{CURTO[f.chave] ?? f.nome} · {bi(f.valor)}</text>
+  ))}
+  <g class="nos">
+    {nos.map((n) => (
+      <g class={`no col${n.coluna}`} data-id={n.id} data-desde={historia ? (n.coluna === 0 ? 1 : n.coluna === 1 ? 2 : 3) : undefined} tabindex="0" role="button" aria-label={`${n.nome}: ${bi(n.valor)}`}>
+        <rect x={n.x} y={n.y} width={n.w} height={Math.max(1, n.h)} fill={n.coluna === 0 ? COR[n.esfera] : COR[n.esfera]} />
+        {n.coluna === 0 && (
+          <>
+            {Math.abs(rotulo0.get(n.id)! - (n.y + n.h / 2)) > 3 && (
+              <line x1={n.x - 3} y1={n.y + n.h / 2} x2={n.x - 9} y2={rotulo0.get(n.id)} class="guia" />
+            )}
+            <text x={n.x - 12} y={rotulo0.get(n.id)! + 4} text-anchor="end" class="rotulo">
+              <tspan class="nome">{ROTULO[n.id] ?? n.nome}</tspan>{largo && <tspan class="valor" dx="6">{bi(n.valor)}</tspan>}
+            </text>
+          </>
+        )}
+        {n.coluna === 1 && (
+          <text x={n.x + n.w / 2} y={n.y + Math.min(n.h / 2, 40) + (n.h < 40 ? 4 : 0)} text-anchor="middle" class={`rotulo-caixa ${n.esfera === "prefeituras" ? "escuro" : ""}`}>
+            <tspan x={n.x + n.w / 2} dy="-0.2em" class="nome">{largo ? n.nome : n.nome.replace(" e DF", "")}</tspan>
+            <tspan x={n.x + n.w / 2} dy="1.25em" class="valor">{bi(n.valor)}</tspan>
+          </text>
+        )}
+        {n.coluna === 2 && largo && (
+          <text x={n.x + n.w + 10} y={n.y + n.h / 2 + 4} class="rotulo">
+            <tspan class="nome">{n.nome}</tspan><tspan class="valor" dx="6">{bi(n.valor)}</tspan>
+            {n.esfera !== "fundos" && <tspan class="parte" x={n.x + n.w + 10} dy="1.3em">{pct(n.valor)} de cada R$ 100</tspan>}
+          </text>
+        )}
+        {n.coluna === 2 && !largo && n.h > 24 && (
+          <text x={n.x + n.w / 2} y={n.y + n.h / 2} text-anchor="middle" class={`rotulo-caixa ${n.esfera === "prefeituras" ? "escuro" : ""}`}>
+            <tspan x={n.x + n.w / 2} dy="-0.2em" class="nome">{n.nome.replace(" e DF", "")}</tspan>
+            <tspan x={n.x + n.w / 2} dy="1.25em" class="valor">{bi(n.valor)}</tspan>
+          </text>
+        )}
+      </g>
+    ))}
+  </g>
+  {fantasma.length > 0 && (
+    <g class="deixa" data-desde={historia ? 8 : undefined} data-destaque={historia ? 8 : undefined}>
+      <text x={largo ? 20 : 8} y={H + 20} class="rotulo-deixa">O que deixa de entrar (benefícios fiscais)</text>
+      {fantasma.map((g, i) => {
+        const w = g.valor * dd.escala;
+        const x0 = largo ? 20 : 8;
+        const y = H + 34 + i * (largo ? 34 : 30);
+        return (
+          <g class="no" data-id={g.id} tabindex="0" role="button">
+            <rect x={x0} y={y} width={w} height={largo ? 18 : 16} class={`fantasma ${g.esfera}`} />
+            <text x={x0 + w + 8} y={y + (largo ? 13 : 12)} class="rotulo"><tspan class="nome">{g.nome}</tspan><tspan class="valor" dx="6">{bi(g.valor)}</tspan></text>
+          </g>
+        );
+      })}
+    </g>
+  )}
+</svg>
+
+<style>
+  .diagrama { width: 100%; height: auto; display: block; overflow: visible; font-family: var(--sans); }
+  .fluxo { stroke-opacity: 0.55; transition: stroke-opacity 0.4s, opacity 0.5s; mix-blend-mode: multiply; }
+  .fluxo.t-programa { stroke-opacity: 0.32; }
+  .fluxo.t-fica { stroke-opacity: 0.7; }
+  .no { cursor: pointer; transition: opacity 0.5s; }
+  .no:focus-visible { outline: none; }
+  .no:focus-visible rect { stroke: var(--tinta); stroke-width: 2; }
+  .rotulo { font-size: 15px; fill: var(--tinta); }
+  .estreito .rotulo { font-size: 11.5px; }
+  .rotulo .valor, .rotulo .parte { fill: var(--texto-3); font-size: 13.5px; }
+  .estreito .rotulo .valor, .estreito .rotulo .parte { font-size: 11px; }
+  .rotulo-caixa { font-size: 16px; fill: var(--papel); font-weight: 600; pointer-events: none; }
+  .rotulo-caixa .valor { font-weight: 400; font-size: 15px; }
+  .estreito .rotulo-caixa { font-size: 11.5px; }
+  .estreito .rotulo-caixa .valor { font-size: 11px; }
+  .rotulo-caixa.escuro { fill: var(--tinta); }
+  .rotulo-fluxo { font-size: 13px; fill: var(--tinta); paint-order: stroke; stroke: var(--papel); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; transition: opacity 0.5s; }
+  .guia { stroke: var(--texto-4); stroke-width: 0.8; }
+  .fantasma { fill: none; stroke-width: 1.5; stroke-dasharray: 4 3; }
+  .fantasma.uniao { stroke: var(--verde-escuro); fill: rgba(10, 74, 41, 0.06); }
+  .fantasma.estados { stroke: #2f8a55; fill: rgba(79, 174, 115, 0.08); }
+  .rotulo-deixa { font-size: 15px; font-weight: 600; fill: var(--texto-2); }
+  .deixa { transition: opacity 0.5s; }
+
+  /* História: o que ainda não apareceu some; o passo atual fica em evidência. */
+  .diagrama :global([data-oculto]) { opacity: 0 !important; pointer-events: none; }
+  .diagrama.com-destaque .fluxo:not([data-em-destaque]) { stroke-opacity: 0.18; }
+  .diagrama.com-destaque .rotulo-fluxo:not([data-em-destaque]) { opacity: 0.25; }
+  .diagrama .fluxo[data-em-destaque] { stroke-opacity: 0.8; }
+  /* Exploração: o pedaço escolhido e o que liga nele. */
+  .diagrama.com-escolha .fluxo:not([data-ligado]) { stroke-opacity: 0.1; }
+  .diagrama.com-escolha .no:not([data-ligado]) { opacity: 0.35; }
+  .diagrama.com-escolha .rotulo-fluxo:not([data-ligado]) { opacity: 0.2; }
+  .diagrama .fluxo[data-ligado] { stroke-opacity: 0.85; }
+</style>

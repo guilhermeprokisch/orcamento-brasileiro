@@ -1,0 +1,154 @@
+---
+/**
+ * Protótipo, versão 1 ("O rio"): o diagrama de fluxos clássico. A história vai montando o diagrama passo a passo
+ * enquanto a pessoa rola (o desenho fica parado ao lado do texto); no fim, o diagrama inteiro para clicar.
+ */
+import Diagrama from "./Diagrama.astro";
+import Painel from "./Painel.astro";
+import Termo from "../Termo.astro";
+import { bi, biExtenso, porMorador, soma, totalPago, type DocCaminho } from "../../lib/caminho-impostos";
+
+interface Props { doc: DocCaminho; deixa: { uniao: number; estados: number } | null }
+const { doc, deixa } = Astro.props;
+const total = totalPago(doc);
+const g = doc.governos;
+const em100 = (v: number) => Math.round((v / total) * 100);
+const f = (chave: string, de?: string, para?: string) => soma(doc, (x) => x.chave === chave && (!de || x.de === de) && (!para || x.para === para));
+const imposto = (id: string) => soma(doc, (x) => x.de === `t-${id}`);
+const obrigUniao = soma(doc, (x) => x.de === "c-uniao" && x.tipo === "obrigatorio");
+const progUniao = soma(doc, (x) => x.de === "c-uniao" && x.tipo === "programa");
+const progEstados = soma(doc, (x) => x.de === "c-estados" && x.tipo === "programa");
+const fb = doc.fundeb;
+---
+
+<section class="v-rio">
+  <header class="abre">
+    <span class="sobretitulo">Brasil, todos os governos somados · {doc.ano}</span>
+    <h1>Eu pago imposto para quem?</h1>
+    <p>
+      Para três governos, e o dinheiro não fica onde foi pago. Em {doc.ano}, quem mora no Brasil pagou{" "}
+      <strong class="marca">{biExtenso(total)}</strong> em impostos{porMorador(doc, total) && <>, perto de {porMorador(doc, total)} por pessoa</>}.
+      Role a página para ver o caminho.
+    </p>
+  </header>
+
+  <div class="rolagem">
+    <div class="palco" aria-hidden="false">
+      <Diagrama doc={doc} forma="largo" historia deixa={deixa} classe="so-largo" />
+      <Diagrama doc={doc} forma="estreito" historia deixa={deixa} classe="so-estreito" />
+    </div>
+    <ol class="passos">
+      <li data-passo="1">
+        <h2>O que se paga</h2>
+        <p>Cada barra é um imposto, do tamanho do que se arrecadou. Os maiores são o <strong>imposto de renda</strong> ({bi(imposto("ir"))}), o <Termo id="icms" />, embutido no preço das coisas ({bi(imposto("icms"))}), e a <strong>contribuição ao INSS</strong> ({bi(imposto("inss"))}).</p>
+      </li>
+      <li data-passo="2">
+        <h2>Quem cobra</h2>
+        <p>De cada R$ 100, a <strong>União</strong> cobra R$ {em100(g.uniao.cobra)}, os <strong>estados</strong> R$ {em100(g.estados.cobra)} e as <strong>prefeituras</strong> só R$ {em100(g.prefeituras.cobra)}. O imposto de renda dos servidores de estados e prefeituras fica com eles mesmos: é a faixa fina que desce da primeira barra.</p>
+      </li>
+      <li data-passo="3">
+        <h2>A União divide</h2>
+        <p>A Constituição manda a União dar parte do imposto de renda e do IPI aos estados (o FPE, {bi(f("fpe"))}) e às prefeituras (o <Termo id="fpm" />, {bi(f("fpm"))}). Somando royalties, salário-educação e a parte dela no <Termo id="fundeb" />, são {biExtenso(obrigUniao)} repassados por obrigação.</p>
+      </li>
+      <li data-passo="4">
+        <h2>Os estados também dividem</h2>
+        <p>Um quarto do ICMS ({bi(f("cota-icms"))}) e metade do <Termo id="ipva" /> ({bi(f("cota-ipva"))}) de cada estado vão para as prefeituras dele.</p>
+      </li>
+      <li data-passo="5">
+        <h2>O fundo da educação</h2>
+        <p>No Fundeb, cada estado e suas prefeituras põem 20% de vários impostos num fundo e tiram pelo número de alunos. Os estados puseram {bi(fb.estados_poem)} e tiraram {bi(fb.estados_tiram)}; as prefeituras, que têm mais alunos, puseram {bi(fb.prefeituras_poem)} e tiraram {bi(fb.prefeituras_tiram)}. No fim, {bi(f("fundeb"))} passaram dos estados para as prefeituras.</p>
+      </li>
+      <li data-passo="6">
+        <h2>E os programas</h2>
+        <p>Fora a divisão dos impostos, a União manda {bi(progUniao)} para programas (o SUS, a merenda, a assistência social, convênios e emendas) e os estados mandam {bi(progEstados)} às prefeituras. Esse dinheiro vem com destino certo.</p>
+      </li>
+      <li data-passo="7">
+        <h2>Quem fica com o dinheiro</h2>
+        <p>No fim, a União fica com R$ {em100(g.uniao.fica)} de cada R$ 100, os estados com R$ {em100(g.estados.fica)} e as prefeituras com R$ {em100(g.prefeituras.fica)}: elas cobram pouco, mas são as que mais recebem. É com esse dinheiro que pagam postos de saúde, escolas e a coleta do lixo.</p>
+      </li>
+      {deixa && (
+        <li data-passo="8">
+          <h2>O que deixa de entrar</h2>
+          <p>Isenções e regimes especiais fazem a União deixar de cobrar perto de {biExtenso(deixa.uniao)} por ano{deixa.estados > 0 && <>, e os estados, {biExtenso(deixa.estados)} de ICMS</>}. É dinheiro que não aparece no caminho, mas é uma escolha de gasto como outra qualquer.</p>
+        </li>
+      )}
+    </ol>
+  </div>
+
+  <section class="explorar">
+    <h2>O caminho inteiro</h2>
+    <p class="dica">Clique numa barra ou numa faixa para ver o que é e quanto passou por ela.</p>
+    <div class="explorar-grade">
+      <div class="explorar-desenho">
+        <Diagrama doc={doc} forma="largo" deixa={deixa} classe="so-largo explorar-svg" />
+        <Diagrama doc={doc} forma="estreito" deixa={deixa} classe="so-estreito explorar-svg" />
+      </div>
+      <Painel doc={doc} deixa={deixa} />
+    </div>
+  </section>
+</section>
+
+<style>
+  .v-rio .abre { padding: 40px 0 24px; max-width: 860px; display: flex; flex-direction: column; gap: 14px; }
+  .v-rio .abre h1 { font-size: 64px; line-height: 0.98; letter-spacing: -0.025em; }
+  .v-rio .abre p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+
+  .rolagem { position: relative; display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 40px; border-top: 2px solid var(--tinta); }
+  .palco { grid-column: 2; grid-row: 1; position: sticky; top: 12px; height: calc(100vh - 24px); display: flex; align-items: center; }
+  .passos { grid-column: 1; grid-row: 1; list-style: none; margin: 0; padding: 30vh 0 40vh; display: flex; flex-direction: column; gap: 60vh; }
+  .passos li { display: flex; flex-direction: column; gap: 10px; padding: 20px 0; border-top: 1px solid var(--regra); opacity: 0.35; transition: opacity 0.4s; }
+  .passos li[data-atual] { opacity: 1; }
+  .passos h2 { font-size: 28px; }
+  .passos p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--texto-2); }
+
+  .explorar { border-top: 2px solid var(--tinta); padding: 32px 0; display: flex; flex-direction: column; gap: 10px; }
+  .explorar h2 { font-size: 34px; }
+  .dica { margin: 0; color: var(--texto-3); font-size: 15px; }
+  .explorar-grade { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 32px; align-items: start; }
+  .v-rio :global(.so-estreito) { display: none; }
+
+  @media (max-width: 900px) {
+    .v-rio .abre h1 { font-size: 40px; }
+    .v-rio .abre p { font-size: 17px; }
+    .rolagem { display: block; }
+    .palco { height: 62vh; top: 0; z-index: 1; background: var(--papel); padding: 8px 0; }
+    .passos { padding: 10vh 0 30vh; gap: 50vh; position: relative; z-index: 2; }
+    .passos li { background: var(--papel); border: 1px solid var(--regra); padding: 14px 16px; opacity: 1; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+    .passos h2 { font-size: 22px; }
+    .passos p { font-size: 15.5px; }
+    .explorar-grade { display: flex; flex-direction: column; gap: 16px; }
+    :global(.v-rio .so-largo) { display: none !important; }
+    :global(.v-rio .so-estreito) { display: block !important; }
+    .palco :global(svg) { max-height: 100%; width: auto; margin: 0 auto; }
+  }
+</style>
+
+<script>
+  // A história: o passo cujo texto está no meio da tela manda no desenho.
+  function iniciar(raiz: HTMLElement) {
+    const passos = [...raiz.querySelectorAll<HTMLElement>(".passos li")];
+    const desenhos = [...raiz.querySelectorAll<SVGSVGElement>(".palco svg")];
+    const mostrar = (n: number) => {
+      passos.forEach((p) => p.toggleAttribute("data-atual", Number(p.dataset.passo) === n));
+      for (const svg of desenhos) {
+        svg.classList.add("com-destaque");
+        svg.querySelectorAll<SVGElement>("[data-desde]").forEach((el) => {
+          el.toggleAttribute("data-oculto", Number(el.dataset.desde) > n);
+          el.toggleAttribute("data-em-destaque", Number(el.dataset.destaque) === n);
+        });
+        if (!svg.querySelector("[data-em-destaque]")) svg.classList.remove("com-destaque");
+      }
+    };
+    // O passo atual é o último cujo texto já passou de 60% da altura da tela.
+    let ultimo = 0, pedido = false;
+    const medir = () => {
+      pedido = false;
+      let n = Number(passos[0].dataset.passo);
+      for (const p of passos) if (p.getBoundingClientRect().top < innerHeight * 0.6) n = Number(p.dataset.passo);
+      if (n !== ultimo) { ultimo = n; mostrar(n); }
+    };
+    addEventListener("scroll", () => { if (!pedido) { pedido = true; requestAnimationFrame(medir); } }, { passive: true });
+    medir();
+  }
+  document.querySelectorAll<HTMLElement>(".v-rio").forEach(iniciar);
+</script>
