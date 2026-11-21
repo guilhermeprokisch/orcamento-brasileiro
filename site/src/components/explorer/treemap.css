@@ -17,6 +17,14 @@
 .tm-rotulo { display: flex; flex-direction: column; gap: 2px; padding: 0 14px 14px; font-size: 14px; }
 .tm-rotulo strong { font-size: 15px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tm-rotulo span { opacity: 0.9; }
+/* Blocos médios: só o nome, menor, em até duas linhas. */
+.tm-rotulo-curto { padding: 0 10px 8px; }
+.tm-rotulo-curto strong { font-size: 12px; font-weight: 600; -webkit-line-clamp: 2; }
+.tm-legenda { margin: 10px 0 0; font-size: 13px; line-height: 1.7; color: var(--texto-2); }
+.tm-legenda-titulo { color: var(--texto-3); }
+.tm-legenda-item { display: inline; text-align: left; font: inherit; padding: 0; border: 0; background: none; color: var(--tinta); text-decoration: underline; text-decoration-color: var(--regra); cursor: pointer; }
+.tm-legenda-item:disabled { text-decoration: none; cursor: default; }
+.tm-legenda-item .num { color: var(--texto-3); }
 
 .tm-tip {
   position: absolute; z-index: 20; pointer-events: none;

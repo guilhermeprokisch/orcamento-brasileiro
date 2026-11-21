@@ -48,7 +48,11 @@ export default function Tabela(props: Props) {
               <span role="cell" class="so-largo lista-trilho">
                 <span style={{ width: `${(Math.max(0, v()) / max()) * 100}%`, background: corDaRampa(Math.min(1, i() / 5)) }} />
               </span>
-              <span role="cell" class="d num">{moedaCurta(v())}</span>
+              <span role="cell" class="d num">
+                {moedaCurta(v())}
+                {/* No celular a coluna "Parcela" some: a porcentagem vai embaixo do valor. */}
+                <small class="lista-pct-celular">{pct(v() / props.total)}</small>
+              </span>
               <span role="cell" class="d num so-largo">{pct(v() / props.total)}</span>
               <span role="cell" class="d num">{taxa === null ? "—" : `${Math.round(taxa * 100)}%`}</span>
             </div>
