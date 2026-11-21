@@ -3,7 +3,7 @@ import Treemap from "./Treemap";
 import Tabela from "./Tabela";
 import BarrasAno, { type Ponto } from "./BarrasAno";
 import Degraus, { deQuem, Voltar, type Degrau } from "./Degraus";
-import FaixaTipo from "./FaixaTipo";
+import FaixaTipo, { AvisoEmendas } from "./FaixaTipo";
 import {
   agrupar, carregarAno, carregarResumo, DIMS, dimsDisponiveis, escalar, METRICAS, proximaSugerida,
   ROTULO_DIM, taxaRealizacao, temTipo, TIPOS_DESPESA, totaisDaTrilha, type Dim, type Filtro, type Item, type Metrica,
@@ -316,6 +316,10 @@ export default function Explorer() {
             const por = estado().por;
             mudar({ filtros, por: por && por !== "tipo" ? por : proximaSugerida(filtros) }, true);
           }} />
+      </Show>
+
+      <Show when={ano() && vale().filtros.some((f) => f.dim === "tipo" && f.cod === "eme")}>
+        <AvisoEmendas ano={ano()!} />
       </Show>
 
       <div class="exp-abas">
