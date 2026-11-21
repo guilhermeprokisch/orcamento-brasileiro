@@ -2,12 +2,13 @@ import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show
 import Treemap from "../explorer/Treemap";
 import Tabela from "../explorer/Tabela";
 import BarrasAno, { type Ponto } from "../explorer/BarrasAno";
+import Degraus, { Voltar, type Degrau } from "../explorer/Degraus";
 import { carregarResumo, escalar, taxaRealizacao, type Item } from "../../lib/dados";
 import {
   agruparR, carregarReceitas, creditoSemRefin, dimsDisponiveisR, DIMS_R, EXPLICA_ORIGEM, proximaSugeridaR,
   refinanciamento, ROTULO_DIM_R, ROTULOS_RECEITA, type DimR, type Filtro,
 } from "../../lib/receitas";
-import { moedaExtenso, pct } from "../../lib/formato";
+import { moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import "../explorer/explorer.css";
 import "./receitas.css";
 
@@ -25,6 +26,10 @@ interface Estado {
 /** Rótulos curtos das abas "Dividir por". */
 const ABA: Record<DimR, string> = {
   origem: "Tipo", especie: "Subtipo", item: "Receita", parcela: "Parcela", orgao: "Órgão", categoria: "Categoria",
+};
+/** Nos degraus, de quem é a fatia do passo seguinte: "61% do tipo". */
+const DE: Record<DimR, string> = {
+  origem: "do tipo", especie: "do subtipo", item: "da receita", parcela: "da parcela", orgao: "do órgão", categoria: "da categoria",
 };
 const ORDEM_ABAS: DimR[] = ["origem", "especie", "item", "parcela", "orgao", "categoria"];
 
@@ -49,7 +54,7 @@ function lerUrl(): Estado {
   };
 }
 
-function escreverUrl(e: Estado, push: boolean) {
+function montarUrl(e: Estado): string {
   const p = new URLSearchParams();
   if (e.ano) p.set("ano", String(e.ano));
   if (e.filtros.length) p.set("f", e.filtros.map((f) => `${f.dim}:${f.cod}`).join(","));
@@ -57,7 +62,11 @@ function escreverUrl(e: Estado, push: boolean) {
   if (e.semRefin) p.set("refin", "0");
   if (e.vista === "lista") p.set("vista", "lista");
   if (e.real) p.set("ipca", "1");
-  const url = `${location.pathname}?${p.toString().replaceAll("%3A", ":").replaceAll("%2C", ",")}`;
+  return `${location.pathname}?${p.toString().replaceAll("%3A", ":").replaceAll("%2C", ",")}`;
+}
+
+function escreverUrl(e: Estado, push: boolean) {
+  const url = montarUrl(e);
   if (push) history.pushState(null, "", url);
   else history.replaceState(null, "", url);
 }
@@ -171,6 +180,29 @@ export default function Receitas() {
     return refinanciamento(d, a, estado().filtros) * fatorDe(a.ano);
   });
 
+  // Os degraus: todas as receitas do ano e cada passo da trilha, com o arrecadado e a fatia no passo anterior.
+  const degraus = createMemo<Degrau[]>(() => {
+    const e = estado();
+    const urlDe = (filtros: Filtro[]) => montarUrl({ ...e, ano: ano(), filtros, por: proximaSugeridaR(filtros) });
+    const raiz = totalGeral();
+    const passos: Degrau[] = [{
+      tipo: `Receitas ${ano() ?? ""}`, nome: "Todas as receitas", valor: geral() ? moedaCurta(raiz) : undefined,
+      href: urlDe([]), ir: () => irPara([]),
+    }];
+    let antes = raiz;
+    trilha().forEach((t, i) => {
+      const anterior = trilha()[i - 1];
+      passos.push({
+        tipo: ABA[t.dim], nome: t.nome, valor: moedaCurta(t.total),
+        fatia: antes > 0 ? Math.min(1, Math.max(0, t.total / antes)) : null,
+        de: anterior ? DE[anterior.dim] : "das receitas",
+        href: urlDe(t.filtros), ir: () => irPara(t.filtros),
+      });
+      antes = t.total;
+    });
+    return passos;
+  });
+
   const legendaSerie = () =>
     `Arrecadado por ano${estado().semRefin ? ", sem refinanciamento" : ""}, ${
       estado().real && ipca() ? `em reais de ${ipca()!.base}` : "em valores nominais"}`;
@@ -187,44 +219,31 @@ export default function Receitas() {
 
   return (
     <div class="exp rec">
-      <div class="exp-barra">
-        <nav aria-label="Caminho" class="exp-caminho">
-          <Show when={trilha().length > 0} fallback={<span class="forte">Receitas {ano() ?? ""}</span>}>
-            <button type="button" class="link" onClick={() => irPara([])}>Receitas {ano() ?? ""}</button>
-          </Show>
-          <For each={trilha()}>
-            {(passo, i) => (
-              <>
-                <span class="sep" aria-hidden="true">/</span>
-                <Show when={i() < trilha().length - 1} fallback={<span class="forte corta" title={passo.nome}>{passo.nome}</span>}>
-                  <button type="button" class="link corta" title={passo.nome} onClick={() => irPara(passo.filtros)}>{passo.nome}</button>
-                </Show>
-              </>
-            )}
-          </For>
-        </nav>
-        <div class="exp-controles">
-          <label class="exp-ano">
-            <span class="visually-hidden">Ano</span>
-            <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })} disabled={!doc()}>
-              <For each={[...anos()].reverse()}>
-                {(a) => <option value={a.ano} selected={a.ano === ano()}>{a.ano}{a.parcial ? ` (até ${dataCurta(a.ate)})` : ""}</option>}
-              </For>
-            </select>
-          </label>
-          <button type="button" class="pilula" aria-pressed={estado().real} disabled={!ipca()}
-            title={ipca() ? `Valores em reais de ${ipca()!.base}, corrigidos pelo IPCA` : undefined}
-            onClick={() => mudar({ real: !estado().real })}>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
-            Corrigir inflação
-          </button>
-          <button type="button" class="pilula" aria-pressed={estado().semRefin}
-            title="Tira das contas os títulos vendidos para pagar a dívida que vence (refinanciamento)"
-            onClick={() => mudar({ semRefin: !estado().semRefin })}>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
-            Sem refinanciamento
-          </button>
-        </div>
+      <div class="exp-degraus">
+        <Degraus passos={degraus()} dicaInicio="Clique num bloco do mapa para descer um nível" extra={
+          <div class="exp-controles">
+            <label class="exp-ano">
+              <span class="visually-hidden">Ano</span>
+              <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })} disabled={!doc()}>
+                <For each={[...anos()].reverse()}>
+                  {(a) => <option value={a.ano} selected={a.ano === ano()}>{a.ano}{a.parcial ? ` (até ${dataCurta(a.ate)})` : ""}</option>}
+                </For>
+              </select>
+            </label>
+            <button type="button" class="pilula" aria-pressed={estado().real} disabled={!ipca()}
+              title={ipca() ? `Valores em reais de ${ipca()!.base}, corrigidos pelo IPCA` : undefined}
+              onClick={() => mudar({ real: !estado().real })}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
+              Corrigir inflação
+            </button>
+            <button type="button" class="pilula" aria-pressed={estado().semRefin}
+              title="Tira das contas os títulos vendidos para pagar a dívida que vence (refinanciamento)"
+              onClick={() => mudar({ semRefin: !estado().semRefin })}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>
+              Sem refinanciamento
+            </button>
+          </div>
+        } />
       </div>
 
       <Show when={doc.error}>
@@ -233,9 +252,6 @@ export default function Receitas() {
 
       <section class="exp-topo">
         <div class="exp-titulo">
-          <Show when={ultimo()}>
-            <button type="button" class="link exp-voltar" onClick={subir}>← Voltar a {pai()}</button>
-          </Show>
           <span class="sobretitulo">
             {ultimo() ? ROTULO_DIM_R[ultimo()!.dim] : "Receitas do governo federal"}
           </span>
@@ -297,7 +313,7 @@ export default function Receitas() {
 
       <div class="exp-abas">
         <Show when={ultimo()}>
-          <button type="button" class="exp-subir" onClick={subir} title={`Voltar a ${pai()}`}>← Voltar um nível</button>
+          <Voltar para={pai()} onClick={subir} />
         </Show>
         <span class="muted">Dividir por</span>
         <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
