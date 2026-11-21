@@ -2,7 +2,7 @@
 /**
  * Para quem a prefeitura pagou no ano, pelos empenhos que o Tribunal de Contas do estado publica: os
  * maiores fornecedores, as pessoas físicas num total só (sem nomes) e, à parte, o que não é
- * fornecedor (folha, previdência, dívida e repasses a outros órgãos). Por enquanto PB, AC, SC, PE, AM, TO, SP, CE e ES.
+ * fornecedor (folha, previdência, dívida e repasses a outros órgãos). Por enquanto PB, AC, SC, PE, AM, TO, SP, CE, ES, MG, PR e RS.
  * Fonte: pipeline/…/pagamentos.py e os coletores de cada estado (pagamentos_qlik.py, pagamentos_tcepe.py, pagamentos_am.py, …).
  */
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
@@ -69,7 +69,10 @@ const semFolha = p ? diferenca < -0.05 && p.outros.folha < 0.1 * p.pago : false;
           O total aqui fica {pct(Math.abs(diferenca))} {diferenca < 0 ? "abaixo" : "acima"} do que a prefeitura declarou ao
           Tesouro como pago em {p.ano} ({moedaCurta(dca!)}). {diferenca < 0
             ? "Parte dos pagamentos pode não ter chegado ao Tribunal de Contas (em algumas cidades falta dezembro)."
-            : "Os dois números vêm de prestações de contas diferentes, e a que foi ao Tesouro pode ter deixado de fora alguma unidade do município, como o serviço de água ou o fundo de previdência."}{" "}
+            : diferenca > 1
+              // Mais que o dobro (Peabiru, no PR; Barracão, no RS): o "pago" declarado ao Tesouro veio quase vazio.
+              ? "O valor declarado ao Tesouro parece incompleto: é bem menor do que a própria prefeitura costuma gastar em um ano."
+              : "Os dois números vêm de prestações de contas diferentes, e a que foi ao Tesouro pode ter deixado de fora alguma unidade do município, como o serviço de água ou o fundo de previdência."}{" "}
           Leia estes números com cuidado.
         </p>
       )}

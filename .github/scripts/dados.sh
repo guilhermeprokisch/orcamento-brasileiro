@@ -99,7 +99,8 @@ fila_cidades() {
   # CE (API do TCE-CE) e ES (arquivos do TCE-ES) também: uv run pagamentos --uf CE|ES, à mão; aqui só as cópias.
   pipe pode-falhar "Contratos das prefeituras" contratos --sem-baixar
   pipe pode-falhar "Pagamentos das prefeituras" pagamentos --sem-baixar
-  # (O passo acima copia também AM e TO, pagamentos-am.json e -to.json: uv run pagamentos --uf AM|TO, à mão.)
+  # (O passo acima copia também AM e TO, pagamentos-am.json e -to.json: uv run pagamentos --uf AM|TO, à mão,
+  # e PR e RS, pagamentos-pr.json e -rs.json: uv run pagamentos --uf PR|RS, à mão; o TCE-RS só responde do Brasil.)
 }
 
 fila_mapa() {
