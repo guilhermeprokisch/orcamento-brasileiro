@@ -25,7 +25,8 @@ const GRADE: [string, number, number][] = [
 const por = new Map(QUEM_PUBLICA.map((e) => [e.uf, e]));
 const nInteiro = porFaixa("inteiro").length;
 const nPrefeituras = QUEM_PUBLICA.filter((e) => e.prefeituras.situacao === "sim").length;
-const noSiteEstado = QUEM_PUBLICA.filter((e) => e.noSite).map((e) => deUf(e.uf));
+const noSiteEstado = QUEM_PUBLICA.filter((e) => e.noSite && e.faixa !== "folha").map((e) => deUf(e.uf));
+const noSiteFolha = QUEM_PUBLICA.filter((e) => e.noSite && e.faixa === "folha").map((e) => deUf(e.uf));
 const noSitePref = QUEM_PUBLICA.filter((e) => e.prefeituras.noSite).map((e) => deUf(e.uf));
 const lista = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} e ${xs.at(-1)}` : xs[0] ?? "");
 
@@ -109,8 +110,8 @@ const mapas: { id: string; titulo: string; classe: (e: Estado) => string; noSite
     </section>
 
     <p class="no-site-texto">
-      O site já usa o gasto estadual por município {lista(noSiteEstado)}, na página de cada cidade, e os pagamentos das
-      prefeituras {lista(noSitePref)}.
+      O site já usa o gasto estadual por município {lista(noSiteEstado)}{noSiteFolha.length > 0 && <> e a folha de pagamento
+      estadual por cidade {lista(noSiteFolha)}</>}, na página de cada cidade, e os pagamentos das prefeituras {lista(noSitePref)}.
     </p>
 
     {FAIXAS.map((f) => {

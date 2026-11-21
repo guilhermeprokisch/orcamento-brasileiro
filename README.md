@@ -36,6 +36,7 @@ Tudo vem de dados abertos oficiais. Os arquivos das fontes, como vieram, e os JS
 | INEP | Ideb; matrículas do Censo Escolar | `ideb`, `matriculas` |
 | IBGE | População, Censo 2022 (água e esgoto), IPCA, malhas | `populacao`, `saneamento`, `mapa` |
 | Governos de MG e PB | Gasto estadual por município | `estado-mg`, `estado-pb` |
+| Governos do PR e de SC | Folha de pagamento estadual por cidade de trabalho | `estado-pr`, `estado-sc` |
 
 Cada comando é um arquivo em `pipeline/src/orcamento_pipeline/`, com a explicação da fonte, das escolhas e dos cuidados no começo.
 
