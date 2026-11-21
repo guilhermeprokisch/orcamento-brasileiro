@@ -206,16 +206,6 @@ export function totalPago(doc: DocCaminho): number {
   return doc.fluxos.filter((f) => f.tipo === "imposto").reduce((t, f) => t + f.valor, 0);
 }
 
-/** Quanto do que foi para cada governo da coluna 3 veio de cada governo da coluna 2 (matriz quem cobra × quem fica). */
-export function matriz(doc: DocCaminho) {
-  const m: Record<string, Record<string, number>> = {};
-  for (const f of doc.fluxos.filter((x) => x.tipo !== "imposto")) {
-    const de = f.de.slice(2), para = f.para.slice(2);
-    (m[de] ??= {})[para] = (m[de][para] ?? 0) + f.valor;
-  }
-  return m;
-}
-
 // ── Siga um imposto ──────────────────────────────────────────────────────────────────────────────
 
 export interface Rota { imposto: string; nome: string; total: number; destinos: { esfera: Esfera; valor: number; porque: string }[] }

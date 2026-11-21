@@ -20,6 +20,9 @@ const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
 // Menu principal: as páginas agrupadas pela pergunta de quem chega. Para incluir uma página,
 // acrescente um item ao grupo dela; o menu do computador e o do celular saem desta lista.
 const GRUPOS = [
+  { nome: "Impostos", itens: [
+    { href: "/impostos", nome: "Para quem vai o seu imposto", desc: "Quem cobra cada imposto, o que é repassado a estados e prefeituras e quem fica com o dinheiro." },
+  ] },
   { nome: "Governo federal", itens: [
     { href: "/explorer", nome: "Gastos", desc: "Para onde vai o dinheiro: por órgão, área, programa e ação." },
     { href: "/receitas", nome: "Receitas", desc: "De onde vem o dinheiro: impostos, contribuições, royalties e empréstimos." },
@@ -83,7 +86,7 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
         </a>
         <nav class="nav so-largo" aria-label="Principal">
           {GRUPOS.map((g, n) => (
-            <details class:list={["grupo", { "a-direita": n >= 2 }]}>
+            <details class:list={["grupo", { "a-direita": n >= GRUPOS.length - 2 }]}>
               <summary class:list={{ atual: grupoAtual(g) }}>
                 {g.nome}
                 <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" /></svg>

@@ -1,0 +1,218 @@
+---
+/**
+ * O caminho dos impostos: eu pago imposto para quem, e para onde vai? Brasil inteiro, todos os governos somados.
+ * Três partes, cada uma respondendo uma pergunta:
+ *   1. A história (HistoriaRio, a única contada rolando a página): o diagrama se monta passo a passo.
+ *   2. O caminho inteiro (Diagrama + Painel, já montado, para clicar): botões acendem um pedaço, e o que deixa de
+ *      entrar (benefícios fiscais) liga e desliga, com a série dos anos (SerieDeixa).
+ *   3. Siga o seu imposto (SigaImposto): o dia a dia filtra a lista; cada imposto leva ao diagrama.
+ * As partes se ligam pelo evento "escolher" na seção .parte-caminho.
+ * Dados de pipeline/…/caminho_impostos.py; como cada real é contado, em docs/levantamento-caminho-impostos.md.
+ */
+import Base from "../layouts/Base.astro";
+import Termo from "../components/Termo.astro";
+import HistoriaRio from "../components/impostos/HistoriaRio.astro";
+import SerieDeixa from "../components/impostos/SerieDeixa.astro";
+import Diagrama from "../components/impostos/Diagrama.astro";
+import Painel from "../components/impostos/Painel.astro";
+import SigaImposto from "../components/impostos/SigaImposto.astro";
+import { bi, biExtenso, docCaminho as doc, partesInteiras, porMorador, totalPago } from "../lib/caminho-impostos";
+
+const deixa = doc?.deixa?.uniao ? { uniao: doc.deixa.uniao.total, estados: doc.deixa.estados?.total ?? 0 } : null;
+const total = doc ? totalPago(doc) : 0;
+const g = doc?.governos;
+const fundos = doc ? doc.fluxos.filter((f) => f.para === "f-fundos").reduce((t, f) => t + f.valor, 0) : 0;
+const [cU, cE, cM] = g ? partesInteiras([g.uniao.cobra, g.estados.cobra, g.prefeituras.cobra]) : [];
+const [fU, , fE, fM] = g ? partesInteiras([g.uniao.fica, fundos, g.estados.fica, g.prefeituras.fica]) : [];
+const ATALHOS = [
+  { id: "g-uniao", nome: "A divisão da União" }, { id: "g-icms", nome: "O caminho do ICMS" }, { id: "g-fundeb", nome: "O Fundeb" },
+  { id: "g-programas", nome: "Os programas" }, { id: "g-fica", nome: "O que cada um guarda" }, { id: "g-deixa", nome: "O que deixa de entrar" },
+];
+const itr = doc?.composicao?.["outros-federais"]?.find((i) => i.nome.startsWith("ITR"))?.valor ?? 0;
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const descricao = doc && g
+  ? `Em ${doc.ano}, de cada R$ 100 em impostos a União cobrou R$ ${cU} e ficou com R$ ${fU}; as prefeituras cobraram R$ ${cM} e ficaram com R$ ${fM}. Siga o caminho do seu imposto.`
+  : "Para quem vai o imposto que você paga: União, estado ou prefeitura, e o que cada um repassa ao outro.";
+---
+
+<Base title="O caminho dos impostos · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap pagina-impostos">
+    {!doc || !g ? (
+      <section class="abre"><h1>Eu pago imposto para quem?</h1><p>Os dados do caminho dos impostos ainda não foram carregados.</p></section>
+    ) : (
+      <>
+        <header class="abre">
+          <span class="sobretitulo">Brasil, todos os governos somados · {doc.ano}</span>
+          <h1>Eu pago imposto para quem?</h1>
+          <p>
+            Para três governos, e o dinheiro não fica onde foi pago. Em {doc.ano}, quem mora no Brasil pagou <strong class="marca">{biExtenso(total)}</strong>
+            {porMorador(doc, total) && <> ({porMorador(doc, total)} por pessoa)</>} em impostos. De cada R$ 100, a União cobrou R$ {cU} e ficou com R$ {fU};
+            os estados cobraram R$ {cE} e ficaram com R$ {fE}; as prefeituras cobraram R$ {cM} e ficaram com R$ {fM}.
+          </p>
+        </header>
+
+        <nav class="indice" aria-label="Nesta página">
+          <a href="#a-historia"><b>1.</b> A história <span>o caminho, passo a passo</span></a>
+          <a href="#caminho-inteiro"><b>2.</b> O caminho inteiro <span>para explorar, clicando</span></a>
+          <a href="#siga-o-seu-imposto"><b>3.</b> Siga o seu imposto <span>o que você paga</span></a>
+        </nav>
+
+        <div class="titulo-parte" id="a-historia">
+          <span class="n">1</span>
+          <div><h2>A história: do imposto pago a quem fica com ele</h2><p>Role a página: o desenho vai se montando, imposto por imposto, até cada governo.</p></div>
+        </div>
+        <HistoriaRio doc={doc} deixa={deixa} />
+
+        <section class="parte-caminho" id="caminho-inteiro">
+          <div class="titulo-parte">
+            <span class="n">2</span>
+            <div><h2>O caminho inteiro</h2><p>Todos os impostos, quem cobra e quem fica com o dinheiro. Clique numa barra ou numa faixa, ou acenda um pedaço:</p></div>
+          </div>
+          <div class="atalhos" role="group" aria-label="Mostrar">
+            {ATALHOS.map((a) => <button type="button" data-grupo={a.id} aria-pressed="false">{a.nome}</button>)}
+          </div>
+          {deixa && <label class="liga-deixa"><input type="checkbox" class="mostrar-x" /> Mostrar o que deixa de entrar (<Termo id="beneficio-fiscal">benefícios fiscais</Termo>)</label>}
+          <div class="explorar-grade">
+            <div>
+              {/* Dois desenhos: sem e com o que deixa de entrar (que muda o espaço de cada barra); a caixa troca um pelo outro. */}
+              <div class="desenho-sem-x">
+                <Diagrama doc={doc} forma="largo" classe="so-largo explorar-svg" />
+                <Diagrama doc={doc} forma="estreito" classe="so-estreito explorar-svg" />
+              </div>
+              {deixa && (
+                <div class="desenho-com-x" hidden>
+                  <Diagrama doc={doc} forma="largo" deixa={deixa} classe="so-largo explorar-svg" />
+                  <Diagrama doc={doc} forma="estreito" deixa={deixa} classe="so-estreito explorar-svg" />
+                  <SerieDeixa doc={doc} />
+                </div>
+              )}
+            </div>
+            <Painel doc={doc} deixa={deixa} inicial="g-uniao" />
+          </div>
+          <p class="cobertura">
+            <strong>Estão todos os impostos do país.</strong> Os menores aparecem somados: o ITR (das terras rurais, {bi(itr)}), a CIDE dos
+            combustíveis e o salário-educação em "Outros federais"; as taxas e a contribuição de iluminação pública em "Taxas". O Simples Nacional não
+            aparece à parte porque o que se paga nele já está dividido entre o imposto de renda, a Cofins, o INSS, o ICMS e o ISS. Ficam de fora o FGTS
+            (que é do trabalhador), as contribuições ao Sistema S (Sesi, Senai, Sesc…) e a previdência própria dos servidores públicos.
+          </p>
+        </section>
+
+        <div class="titulo-parte" id="siga-o-seu-imposto">
+          <span class="n">3</span>
+          <div><h2>Siga o seu imposto</h2><p>Para onde vai cada imposto que você paga. Escolha onde você paga, ou clique num imposto.</p></div>
+        </div>
+        <SigaImposto doc={doc} />
+
+        <section class="fontes" id="fontes">
+          <h2>De onde vêm os números</h2>
+          <ul>
+            <li><strong>Impostos federais e repasses da União</strong>: Tesouro Nacional, <a href={doc.fonte.rtn.pagina}>Resultado do Tesouro Nacional</a> (série histórica, {doc.ano}).</li>
+            <li><strong>Impostos de estados e prefeituras e o que cada um recebeu</strong>: {doc.fonte.dca}, entregue por cada governo ao Tesouro (SICONFI). {doc.fonte.faltam.com_ano_anterior} prefeituras que ainda não entregaram a de {doc.ano} entram com a do ano anterior.</li>
+            {doc.deixa?.uniao && <li><strong><Termo id="beneficio-fiscal">Benefícios fiscais</Termo> da União</strong>: Receita Federal, <a href={doc.deixa.uniao.pagina}>Demonstrativo dos Gastos Tributários</a> ({doc.deixa.uniao.estimativa}).</li>}
+            {doc.deixa?.estados && <li><strong>Incentivos de ICMS</strong>: {doc.deixa.estados.fonte}, sem {doc.deixa.estados.sem.join(" e ")}. Não há o valor de cada estado.</li>}
+          </ul>
+          <p>
+            <strong>Sem contar duas vezes.</strong> Cada real entra uma vez só, no imposto, no governo que o cobra. O <Termo id="fpm" />, por exemplo, não é um
+            imposto das prefeituras: é imposto de renda e IPI que a União cobrou e repassou. O que cada governo fica = o que cobrou − o que repassou + o que
+            recebeu, e a soma do que todos ficam é igual ao que se pagou. Ficam de fora o que não é imposto (dividendos das estatais, empréstimos), a
+            contribuição dos servidores à previdência própria deles e o dinheiro devolvido (restituições). Os <Termo id="royalties" /> entram porque a lei manda
+            dividi-los como um imposto.
+          </p>
+          <h3>Cada repasse contado pelos dois lados</h3>
+          <table class="confere">
+            <thead><tr><th>Repasse</th><th>Quem manda diz</th><th>Quem recebe declarou</th></tr></thead>
+            <tbody>
+              {doc.conferencia.filter((c) => c.nome !== "Royalties").map((c) => (
+                <tr><td>{c.nome}</td><td>{bi(c.manda)}</td><td>{bi(c.recebe)} <span>({c.recebe >= c.manda ? "+" : "−"}{nf1.format(Math.abs((c.recebe - c.manda) / c.manda) * 100)}%)</span></td></tr>
+              ))}
+            </tbody>
+          </table>
+          <p class="menor">
+            O governo do Rio de Janeiro lança os royalties dele como receita própria, não como repasse; por isso a linha dos royalties soma esse lançamento.
+            Os dados estão em <a href="/data/impostos/caminho.json">caminho.json</a>, e o caminho de cada imposto federal pelo ano todo está em <a href="/receitas">Receitas</a>.
+          </p>
+        </section>
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .abre { padding: 40px 0 20px; max-width: 880px; display: flex; flex-direction: column; gap: 14px; }
+  .abre h1 { font-size: 64px; line-height: 0.98; letter-spacing: -0.025em; }
+  .abre p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .indice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); margin-bottom: 8px; }
+  .indice a { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px 14px 0; color: var(--tinta); text-decoration: none; font-size: 17px; font-family: var(--serifa); font-weight: 600; }
+  .indice a + a { padding-left: 16px; border-left: 1px solid var(--regra); }
+  .indice a:hover { text-decoration: underline; }
+  .indice span { font-family: var(--sans); font-weight: 400; font-size: 14px; color: var(--texto-3); }
+  .titulo-parte { display: flex; gap: 16px; align-items: flex-start; padding: 36px 0 12px; scroll-margin-top: 12px; }
+  .titulo-parte .n { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--tinta); color: var(--papel); display: grid; place-items: center; font-family: var(--serifa); font-weight: 700; font-size: 22px; }
+  .titulo-parte h2 { font-size: 36px; line-height: 1.1; }
+  .titulo-parte p { margin: 6px 0 0; font-size: 17px; line-height: 1.5; color: var(--texto-2); max-width: 760px; }
+  .parte-caminho { border-top: 2px solid var(--tinta); padding-bottom: 28px; display: flex; flex-direction: column; gap: 12px; scroll-margin-top: 12px; }
+  .parte-caminho .titulo-parte { padding-top: 28px; }
+  .atalhos { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 56px; }
+  .atalhos button { padding: 6px 12px; border: 1px solid var(--tinta); background: var(--papel); font: inherit; font-size: 14px; cursor: pointer; }
+  .atalhos button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
+  .liga-deixa { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; padding-left: 56px; cursor: pointer; }
+  .liga-deixa input { accent-color: var(--verde-escuro); width: 16px; height: 16px; }
+  .cobertura { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: var(--texto-3); max-width: 880px; }
+  .cobertura strong { color: var(--tinta); }
+  .explorar-grade { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 32px; align-items: start; }
+  .pagina-impostos :global(.so-estreito) { display: none; }
+  #siga-o-seu-imposto { border-top: 2px solid var(--tinta); }
+
+  .fontes { border-top: 2px solid var(--tinta); padding: 32px 0 0; display: flex; flex-direction: column; gap: 12px; max-width: 880px; }
+  .fontes h2 { font-size: 26px; }
+  .fontes h3 { font-size: 18px; margin-top: 8px; }
+  .fontes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
+  .fontes p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--texto-2); }
+  .fontes .menor { font-size: 14px; color: var(--texto-3); }
+  .confere { border-collapse: collapse; font-size: 14px; width: 100%; }
+  .confere th { text-align: left; font-weight: 600; font-size: 13px; color: var(--texto-3); border-bottom: 1px solid var(--tinta); padding: 6px 8px 6px 0; }
+  .confere td { border-bottom: 1px solid var(--regra-leve); padding: 6px 8px 6px 0; font-variant-numeric: tabular-nums; }
+  .confere td span { color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .abre { padding: 28px 0 16px; }
+    .abre h1 { font-size: 40px; }
+    .abre p { font-size: 17px; }
+    .indice a { font-size: 14px; padding: 10px 8px 10px 0; line-height: 1.25; }
+    .indice a + a { padding-left: 8px; }
+    .indice span { display: none; }
+    .titulo-parte { gap: 12px; padding-top: 28px; }
+    .titulo-parte .n { width: 32px; height: 32px; font-size: 18px; }
+    .titulo-parte h2 { font-size: 26px; }
+    .titulo-parte p { font-size: 15.5px; }
+    .atalhos { padding-left: 0; }
+    .liga-deixa { padding-left: 0; }
+    .explorar-grade { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+    .pagina-impostos :global(.so-largo) { display: none !important; }
+    .pagina-impostos :global(.so-estreito) { display: block !important; }
+  }
+</style>
+
+<script>
+  // Os botões "acenda um pedaço" pedem ao painel do diagrama um conjunto de faixas (Painel.astro, ids g-…).
+  const secao = document.querySelector<HTMLElement>(".parte-caminho");
+  if (secao) {
+    const botoes = [...secao.querySelectorAll<HTMLButtonElement>(".atalhos button")];
+    botoes.forEach((b) => b.addEventListener("click", () => secao.dispatchEvent(new CustomEvent("escolher", { detail: b.dataset.grupo }))));
+    // Escolher outro pedaço (no desenho ou vindo das outras partes) troca o botão apertado.
+    secao.addEventListener("escolher", (e) => {
+      const id = (e as CustomEvent<string>).detail;
+      botoes.forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.grupo === id)));
+    });
+    secao.querySelectorAll("svg").forEach((svg) => svg.addEventListener("click", () => botoes.forEach((x) => x.setAttribute("aria-pressed", "false"))));
+    // Ligar e desligar o que deixa de entrar; escolher um pedaço tracejado (ou o atalho) liga sozinho.
+    const liga = secao.querySelector<HTMLInputElement>(".mostrar-x");
+    const sem = secao.querySelector<HTMLElement>(".desenho-sem-x"), com = secao.querySelector<HTMLElement>(".desenho-com-x");
+    const aplicar = () => { if (sem && com && liga) { com.hidden = !liga.checked; sem.hidden = liga.checked; } };
+    liga?.addEventListener("change", aplicar);
+    secao.addEventListener("escolher", (e) => {
+      const id = (e as CustomEvent<string>).detail;
+      if (liga && !liga.checked && (id === "g-deixa" || id.startsWith("x-") || id.startsWith("g-t-") || id.startsWith("g-c-"))) { liga.checked = true; aplicar(); }
+    });
+  }
+</script>
