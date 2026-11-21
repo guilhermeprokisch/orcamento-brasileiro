@@ -1,4 +1,4 @@
-import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createMemo, createResource, createSignal, For, lazy, onCleanup, onMount, Show } from "solid-js";
 import Treemap from "./Treemap";
 import Tabela from "./Tabela";
 import BarrasAno, { type Ponto } from "./BarrasAno";
@@ -11,7 +11,9 @@ import {
 import { moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import "./explorer.css";
 
-type Vista = "mapa" | "lista";
+/** Mapa de blocos, lista ou cascata (a tela livre em Canvas, carregada só quando é escolhida). */
+type Vista = "mapa" | "lista" | "cascata";
+const CascataVista = lazy(() => import("./CascataVista"));
 
 interface Estado {
   ano: number | null;
@@ -66,7 +68,7 @@ function lerUrl(): Estado {
     filtros,
     por: ehDim(por) && !filtros.some((f) => f.dim === por) ? por : proximaSugerida(filtros),
     semRefin: p.get("refin") === "0",
-    vista: p.get("vista") === "lista" || p.get("vista") === "tabela" ? "lista" : "mapa",
+    vista: p.get("vista") === "lista" || p.get("vista") === "tabela" ? "lista" : p.get("vista") === "cascata" ? "cascata" : "mapa",
     real: p.get("ipca") === "1",
   };
 }
@@ -78,7 +80,7 @@ function montarUrl(e: Estado): string {
   if (e.filtros.length) p.set("f", e.filtros.map((f) => `${f.dim}:${f.cod}`).join(","));
   if (e.por) p.set("por", e.por);
   if (e.semRefin) p.set("refin", "0");
-  if (e.vista === "lista") p.set("vista", "lista");
+  if (e.vista !== "mapa") p.set("vista", e.vista);
   if (e.real) p.set("ipca", "1");
   return `${location.pathname}?${p.toString().replaceAll("%3A", ":").replaceAll("%2C", ",")}`;
 }
@@ -239,7 +241,7 @@ export default function Explorer() {
   return (
     <div class="exp">
       <div class="exp-degraus">
-        <Degraus passos={degraus()} dicaInicio="Clique num bloco do mapa para descer um nível" extra={
+        <Degraus passos={degraus()} dicaInicio={estado().vista === "cascata" ? "Clique numa caixa da cascata para abrir o que tem dentro" : "Clique num bloco do mapa para descer um nível"} extra={
           <div class="exp-controles">
             <label class="exp-ano">
               <span class="visually-hidden">Ano</span>
@@ -326,28 +328,42 @@ export default function Explorer() {
         <Show when={ultimo()}>
           <Voltar para={pai()} onClick={subir} />
         </Show>
-        <span class="muted">Dividir por</span>
-        <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
-          <For each={ORDEM_ABAS.filter((d) => dimsAqui().includes(d))}>
-            {(d) => (
-              <button type="button" role="tab" aria-selected={d === vale().por} onClick={() => mudar({ por: d })}>
-                {ABA[d]}
-              </button>
-            )}
-          </For>
-        </div>
+        <Show when={estado().vista !== "cascata"} fallback={
+          <span class="muted exp-cascata-niveis">Órgão › unidade › programa › ação › tipo de gasto, com vários galhos abertos</span>
+        }>
+          <span class="muted">Dividir por</span>
+          <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
+            <For each={ORDEM_ABAS.filter((d) => dimsAqui().includes(d))}>
+              {(d) => (
+                <button type="button" role="tab" aria-selected={d === vale().por} onClick={() => mudar({ por: d })}>
+                  {ABA[d]}
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
         <span class="exp-abas-espaco" />
         <div class="exp-vistas">
           <button type="button" aria-pressed={estado().vista === "mapa"} onClick={() => mudar({ vista: "mapa" })}>Mapa</button>
           <span aria-hidden="true">|</span>
           <button type="button" aria-pressed={estado().vista === "lista"} onClick={() => mudar({ vista: "lista" })}>Lista</button>
           <span aria-hidden="true">|</span>
+          <button type="button" aria-pressed={estado().vista === "cascata"} onClick={() => mudar({ vista: "cascata" })}
+            title="Uma tela livre para abrir galho por galho, do total às ações">Cascata</button>
+          <span aria-hidden="true">|</span>
           <button type="button" disabled={!grupo() || !vale().por}
             onClick={() => baixarCsv(grupo()!.itens, vale().por!, ano()!, estado().real)}>Baixar CSV</button>
         </div>
       </div>
 
-      <Show when={grupo()} fallback={<div class="exp-carregando" aria-busy="true">Carregando…</div>}>
+      <Show when={estado().vista === "cascata" && doc() && ano()}>
+        <CascataVista doc={doc()!} ano={ano()!} metrica={estado().metrica} semRefin={estado().semRefin} fator={fatorDe(ano())}
+          filtros={vale().filtros}
+          onCaminho={(filtros) => mudar({ filtros, por: proximaSugerida(filtros) })}
+          onVerMapa={(filtros) => mudar({ filtros, por: proximaSugerida(filtros), vista: "mapa" }, true)} />
+      </Show>
+
+      <Show when={estado().vista !== "cascata" && grupo()} fallback={<Show when={estado().vista !== "cascata"}><div class="exp-carregando" aria-busy="true">Carregando…</div></Show>}>
         <Show when={(grupo()?.itens.length ?? 0) > 0} fallback={
           <div class="exp-carregando">
             <p>Este caminho não tem valores em {ano()}.</p>
@@ -366,6 +382,7 @@ export default function Explorer() {
 
       <p class="exp-nota">
         <Show when={estado().vista === "mapa"}>Cada bloco é proporcional à dotação; clique para descer um nível. </Show>
+        <Show when={estado().vista === "cascata"}>Na cascata, em cada nível aparecem os oito maiores e os outros ficam em “mais N”; cada caixa é proporcional ao valor dentro do seu nível (“Tamanho real” põe todas na escala do total). </Show>
         * {anoCorrente} ainda em execução. Pago = realizado ÷ dotação atualizada.
         <Show when={!estado().semRefin && trilha().length === 0}> Os totais incluem o refinanciamento da dívida pública.</Show>
       </p>
