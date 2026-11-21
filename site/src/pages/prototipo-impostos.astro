@@ -1,12 +1,14 @@
 ---
 /**
  * PROTÓTIPO (rascunho para escolher, sai do site quando a página /impostos ficar pronta): três jeitos de contar o
- * caminho dos impostos, com os dados de verdade. A versão vem de ?v=1, ?v=2 ou ?v=3 (sem o parâmetro, a 1).
+ * caminho dos impostos, com os dados de verdade. A versão vem de ?v=1, ?v=2, ?v=3 ou ?v=4 (as três juntas numa
+ * página só); sem o parâmetro, a 1.
  */
 import Base from "../layouts/Base.astro";
 import VersaoRio from "../components/impostos/VersaoRio.astro";
 import VersaoCem from "../components/impostos/VersaoCem.astro";
 import VersaoRotas from "../components/impostos/VersaoRotas.astro";
+import VersaoJunta from "../components/impostos/VersaoJunta.astro";
 import { docCaminho as doc } from "../lib/caminho-impostos";
 
 const deixa = doc?.deixa?.uniao ? { uniao: doc.deixa.uniao.total, estados: doc.deixa.estados?.total ?? 0 } : null;
@@ -14,6 +16,7 @@ const VERSOES = [
   { v: "1", nome: "O rio", desc: "diagrama de fluxos montado ao rolar" },
   { v: "2", nome: "De cada R$ 100", desc: "100 quadradinhos que mudam de mão" },
   { v: "3", nome: "Siga o seu imposto", desc: "o dia a dia, imposto por imposto" },
+  { v: "4", nome: "As três juntas", desc: "uma página, três partes" },
 ];
 ---
 
@@ -37,6 +40,7 @@ const VERSOES = [
         <div class="versao" data-versao="1"><VersaoRio doc={doc} deixa={deixa} /></div>
         <div class="versao" data-versao="2" hidden><VersaoCem doc={doc} deixa={deixa} /></div>
         <div class="versao" data-versao="3" hidden><VersaoRotas doc={doc} deixa={deixa} /></div>
+        <div class="versao" data-versao="4" hidden><VersaoJunta doc={doc} deixa={deixa} /></div>
       </>
     )}
   </div>
@@ -56,6 +60,9 @@ const VERSOES = [
   :global(html[data-captura="explorar"] .rolagem) { display: none !important; }
   :global(html[data-captura] astro-dev-toolbar) { display: none !important; }
   :global(html[data-captura] *) { transition: none !important; }
+  /* Versão 4: &passo=explorar abre na parte 2; &passo=siga, na parte 3. */
+  :global(html[data-captura="explorar"] .v-junta > :is(.indice, #de-cada-100, .v-cem)) { display: none !important; }
+  :global(html[data-captura="siga"] .v-junta > :not(#siga-o-seu-imposto, .v-rotas)) { display: none !important; }
 </style>
 
 <script>
@@ -66,5 +73,5 @@ const VERSOES = [
     if (a.dataset.v === (existe ? v : "1")) a.setAttribute("aria-current", "page");
   });
   // As versões escondidas medem errado o que está na tela; avisa quando a versão aparece.
-  window.dispatchEvent(new Event("resize"));
+  requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
 </script>

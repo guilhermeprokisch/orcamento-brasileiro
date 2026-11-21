@@ -6,8 +6,13 @@
  */
 import { bi, biExtenso, COR, EXPLICA, partesInteiras, rotas, soma, totalPago, type DocCaminho, type Esfera, type Rota } from "../../lib/caminho-impostos";
 
-interface Props { doc: DocCaminho; deixa: { uniao: number; estados: number } | null }
-const { doc, deixa } = Astro.props;
+interface Props {
+  doc: DocCaminho;
+  deixa: { uniao: number; estados: number } | null;
+  /** Como parte de uma página maior (versão 4): sem título nem história; o dia a dia vira filtros da lista. */
+  parte?: boolean;
+}
+const { doc, deixa, parte = false } = Astro.props;
 const total = totalPago(doc);
 const rs = rotas(doc).sort((a, b) => b.total - a.total);
 const rota = (id: string) => rs.find((r) => r.imposto === id)!;
@@ -42,14 +47,14 @@ const info = Object.fromEntries(rs.map((r) => [r.imposto, {
 const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") + soma(doc, (f) => f.chave === "fundeb-uniao");
 ---
 
-<section class="v-rotas">
-  <header class="abre">
+<section class={`v-rotas ${parte ? "parte" : ""}`}>
+  {!parte && <header class="abre">
     <span class="sobretitulo">Brasil, todos os governos somados · {doc.ano}</span>
     <h1>Siga o seu imposto</h1>
     <p>Cada imposto que você paga tem um caminho. Alguns ficam inteiros com quem cobra; outros são divididos por lei entre a União, o estado e a prefeitura. Juntos, foram {biExtenso(total)} em {doc.ano}.</p>
-  </header>
+  </header>}
 
-  <div class="rolagem">
+  {!parte && <div class="rolagem">
     <div class="palco">
       {[...PASSOS, ...(passoDeixa ? [passoDeixa] : [])].map((p) => (
         <div class="cartao" data-passo={p.id}>
@@ -84,10 +89,18 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
         <li data-passo="deixa"><h2>{passoDeixa.titulo}</h2><p>Isenções, deduções e regimes especiais fazem a União deixar de cobrar {biExtenso(deixa.uniao)} por ano, a maior parte no imposto de renda e na Cofins, e os estados {biExtenso(deixa.estados)} de ICMS. A parte tracejada é esse dinheiro, ao lado do que foi cobrado.</p></li>
       )}
     </ol>
-  </div>
+  </div>}
 
   <section class="explorar-rotas">
-    <h2>Todos os impostos</h2>
+    {!parte && <h2>Todos os impostos</h2>}
+    {parte && (
+      <div class="dia" role="group" aria-label="Onde você paga">
+        <span>Onde você paga:</span>
+        {PASSOS.map((p) => <button type="button" data-impostos={p.impostos.join(" ")} data-texto={p.texto}>{p.titulo}</button>)}
+        <button type="button" data-impostos="" data-texto="" aria-pressed="true">Todos</button>
+      </div>
+    )}
+    {parte && <p class="dia-texto" aria-live="polite" hidden></p>}
     <p class="dica">Cada barra tem o tamanho do que se arrecadou e a cor de quem fica com o dinheiro. Clique para ver o caminho.</p>
     <label class="liga"><input type="checkbox" class="mostrar-deixa" /> Mostrar o que deixou de entrar</label>
     <div class="grade-rotas">
@@ -108,6 +121,7 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
       <aside class="rota-info" aria-live="polite">
         <span class="painel-tipo">Você escolheu</span>
         <h3></h3><strong class="ri-valor"></strong><p class="ri-texto"></p><ul class="ri-lista"></ul><p class="ri-deixa"></p>
+        {parte && <button type="button" class="ir-caminho">Ver no caminho inteiro ↑</button>}
       </aside>
     </div>
     <p class="nota">As faixas seguem as regras da Constituição: o FPE, o FPM e os fundos regionais saem do imposto de renda e do IPI; no Fundeb, cada imposto do estado entra com o que põe no fundo. O que a União manda para programas e para o Fundeb ({bi(programas)}) sai do caixa geral dela, não de um imposto em especial, e por isso aparece aqui como "fica com a União".</p>
@@ -153,6 +167,14 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
   .lista-rotas button:hover .lr-nome, .lista-rotas button[aria-pressed="true"] .lr-nome { text-decoration: underline; }
   .lista-rotas button[aria-pressed="true"] .lr-barra { outline: 2px solid var(--tinta); outline-offset: 2px; }
   .lr-nome { font-size: 15px; }
+  .lista-rotas :global(li[data-apagado]) { opacity: 0.28; }
+  .dia { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; }
+  .dia span { color: var(--texto-3); margin-right: 4px; }
+  .dia button { padding: 6px 12px; border: 1px solid var(--tinta); background: var(--papel); font: inherit; font-size: 14px; cursor: pointer; }
+  .dia button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
+  .dia-texto { margin: 0; font-size: 16px; line-height: 1.55; color: var(--texto-2); max-width: 760px; padding-left: 12px; border-left: 3px solid var(--marca-texto); }
+  .ir-caminho { align-self: flex-start; margin-top: 4px; padding: 5px 10px; border: 1px solid var(--tinta); background: var(--papel); font: inherit; font-size: 14px; cursor: pointer; }
+  .parte .explorar-rotas { border-top: 0; padding-top: 0; }
   .lr-barra { display: flex; height: 20px; gap: 1px; }
   .lr-barra .seg { padding: 0; }
   .lr-valor { text-align: right; font-size: 14px; color: var(--texto-3); white-space: nowrap; }
@@ -184,6 +206,7 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
     .lr-nome { font-size: 13px; }
     .lr-valor { font-size: 12px; }
     .rota-info { position: static; }
+    .lista-rotas :global(li[data-apagado]) { display: none; }
   }
 </style>
 
@@ -201,13 +224,17 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
     let ultimo = "", pedido = false;
     const medir = () => {
       pedido = false;
+      if (raiz.offsetParent === null) return;   // escondida (outra versão do protótipo na tela): nada a medir
       let id = passos[0].dataset.passo!;
       for (const p of passos) if (p.getBoundingClientRect().top < innerHeight * 0.6) id = p.dataset.passo!;
       if (fixo && fixo !== "explorar") id = fixo;
       if (id !== ultimo) { ultimo = id; mostrar(id); }
     };
-    addEventListener("scroll", () => { if (!pedido) { pedido = true; requestAnimationFrame(medir); } }, { passive: true });
-    medir();
+    if (passos.length) {
+      addEventListener("scroll", () => { if (!pedido) { pedido = true; requestAnimationFrame(medir); } }, { passive: true });
+    addEventListener("resize", () => requestAnimationFrame(medir));
+      medir();
+    }
 
     const dados = JSON.parse(raiz.querySelector(".rotas-dados")!.textContent!) as Record<string, Info>;
     const aside = raiz.querySelector<HTMLElement>(".rota-info")!;
@@ -225,8 +252,25 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
         return li;
       }));
     };
-    botoes.forEach((b) => b.addEventListener("click", () => escolher(b.dataset.imposto!)));
-    escolher(botoes[0].dataset.imposto!);
+    let escolhido = "";
+    const escolherE = (id: string) => { escolhido = id; escolher(id); };
+    botoes.forEach((b) => b.addEventListener("click", () => escolherE(b.dataset.imposto!)));
+    escolherE(botoes[0].dataset.imposto!);
+    // Na página com as três partes: o dia a dia filtra a lista, e o botão leva ao diagrama com o imposto aceso.
+    const textoDia = raiz.querySelector<HTMLElement>(".dia-texto");
+    raiz.querySelectorAll<HTMLButtonElement>(".dia button").forEach((b) => b.addEventListener("click", () => {
+      raiz.querySelectorAll(".dia button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      const quais = new Set(b.dataset.impostos!.split(" ").filter(Boolean));
+      botoes.forEach((x) => x.closest("li")!.toggleAttribute("data-apagado", quais.size > 0 && !quais.has(x.dataset.imposto!)));
+      if (textoDia) { textoDia.textContent = b.dataset.texto!; textoDia.hidden = !b.dataset.texto; }
+      if (quais.size) escolherE([...quais][0]);
+    }));
+    aside.querySelector<HTMLButtonElement>(".ir-caminho")?.addEventListener("click", () => {
+      const destino = raiz.closest(".v-junta")?.querySelector<HTMLElement>(".parte-caminho");
+      if (!destino) return;
+      destino.scrollIntoView({ behavior: "smooth", block: "start" });
+      destino.dispatchEvent(new CustomEvent("escolher", { detail: `t-${escolhido}` }));
+    });
     raiz.querySelector<HTMLInputElement>(".mostrar-deixa")!.addEventListener("change", (e) =>
       raiz.querySelector(".grade-rotas")!.classList.toggle("com-deixa", (e.target as HTMLInputElement).checked));
   });

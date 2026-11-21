@@ -144,12 +144,14 @@ const fb = doc.fundeb;
     let ultimo = 0, pedido = false;
     const medir = () => {
       pedido = false;
+      if (raiz.offsetParent === null) return;   // escondida (outra versão do protótipo na tela): nada a medir
       let n = Number(passos[0].dataset.passo);
       for (const p of passos) if (p.getBoundingClientRect().top < innerHeight * 0.6) n = Number(p.dataset.passo);
       if (fixo && fixo !== "explorar") n = Number(fixo);
       if (n !== ultimo) { ultimo = n; mostrar(n); }
     };
     addEventListener("scroll", () => { if (!pedido) { pedido = true; requestAnimationFrame(medir); } }, { passive: true });
+    addEventListener("resize", () => requestAnimationFrame(medir));
     medir();
   }
   document.querySelectorAll<HTMLElement>(".v-rio").forEach(iniciar);

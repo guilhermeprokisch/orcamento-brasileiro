@@ -7,8 +7,13 @@
 import Termo from "../Termo.astro";
 import { biExtenso, COR, EXPLICA, partesInteiras, porMorador, rotas, soma, totalPago, type DocCaminho, type Esfera } from "../../lib/caminho-impostos";
 
-interface Props { doc: DocCaminho; deixa: { uniao: number; estados: number } | null }
-const { doc, deixa } = Astro.props;
+interface Props {
+  doc: DocCaminho;
+  deixa: { uniao: number; estados: number } | null;
+  /** Como parte de uma página maior (versão 4): sem o título próprio, e o toque num quadradinho leva ao diagrama. */
+  parte?: boolean;
+}
+const { doc, deixa, parte = false } = Astro.props;
 const total = totalPago(doc);
 const g = doc.governos;
 const fl = (filtro: (f: DocCaminho["fluxos"][number]) => boolean) => doc.fluxos.filter(filtro);
@@ -99,9 +104,10 @@ const pos: Record<number, Record<string, string>> = {};
 for (const [nome, pilhas] of Object.entries(passos)) for (const [p, lista] of Object.entries(pilhas)) lista.forEach((q, j) => ((pos[q.i] ??= {})[nome] = `${p}:${j}`));
 const fantasmas = deixa ? Math.round(((deixa.uniao + deixa.estados) / total) * 100) : 0;
 const grupoDe = (q: Q) => (q.grupo === "fica" ? "fica" : q.grupo);
+const de = (x: string) => x.replace(/^a /, "da ").replace(/^o /, "do ").replace(/^os /, "dos ");
 const nomeEsfera: Record<Esfera, string> = { uniao: "a União", estados: "o estado", prefeituras: "a prefeitura", fundos: "os fundos regionais" };
 const infoQ = qs.map((q) => ({
-  t: q.grupo === "fica" ? `${q.rotulo}, cobrado e guardado por ${nomeEsfera[q.cobra]}` : `${q.rotulo}: de ${nomeEsfera[q.cobra]} para ${nomeEsfera[q.fica]}`,
+  t: q.grupo === "fica" ? `${q.rotulo}, cobrado e guardado por ${nomeEsfera[q.cobra]}` : `${q.rotulo}: ${de(nomeEsfera[q.cobra])} para ${nomeEsfera[q.fica]}`,
   x: EXPLICA[q.chave] ?? "",
 }));
 const contar = (esf: Esfera, campo: "cobra" | "fica") => qs.filter((q) => q[campo] === esf).length;
@@ -115,21 +121,24 @@ const FRASE: Record<string, string> = {
   "cota-ipva": "do IPVA", fundeb: "do Fundeb", "ipi-exportacao": "do IPI-exportação",
 };
 const resumoRepasse = (grupo: Parcela["grupo"]) => parcelas.filter((p) => p.grupo === grupo).sort((a, b) => b.n - a.n).map((p) => `${p.n} ${FRASE[p.chave] ?? `de ${p.rotulo.toLowerCase()}`}`);
+/** A faixa do diagrama de fluxos por onde passou cada quadradinho (o id de Diagrama.astro). */
+const fluxoDe = (q: Q) => q.grupo === "fica" ? `t-${q.chave}>c-${q.cobra}:${q.chave}` : q.grupo === "fundos" ? "c-uniao>f-fundos:fundos"
+  : `c-${q.cobra}>f-${q.fica}:${q.chave}`;
 const listaPt = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
 ---
 
-<section class="v-cem">
-  <header class="abre">
+<section class={`v-cem ${parte ? "parte" : ""}`}>
+  {!parte && <header class="abre">
     <span class="sobretitulo">Brasil, todos os governos somados · {doc.ano}</span>
     <h1>De cada R$ 100 em impostos, quem fica com quanto?</h1>
     <p>Em {doc.ano}, foram {biExtenso(total)}{porMorador(doc, total) && <> ({porMorador(doc, total)} por pessoa)</>}. Cada quadradinho abaixo é R$ 1 de cada R$ 100. Role para ver para onde eles vão.</p>
-  </header>
+  </header>}
 
   <div class="rolagem">
     <div class="palco">
       <div class="moedas" data-passo="um" style={`--colunas: 5`}>
         {qs.map((q) => (
-          <button type="button" class={`q c-${q.cobra}`} style={`--cor: ${COR[q.cobra]}`} data-i={q.i} data-um={q.i} data-cobra-pos={pos[q.i].cobra} data-uniao-pos={pos[q.i].uniao} data-fica-pos={pos[q.i].fica} data-chave={q.chave} data-grupo={grupoDe(q)} aria-label={infoQ[q.i].t}></button>
+          <button type="button" class={`q c-${q.cobra}`} style={`--cor: ${COR[q.cobra]}`} data-i={q.i} data-um={q.i} data-cobra-pos={pos[q.i].cobra} data-uniao-pos={pos[q.i].uniao} data-fica-pos={pos[q.i].fica} data-chave={q.chave} data-grupo={grupoDe(q)} data-fluxo={fluxoDe(q)} aria-label={infoQ[q.i].t}></button>
         ))}
         {Array.from({ length: fantasmas }, (_, j) => <span class="q fantasma" data-x-pos={`x:${j}`} aria-hidden="true"></span>)}
         {["u", "e", "m", "f", "x"].map((p) => <div class="nome-pilha" data-pilha={p}><strong></strong><span></span></div>)}
@@ -140,6 +149,13 @@ const listaPt = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction
         fica: { u: contar("uniao", "fica"), e: contar("estados", "fica"), m: contar("prefeituras", "fica"), f: contar("fundos", "fica") },
         fantasmas,
       })} />
+      {parte && (
+        <div class="cem-info compacta" aria-live="polite">
+          <strong>Toque num quadradinho para ver de onde ele veio.</strong><span></span>
+          <button type="button" class="ir-caminho" hidden>Ver este caminho no diagrama ↓</button>
+          <script type="application/json" class="info-dados" set:html={JSON.stringify(infoQ)} />
+        </div>
+      )}
     </div>
     <ol class="passos">
       <li data-passo="um"><h2>R$ 100 em impostos</h2><p>Junte tudo o que se pagou no ano, do imposto de renda ao IPTU, e divida em cem partes. Cada uma vale {biExtenso(total / 100)}.</p></li>
@@ -151,7 +167,7 @@ const listaPt = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction
     </ol>
   </div>
 
-  <section class="explorar-cem">
+  {!parte && <section class="explorar-cem">
     <h2>Toque num quadradinho</h2>
     <p class="dica">Cada um diz de que imposto veio e por que caminho passou. Ou destaque um caminho:</p>
     <div class="filtros" role="group" aria-label="Destacar">
@@ -159,7 +175,7 @@ const listaPt = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction
     </div>
     <div class="cem-info" aria-live="polite"><strong>Escolha um quadradinho no desenho acima.</strong><span></span></div>
     <script type="application/json" class="info-dados" set:html={JSON.stringify(infoQ)} />
-  </section>
+  </section>}
 </section>
 
 <style>
@@ -198,6 +214,13 @@ const listaPt = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction
   .cem-info { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--tinta); max-width: 720px; }
   .cem-info strong { font-size: 18px; }
   .cem-info span { color: var(--texto-2); font-size: 15px; line-height: 1.55; }
+  .parte .palco { flex-direction: column; gap: 14px; }
+  .cem-info.compacta { width: 100%; max-width: 760px; padding: 10px 14px; gap: 2px; }
+  .cem-info.compacta strong { font-size: 15px; }
+  .cem-info.compacta span { font-size: 14px; }
+  .cem-info.compacta span:empty { display: none; }
+  .ir-caminho { align-self: flex-start; margin-top: 6px; padding: 5px 10px; border: 1px solid var(--tinta); background: var(--papel); font: inherit; font-size: 14px; cursor: pointer; }
+  .parte .moedas { height: min(520px, calc(100vh - 170px)); }
 
   @media (max-width: 900px) {
     .v-cem .abre h1 { font-size: 36px; }
@@ -209,6 +232,10 @@ const listaPt = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction
     .passos h2 { font-size: 22px; }
     .passos p { font-size: 15.5px; }
     .moedas { --q: 12px; --v: 2px; height: 58vh; }
+    .parte .palco { height: 72vh; gap: 6px; }
+    .parte .moedas { height: 50vh; }
+    .cem-info.compacta { padding: 6px 10px; }
+    .cem-info.compacta strong, .cem-info.compacta span { font-size: 13px; }
     .nome-pilha { font-size: 11px; width: 70px; }
     .nome-pilha strong { font-size: 20px; }
   }
@@ -281,12 +308,14 @@ const listaPt = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction
     let pedido = false;
     const medir = () => {
       pedido = false;
+      if (raiz.offsetParent === null) return;   // escondida (outra versão do protótipo na tela): nada a medir
       let alvo = passos[0];
       for (const p of passos) if (p.getBoundingClientRect().top < innerHeight * 0.6) alvo = p;
       if (fixo && fixo !== "explorar") alvo = passos.find((x) => x.dataset.passo === fixo) ?? alvo;
       if (alvo.dataset.passo !== atual) { passos.forEach((x) => x.toggleAttribute("data-atual", x === alvo)); arrumar(alvo.dataset.passo!); }
     };
     addEventListener("scroll", () => { if (!pedido) { pedido = true; requestAnimationFrame(medir); } }, { passive: true });
+    addEventListener("resize", () => requestAnimationFrame(medir));
     medir();
     new ResizeObserver(() => arrumar(atual)).observe(caixa);
 
@@ -300,6 +329,15 @@ const listaPt = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction
       const i = info[Number(q.dataset.i)];
       caixaInfo.querySelector("strong")!.textContent = i.t;
       caixaInfo.querySelector("span")!.textContent = i.x;
+      const ir = caixaInfo.querySelector<HTMLButtonElement>(".ir-caminho");
+      if (ir) { ir.hidden = false; ir.dataset.alvo = q.dataset.fluxo; }
+    });
+    // Na página com as três partes: leva ao diagrama e acende a faixa do quadradinho escolhido.
+    caixaInfo.querySelector<HTMLButtonElement>(".ir-caminho")?.addEventListener("click", (e) => {
+      const destino = raiz.closest(".v-junta")?.querySelector<HTMLElement>(".parte-caminho");
+      if (!destino) return;
+      destino.scrollIntoView({ behavior: "smooth", block: "start" });
+      destino.dispatchEvent(new CustomEvent("escolher", { detail: (e.currentTarget as HTMLElement).dataset.alvo }));
     });
     raiz.querySelectorAll<HTMLButtonElement>(".filtros button").forEach((b) => b.addEventListener("click", () => {
       const ligado = b.getAttribute("aria-pressed") !== "true";
