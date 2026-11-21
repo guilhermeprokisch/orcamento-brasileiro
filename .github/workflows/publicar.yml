@@ -55,6 +55,11 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: .github/scripts/dados.sh
 
+      # Nenhum arquivo de dados que está no ar pode sumir ou encolher mais da metade: se algum programa falhou
+      # sem cópia de referência, a publicação para aqui e o site no ar fica como está. Grava o manifesto novo.
+      - name: Conferir os dados
+        run: python3 .github/scripts/conferir-dados.py
+
       - uses: actions/setup-node@v4
         with:
           node-version: 24
