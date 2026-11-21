@@ -24,7 +24,7 @@ fora, como no "pago" da prestação de contas ao Tesouro. Conferido com a DCA 20
 
 Daí em diante, as mesmas regras da Paraíba (pagamentos.py) e do resumo de AC e SC
 (pagamentos_qlik.resumir). O tribunal diz o tipo de cada credor: 1 é pessoa jurídica (com o CNPJ),
-2 pessoa física e 6 a folha de pagamento (que vai para "folha", qualquer que seja o elemento). **O CPF
+2 pessoa física, 7 servidor (diárias, também pessoa física) e 6 a folha de pagamento (que vai para "folha", qualquer que seja o elemento). **O CPF
 não vem**: o documento de pessoa física já chega cifrado pelo tribunal, e nem esse código é gravado; só
 serve, na memória, para contar pessoas.
 
@@ -52,8 +52,10 @@ FONTE = "Tribunal de Contas do Estado do Ceará (TCE-CE), dados abertos do Siste
 PASTA = c.RAIZ / "data" / "raw" / "tce-ce"
 PAGINA = 1000   # o máximo que a API devolve por chamada
 
-# codigo_tipo_negociante
-PESSOA_JURIDICA, PESSOA_FISICA, FOLHA_DE_PAGAMENTO = "1", "2", "6"
+# codigo_tipo_negociante. O 7 também é pessoa (servidores recebendo diárias, quase sempre), com o
+# documento cifrado como o do 2.
+PESSOA_JURIDICA, PESSOA_FISICA, FOLHA_DE_PAGAMENTO, SERVIDOR = "1", "2", "6", "7"
+PESSOAS = (PESSOA_FISICA, SERVIDOR)
 
 CHAVE = ["codigo_orgao", "codigo_unidade_orcamentaria", "data_emissao_empenho", "numero_empenho"]
 CAMPOS_EMPENHO = CHAVE + ["data_referencia_doc", "codigo_elemento_despesa", "valor_empenhado",
@@ -66,7 +68,7 @@ ORDEM = {"notas_empenhos": CHAVE, "notas_pagamentos": CHAVE + ["numero_sub_empen
 CONSORCIO = re.compile(r"(?i)cons[oó]rcio")
 
 
-def obter(tabela: str, tentativas: int = 4, espera: float = 20, **params) -> list[dict]:
+def obter(tabela: str, tentativas: int = 6, espera: float = 30, **params) -> list[dict]:
     url = URL.format(tabela=tabela) + "?" + urllib.parse.urlencode(params)
     for tentativa in range(1, tentativas + 1):
         try:
@@ -76,8 +78,8 @@ def obter(tabela: str, tentativas: int = 4, espera: float = 20, **params) -> lis
         except (OSError, ValueError) as e:
             if tentativa == tentativas:
                 raise
-            print(f"    {tabela}: {e}; tentando de novo em {espera:.0f} s", flush=True)
-            time.sleep(espera)
+            print(f"    {tabela}: {e}; tentando de novo em {espera * tentativa:.0f} s", flush=True)
+            time.sleep(espera * tentativa)   # quedas de rede de alguns minutos: espera cada vez mais (até ~7 min no total)
             continue
         if "elements" not in d:
             raise RuntimeError(f"{tabela} {params}: {str(d)[:300]}")
@@ -126,7 +128,7 @@ def linha(e: dict, pago: float, de_consorcio: set) -> pq.Linha:
     grupo, modalidade, elemento = cod[1:2], cod[2:4], cod[4:6]
     if tipo == FOLHA_DE_PAGAMENTO:
         grupo = "1"   # a folha paga fora do grupo de pessoal (auxílio-alimentação, por exemplo) continua sendo folha
-    if tipo == PESSOA_FISICA:
+    if tipo in PESSOAS:
         # O documento já vem cifrado pelo tribunal; com o nome, serve só para contar pessoas. Nunca é gravado.
         doc = f"PF {(e.get('numero_documento_negociante') or '').strip()} {nome}"
     else:
@@ -135,7 +137,7 @@ def linha(e: dict, pago: float, de_consorcio: set) -> pq.Linha:
     unidade = ("Consórcio " if (k[0], k[1]) in de_consorcio else "") + f"{k[0]}.{k[1]}"
     return pq.Linha(
         chave="/".join(k), unidade=unidade, doc=doc, nome=nome,
-        pessoa_fisica=True if tipo == PESSOA_FISICA else False if tipo == PESSOA_JURIDICA else None,
+        pessoa_fisica=True if tipo in PESSOAS else False if tipo == PESSOA_JURIDICA else None,
         grupo=grupo, modalidade=modalidade, elemento=elemento,
         empenhado=float(e.get("valor_empenhado") or 0), pago=pago,
     )
@@ -164,7 +166,7 @@ def ler_municipio(codigo: str, ano: int, pausa: float) -> tuple[list[pq.Linha], 
     for e in empenhos.values():
         tipo = (e.get("codigo_tipo_negociante") or "").strip()
         fora["tipos"][tipo] += 1
-        if tipo not in (PESSOA_JURIDICA, PESSOA_FISICA, FOLHA_DE_PAGAMENTO):
+        if tipo not in (PESSOA_JURIDICA, FOLHA_DE_PAGAMENTO, *PESSOAS):
             fora["tipos"][f"{tipo}: {' '.join((e.get('nome_negociante') or '').split())[:40]}"] += 1
     return [linha(e, pagos.get(k, 0.0), de_consorcio) for k, e in empenhos.items()], fora
 
@@ -202,7 +204,7 @@ def carregar(ano: int, so: list[str] | None, pausa: float, refazer: bool) -> dic
                   (("estornado", fora["estornado"]), ("pago sem o empenho", fora["sem_empenho"]), ("consórcios", fora_resumo["consorcios"])) if v]
         print(f"  [{i}/{len(lista)}] {m['nome_municipio']}: {pq.br(len(linhas))} empenhos, pago R$ {pq.br(resumo['pago'] / 1e6, 1)} mi"
               f"{', ' + ', '.join(avisos) if avisos else ''} ({time.time() - t0:.0f} s)", flush=True)
-    desconhecidos = Counter({t: n for t, n in tipos.items() if t not in (PESSOA_JURIDICA, PESSOA_FISICA, FOLHA_DE_PAGAMENTO)})
+    desconhecidos = Counter({t: n for t, n in tipos.items() if t not in (PESSOA_JURIDICA, FOLHA_DE_PAGAMENTO, *PESSOAS)})
     if desconhecidos:
         print(f"  tipos de credor que o coletor não conhece (conferir): {dict(desconhecidos.most_common(12))}")
     return resultado

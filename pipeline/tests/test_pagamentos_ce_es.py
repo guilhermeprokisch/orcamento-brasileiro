@@ -30,19 +30,22 @@ class TesteCeara(unittest.TestCase):
             ce.linha(empenho_ce("2", "2", "FULANA DE TAL", "aB3dE5fG7hI9jK1lM3nO5p==", "33903600"), 200.0, set()),
             ce.linha(empenho_ce("3", "6", "FOLHA DE PAGAMENTO", "xYz12345abc+defGHIjk9==", "33904600"), 5000.0, set()),
             ce.linha(empenho_ce("4", "1", "INSTITUTO DE PREVIDENCIA", "12345678000195", "31911300"), 300.0, set()),
+            # tipo 7: servidor com diárias. Os dígitos do código cifrado ("191") não podem virar o CNPJ do Banco do Brasil.
+            ce.linha(empenho_ce("5", "7", "CICRANO SERVIDOR", "abc191defGHIjklMNOpqrs==", "33901400"), 40.0, set()),
         ]
         resumo, _ = pq.resumir(linhas)
         t = resumo["tipos"]
         self.assertEqual(t[pb.EMPRESA], 1000)
-        self.assertEqual(t[pb.PESSOA], 200)
+        self.assertEqual(t[pb.PESSOA], 240)
         self.assertEqual(t[pb.FOLHA], 5000)          # tipo 6: folha, mesmo fora do grupo de pessoal
         self.assertEqual(resumo["intra"], 300)       # modalidade 91 fica fora do total
-        self.assertEqual(resumo["pago"], 6200)
-        self.assertEqual(resumo["pessoas"], 1)
+        self.assertEqual(resumo["pago"], 6240)
+        self.assertEqual(resumo["pessoas"], 2)
         self.assertEqual(resumo["credores"], [["ENEL", CNPJ_ENEL, 1000, 1]])
         texto = json.dumps(resumo)
         self.assertNotIn("FULANA", texto)
         self.assertNotIn("aB3dE5", texto)
+        self.assertNotIn("CICRANO", texto)
 
     def test_consorcio_fica_fora(self):
         l = ce.linha(empenho_ce("9", "1", "ENEL", CNPJ_ENEL, "33903900"), 50.0, {("02", "201")})
