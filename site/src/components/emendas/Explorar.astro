@@ -1,8 +1,8 @@
 ---
 /**
  * As três portas do explorador de emendas, para quem não sabe o que procurar: um lugar (o campo "Onde",
- * public/explorador/onde.js), um parlamentar (a lista de nomes do resumo) ou um assunto (com sugestões
- * prontas). Cada uma abre /emendas com a pergunta na URL (?ente=, ?autor=, ?q=), como os links das
+ * public/explorador/onde.js), um parlamentar (o mesmo campo, com a lista de nomes do resumo) ou um assunto
+ * (com sugestões prontas). Cada uma abre /emendas com a pergunta na URL (?ente=, ?autor=, ?q=), como os links das
  * páginas de cidade.
  */
 import { ANO, resumo } from "../../lib/emendas-panorama";
@@ -11,7 +11,11 @@ import "../../styles/onde.css";
 interface Props { titulo?: string; id?: string }
 const { titulo = "Explore as emendas", id = "explore" } = Astro.props;
 const ASSUNTOS = ["ambulância", "pavimentação", "trator", "hospital", "creche", "show", "quadra", "poço"];
-const lista = `nomes-${id}`;
+// Os nomes para o campo do parlamentar, separados em deputados e senadores, bancadas e comissões (onde.js, fonteDeNomes).
+// (a CGU escreve algumas comissões sem acento: "Comissao de Relacoes Exteriores…")
+const tipoDe = (n: string) => (/^bancada/i.test(n) ? "banc" : /^comiss[aã]o/i.test(n) ? "com" : /^relator|^sem informa/i.test(n) ? "outro" : "parl");
+const nomes = (resumo?.nomes ?? []).filter((n) => tipoDe(n) !== "outro")
+  .map((n) => ({ tipo: tipoDe(n), codigo: n, nome: n, rotulo: n, dica: tipoDe(n) === "banc" ? "bancada" : tipoDe(n) === "com" ? "comissão" : "" }));
 ---
 
 <section class="explorar" id={id} data-explorar>
@@ -30,16 +34,18 @@ const lista = `nomes-${id}`;
         <div class="onde-lista" id={`${id}-onde-lista`} role="listbox" data-onde-lista hidden></div>
       </div>
     </div>
-    <form class="porta" action="/emendas" method="get">
+    <div class="porta">
       <h3><span>2</span> Um deputado ou senador</h3>
-      <p>Para onde cada um mandou a sua cota, e para quê.</p>
-      <div class="linha">
-        <input name="autor" list={lista} placeholder="Digite o nome" autocomplete="off" aria-label="Nome do parlamentar, da bancada ou da comissão" />
-        <input type="hidden" name="ano" value={ANO} />
-        <button type="submit">Ver</button>
+      <p>Para onde cada um mandou a sua cota, e para quê. Também bancadas e comissões.</p>
+      <div class="onde" data-quem data-nomes={JSON.stringify(nomes)} data-ano={ANO}>
+        <span id={`${id}-quem-rotulo`} class="visually-hidden">Deputado, senador, bancada ou comissão</span>
+        <div class="onde-campo">
+          <span class="chip" data-chip hidden><span data-chip-texto></span><button type="button" aria-label="Tirar o nome" data-chip-tirar>✕</button></span>
+          <input type="search" data-onde-input role="combobox" aria-labelledby={`${id}-quem-rotulo`} aria-expanded="false" aria-controls={`${id}-quem-lista`} aria-autocomplete="list" placeholder="Digite o nome" autocomplete="off" />
+        </div>
+        <div class="onde-lista" id={`${id}-quem-lista`} role="listbox" data-onde-lista hidden></div>
       </div>
-      <datalist id={lista}>{resumo?.nomes.map((n) => <option value={n} />)}</datalist>
-    </form>
+    </div>
     <form class="porta" action="/emendas" method="get">
       <h3><span>3</span> Um assunto</h3>
       <p>O que prefeituras e entidades disseram que fariam com o dinheiro.</p>
@@ -63,7 +69,9 @@ const lista = `nomes-${id}`;
   .porta h3 span { width: 26px; height: 26px; border-radius: 50%; background: var(--tinta); color: var(--papel); font-size: 14px; display: grid; place-items: center; }
   .porta > p { margin: 0; font-size: 14.5px; line-height: 1.45; color: var(--texto-3); }
   .linha { display: flex; gap: 6px; }
-  .linha input { flex: 1; min-width: 0; font: inherit; font-size: 15px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); }
+  /* o campo do assunto no mesmo desenho do campo "Onde" (styles/onde.css) */
+  .linha input { flex: 1; min-width: 0; min-height: 40px; font: inherit; font-size: 15px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); }
+  .linha input:focus { outline: 2px solid var(--verde); outline-offset: 1px; }
   .linha button { font: inherit; font-size: 15px; font-weight: 600; padding: 9px 16px; background: var(--tinta); color: var(--papel); border: 0; cursor: pointer; }
   .porta .onde { min-width: 0; flex: none; }
   .sugestoes { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
@@ -77,10 +85,16 @@ const lista = `nomes-${id}`;
 </style>
 
 <script is:inline type="module">
-  // Escolher um lugar já abre as emendas dele.
-  const { ligarOnde } = await import("/explorador/onde.js");
+  // Escolher um lugar ou um nome já abre as emendas dele.
+  const { ligarOnde, fonteDeNomes } = await import("/explorador/onde.js");
   document.querySelectorAll("[data-explorar] [data-onde]").forEach((raiz) => {
-    const ano = document.querySelector("[data-explorar] input[name=ano]")?.value;
+    const ano = raiz.closest("[data-explorar]").querySelector("[data-quem]")?.dataset.ano;
     ligarOnde(raiz, (l) => { if (l) location.href = `/emendas?ente=${l.codigo}${ano ? `&ano=${ano}` : ""}`; }, { prefixo: `${raiz.closest("[data-explorar]").id}-onde` });
+  });
+  document.querySelectorAll("[data-explorar] [data-quem]").forEach((raiz) => {
+    const fonte = fonteDeNomes(JSON.parse(raiz.dataset.nomes),
+      [["parl", "Deputados e senadores", 8], ["banc", "Bancadas", 3], ["com", "Comissões", 3]], "Nenhum deputado, senador, bancada ou comissão com");
+    ligarOnde(raiz, (l) => { if (l) location.href = `/emendas?autor=${encodeURIComponent(l.codigo)}&ano=${raiz.dataset.ano}`; },
+      { fonte, prefixo: `${raiz.closest("[data-explorar]").id}-quem` });
   });
 </script>
