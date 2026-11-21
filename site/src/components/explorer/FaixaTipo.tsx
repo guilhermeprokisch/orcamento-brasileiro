@@ -33,7 +33,7 @@ const NA_FRASE: Record<string, [singular: string, tudo: string]> = {
 const EXPLICA = [
   `${termoHtml("despesa-obrigatoria", "Obrigatória")}: a lei ou a Constituição manda pagar.`,
   `${termoHtml("despesa-discricionaria", "Escolha do governo")}: o que ele decide onde pôr.`,
-  `${termoHtml("emenda-parlamentar", "Emendas")}: o Congresso indica.`,
+  `${termoHtml("emenda-parlamentar", "Emendas")}: o Congresso indica (<a href="/emendas/explorar">quem indicou e para onde foi</a>).`,
   `${termoHtml("despesa-financeira", "Financeira")}: juros, parcelas e rolagem da dívida, e empréstimos.`,
 ].join(" ");
 
@@ -126,4 +126,28 @@ export default function FaixaTipo(props: Props) {
 /** 0,4% e 92%: menos de 10% com uma casa, para não sumir. */
 function pctFrase(p: number): string {
   return p < 0.1 ? pct(p) : `${Math.round(p * 100)}%`;
+}
+
+/** Os anos que o explorador das emendas tem (pagamentos da CGU desde 2017; ver pages/emendas/explorar.astro). */
+const PRIMEIRO_ANO_EMENDAS = 2017;
+
+/**
+ * No lugar da barra, quando o Explorer está filtrado pelas emendas: aqui elas aparecem como estão no orçamento
+ * (ministério, programa, ação); quem indicou e para onde foi o dinheiro está no explorador das emendas.
+ */
+export function AvisoEmendas(props: { ano: number }) {
+  const href = () => `/emendas/explorar${props.ano >= PRIMEIRO_ANO_EMENDAS ? `?ano=${props.ano}` : ""}`;
+  return (
+    <section class="exp-tipo exp-emendas" aria-label="Explorar as emendas">
+      <p class="exp-tipo-frase">
+        Aqui as emendas aparecem como estão no orçamento: em que ministério, programa e ação. Para ver quem indicou cada uma
+        e para que cidade e quem foi o dinheiro, use o explorador das emendas.
+      </p>
+      <p><a class="botao" href={href()}>Explorar as emendas de {props.ano >= PRIMEIRO_ANO_EMENDAS ? props.ano : "cada ano"} →</a></p>
+      <p class="exp-tipo-nota">
+        Os valores não batem exatamente: lá entram os pagamentos feitos no ano, inclusive de emendas de anos anteriores; aqui, o
+        orçamento do próprio ano.
+      </p>
+    </section>
+  );
 }
