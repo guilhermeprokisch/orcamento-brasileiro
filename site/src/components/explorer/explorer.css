@@ -53,7 +53,6 @@
 .exp-vistas { display: flex; align-items: center; gap: 10px; color: var(--regra); }
 .exp-vistas button:disabled { opacity: 0.5; cursor: default; }
 /* a vista Cascata (CascataVista.tsx) */
-.exp-cascata-niveis { font-size: 13px; }
 .exp-cascata-vista { margin-top: 4px; }
 .exp-cascata-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; margin: 0 0 10px; }
 .exp-cascata-opcoes { display: flex; flex-wrap: wrap; gap: 8px; }

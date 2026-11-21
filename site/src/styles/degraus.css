@@ -41,6 +41,11 @@ a.degraus-voltar, button.degraus-voltar, .exp-abas button.degraus-voltar {
 }
 a.degraus-voltar:hover, button.degraus-voltar:hover, .exp-abas button.degraus-voltar:hover { background: var(--papel-escuro); color: var(--tinta); }
 .degraus-voltar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Na tela larga, os degraus logo acima já levam de volta a cada nível: o botão repetiria o degrau anterior. Ele fica
+   só no celular, onde os degraus viram "Caminho: N passos", fechados. */
+@media (min-width: 721px) {
+  a.degraus-voltar, button.degraus-voltar, .exp-abas button.degraus-voltar { display: none; }
+}
 
 @media (max-width: 720px) {
   .degraus-dica { display: none; }

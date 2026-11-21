@@ -332,9 +332,8 @@ export default function Explorer() {
         <Show when={ultimo()}>
           <Voltar para={pai()} onClick={subir} />
         </Show>
-        <Show when={estado().vista !== "cascata"} fallback={
-          <span class="muted exp-cascata-niveis">Órgão › unidade › programa › ação › tipo de gasto, com vários galhos abertos</span>
-        }>
+        {/* Na cascata, a ordem dos níveis já está nos títulos das colunas dela: aqui não se repete. */}
+        <Show when={estado().vista !== "cascata"}>
           <span class="muted">Dividir por</span>
           <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
             <For each={ORDEM_ABAS.filter((d) => dimsAqui().includes(d))}>

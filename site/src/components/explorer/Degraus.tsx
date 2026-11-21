@@ -105,7 +105,7 @@ export default function Degraus(props: {
 /** "← Voltar a {nível anterior}", logo acima do conteúdo. */
 export function Voltar(props: { para: string; onClick: () => void }) {
   return (
-    <button type="button" class="degraus-voltar" onClick={props.onClick} title={`Voltar a ${props.para}`}>
+    <button type="button" class="degraus-voltar" onClick={props.onClick}>
       ← <span>Voltar a {props.para}</span>
     </button>
   );
