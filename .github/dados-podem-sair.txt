@@ -1,0 +1,3 @@
+# Arquivos de site/public/data que podem sumir (ou encolher mais da metade) sem parar a publicação.
+# Um caminho por linha, relativo a site/public/data. Use quando a mudança for de propósito, e tire a
+# linha depois da publicação seguinte (o manifesto do site no ar já terá a versão nova).
