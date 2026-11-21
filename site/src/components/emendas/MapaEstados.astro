@@ -1,0 +1,52 @@
+---
+/**
+ * Um quadradinho por estado, na posição aproximada do mapa, pintado pelo que chegou de emendas por morador.
+ * Cada um abre as emendas do estado no explorador. É um mapa simples de propósito: o mapa das emendas de
+ * verdade (cidade por cidade, quem manda, por onde) fica para a seção de mapas.
+ */
+import { ANO, GRADE_UF, porEstado } from "../../lib/emendas-panorama";
+import { corDaRampa, LIMIAR_TEXTO_ESCURO } from "../../lib/cores";
+
+interface Props { ano?: number }
+const { ano = ANO } = Astro.props;
+const estados = porEstado(ano);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const [lo, hi] = [Math.log(Math.min(...estados.map((e) => e.porHab))), Math.log(Math.max(...estados.map((e) => e.porHab)))];
+const t = (v: number) => 1 - (Math.log(v) - lo) / (hi - lo || 1);   // 0 = mais escuro = mais por morador
+const legenda = [estados.at(-1), estados[Math.floor(estados.length / 2)], estados[0]].filter(Boolean);
+---
+
+<div class="mapa-estados">
+  <div class="grade" role="list" aria-label={`Emendas pagas em ${ano} por morador, em cada estado`}>
+    {estados.map((e) => {
+      const [col, lin] = GRADE_UF[e.uf] ?? [0, 0];
+      const x = t(e.porHab);
+      return (
+        <a role="listitem" href={`/emendas?ente=${e.codigo}&ano=${ano}`} style={`grid-column:${col + 1};grid-row:${lin + 1};background:${corDaRampa(x)};color:${x < LIMIAR_TEXTO_ESCURO + 0.25 ? "#fff" : "var(--tinta)"}`}
+          title={`${e.nome}: R$ ${nf0.format(e.porHab)} por morador em ${ano}`}>
+          <b>{e.uf}</b><span class="num">{nf0.format(e.porHab)}</span>
+        </a>
+      );
+    })}
+  </div>
+  <p class="leg">
+    R$ por morador em {ano}. {legenda.map((e, i) => <><span class="cx" style={`background:${corDaRampa(t(e!.porHab))}`}></span>{e!.uf} {nf0.format(e!.porHab)}{i < legenda.length - 1 ? " · " : ""}</>)}
+    <br />Clique num estado para ver quem mandou e quem recebeu.
+  </p>
+</div>
+
+<style>
+  .mapa-estados { display: flex; flex-direction: column; gap: 10px; }
+  .grade { display: grid; grid-template-columns: repeat(6, minmax(0, 64px)); grid-auto-rows: 56px; gap: 4px; }
+  .grade a { display: flex; flex-direction: column; justify-content: center; align-items: center; text-decoration: none; line-height: 1.1; border: 1px solid rgb(0 0 0 / .08); }
+  .grade a:hover, .grade a:focus-visible { outline: 2px solid var(--tinta); outline-offset: 1px; }
+  .grade b { font-size: 15px; }
+  .grade span { font-size: 12px; }
+  .leg { margin: 0; font-size: 13px; line-height: 1.7; color: var(--texto-3); }
+  .cx { display: inline-block; width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px; }
+  @media (max-width: 900px) {
+    .grade { grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: 48px; gap: 3px; }
+    .grade b { font-size: 13px; }
+    .grade span { font-size: 11px; }
+  }
+</style>

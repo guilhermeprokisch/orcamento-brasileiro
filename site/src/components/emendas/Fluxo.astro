@@ -1,0 +1,152 @@
+---
+/**
+ * O dinheiro das emendas do último ano fechado em três colunas: o tipo → quem recebeu → para quê. Cada faixa é um
+ * pedaço do cruzamento (panorama.cruzado) e passa pelas três colunas; clicar numa barra acende só as faixas dela e
+ * manda o evento "escolher" (detail "t:Pix", "g:Prefeitura", "a:Saúde") para quem quiser mostrar a explicação.
+ * Dois desenhos: largo (rótulos dos lados) e estreito (celular, rótulos por cima das faixas).
+ */
+import { nomeArea, nomeGrupo, panorama, TIPO, TIPOS } from "../../lib/emendas-panorama";
+
+interface Props { forma: "largo" | "estreito"; classe?: string }
+const { forma, classe } = Astro.props;
+const cruz = panorama?.cruzado ?? [];
+const soma = (f: (x: (typeof cruz)[number]) => boolean) => cruz.filter(f).reduce((t, x) => t + x[3], 0);
+const ordemGrupo = ["Prefeitura", "Governo estadual", "Entidade sem fins lucrativos", "Empresa", "Outros órgãos públicos"];
+const areas = [...new Set(cruz.map((x) => x[2]))].map((a) => ({ a, v: soma((x) => x[2] === a) }))
+  .sort((p, q) => Number(p.a === "Outras áreas") - Number(q.a === "Outras áreas") || q.v - p.v).map((x) => x.a);
+const colunas = [
+  TIPOS.map((t) => ({ id: `t:${t.id}`, chave: t.id, nome: t.nome, v: soma((x) => x[0] === t.id) })),
+  ordemGrupo.map((g) => ({ id: `g:${g}`, chave: g, nome: nomeGrupo(g), v: soma((x) => x[1] === g) })),
+  areas.map((a) => ({ id: `a:${a}`, chave: a, nome: nomeArea(a), v: soma((x) => x[2] === a) })),
+].map((c) => c.filter((n) => n.v > 0));
+const total = soma(() => true);
+
+const L = forma === "largo"
+  ? { W: 980, H: 560, barra: 14, gap: 8, min: 33, x: [190, 470, 760], fonte: 14 }
+  : { W: 360, H: 620, barra: 9, gap: 8, min: 15, x: [0, 132, 351], fonte: 11.5 };
+// No celular os rótulos passam por cima das faixas: nomes curtos, para os da coluna do meio não encostarem nos da direita.
+const CURTO: Record<string, string> = {
+  Individual: "Individuais", Pix: "Pix", Bancada: "Bancada", "Comissão": "Comissão", Relator: "Relator",
+  "Governo estadual": "Gov. estaduais", "Entidade sem fins lucrativos": "Entidades", "Outros órgãos públicos": "Outros órgãos",
+  "Encargos especiais": "Sem área (Pix)", "Assistência social": "Assistência", "Desporto e lazer": "Esporte e lazer",
+};
+// A altura de cada barra é proporcional ao valor; no celular, cada uma tem um espaço mínimo para o rótulo.
+type No = (typeof colunas)[number][number] & { y: number; h: number; vaga: number };
+// Uma escala só para as três colunas (a da coluna mais apertada), para as faixas terem a mesma largura nas duas pontas.
+const k = Math.min(...colunas.map((col) => {
+  let kc = (L.H - L.gap * (col.length - 1)) / col.reduce((t, n) => t + n.v, 0);
+  for (let i = 0; i < 6; i++) {
+    const fixo = col.filter((n) => n.v * kc < L.min);
+    kc = (L.H - L.gap * (col.length - 1) - fixo.length * L.min) / col.filter((n) => !fixo.includes(n)).reduce((t, n) => t + n.v, 0);
+  }
+  return kc;
+}));
+const nos: No[][] = colunas.map((col) => {
+  let y = 0;
+  return col.map((n) => { const h = n.v * k; const vaga = Math.max(h, L.min); const no = { ...n, y, h, vaga }; y += vaga + L.gap; return no; });
+});
+const pos = (col: number, chave: string) => nos[col].find((n) => n.chave === chave)!;
+const iT = (t: string) => colunas[0].findIndex((n) => n.chave === t);
+const iG = (g: string) => colunas[1].findIndex((n) => n.chave === g);
+const iA = (a: string) => colunas[2].findIndex((n) => n.chave === a);
+// Onde cada faixa entra e sai de cada barra: empilhadas na ordem da coluna do outro lado, para não se cruzarem à toa.
+const cursor = new Map<string, number>();
+const pegar = (lado: string, no: No, h: number) => { const y = cursor.get(lado) ?? no.y; cursor.set(lado, y + h); return y; };
+const faixas = cruz.map((x) => ({ x, h: x[3] * k }));
+const seg1 = new Map<(typeof faixas)[number], [number, number]>(), seg2 = new Map<(typeof faixas)[number], [number, number]>();
+[...faixas].sort((p, q) => iT(p.x[0]) - iT(q.x[0]) || iG(p.x[1]) - iG(q.x[1]) || iA(p.x[2]) - iA(q.x[2]))
+  .forEach((f) => seg1.set(f, [pegar(`t-${f.x[0]}`, pos(0, f.x[0]), f.h), 0]));
+[...faixas].sort((p, q) => iG(p.x[1]) - iG(q.x[1]) || iT(p.x[0]) - iT(q.x[0]) || iA(p.x[2]) - iA(q.x[2]))
+  .forEach((f) => { seg1.get(f)![1] = pegar(`gi-${f.x[1]}`, pos(1, f.x[1]), f.h); });
+[...faixas].sort((p, q) => iG(p.x[1]) - iG(q.x[1]) || iA(p.x[2]) - iA(q.x[2]) || iT(p.x[0]) - iT(q.x[0]))
+  .forEach((f) => seg2.set(f, [pegar(`go-${f.x[1]}`, pos(1, f.x[1]), f.h), 0]));
+[...faixas].sort((p, q) => iA(p.x[2]) - iA(q.x[2]) || iG(p.x[1]) - iG(q.x[1]) || iT(p.x[0]) - iT(q.x[0]))
+  .forEach((f) => { seg2.get(f)![1] = pegar(`a-${f.x[2]}`, pos(2, f.x[2]), f.h); });
+const fita = (x0: number, y0: number, x1: number, y1: number, h: number) => {
+  const m = (x0 + x1) / 2;
+  return `M${x0},${y0}C${m},${y0} ${m},${y1} ${x1},${y1}L${x1},${y1 + h}C${m},${y1 + h} ${m},${y0 + h} ${x0},${y0 + h}Z`;
+};
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const bi = (v: number) => `R$ ${nf1.format(v / 1e9)} bi`;
+const pct = (v: number) => `${Math.round((v / total) * 100)}%`;
+const larg = L.W, alt = L.H;
+const xb = (c: number) => (forma === "estreito" && c === 2 ? L.x[2] - L.barra + 1 : L.x[c]);
+---
+
+<svg class:list={["fluxo", forma, classe]} viewBox={`-2 -30 ${larg + 4} ${alt + 32}`} role="img" aria-label="Para onde foi o dinheiro das emendas: por tipo, quem recebeu e para quê" data-fluxo>
+  <g class="faixas">
+    {faixas.map((f) => {
+      const [a0, a1] = seg1.get(f)!, [b0, b1] = seg2.get(f)!;
+      const cor = TIPO[f.x[0]].cor;
+      const dados = { "data-t": f.x[0], "data-g": f.x[1], "data-a": f.x[2] };
+      return (
+        <>
+          <path {...dados} d={fita(xb(0) + L.barra, a0, xb(1), a1, Math.max(f.h, 0.5))} fill={cor}><title>{`${TIPO[f.x[0]].nome} → ${nomeGrupo(f.x[1])} → ${nomeArea(f.x[2])}: ${bi(f.x[3])}`}</title></path>
+          <path {...dados} d={fita(xb(1) + L.barra, b0, xb(2), b1, Math.max(f.h, 0.5))} fill={cor}><title>{`${TIPO[f.x[0]].nome} → ${nomeGrupo(f.x[1])} → ${nomeArea(f.x[2])}: ${bi(f.x[3])}`}</title></path>
+        </>
+      );
+    })}
+  </g>
+  <g class="cabecas">
+    {(forma === "largo" ? ["QUE TIPO DE EMENDA", "QUEM RECEBEU", "PARA QUÊ"] : ["TIPO", "QUEM RECEBEU", "PARA QUÊ"]).map((t, c) => (
+      <text x={c === 0 ? (forma === "largo" ? xb(0) + L.barra : 0) : c === 1 ? xb(1) : xb(2) + L.barra} y={-14} text-anchor={c === 0 ? (forma === "largo" ? "end" : "start") : c === 1 ? "start" : "end"} font-size={forma === "largo" ? 12 : 10}>{t}</text>
+    ))}
+  </g>
+  {nos.map((col, c) => col.map((n) => {
+    const largo = forma === "largo";
+    const lado = largo ? (c === 0 ? "fim" : c === 2 ? "inicio" : "inicio") : (c === 2 ? "fim" : "inicio");
+    const tx = lado === "fim" ? xb(c) - 6 : xb(c) + L.barra + 6;
+    const cy = n.y + n.vaga / 2;
+    const cor = c === 0 ? TIPO[n.chave as keyof typeof TIPO].cor : "var(--tinta)";
+    return (
+      <g class="no" data-no={n.id} tabindex="0" role="button" aria-label={`${n.nome}: ${bi(n.v)}, ${pct(n.v)} do total`}>
+        <rect class="alvo" x={lado === "fim" ? tx - (largo ? 180 : 120) : xb(c)} y={n.y - 2} width={(largo ? 180 : 120) + L.barra + 6} height={n.vaga + 4} />
+        <rect class="barra" x={xb(c)} y={n.y} width={L.barra} height={Math.max(n.h, 2)} fill={cor} />
+        <text x={tx} y={largo ? cy - 2 : cy + 4} text-anchor={lado === "fim" ? "end" : "start"} font-size={L.fonte}>
+          <tspan class="nome">{largo ? n.nome : CURTO[n.chave] ?? n.nome}</tspan>
+          {largo && <tspan x={tx} dy={L.fonte + 2} class="valor">{bi(n.v)} · {pct(n.v)}</tspan>}
+        </text>
+      </g>
+    );
+  }))}
+</svg>
+
+<style>
+  .fluxo { width: 100%; height: auto; display: block; overflow: visible; font-family: var(--sans); }
+  .fluxo .faixas path { opacity: .55; transition: opacity .15s; }
+  .fluxo.com-escolha .faixas path { opacity: .08; }
+  .fluxo.com-escolha .faixas path.acesa { opacity: .8; }
+  .fluxo .no { cursor: pointer; outline: none; }
+  .fluxo .alvo { fill: transparent; }
+  .fluxo .no:hover .nome, .fluxo .no:focus-visible .nome, .fluxo .no.escolhido .nome { text-decoration: underline; }
+  .fluxo .no.escolhido .barra { stroke: var(--tinta); stroke-width: 2; }
+  .fluxo text { fill: var(--tinta); paint-order: stroke; stroke: var(--papel); stroke-width: 3px; stroke-linejoin: round; }
+  .fluxo .nome { font-weight: 600; }
+  .fluxo .valor { fill: var(--texto-3); font-weight: 400; }
+  .fluxo .cabecas text { fill: var(--texto-3); font-weight: 600; letter-spacing: .06em; stroke: none; }
+</style>
+
+<script>
+  document.querySelectorAll<SVGSVGElement>("[data-fluxo]").forEach((svg) => {
+    const faixas = [...svg.querySelectorAll<SVGPathElement>(".faixas path")];
+    const nos = [...svg.querySelectorAll<SVGGElement>(".no")];
+    const escolher = (id: string | null) => {
+      svg.classList.toggle("com-escolha", !!id);
+      nos.forEach((n) => n.classList.toggle("escolhido", n.dataset.no === id));
+      if (id) {
+        const [k, v] = [id.slice(0, 1), id.slice(2)];
+        faixas.forEach((f) => f.classList.toggle("acesa", f.dataset[k] === v));
+      }
+    };
+    nos.forEach((n) => {
+      const vai = () => {
+        const id = n.classList.contains("escolhido") ? null : n.dataset.no!;
+        svg.dispatchEvent(new CustomEvent("escolher", { detail: id, bubbles: true }));
+      };
+      n.addEventListener("click", vai);
+      n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); vai(); } });
+    });
+    // Quem estiver em volta (o painel, os atalhos, o outro desenho) também pode escolher.
+    svg.closest("[data-fluxo-raiz]")?.addEventListener("escolher", (e) => escolher((e as CustomEvent<string | null>).detail));
+  });
+</script>

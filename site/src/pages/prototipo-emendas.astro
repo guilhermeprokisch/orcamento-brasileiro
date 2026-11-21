@@ -1,0 +1,56 @@
+---
+/**
+ * PROTÓTIPO (rascunho para escolher, sai do site quando a página /emendas nova ficar pronta): três jeitos de explicar
+ * e explorar as emendas parlamentares, com os dados de verdade. A versão vem de ?v=1, ?v=2 ou ?v=3 (sem o parâmetro, a 1).
+ */
+import Base from "../layouts/Base.astro";
+import VersaoHistoria from "../components/emendas/VersaoHistoria.astro";
+import VersaoCidade from "../components/emendas/VersaoCidade.astro";
+import VersaoFluxo from "../components/emendas/VersaoFluxo.astro";
+import { panorama } from "../lib/emendas-panorama";
+
+const VERSOES = [
+  { v: "1", nome: "A história", desc: "rolando a página, do que é até quem manda" },
+  { v: "2", nome: "Comece pela sua cidade", desc: "o lugar primeiro, depois seis perguntas" },
+  { v: "3", nome: "Siga o dinheiro", desc: "o diagrama do ano para clicar" },
+];
+---
+
+<Base title="Protótipo: emendas parlamentares · Orçamento Brasileiro" description="Rascunho de três versões da página das emendas parlamentares.">
+  <div class="faixa-prototipo">
+    <div class="wrap">
+      <strong>Protótipo</strong> para escolher a versão. Não é a página final.
+      <nav aria-label="Versões">
+        {VERSOES.map((x) => <a href={`?v=${x.v}`} data-v={x.v}><b>{x.v}.</b> {x.nome} <span>· {x.desc}</span></a>)}
+      </nav>
+    </div>
+  </div>
+  <div class="wrap">
+    {!panorama ? <p>A visão geral das emendas ainda não foi gerada (<code>uv run explorador-emendas --so-panorama</code>).</p> : (
+      <>
+        <div class="versao" data-versao="1"><VersaoHistoria /></div>
+        <div class="versao" data-versao="2" hidden><VersaoCidade /></div>
+        <div class="versao" data-versao="3" hidden><VersaoFluxo /></div>
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .faixa-prototipo { background: var(--marca-texto); border-bottom: 1px solid var(--tinta); font-size: 14px; }
+  .faixa-prototipo .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding-top: 10px; padding-bottom: 10px; }
+  .faixa-prototipo nav { display: flex; flex-wrap: wrap; gap: 6px; }
+  .faixa-prototipo a { padding: 4px 10px; border: 1px solid var(--tinta); color: var(--tinta); text-decoration: none; background: var(--papel); }
+  .faixa-prototipo a[aria-current] { background: var(--tinta); color: var(--papel); }
+  .faixa-prototipo a span { color: inherit; opacity: 0.7; }
+  @media (max-width: 640px) { .faixa-prototipo a span { display: none; } }
+</style>
+
+<script>
+  const v = new URLSearchParams(location.search).get("v") ?? "1";
+  const existe = document.querySelector(`.versao[data-versao="${v}"]`);
+  document.querySelectorAll<HTMLElement>(".versao").forEach((el) => (el.hidden = existe ? el.dataset.versao !== v : el.dataset.versao !== "1"));
+  document.querySelectorAll<HTMLAnchorElement>(".faixa-prototipo a").forEach((a) => {
+    if (a.dataset.v === (existe ? v : "1")) a.setAttribute("aria-current", "page");
+  });
+</script>

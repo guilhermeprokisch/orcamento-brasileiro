@@ -1,0 +1,90 @@
+---
+/**
+ * As emendas pagas ano a ano, em colunas empilhadas por tipo, com as viradas marcadas (①②③) e explicadas embaixo.
+ * A legenda acende um tipo só. Desenho em HTML (não SVG) para os rótulos não encolherem no celular.
+ */
+import { panorama, TIPOS, totalAno, type Tipo } from "../../lib/emendas-panorama";
+
+interface Props { notas?: boolean; compacto?: boolean }
+const { notas = true, compacto = false } = Astro.props;
+const serie = panorama?.serie ?? [];
+const max = Math.max(...serie.map(totalAno), 1);
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const bi = (v: number) => nf1.format(v / 1e9);
+const MESES = ["", "jan.", "fev.", "mar.", "abr.", "maio", "jun.", "jul.", "ago.", "set.", "out.", "nov.", "dez."];
+const v = (ano: number, t: Tipo) => serie.find((p) => p.ano === ano)?.[t] ?? 0;
+const VIRADAS: Record<number, { n: string; texto: string }> = {
+  2020: { n: "1", texto: `Começam as emendas Pix, e as de relator, o “orçamento secreto”, passam de R$ 0,7 bi para R$ ${bi(v(2020, "Relator"))} bi.` },
+  2023: { n: "2", texto: `O Supremo proíbe o orçamento secreto (dezembro de 2022). Metade daquele dinheiro vira cota individual, que sobe de 1,2% para 2% da receita da União.` },
+  2024: { n: "3", texto: `As de comissão, que não são obrigatórias, saltam de R$ ${bi(v(2023, "Comissão"))} bi para R$ ${bi(v(2024, "Comissão"))} bi e ocupam o lugar das de relator.` },
+};
+---
+
+<div class:list={["serie-tipos", { compacto }]} data-serie-tipos>
+  <div class="legenda" role="group" aria-label="Mostrar só um tipo">
+    {TIPOS.map((t) => <button type="button" data-tipo={t.id} aria-pressed="false"><i style={`background:${t.cor}`}></i>{t.nome}</button>)}
+  </div>
+  <div class="grafico" role="img" aria-label={`Emendas pagas por ano, de ${serie[0]?.ano} a ${serie.at(-1)?.ano}, em R$ bilhões`}>
+    {serie.map((p) => (
+      <div class:list={["coluna", { parcial: p.parcial }]}>
+        <span class="total num">{bi(totalAno(p))}</span>
+        <div class="pilha" style={`height:${(totalAno(p) / max) * 100}%`}>
+          {TIPOS.map((t) => p[t.id] > 0 && (
+            <i data-tipo={t.id} style={`flex-grow:${p[t.id]};background:${t.cor}`} title={`${t.nome}, ${p.ano}: R$ ${bi(p[t.id])} bi`}></i>
+          ))}
+        </div>
+        <span class="ano">{p.ano}{p.parcial && <small>até {MESES[p.meses]}</small>}</span>
+        {notas && VIRADAS[p.ano] && <b class="virada" aria-hidden="true">{VIRADAS[p.ano].n}</b>}
+      </div>
+    ))}
+  </div>
+  <p class="eixo">R$ bilhões pagos no ano, inclusive o que foi indicado em anos anteriores.</p>
+  {notas && (
+    <ol class="viradas">
+      {Object.entries(VIRADAS).map(([ano, x]) => <li><b>{x.n}</b><span><strong>{ano}.</strong> {x.texto}</span></li>)}
+    </ol>
+  )}
+</div>
+
+<style>
+  .serie-tipos { display: flex; flex-direction: column; gap: 12px; }
+  .legenda { display: flex; flex-wrap: wrap; gap: 6px; }
+  .legenda button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--regra); background: var(--papel); font: inherit; font-size: 13px; cursor: pointer; color: var(--tinta); }
+  .legenda button[aria-pressed="true"] { border-color: var(--tinta); box-shadow: inset 0 0 0 1px var(--tinta); font-weight: 600; }
+  .legenda i { width: 12px; height: 12px; display: inline-block; }
+  .grafico { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; height: 300px; border-bottom: 1px solid var(--tinta); padding-top: 22px; }
+  .compacto .grafico { height: 210px; }
+  .coluna { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; min-width: 0; }
+  .pilha { display: flex; flex-direction: column-reverse; min-height: 2px; }
+  .pilha i { display: block; min-height: 1px; transition: opacity .15s; }
+  .parcial .pilha { opacity: .55; }
+  .total { font-size: 13px; font-weight: 600; text-align: center; padding-bottom: 3px; }
+  .ano { position: absolute; top: 100%; left: 0; right: 0; text-align: center; font-size: 13px; color: var(--texto-3); padding-top: 4px; line-height: 1.2; }
+  .ano small { display: block; font-size: 11px; }
+  .virada { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; border-radius: 50%; background: var(--marca-texto); border: 1px solid var(--tinta); font-size: 12px; display: grid; place-items: center; }
+  .eixo { margin: 34px 0 0; font-size: 13px; color: var(--texto-3); }
+  .viradas { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; }
+  .viradas li { display: flex; gap: 10px; font-size: 14px; line-height: 1.5; color: var(--texto-2); }
+  .viradas b { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--marca-texto); border: 1px solid var(--tinta); font-size: 12px; display: grid; place-items: center; }
+  [data-so] .pilha i { opacity: .15; }
+  [data-so="Individual"] .pilha i[data-tipo="Individual"], [data-so="Pix"] .pilha i[data-tipo="Pix"], [data-so="Bancada"] .pilha i[data-tipo="Bancada"],
+  [data-so="Comissão"] .pilha i[data-tipo="Comissão"], [data-so="Relator"] .pilha i[data-tipo="Relator"] { opacity: 1; }
+  @media (max-width: 900px) {
+    .grafico { gap: 3px; height: 240px; }
+    .total { font-size: 10.5px; }
+    .ano { font-size: 11px; }
+    .ano small { font-size: 9.5px; }
+    .viradas { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>("[data-serie-tipos]").forEach((raiz) => {
+    const botoes = [...raiz.querySelectorAll<HTMLButtonElement>(".legenda button")];
+    botoes.forEach((b) => b.addEventListener("click", () => {
+      const ligar = raiz.dataset.so !== b.dataset.tipo;
+      if (ligar) raiz.dataset.so = b.dataset.tipo; else delete raiz.dataset.so;
+      botoes.forEach((x) => x.setAttribute("aria-pressed", String(ligar && x === b)));
+    }));
+  });
+</script>
