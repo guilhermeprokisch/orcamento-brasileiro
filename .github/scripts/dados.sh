@@ -98,6 +98,7 @@ fila_cidades() {
   # só as cópias (pipeline/referencia/pagamentos*.json, todas de uma vez).
   pipe pode-falhar "Contratos das prefeituras" contratos --sem-baixar
   pipe pode-falhar "Pagamentos das prefeituras" pagamentos --sem-baixar
+  # (O passo acima copia também AM e TO, pagamentos-am.json e -to.json: uv run pagamentos --uf AM|TO, à mão.)
 }
 
 fila_mapa() {

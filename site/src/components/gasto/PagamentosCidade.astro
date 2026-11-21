@@ -46,8 +46,8 @@ const semFolha = p ? diferenca < -0.05 && p.outros.folha < 0.1 * p.pago : false;
       <span class="sobretitulo">Para quem pagou</span>
       <h2>Para quem a prefeitura pagou</h2>
       <p>
-        Em {p.ano}, {quem} pagou <strong>{moedaExtenso(p.pago)}</strong>, somando a prefeitura, a Câmara, os fundos e, onde
-        existe, o instituto de previdência. Desse total, <strong>{moedaExtenso(p.fornecedores)}</strong> ({pct(p.fornecedores / p.pago)})
+        Em {p.ano}, {quem} pagou <strong>{moedaExtenso(p.pago)}</strong>, somando{" "}
+        {p.entra ?? "a prefeitura, a Câmara, os fundos e, onde existe, o instituto de previdência"}. Desse total, <strong>{moedaExtenso(p.fornecedores)}</strong> ({pct(p.fornecedores / p.pago)})
         foi para <strong>{nf0.format(p.nFornecedores)} fornecedores</strong>: empresas e entidades que venderam produtos,
         fizeram obras ou prestaram serviços.
       </p>
@@ -67,8 +67,10 @@ const semFolha = p ? diferenca < -0.05 && p.outros.folha < 0.1 * p.pago : false;
       {!semFolha && Math.abs(diferenca) > 0.05 && (
         <p class="aviso">
           O total aqui fica {pct(Math.abs(diferenca))} {diferenca < 0 ? "abaixo" : "acima"} do que a prefeitura declarou ao
-          Tesouro como pago em {p.ano} ({moedaCurta(dca!)}). Parte dos pagamentos pode não ter chegado ao Tribunal de Contas
-          (em algumas cidades falta dezembro). Leia estes números com cuidado.
+          Tesouro como pago em {p.ano} ({moedaCurta(dca!)}). {diferenca < 0
+            ? "Parte dos pagamentos pode não ter chegado ao Tribunal de Contas (em algumas cidades falta dezembro)."
+            : "Os dois números vêm de prestações de contas diferentes, e a que foi ao Tesouro pode ter deixado de fora alguma unidade do município, como o serviço de água ou o fundo de previdência."}{" "}
+          Leia estes números com cuidado.
         </p>
       )}
       <ul class="tipos">

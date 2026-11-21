@@ -82,7 +82,7 @@ const ESTADOS: Estado[] = [
     publica: "A cidade de cada servidor num arquivo e o salário em outro.",
     falta: "Cruzar os dois arquivos (ainda não testado).",
     fonte: { nome: "Portal da Transparência de São Paulo", url: "https://www.transparencia.sp.gov.br/Remuneracaomensal/Index" },
-    prefeituras: { situacao: "sim", texto: "Um arquivo por ano com 644 prefeituras, com o nome de quem recebeu. A capital fica de fora (é de outro tribunal, o TCM-SP).", fonte: { nome: "TCE-SP", url: "https://transparencia.tce.sp.gov.br/" } } },
+    prefeituras: { situacao: "sim", texto: "Um arquivo por ano com 644 prefeituras, com o nome de quem recebeu. A capital, que tem o próprio tribunal (TCM-SP), publica outro arquivo, também com o nome.", fonte: { nome: "TCE-SP", url: "https://transparencia.tce.sp.gov.br/" } } },
   { uf: "RJ", faixa: "folha",
     publica: "A folha por unidade, numa API aberta.",
     falta: "Uma tabela que diga em que cidade fica cada unidade.",
