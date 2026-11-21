@@ -1,6 +1,7 @@
 ---
 /**
- * Protótipo, versão 4: as três formas numa página só, cada uma respondendo uma pergunta.
+ * Protótipo, versões 4 e 5: as formas numa página só, cada uma respondendo uma pergunta. A versão 4 começa pelos
+ * quadradinhos (inicio="cem"); a 5, pela história do diagrama de fluxos (inicio="rio", VersaoRio).
  *   1. De cada R$ 100 (VersaoCem, a única contada rolando a página): quem fica com quanto.
  *   2. O caminho inteiro (o diagrama de fluxos, já montado): como o dinheiro anda; botões acendem um pedaço.
  *   3. Siga o seu imposto (a lista de VersaoRotas): o dia a dia vira filtros; cada imposto leva ao diagrama.
@@ -9,11 +10,13 @@
 import Diagrama from "./Diagrama.astro";
 import Painel from "./Painel.astro";
 import VersaoCem from "./VersaoCem.astro";
+import VersaoRio from "./VersaoRio.astro";
 import VersaoRotas from "./VersaoRotas.astro";
 import { biExtenso, partesInteiras, porMorador, totalPago, type DocCaminho } from "../../lib/caminho-impostos";
 
-interface Props { doc: DocCaminho; deixa: { uniao: number; estados: number } | null }
-const { doc, deixa } = Astro.props;
+interface Props { doc: DocCaminho; deixa: { uniao: number; estados: number } | null; inicio?: "cem" | "rio" }
+const { doc, deixa, inicio = "cem" } = Astro.props;
+const rio = inicio === "rio";
 const total = totalPago(doc);
 const g = doc.governos;
 const fundos = doc.fluxos.filter((f) => f.para === "f-fundos").reduce((t, f) => t + f.valor, 0);
@@ -37,16 +40,30 @@ const ATALHOS = [
   </header>
 
   <nav class="indice" aria-label="Nesta página">
-    <a href="#de-cada-100"><b>1.</b> De cada R$ 100 <span>quem fica com quanto</span></a>
-    <a href="#caminho-inteiro"><b>2.</b> O caminho inteiro <span>como o dinheiro anda</span></a>
+    {rio
+      ? <a href="#a-historia"><b>1.</b> A história <span>o caminho, passo a passo</span></a>
+      : <a href="#de-cada-100"><b>1.</b> De cada R$ 100 <span>quem fica com quanto</span></a>}
+    <a href="#caminho-inteiro"><b>2.</b> O caminho inteiro <span>{rio ? "para explorar, clicando" : "como o dinheiro anda"}</span></a>
     <a href="#siga-o-seu-imposto"><b>3.</b> Siga o seu imposto <span>o que você paga</span></a>
   </nav>
 
-  <div class="titulo-parte" id="de-cada-100">
-    <span class="n">1</span>
-    <div><h2>De cada R$ 100, quem fica com quanto</h2><p>Cada quadradinho é R$ 1 de cada R$ 100 pagos. Role para ver ele mudar de mão.</p></div>
-  </div>
-  <VersaoCem doc={doc} deixa={deixa} parte />
+  {rio ? (
+    <>
+      <div class="titulo-parte" id="a-historia">
+        <span class="n">1</span>
+        <div><h2>A história: do imposto pago a quem fica com ele</h2><p>Role a página: o desenho vai se montando, imposto por imposto, até cada governo.</p></div>
+      </div>
+      <VersaoRio doc={doc} deixa={deixa} parte />
+    </>
+  ) : (
+    <>
+      <div class="titulo-parte" id="de-cada-100">
+        <span class="n">1</span>
+        <div><h2>De cada R$ 100, quem fica com quanto</h2><p>Cada quadradinho é R$ 1 de cada R$ 100 pagos. Role para ver ele mudar de mão.</p></div>
+      </div>
+      <VersaoCem doc={doc} deixa={deixa} parte />
+    </>
+  )}
 
   <section class="parte-caminho" id="caminho-inteiro">
     <div class="titulo-parte">

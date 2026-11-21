@@ -1,8 +1,8 @@
 ---
 /**
  * PROTÓTIPO (rascunho para escolher, sai do site quando a página /impostos ficar pronta): três jeitos de contar o
- * caminho dos impostos, com os dados de verdade. A versão vem de ?v=1, ?v=2, ?v=3 ou ?v=4 (as três juntas numa
- * página só); sem o parâmetro, a 1.
+ * caminho dos impostos, com os dados de verdade. A versão vem de ?v=1, ?v=2, ?v=3, ?v=4 (as três juntas numa
+ * página só) ou ?v=5 (o rio e a lista de impostos); sem o parâmetro, a 1.
  */
 import Base from "../layouts/Base.astro";
 import VersaoRio from "../components/impostos/VersaoRio.astro";
@@ -17,6 +17,7 @@ const VERSOES = [
   { v: "2", nome: "De cada R$ 100", desc: "100 quadradinhos que mudam de mão" },
   { v: "3", nome: "Siga o seu imposto", desc: "o dia a dia, imposto por imposto" },
   { v: "4", nome: "As três juntas", desc: "uma página, três partes" },
+  { v: "5", nome: "O rio + siga o seu imposto", desc: "a história do rio, o diagrama e a lista" },
 ];
 ---
 
@@ -41,6 +42,7 @@ const VERSOES = [
         <div class="versao" data-versao="2" hidden><VersaoCem doc={doc} deixa={deixa} /></div>
         <div class="versao" data-versao="3" hidden><VersaoRotas doc={doc} deixa={deixa} /></div>
         <div class="versao" data-versao="4" hidden><VersaoJunta doc={doc} deixa={deixa} /></div>
+        <div class="versao" data-versao="5" hidden><VersaoJunta doc={doc} deixa={deixa} inicio="rio" /></div>
       </>
     )}
   </div>
@@ -61,8 +63,9 @@ const VERSOES = [
   :global(html[data-captura] astro-dev-toolbar) { display: none !important; }
   :global(html[data-captura] *) { transition: none !important; }
   /* Versão 4: &passo=explorar abre na parte 2; &passo=siga, na parte 3. */
-  :global(html[data-captura="explorar"] .v-junta > :is(.indice, #de-cada-100, .v-cem)) { display: none !important; }
+  :global(html[data-captura="explorar"] .v-junta > :is(.indice, #de-cada-100, .v-cem, #a-historia, .v-rio)) { display: none !important; }
   :global(html[data-captura="siga"] .v-junta > :not(#siga-o-seu-imposto, .v-rotas)) { display: none !important; }
+  :global(html[data-captura] .v-junta > :is(.indice, #a-historia)) { display: none !important; }
 </style>
 
 <script>

@@ -8,8 +8,13 @@ import Painel from "./Painel.astro";
 import Termo from "../Termo.astro";
 import { bi, biExtenso, porMorador, soma, totalPago, type DocCaminho } from "../../lib/caminho-impostos";
 
-interface Props { doc: DocCaminho; deixa: { uniao: number; estados: number } | null }
-const { doc, deixa } = Astro.props;
+interface Props {
+  doc: DocCaminho;
+  deixa: { uniao: number; estados: number } | null;
+  /** Como parte de uma página maior (versão 5): só a história, sem o título próprio e sem o diagrama para clicar. */
+  parte?: boolean;
+}
+const { doc, deixa, parte = false } = Astro.props;
 const total = totalPago(doc);
 const g = doc.governos;
 const em100 = (v: number) => Math.round((v / total) * 100);
@@ -21,8 +26,8 @@ const progEstados = soma(doc, (x) => x.de === "c-estados" && x.tipo === "program
 const fb = doc.fundeb;
 ---
 
-<section class="v-rio">
-  <header class="abre">
+<section class={`v-rio ${parte ? "parte" : ""}`}>
+  {!parte && <header class="abre">
     <span class="sobretitulo">Brasil, todos os governos somados · {doc.ano}</span>
     <h1>Eu pago imposto para quem?</h1>
     <p>
@@ -30,7 +35,7 @@ const fb = doc.fundeb;
       <strong class="marca">{biExtenso(total)}</strong> em impostos{porMorador(doc, total) && <>, perto de {porMorador(doc, total)} por pessoa</>}.
       Role a página para ver o caminho.
     </p>
-  </header>
+  </header>}
 
   <div class="rolagem">
     <div class="palco" aria-hidden="false">
@@ -75,7 +80,7 @@ const fb = doc.fundeb;
     </ol>
   </div>
 
-  <section class="explorar">
+  {!parte && <section class="explorar">
     <h2>O caminho inteiro</h2>
     <p class="dica">Clique numa barra ou numa faixa para ver o que é e quanto passou por ela.</p>
     <div class="explorar-grade">
@@ -85,7 +90,7 @@ const fb = doc.fundeb;
       </div>
       <Painel doc={doc} deixa={deixa} />
     </div>
-  </section>
+  </section>}
 </section>
 
 <style>
@@ -94,6 +99,8 @@ const fb = doc.fundeb;
   .v-rio .abre p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
 
   .rolagem { position: relative; display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 40px; border-top: 2px solid var(--tinta); }
+  .parte .rolagem { border-top: 0; }
+  .parte .passos { padding-top: 20vh; }
   .palco { grid-column: 2; grid-row: 1; position: sticky; top: 12px; height: calc(100vh - 24px); display: flex; align-items: center; }
   .passos { grid-column: 1; grid-row: 1; list-style: none; margin: 0; padding: 30vh 0 40vh; display: flex; flex-direction: column; gap: 60vh; }
   .passos li { display: flex; flex-direction: column; gap: 10px; padding: 20px 0; border-top: 1px solid var(--regra); opacity: 0.35; transition: opacity 0.4s; }
