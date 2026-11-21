@@ -203,3 +203,33 @@ export async function inssDe(e: Cidade, esfera: Esfera): Promise<Inss | null> {
     : (await docInss(e.ano))?.[String(e.ibge)];
   return v && v[0] > 0 ? { ano: e.ano, total: v[0], aposentadorias: v[1], pensoes: v[2] } : null;
 }
+
+/** Receita e despesa de todos os entes de uma esfera num ano: código IBGE → [receita, despesa empenhada].
+ * Só os que declararam as duas. O DF entra só entre os estados. */
+export async function saldosDoAno(esfera: Esfera, ano: number): Promise<Map<string, [number, number]>> {
+  const doc = (await docAno(ano))?.[esfera] ?? {};
+  const saida = new Map<string, [number, number]>();
+  for (const [id, r] of Object.entries(doc)) {
+    if (esfera === "mun" && id === "53") continue;
+    const receita = r[R.receita] ?? 0, despesa = r[R.desp] ?? 0;
+    if (receita > 0 && despesa > 0) saida.set(id, [receita, despesa]);
+  }
+  return saida;
+}
+
+/** Quantos entes da esfera gastaram mais do que receberam no ano (a mesma conta de "Sobrou ou faltou"). */
+export interface Vermelho {
+  ano: number;
+  /** quantos fecharam o ano com despesa maior que a receita */
+  vermelho: number;
+  /** quantos declararam receita e despesa */
+  total: number;
+}
+
+export async function vermelhoNoAno(esfera: Esfera, ano: number): Promise<Vermelho | null> {
+  const saldos = await saldosDoAno(esfera, ano);
+  if (saldos.size === 0) return null;
+  let vermelho = 0;
+  for (const [receita, despesa] of saldos.values()) if (despesa > receita) vermelho++;
+  return { ano, vermelho, total: saldos.size };
+}

@@ -50,8 +50,9 @@ function calcular(d: DocDividaFederal) {
   const pib = (i: number) => (d.dpf[i] ?? 0) / (d.pib12[i] ?? Infinity);
 
   // Quanto é: estoque e % do PIB, no fim de cada ano.
-  const estoque = pts.map((p) => ({ ...p, valor: bi(d.dpf[p.i]), pib: pib(p.i) }));
-  const maxPib = Math.max(...estoque.map((e) => e.pib));
+  const bruta = (i: number) => { const v = d.dbgg_pib[i]; return v === null ? null : v / 100; };
+  const estoque = pts.map((p) => ({ ...p, valor: bi(d.dpf[p.i]), pib: pib(p.i), bruta: bruta(p.i) }));
+  const maxPib = Math.max(...estoque.map((e) => Math.max(e.pib, e.bruta ?? 0)));
 
   // Quem empresta (só os títulos vendidos no país, a DPMFi) e de que tipo (toda a dívida).
   const chavesDet = DETENTORES.map((x) => x.chave);
@@ -163,22 +164,39 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
               Em reais, a dívida ficou {vezes(dados.dpfU / dados.dpf0)} maior; frente à economia, que também cresceu, passou de {pct0(dados.pib0)} para {pct0(dados.pibU)}.
             </p>
             {dados.dbggPib !== null && (
+              <p>
+                Há uma conta mais larga, a da <Termo id="dbgg">dívida bruta do governo geral</Termo>, feita pelo Banco Central. Em {mesExtenso(dados.mesU)},
+                ela era de {moedaExtenso(dados.dbgg)}, <strong>{nf1.format(dados.dbggPib)}% do PIB</strong>. É o número usado para comparar países
+                e o que aparece no noticiário.
+              </p>
+            )}
+            {dados.dbggPib !== null && (
               <p class="menor">
-                Há uma conta mais larga, a da <Termo id="dbgg">dívida bruta do governo geral</Termo>, feita pelo Banco Central: soma também
-                as dívidas dos estados e das prefeituras e os títulos que o Banco Central usa para controlar os juros. Em {mesExtenso(dados.mesU)},
-                ela era de {moedaExtenso(dados.dbgg)}, <strong>{nf1.format(dados.dbggPib)}% do PIB</strong>. É o número usado para comparar países.
+                A diferença entre as duas, {moedaExtenso(dados.dbgg - dados.dpfU)}, vem de duas coisas. A dívida bruta soma o que estados e prefeituras
+                devem a bancos e ao exterior. E soma os títulos do Tesouro que o Banco Central empresta aos bancos por poucos dias para tirar dinheiro
+                de circulação e segurar os juros (as operações compromissadas). As duas sobem pelo mesmo motivo: o governo gasta mais do que arrecada.{" "}
+                <a href="/contas">As contas fecham? →</a>
               </p>
             )}
           </div>
-          <ol class="linhas" aria-label="Dívida pública federal no fim de cada ano, em reais e em % do PIB">
-            {dados.estoque.map((e) => (
-              <li class:list={{ atual: !e.fimDeAno }} title={`${e.rotulo}: ${moedaCurta(e.valor)}, ${pct(e.pib)} do PIB`}>
-                <span class="num rotulo">{e.rotulo}</span>
-                <span class="trilho"><span class="barra" style={`width:${(e.pib / dados.maxPib) * 100}%`}></span></span>
-                <span class="num valor"><strong>{pct0(e.pib)}</strong> <span>{moedaCurta(e.valor)}</span></span>
-              </li>
-            ))}
-          </ol>
+          <div class="grafico">
+            <ul class="legenda-curta" aria-hidden="true">
+              <li><span class="cor federal"></span>Dívida federal (Tesouro)</li>
+              <li><span class="cor bruta"></span>Dívida bruta do governo geral (Banco Central)</li>
+            </ul>
+            <ol class="linhas duas" aria-label="Dívida pública federal e dívida bruta do governo geral no fim de cada ano, em % do PIB">
+              {dados.estoque.map((e) => (
+                <li class:list={{ atual: !e.fimDeAno }} title={`${e.rotulo}: dívida federal de ${moedaCurta(e.valor)}, ${pct(e.pib)} do PIB${e.bruta !== null ? `; dívida bruta do governo geral de ${pct(e.bruta)} do PIB` : ""}`}>
+                  <span class="num rotulo">{e.rotulo}</span>
+                  <span class="trilho duplo">
+                    <span class="barra" style={`width:${(e.pib / dados.maxPib) * 100}%`}></span>
+                    {e.bruta !== null && <span class="barra bruta" style={`width:${(e.bruta / dados.maxPib) * 100}%`}></span>}
+                  </span>
+                  <span class="num valor"><strong>{pct0(e.pib)}</strong> <span>{e.bruta !== null ? pct0(e.bruta) : "—"}</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
         </section>
 
         <!-- 1b. Por que cresceu -->
@@ -190,6 +208,7 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
                 A dívida cresce de dois jeitos. O primeiro são os juros: o que o governo deve rende juros todo mês, e o que ele não paga
                 se soma à dívida. O segundo é o governo vender mais títulos do que paga, para cobrir um ano em que gastou mais do que
                 arrecadou (o déficit do <Termo id="resultado-primario">resultado primário</Termo>).
+                Os dois juntos são o <Termo id="resultado-nominal">déficit nominal</Termo>: <a href="/contas#resultado">veja ano a ano se as contas fecham →</a>
               </p>
               <p>
                 De {dados.fatores[0].ano} a {mesExtenso(d.fatores_ate!)}, a dívida aumentou <strong>{moedaExtenso(dados.somaF.total)}</strong>.
@@ -550,6 +569,11 @@ const explorerJuros = linkExplorer([{ dim: "gnd", cod: "2" }], {}, dados?.anoCom
   .legenda-curta { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--texto-3); }
   .legenda-curta li { display: flex; align-items: center; gap: 6px; }
   .legenda-curta .cor { width: 14px; height: 14px; display: inline-block; border: 1px solid var(--tinta); }
+  .trilho.duplo { height: 18px; display: flex; flex-direction: column; justify-content: space-between; }
+  .trilho.duplo .barra { height: 8px; }
+  .barra.bruta, .legenda-curta .bruta { background: var(--areia); }
+  .atual .barra.bruta { background: #a39a83; }
+  .legenda-curta .federal { background: var(--verde); }
   .estados-total { display: flex; }
   .seg.uniao, .legenda-curta .uniao { background: var(--verde); }
   .seg.resto, .legenda-curta .resto { background: #b3dfc4; }

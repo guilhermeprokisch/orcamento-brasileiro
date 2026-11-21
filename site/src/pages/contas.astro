@@ -1,0 +1,485 @@
+---
+/**
+ * As contas fecham? O governo gasta mais do que arrecada, quanto deve por causa disso e quanto do gasto
+ * dá para mexer. Dados de pipeline/…/contas_federal.py (Banco Central e Resultado do Tesouro Nacional),
+ * de divida_federal.py (dívida bruta) e, para estados e prefeituras, dos arquivos do mapa (lib/contas.ts).
+ * Página irmã de /divida.
+ */
+import Base from "../layouts/Base.astro";
+import Termo from "../components/Termo.astro";
+import { moedaCurta, moedaExtenso } from "../lib/formato";
+import { docContas as k, PARTES, type DocContasFederal, type Resultados } from "../lib/contas-federal";
+import { docDivida, mesCurto, mesExtenso, ultimoMes } from "../lib/divida-federal";
+import { docCidades, docEstados, NOMES_UF } from "../lib/cidades";
+import { saldosDoAno, vermelhoNoAno } from "../lib/contas";
+
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+/** 0,4 → "0,4%"; com sinal: "−0,4%" e "+1,2%" */
+const pp = (v: number) => `${nf1.format(Math.abs(v))}%`;
+const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const ppSinal = (v: number) => `${v < 0 ? "−" : v > 0 ? "+" : ""}${(Math.abs(v) < 0.05 ? nf2 : nf1).format(Math.abs(v))}%`;
+const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
+const bi = (v: number) => v * 1e9;
+const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
+
+type Esfera = "spc" | "central";
+const ESFERAS: { chave: Esfera; nome: string; termo: string }[] = [
+  { chave: "spc", nome: "Setor público inteiro", termo: "setor-publico-consolidado" },
+  { chave: "central", nome: "Só o governo central", termo: "governo-central" },
+];
+
+/** Um ano (ou os 12 meses até o último mês) do primário e do nominal, em % do PIB e em reais. */
+interface Linha { rotulo: string; atual: boolean; primario: number; nominal: number; pib: number | null }
+
+function linhas(k: DocContasFederal, e: Esfera): Linha[] {
+  const r: Resultados = k[e];
+  const saida: Linha[] = k.anos.flatMap((a, i) => r.primario[i] === null || r.nominal[i] === null ? [] :
+    [{ rotulo: String(a), atual: false, primario: r.primario[i]!, nominal: r.nominal[i]!, pib: k.pib[i] }]);
+  const d = k.doze?.[e];
+  if (k.doze && d && d[0] !== null && d[1] !== null) saida.push({ rotulo: mesCurto(k.doze.ate), atual: true, primario: d[0], nominal: d[1], pib: k.doze.pib });
+  return saida;
+}
+
+function resultado(k: DocContasFederal) {
+  const series = Object.fromEntries(ESFERAS.map((e) => [e.chave, linhas(k, e.chave)])) as Record<Esfera, Linha[]>;
+  const todos = Object.values(series).flat();
+  const min = Math.min(0, ...todos.map((l) => Math.min(l.primario, l.nominal)));
+  const max = Math.max(0, ...todos.map((l) => Math.max(l.primario, l.nominal)));
+  const zero = (-min / (max - min)) * 100;   // onde fica o zero, em % da largura
+  const escala = 100 / (max - min);
+
+  const spc = series.spc.filter((l) => !l.atual);
+  const u = spc.at(-1)!;                      // último ano fechado
+  const cen = series.central.filter((l) => !l.atual).at(-1)!;
+  // A sequência de anos com sobra no começo da série e o primeiro ano de falta depois dela.
+  let fimSobra: number | null = null;
+  for (const l of spc) { if (l.primario > 0) fimSobra = Number(l.rotulo); else break; }
+  const depois = spc.filter((l) => fimSobra !== null && Number(l.rotulo) > fimSobra);
+  const excecoes = depois.filter((l) => l.primario > 0).map((l) => l.rotulo);
+  const nominalPositivo = spc.filter((l) => l.nominal >= 0).map((l) => l.rotulo);
+  const sobraAte2008 = spc.filter((l) => Number(l.rotulo) <= 2008);
+  const mediaSobra = sobraAte2008.length ? sobraAte2008.reduce((t, l) => t + l.primario, 0) / sobraAte2008.length : null;
+  const doze = series.spc.find((l) => l.atual) ?? null;
+  return { series, zero, escala, u, cen, fimSobra, excecoes, nominalPositivo, mediaSobra, doze, inicio: spc[0].rotulo, juros: u.primario - u.nominal };
+}
+
+function amarrado(k: DocContasFederal) {
+  const r = k.rtn;
+  const anos = r.anos.flatMap((a, i) => {
+    const total = r.total[i];
+    if (!total) return [];
+    const parte = Object.fromEntries(PARTES.map((p) => [p.chave, (r[p.chave][i] ?? 0) / total])) as Record<(typeof PARTES)[number]["chave"], number>;
+    return [{ ano: a, total, repasses: r.repasses[i] ?? 0, parte }];
+  });
+  const u = anos.at(-1)!, p0 = anos[0];
+  const emCem = (v: number) => Math.round(v * 100);
+  const livre = emCem(u.parte.discricionarias);
+  const livreComRepasses = emCem((u.parte.discricionarias * u.total) / (u.total + u.repasses));
+  return { anos, u, p0, emCem, livre, livreComRepasses };
+}
+
+async function estadosECidades() {
+  const anoMax = Math.max(...(docCidades?.cidades ?? []).map((c) => c.ano ?? 0));
+  const anos = (docCidades?.anos ?? []).filter((a) => a <= anoMax && a >= 2014);
+  const serie = await Promise.all(anos.map(async (a) => ({ ano: a, mun: await vermelhoNoAno("mun", a), uf: await vermelhoNoAno("uf", a) })));
+  const ok = serie.filter((s) => s.mun && s.uf);
+  if (!ok.length) return null;
+  const u = ok.at(-1)!;
+  const saldos = await saldosDoAno("uf", u.ano);
+  const siglaDe = new Map((docEstados?.cidades ?? []).map((x) => [String(x.ibge), x.uf]));
+  const estados = [...saldos.entries()].map(([ibge, [receita, despesa]]) => {
+    const uf = siglaDe.get(ibge) ?? ibge;
+    return { uf, nome: NOMES_UF[uf] ?? uf, saldo: receita - despesa, parte: (receita - despesa) / receita };
+  }).sort((a, b) => a.parte - b.parte);
+  const maxParte = Math.max(...estados.map((e) => Math.abs(e.parte)));
+  const pior = [...ok].sort((a, b) => b.mun!.vermelho / b.mun!.total - a.mun!.vermelho / a.mun!.total)[0];
+  return { serie: ok, u, estados, maxParte, pior, vermelhos: estados.filter((e) => e.saldo < 0) };
+}
+
+const res = k ? resultado(k) : null;
+const am = k ? amarrado(k) : null;
+const ec = await estadosECidades();
+const iDiv = docDivida ? ultimoMes(docDivida) : -1;
+const bruta = docDivida && iDiv >= 0 ? { pib: docDivida.dbgg_pib[iDiv], valor: docDivida.dbgg[iDiv], mes: docDivida.meses[iDiv] } : null;
+const brutaAntes = docDivida ? (() => { const i = docDivida.meses.indexOf("2014-12"); return i >= 0 ? docDivida.dbgg_pib[i] : null; })() : null;
+
+const descricao = res && am
+  ? `Em ${res.u.rotulo}, o setor público ${res.u.primario < 0 ? "gastou mais do que arrecadou mesmo sem contar os juros" : "só fechou as contas antes dos juros"}. De cada R$ 100 do gasto federal, só R$ ${am.livre} o governo escolhe onde pôr. E estados e prefeituras?`
+  : "Se o governo gasta mais do que arrecada, quanto deve por causa disso e quanto do gasto dá para mexer.";
+---
+
+<Base title="As contas fecham? · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap pagina-contas">
+    {!k || !res || !am ? (
+      <section class="cabeca"><div><h1>As contas fecham?</h1><p>Os dados das contas ainda não foram carregados.</p></div></section>
+    ) : (
+      <>
+        <section class="cabeca">
+          <div>
+            <span class="sobretitulo">Governo federal, estados e prefeituras · dados de {res.u.rotulo}</span>
+            <h1>As contas fecham?</h1>
+            <p>
+              {res.u.nominal < 0 ? "Não." : "Sim."} Em {res.u.rotulo}, o governo, somando União, estados, prefeituras e estatais,{" "}
+              {res.u.primario < 0
+                ? <>gastou mais do que arrecadou mesmo sem contar os juros da dívida: faltaram <strong class="marca">{moedaExtenso(bi((Math.abs(res.u.primario) / 100) * (res.u.pib ?? 0)))}</strong>.</>
+                : <>arrecadou mais do que gastou antes de pagar os juros da dívida: sobraram <strong class="marca">{moedaExtenso(bi((res.u.primario / 100) * (res.u.pib ?? 0)))}</strong>.</>}{" "}
+              {res.u.nominal < 0
+                ? <>Com os juros, faltaram {moedaExtenso(bi((Math.abs(res.u.nominal) / 100) * (res.u.pib ?? 0)))}, e essa diferença virou dívida.</>
+                : <>Mesmo com os juros, sobraram {moedaExtenso(bi((res.u.nominal / 100) * (res.u.pib ?? 0)))}.</>}
+            </p>
+          </div>
+        </section>
+
+        <section class="numeros" aria-label="As contas em quatro números">
+          <div>
+            <span>Sem contar os juros</span>
+            <strong class="num">{ppSinal(res.u.primario)}</strong>
+            <small>do PIB em {res.u.rotulo}: {res.u.primario < 0 ? "déficit primário" : "superávit primário"}</small>
+          </div>
+          <div>
+            <span>Contando os juros</span>
+            <strong class="num">{ppSinal(res.u.nominal)}</strong>
+            <small>do PIB em {res.u.rotulo}: {res.u.nominal < 0 ? "déficit nominal" : "superávit nominal"}</small>
+          </div>
+          {bruta && bruta.pib !== null && (
+            <div>
+              <span>Dívida bruta</span>
+              <strong class="num">{nf0.format(bruta.pib)}% do PIB</strong>
+              <small>em {mesExtenso(bruta.mes)}</small>
+            </div>
+          )}
+          <div>
+            <span>O governo escolhe</span>
+            <strong class="num">R$ {am.livre}</strong>
+            <small>de cada R$ 100 do gasto federal em {am.u.ano}</small>
+          </div>
+        </section>
+
+        <nav class="indice" aria-label="Nesta página">
+          <a href="#resultado">Sem e com os juros</a>
+          <a href="#amarrado">Quanto está amarrado</a>
+          {ec && <a href="#estados-e-cidades">Estados e prefeituras</a>}
+          <a href="/divida">A dívida federal →</a>
+        </nav>
+
+        <!-- 1. Primário e nominal -->
+        <section class="bloco" id="resultado">
+          <div class="texto">
+            <h2>Sem os juros e com os juros</h2>
+            <p>
+              Para saber se as contas fecham, o Banco Central faz duas contas. A primeira, o <Termo id="resultado-primario">resultado primário</Termo>, compara o que o
+              governo arrecadou com o que gastou, sem contar os juros da dívida. É o número que a regra fiscal (o <Termo id="arcabouco-fiscal">arcabouço fiscal</Termo>) persegue.
+            </p>
+            <p>
+              A segunda, o <Termo id="resultado-nominal">resultado nominal</Termo>, conta também os juros. É ela que diz quanto o governo precisou pegar emprestado no ano e,
+              por isso, quanto a dívida cresceu. Em {res.u.rotulo}, os juros somaram {pp(res.juros)} do PIB: mesmo que o primário fechasse no zero,
+              faltaria esse tanto.
+            </p>
+            <p>
+              {res.fimSobra !== null ? (
+                <>
+                  De {res.inicio} a {res.fimSobra}, sobrou dinheiro todo ano antes dos juros{res.mediaSobra !== null && <> (em média {pp(res.mediaSobra)} do PIB até 2008)</>}.
+                  Depois, faltou quase todo ano{res.excecoes.length > 0 && <>; as exceções foram {lista.format(res.excecoes)}</>}.
+                </>
+              ) : (
+                <>Nos anos com barra para a direita, sobrou dinheiro antes dos juros; nos outros, faltou.</>
+              )}{" "}
+              {res.nominalPositivo.length === 0
+                ? <>Contando os juros, as contas não fecharam em nenhum ano desde {res.inicio}.</>
+                : <>Contando os juros, só fecharam em {lista.format(res.nominalPositivo)}.</>}
+            </p>
+            <p>
+              O que falta com os juros é coberto vendendo <Termo id="titulo-publico">títulos públicos</Termo>.{" "}
+              {bruta && bruta.pib !== null && brutaAntes !== null && <>Por isso a <Termo id="dbgg">dívida bruta</Termo> foi de {nf0.format(brutaAntes)}% do PIB no fim de 2014 para {nf0.format(bruta.pib)}% em {mesExtenso(bruta.mes)}. </>}
+              <a href="/divida#por-que">Veja por que a dívida cresceu →</a>
+            </p>
+            <p class="menor">
+              "Setor público inteiro" é o <Termo id="setor-publico-consolidado">setor público consolidado</Termo>: União, estados, prefeituras e estatais.
+              O <Termo id="governo-central">governo central</Termo> é só o governo federal com o Banco Central; em {res.cen.rotulo}, teve {res.cen.primario < 0 ? "déficit" : "superávit"} primário
+              de {pp(res.cen.primario)} do PIB e {res.cen.nominal < 0 ? "déficit" : "superávit"} nominal de {pp(res.cen.nominal)}.
+              Em 2020, a pandemia: o governo gastou com o auxílio emergencial e arrecadou menos.
+            </p>
+          </div>
+          <div class="grafico">
+            <div class="escolha" role="radiogroup" aria-label="Qual governo">
+              {ESFERAS.map((e, n) => (
+                <label><input type="radio" name="esfera" value={e.chave} id={`esfera-${e.chave}`} checked={n === 0} /> {e.nome}</label>
+              ))}
+            </div>
+            <ul class="legenda-curta" aria-hidden="true">
+              <li><span class="cor primario"></span>Sem contar os juros (primário)</li>
+              <li><span class="cor nominal"></span>Contando os juros (nominal)</li>
+            </ul>
+            {ESFERAS.map((e) => (
+              <ol class:list={["linhas", "resultado", `so-${e.chave}`]} aria-label={`${e.nome}: resultado primário e nominal de cada ano, em % do PIB`}>
+                <li class="cabeca-linhas" aria-hidden="true">
+                  <span></span>
+                  <span class="eixo"><span>← faltou</span><span style={`left:${res.zero}%`}>sobrou →</span></span>
+                  <span>sem · com juros</span>
+                </li>
+                {res.series[e.chave].map((l) => (
+                  <li class:list={{ atual: l.atual }}
+                    title={`${l.atual ? `12 meses até ${l.rotulo}` : l.rotulo}: ${l.primario < 0 ? "déficit" : "superávit"} primário de ${pp(l.primario)} do PIB${l.pib ? ` (${moedaCurta(bi((Math.abs(l.primario) / 100) * l.pib))})` : ""}; ${l.nominal < 0 ? "déficit" : "superávit"} nominal de ${pp(l.nominal)}${l.pib ? ` (${moedaCurta(bi((Math.abs(l.nominal) / 100) * l.pib))})` : ""}`}>
+                    <span class="num rotulo">{l.rotulo}</span>
+                    <span class="trilho duplo divergente" style={`--zero:${res.zero}%`}>
+                      <span class="barra primario" style={`left:${l.primario < 0 ? res.zero + l.primario * res.escala : res.zero}%;width:${Math.abs(l.primario) * res.escala}%`}></span>
+                      <span class="barra nominal" style={`left:${l.nominal < 0 ? res.zero + l.nominal * res.escala : res.zero}%;width:${Math.abs(l.nominal) * res.escala}%`}></span>
+                    </span>
+                    <span class="num valor"><strong>{ppSinal(l.primario)}</strong> <span>{ppSinal(l.nominal)}</span></span>
+                  </li>
+                ))}
+              </ol>
+            ))}
+            <p class="menor-grafico">Em % do PIB. {res.doze && <>A última linha são os 12 meses até {mesExtenso(k.doze!.ate)}.</>}</p>
+          </div>
+        </section>
+
+        <!-- 2. Quanto está amarrado -->
+        <section class="bloco" id="amarrado">
+          <div class="texto">
+            <h2>Quanto está amarrado</h2>
+            <p class="forte">
+              De cada R$ 100 que o governo federal gastou em {am.u.ano}, sem contar os juros, só <strong class="marca">R$ {am.livre}</strong> eram
+              gasto que ele podia escolher onde pôr.
+            </p>
+            <p>
+              O resto é <Termo id="despesa-obrigatoria">obrigatório</Termo> por lei ou pela Constituição: R$ {am.emCem(am.u.parte.previdencia)} para
+              as aposentadorias e pensões do INSS, R$ {am.emCem(am.u.parte.pessoal)} para os salários dos servidores, R$ {am.emCem(am.u.parte.outras)} para
+              outros gastos obrigatórios (o BPC dos idosos e das pessoas com deficiência, o seguro-desemprego, o Fundeb, as sentenças judiciais) e
+              R$ {am.emCem(am.u.parte.controle)} para o Bolsa Família e parte da saúde.
+            </p>
+            <p>
+              A parte livre, a <Termo id="despesa-discricionaria">discricionária</Termo>, encolheu: em {am.p0.ano}, era R$ {am.emCem(am.p0.parte.discricionarias)} de cada R$ 100.
+              É nela que caem os cortes quando o governo precisa cumprir a meta (o <Termo id="contingenciamento">contingenciamento</Termo>): obras, bolsas de pesquisa,
+              manutenção de estradas, o dia a dia dos ministérios. Mudar o resto depende de mudar leis ou a Constituição.
+            </p>
+            <p class="menor">
+              A conta não inclui os juros da dívida, que também têm de ser pagos, nem os repasses obrigatórios a estados e prefeituras
+              ({moedaExtenso(bi(am.u.repasses))} em {am.u.ano}, como o <Termo id="fpm" />); contando os repasses, a parte livre cai para R$ {am.livreComRepasses} de cada R$ 100.
+              E mesmo dentro dela há amarras: parte serve para cumprir os mínimos de saúde e educação da Constituição, e as
+              <a href="/emendas"> emendas parlamentares</a>, que o governo é obrigado a pagar, estão aí. Em 2010, a parte livre foi maior por causa
+              da compra de ações da Petrobras.
+            </p>
+          </div>
+          <div class="grafico">
+            <ul class="legenda">
+              {PARTES.map((x) => (
+                <li>
+                  <span class="cor" style={`background:${x.cor}`}></span>
+                  <span class="nome"><strong>{x.nome}</strong> <span>{x.explica}</span></span>
+                  <span class="num">R$ {am.emCem(am.u.parte[x.chave])}</span>
+                </li>
+              ))}
+            </ul>
+            <ol class="pilhas" aria-label="Divisão do gasto do governo federal (sem os juros) em cada ano">
+              {am.anos.map((a) => (
+                <li class:list={{ atual: a.ano === am.u.ano }}>
+                  <span class="num rotulo">{a.ano}</span>
+                  <span class="pilha" title={`${a.ano}: gasto de ${moedaCurta(bi(a.total))}; ` + PARTES.map((x) => `${x.nome}: R$ ${am.emCem(a.parte[x.chave])} de cada R$ 100`).join(" · ")}>
+                    {PARTES.map((x) => <span style={`width:${a.parte[x.chave] * 100}%;background:${x.cor}`}></span>)}
+                  </span>
+                  <span class="num livre">R$ {am.emCem(a.parte.discricionarias)}</span>
+                </li>
+              ))}
+            </ol>
+            <p class="menor-grafico">À direita, o que o governo escolhe, de cada R$ 100. A separação começa em {am.p0.ano}.</p>
+          </div>
+        </section>
+
+        <!-- 3. Estados e prefeituras -->
+        {ec && (
+          <section class="bloco" id="estados-e-cidades">
+            <div class="texto">
+              <h2>Estados e prefeituras</h2>
+              <p>
+                Estados e prefeituras não vendem títulos como a União, e a <Termo id="lrf" /> limita o quanto podem dever. Para eles, a pergunta é mais
+                simples: sobrou ou faltou dinheiro no ano?
+              </p>
+              <p>
+                Em {ec.u.ano}, <strong>{nf0.format(ec.u.mun!.vermelho)} das {nf0.format(ec.u.mun!.total)} prefeituras</strong> ({pct0(ec.u.mun!.vermelho / ec.u.mun!.total)})
+                gastaram mais do que receberam. Entre os governos estaduais, foram <strong>{ec.u.uf!.vermelho} de {ec.u.uf!.total}</strong>
+                {ec.vermelhos.length > 0 && ec.vermelhos.length <= 12 && <>: {lista.format(ec.vermelhos.slice().sort((a, b) => a.nome.localeCompare(b.nome)).map((e) => e.nome))}</>}.
+              </p>
+              {ec.pior.ano !== ec.u.ano && (
+                <p>
+                  De {ec.serie[0].ano} para cá, o pior ano das prefeituras foi {ec.pior.ano}: {pct0(ec.pior.mun!.vermelho / ec.pior.mun!.total)} delas fecharam no vermelho.{" "}
+                  {ec.serie.length > 2 && ec.serie.at(-2)!.ano !== ec.pior.ano && <>Em {ec.serie.at(-2)!.ano}, foram {pct0(ec.serie.at(-2)!.mun!.vermelho / ec.serie.at(-2)!.mun!.total)}.</>}
+                </p>
+              )}
+              <p>
+                A página de cada cidade e de cada estado mostra quanto sobrou ou faltou lá. <a href="/cidades">Procure a sua cidade →</a>
+              </p>
+              <p class="menor">
+                A conta é a mesma das páginas das cidades e dos estados: tudo o que entrou no ano, inclusive empréstimos, menos o gasto comprometido
+                (empenhado). Não é o resultado fiscal oficial: quem gastou mais do que recebeu pode ter usado dinheiro guardado de anos anteriores ou
+                deixado contas para o ano seguinte. Entram só as prefeituras que entregaram as contas ao Tesouro.
+              </p>
+            </div>
+            <div class="grafico">
+              <h3>Quantos fecharam no vermelho</h3>
+              <ol class="linhas vermelho" aria-label="Parte das prefeituras e dos governos estaduais que gastaram mais do que receberam, por ano">
+                <li class="cabeca-linhas" aria-hidden="true"><span></span><span>prefeituras</span><span>estados</span></li>
+                {ec.serie.map((s) => (
+                  <li class:list={{ atual: s.ano === ec.u.ano }} title={`${s.ano}: ${nf0.format(s.mun!.vermelho)} de ${nf0.format(s.mun!.total)} prefeituras e ${s.uf!.vermelho} de ${s.uf!.total} governos estaduais gastaram mais do que receberam`}>
+                    <span class="num rotulo">{s.ano}</span>
+                    <span class="trilho"><span class="barra falta" style={`width:${(s.mun!.vermelho / s.mun!.total) * 100}%`}></span><span class="num dentro">{pct0(s.mun!.vermelho / s.mun!.total)}</span></span>
+                    <span class="num valor"><strong>{s.uf!.vermelho}</strong> <span>de {s.uf!.total}</span></span>
+                  </li>
+                ))}
+              </ol>
+              <h3>Cada estado em {ec.u.ano}</h3>
+              <ol class="linhas estados" aria-label={`Quanto sobrou ou faltou a cada governo estadual em ${ec.u.ano}, em % da receita`}>
+                <li class="cabeca-linhas" aria-hidden="true"><span></span><span class="eixo"><span>← faltou</span><span style="left:50%">sobrou →</span></span><span>% da receita</span></li>
+                {ec.estados.map((e) => (
+                  <li title={`${e.nome}: ${e.saldo < 0 ? "faltaram" : "sobraram"} ${moedaCurta(Math.abs(e.saldo))}, ${pct0(Math.abs(e.parte))} da receita`}>
+                    <a class="rotulo" href={`/estados/${e.uf.toLowerCase()}`}>{e.nome}</a>
+                    <span class="trilho divergente" style="--zero:50%">
+                      <span class:list={["barra", e.saldo < 0 ? "falta" : "sobra"]} style={`left:${e.parte < 0 ? 50 + (e.parte / ec.maxParte) * 50 : 50}%;width:${(Math.abs(e.parte) / ec.maxParte) * 50}%`}></span>
+                    </span>
+                    <span class="num valor"><strong>{ppSinal(e.parte * 100)}</strong> <span>{moedaCurta(e.saldo)}</span></span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+        )}
+
+        <section class="fontes">
+          <h2>De onde vêm os números</h2>
+          <ul>
+            <li>
+              Banco Central, Sistema Gerenciador de Séries Temporais (SGS): necessidade de financiamento do setor público sem desvalorização
+              cambial, acumulada em 12 meses, em % do PIB. Setor público consolidado: primário (série 5793), nominal (5727) e juros (5760).
+              Governo federal e Banco Central: 5783, 5717 e 5750. PIB dos 12 meses: 4382. O Banco Central publica o déficit como número
+              positivo; aqui o sinal é o do dia a dia: negativo quando falta.
+            </li>
+            <li>
+              Tesouro Nacional, <a href={k.rtn.pagina}>Resultado do Tesouro Nacional</a>, série histórica (<a href={k.rtn.url}>planilha</a>, tabela 2.1):
+              despesa do governo central por tipo. "Obrigatórias com ritmo controlado" é a linha "obrigatórias com controle de fluxo".
+            </li>
+            {bruta && <li>Dívida bruta do governo geral: Banco Central (séries 13761 e 13762), como na página <a href="/divida">da dívida</a>.</li>}
+            {ec && <li>Estados e prefeituras: receita e despesa das Declarações de Contas Anuais (SICONFI, Tesouro Nacional), as mesmas do <a href="/mapa/">mapa</a>.</li>}
+          </ul>
+          <p class="menor"><a href="/data/federal/contas.json">Baixe os dados desta página</a> (JSON).</p>
+        </section>
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .cabeca { padding: 40px 0 32px; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 880px; }
+  .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .cabeca p strong { color: var(--tinta); }
+
+  .numeros {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra);
+  }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 32px; font-weight: 700; }
+  .numeros small { font-size: 14px; color: var(--texto-3); }
+
+  .indice { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 16px 0; font-size: 15px; border-bottom: 1px solid var(--regra); }
+
+  .bloco { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 40px; scroll-margin-top: 12px; }
+  .indice + .bloco { border-top: 0; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .forte { font-family: var(--serifa); font-size: 22px; line-height: 1.4; color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .grafico { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; }
+  .grafico h3 { font-size: 18px; }
+  .grafico h3:not(:first-child) { margin-top: 12px; }
+
+  /* Escolha do governo (sem JavaScript: o rádio marcado mostra uma das listas) */
+  .escolha { display: flex; flex-wrap: wrap; gap: 6px; }
+  .escolha label { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--tinta); font-size: 14px; cursor: pointer; }
+  .escolha input { accent-color: var(--verde-escuro); margin: 0; }
+  .escolha label:has(input:checked) { background: var(--tinta); color: var(--papel); }
+  .grafico:has(#esfera-spc:checked) .so-central, .grafico:has(#esfera-central:checked) .so-spc { display: none; }
+
+  /* Linhas: rótulo | barra | valor */
+  .linhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+  .linhas li { display: grid; grid-template-columns: 70px minmax(0, 1fr) 120px; gap: 12px; align-items: center; font-size: 14px; }
+  .linhas .rotulo { color: var(--texto-3); }
+  .linhas .valor { text-align: right; white-space: nowrap; }
+  .linhas .valor span { color: var(--texto-3); font-size: 13px; }
+  .linhas .atual .rotulo { color: var(--tinta); font-weight: 700; }
+  .cabeca-linhas { font-size: 12px !important; color: var(--texto-3); }
+  .cabeca-linhas > span:last-child { text-align: right; white-space: nowrap; }
+  .eixo { position: relative; display: block; height: 1.2em; }
+  .eixo span { position: absolute; top: 0; white-space: nowrap; }
+  .eixo span:first-child { left: 0; }
+  .eixo span:last-child { transform: translateX(6px); }
+  .trilho { position: relative; display: block; height: 14px; }
+  .barra { display: block; height: 100%; background: var(--verde); }
+  .divergente::before { content: ""; position: absolute; left: var(--zero); top: -3px; bottom: -3px; width: 1px; background: var(--tinta); }
+  .divergente .barra { position: absolute; }
+  .trilho.duplo { height: 18px; }
+  .trilho.duplo .barra { height: 8px; }
+  .trilho.duplo .barra.primario { top: 0; }
+  .trilho.duplo .barra.nominal { bottom: 0; }
+  .barra.primario, .legenda-curta .primario { background: var(--tinta); }
+  .barra.nominal, .legenda-curta .nominal { background: var(--areia); }
+  .barra.falta { background: #c96a3d; }
+  .barra.sobra { background: var(--verde); }
+  .atual .barra.falta { background: #a3401a; }
+  .dentro { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; color: var(--tinta); }
+  .linhas.estados li { grid-template-columns: 150px minmax(0, 1fr) 130px; }
+  .linhas.estados .rotulo { color: var(--tinta); text-decoration: none; }
+  .linhas.estados .rotulo:hover { text-decoration: underline; }
+  .legenda-curta { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--texto-3); }
+  .legenda-curta li { display: flex; align-items: center; gap: 6px; }
+  .legenda-curta .cor { width: 14px; height: 14px; display: inline-block; border: 1px solid var(--tinta); }
+  .menor-grafico { margin: 0; font-size: 14px; color: var(--texto-3); }
+
+  /* Legenda com a fatia do último ano */
+  .legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--regra); }
+  .legenda li { display: grid; grid-template-columns: 14px minmax(0, 1fr) 64px; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--regra-leve); font-size: 14px; }
+  .legenda .cor { width: 14px; height: 14px; align-self: center; border: 1px solid rgba(0, 0, 0, 0.15); }
+  .legenda .nome span { color: var(--texto-3); font-size: 13px; }
+  .legenda .num { text-align: right; font-family: var(--serifa); font-size: 18px; font-weight: 700; white-space: nowrap; }
+
+  /* Barras empilhadas, uma por ano */
+  .pilhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+  .pilhas li { display: grid; grid-template-columns: 70px minmax(0, 1fr) 56px; gap: 12px; align-items: center; font-size: 14px; }
+  .pilhas .rotulo { color: var(--texto-3); }
+  .pilhas .livre { text-align: right; white-space: nowrap; }
+  .pilhas .atual .rotulo, .pilhas .atual .livre { color: var(--tinta); font-weight: 700; }
+  .pilha { display: flex; height: 16px; }
+  .pilha span { display: block; height: 100%; }
+  .pilhas .atual .pilha { outline: 1px solid var(--tinta); outline-offset: 2px; }
+
+  .fontes { border-top: 2px solid var(--tinta); padding: 32px 0 0; display: flex; flex-direction: column; gap: 12px; max-width: 880px; }
+  .fontes h2 { font-size: 26px; }
+  .fontes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
+  .fontes .menor { margin: 0; font-size: 14px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .cabeca { padding: 28px 0 24px; }
+    .cabeca h1 { font-size: 40px; }
+    .cabeca p { font-size: 17px; }
+    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(2n) { border-right: 0; }
+    .numeros div:nth-child(2n + 1) { padding-left: 0; }
+    .numeros strong { font-size: 24px; }
+    .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; }
+    .texto .forte { font-size: 20px; }
+    .linhas li { grid-template-columns: 58px minmax(0, 1fr) 96px; gap: 8px; }
+    .linhas.estados li { grid-template-columns: 104px minmax(0, 1fr) 96px; }
+    .linhas.estados .valor span { display: none; }
+    .linhas.resultado .cabeca-linhas > span:last-child { visibility: hidden; }
+    .pilhas li { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }
+  }
+</style>

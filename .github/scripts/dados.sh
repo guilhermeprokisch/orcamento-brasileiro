@@ -74,6 +74,9 @@ fila_independente() {
   # Os Parquet dos exploradores ficam no bucket e são gerados à mão; aqui só os resumos.
   pipe pode-falhar "Explorador de emendas" explorador-emendas --sem-baixar
   pipe pode-falhar "Receitas da União" receitas-uniao --sem-baixar
+  # As contas fecham? (/contas): resultado primário e nominal (Banco Central) e despesas obrigatórias e
+  # discricionárias (Resultado do Tesouro). Se o download falhar, usa pipeline/referencia/contas-federal.json.
+  pipe pode-falhar "Contas federais" contas-federal
   # O que o governo federal gasta ele mesmo em cada cidade (execução da despesa do Portal e cidade de
   # cada unidade no Compras.gov.br). Se um dos dois não responder, usa a cópia em pipeline/referencia/.
   pipe pode-falhar "Gasto federal direto nas cidades" gasto-federal 2025
