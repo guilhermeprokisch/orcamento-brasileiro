@@ -1,0 +1,136 @@
+name: Dívida e pessoal das prefeituras
+
+# Baixa o Relatório de Gestão Fiscal (RGF) do fim do ano de todas as prefeituras: Anexo 2 (dívida,
+# `uv run divida --prefeituras`) e Anexo 1 (gasto com pessoal, `uv run pessoal --prefeituras`). Guarda o
+# cache no release "dados-siconfi" (rgf-a02-mun.tar e rgf-a01-mun.tar) e manda publicar o site. Na
+# publicação, `semente aplicar` traz esse cache e os dois comandos, com --max-chamadas 0, montam a saída
+# só a partir dele, sem consultar a API.
+#
+# Por que é um workflow à parte: a API do SICONFI aceita uma consulta por segundo e responde uma
+# prefeitura por vez. Os dois anexos rodam em dois runners ao mesmo tempo (cada um com o seu endereço).
+#
+# O ano é o último fechado, que vira em março (o RGF do fim do ano é entregue até 30 de janeiro). Na
+# primeira execução de março o ano novo não tem cache: são ~5.570 prefeituras, 1 ou 2 consultas cada,
+# cerca de duas horas por anexo. Nas seguintes, --atrasadas consulta de novo só as que ainda não tinham
+# entregado (~2.400 em 2025, umas 80 min). Por isso o ritmo: toda segunda de março a julho, quando
+# chegam as entregas atrasadas, e uma vez por mês no resto do ano.
+on:
+  schedule:
+    - cron: "0 4 * 3-7 1"
+    - cron: "0 4 1 1,2,8-12 *"
+  workflow_dispatch:
+    inputs:
+      max_chamadas:
+        description: Consultas à API por anexo (o resto fica para a próxima execução)
+        default: "15000"
+
+concurrency:
+  group: rgf-prefeituras
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # anexar o cache ao release
+  actions: write    # disparar a publicação do site
+
+env:
+  # Só a main grava no release e publica; em outro branch (teste), o resultado fica como artefato.
+  NA_MAIN: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { comando: divida, anexo: rgf-a02-mun }
+          - { comando: pessoal, anexo: rgf-a01-mun }
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      # A lista das prefeituras e a população (para a ordem e para quem entrega por semestre) vêm do
+      # municipios.json do site no ar: gerá-lo aqui exigiria o cache inteiro da DCA.
+      - name: Lista das prefeituras
+        run: |
+          mkdir -p site/public/data/cidades
+          curl -fsSL --retry 3 -o site/public/data/cidades/municipios.json \
+            https://orcamentobrasileiro.com.br/data/cidades/municipios.json
+
+      - name: Cache já publicado
+        run: |
+          uv run --project pipeline semente aplicar ${{ matrix.anexo }}
+          mkdir -p data/raw/siconfi/${{ matrix.anexo }}
+          cat data/raw/siconfi/${{ matrix.anexo }}/*.json.gz 2>/dev/null | sha256sum > "$RUNNER_TEMP/antes.sha256"
+
+      # O limite deixa folga no tempo do job; o que faltar fica para a próxima execução, porque o cache
+      # é publicado mesmo se este passo for interrompido. Num push (teste do branch), poucas consultas.
+      - name: Baixar o RGF das prefeituras
+        env:
+          MAX: ${{ github.event_name == 'push' && '600' || inputs.max_chamadas || '15000' }}
+        run: uv run --project pipeline ${{ matrix.comando }} --prefeituras --atrasadas --max-chamadas "$MAX"
+
+      - name: Publicar o cache
+        id: cache
+        if: always()
+        run: |
+          cat data/raw/siconfi/${{ matrix.anexo }}/*.json.gz 2>/dev/null | sha256sum > "$RUNNER_TEMP/depois.sha256"
+          if cmp -s "$RUNNER_TEMP/antes.sha256" "$RUNNER_TEMP/depois.sha256"; then
+            echo "::notice::${{ matrix.anexo }}: nada novo desde a última execução."
+            exit 0
+          fi
+          if [ "$NA_MAIN" = true ]; then
+            uv run --project pipeline semente publicar ${{ matrix.anexo }}
+          else
+            echo "::notice::Branch de teste: o cache não vai para o release; fica como artefato da execução."
+          fi
+          mkdir -p "$RUNNER_TEMP/mudou" && touch "$RUNNER_TEMP/mudou/${{ matrix.anexo }}"
+
+      - name: Artefato do teste
+        if: always() && env.NA_MAIN != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.anexo }}
+          path: |
+            data/raw/siconfi/${{ matrix.anexo }}/
+            site/public/data/cidades/${{ matrix.comando }}.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Marca, para o job seguinte, que este anexo mudou.
+      - name: Marcar o que mudou
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mudou-${{ matrix.anexo }}
+          path: ${{ runner.temp }}/mudou/
+          if-no-files-found: ignore
+          retention-days: 1
+
+  publicar:
+    needs: baixar
+    if: always() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v4
+        continue-on-error: true   # nenhum anexo mudou: não há artefato
+        with:
+          pattern: mudou-*
+          path: mudou
+          merge-multiple: true
+      - name: Publicar o site
+        run: |
+          if [ -z "$(ls -A mudou 2>/dev/null)" ]; then
+            echo "::notice::Nenhum anexo mudou; o site fica como está."
+            exit 0
+          fi
+          echo "Mudaram: $(ls mudou | tr '\n' ' ')"
+          gh workflow run publicar.yml --ref "${{ github.event.repository.default_branch }}"
