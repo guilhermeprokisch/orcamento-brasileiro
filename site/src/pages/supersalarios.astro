@@ -290,7 +290,9 @@ const larguraGrupos = (l: Linha) => {
                           <tr>
                             <th scope="row"><abbr title={l.nome}>{l.sigla}</abbr>{l.meses.length < nMeses(p) && <small> {l.meses.length} {l.meses.length === 1 ? "mês" : "meses"}</small>}</th>
                             <td class="n membros">{nf0.format(l.membros)}</td>
-                            <td class="n">{l.parte === null ? <span class="poucos">menos de 5</span> : pct0(l.parte)}</td>
+                            <td class="n">{l.parte !== null ? pct0(l.parte) : l.excesso !== null
+                              ? <span class="poucos" title="Num mês típico, menos de 5 passam do teto">só em {l.meses_acima} {l.meses_acima === 1 ? "mês" : "meses"}</span>
+                              : <span class="poucos">menos de 5</span>}</td>
                             <td class="barra-col">
                               {l.porMembro !== null && (
                                 <span class="celula-barra"><span class="trilho"><span class="barra" style={`width:${(l.porMembro / max) * 100}%`}></span></span><span class="num">{milReais(l.porMembro)}</span></span>
@@ -380,8 +382,10 @@ const larguraGrupos = (l: Linha) => {
             </li>
             <li>
               <strong>Juízes, promotores e o Executivo federal.</strong> Os servidores dos tribunais e dos Ministérios Públicos não entram, nem
-              defensores, conselheiros de tribunais de contas, o Legislativo, os militares e os governos estaduais e municipais. Os tribunais eleitorais, o TSE, o CNJ e o CJF ficam de fora
-              porque pagam só uma gratificação a quem recebe o salário em outro tribunal.
+              defensores, conselheiros de tribunais de contas, o Legislativo, os militares e os governos estaduais e municipais. Os tribunais eleitorais, o CNJ e o CJF ficam de fora
+              porque pagam só uma gratificação a quem recebe o salário em outro tribunal; os tribunais superiores (STF, STJ, TST e STM), porque os
+              arquivos deles misturam ministros na ativa, aposentados, pensionistas e juízes convocados de outros tribunais. Só conta quem recebeu
+              subsídio do órgão no mês.
             </li>
             <li>
               <strong>A conta é por contracheque, e erra para menos.</strong> Sem o CPF, não dá para somar o que a mesma pessoa recebe em dois

@@ -40,7 +40,10 @@ const porMes = (p: { excesso: number | null; meses: string[] } | null) => (p && 
           <h3><abbr title={o.nome}>{sigla(id)}</abbr> <span>{o.nome}</span></h3>
           <p>
             {a!.parte === null ? (
-              <>Em {pA.rotulo}, menos de 5 dos {nf0.format(a!.membros)} {quem(o.tipo)} passaram do teto num mês típico.</>
+              <>
+                Em {pA.rotulo}, menos de 5 dos {nf0.format(a!.membros)} {quem(o.tipo)} passaram do teto num mês típico.
+                {a!.excesso !== null && <> Em {a!.meses_acima} {a!.meses_acima === 1 ? "mês" : "meses"}, foram mais, e o que passou do teto somou {moedaExtenso(a!.excesso)}.</>}
+              </>
             ) : (
               <>
                 Em {pA.rotulo}, <strong>{pct0(a!.parte)}</strong> dos {nf0.format(a!.membros)} {quem(o.tipo)} receberam acima do teto num mês típico, e o
@@ -51,8 +54,9 @@ const porMes = (p: { excesso: number | null; meses: string[] } | null) => (p && 
           </p>
           {b && porMes(a) !== null && porMes(b) !== null && (
             <p>
-              {pB.rotulo[0].toUpperCase() + pB.rotulo.slice(1)}, com o limite do STF, passa do teto {moedaCurta(porMes(b)!)} por mês ({pct0(b.parte ?? 0)} acima do teto), contra{" "}
-              {moedaCurta(porMes(a)!)} por mês em {pA.rotulo}.
+              {pB.rotulo[0].toUpperCase() + pB.rotulo.slice(1)}, com o limite do STF, passa do teto {moedaCurta(porMes(b)!)} por mês
+              {b.parte !== null && <> ({pct0(b.parte)} acima do teto num mês típico)</>}, contra {moedaCurta(porMes(a)!)} por mês em {pA.rotulo}.
+              {porMes(b)! > porMes(a)! * 1.1 && <> Aqui, o que passa do teto aumentou depois da decisão: {o.tipo === "tj" ? "o tribunal" : "o Ministério Público"} passou a pagar mais perto do novo limite.</>}
             </p>
           )}
           {!b && <p class="menor">Ainda sem dados {pB.rotulo}.</p>}

@@ -16,8 +16,11 @@ remuneração paga pelo órgão de origem (já contada lá). Passa do teto quem 
 subsídio de ministro do STF do mês. A conta usa sempre o teto nacional, mesmo nos estados (o mais
 generoso).
 
-Ficam de fora os tribunais eleitorais, o TSE e os conselhos (CNJ e CJF): pagam só uma gratificação a
-juízes que recebem o salário em outro tribunal, e contariam a mesma pessoa duas vezes.
+Ficam de fora os tribunais eleitorais e os conselhos (CNJ e CJF), que pagam só uma gratificação a juízes que
+recebem o salário em outro tribunal e contariam a mesma pessoa duas vezes, e os tribunais superiores (STF,
+STJ, TST, STM): os arquivos deles misturam ministros na ativa, aposentados, pensionistas e juízes convocados
+de outros tribunais. E, em todos, só conta o contracheque com subsídio pago pelo órgão no mês (fora ficam
+pensionistas, requisitados e quem só recebe uma diferença).
 
 Nada aqui guarda pessoa: o cache em data/raw/supersalarios/{órgão}/{ano}-{mês}.json.gz tem só as somas
 de cada órgão no mês. A saída também: por órgão e por período, quantos passam do teto num mês típico,
@@ -90,10 +93,10 @@ DEGRAU, DEGRAUS = 10_000, 30
 
 TIPOS = {  # (entidade, jurisdição) do DadosJusBr -> tipo no site
     ("Tribunal", "Estadual"): "tj", ("Ministério", "Ministério"): "mp", ("Tribunal", "Trabalho"): "trabalho",
-    ("Tribunal", "Federal"): "federal", ("Tribunal", "Superior"): "superior", ("Tribunal", "Militar"): "militar",
+    ("Tribunal", "Federal"): "federal", ("Tribunal", "Militar"): "militar",
 }
 NOMES_TIPOS = {"tj": "Tribunais de justiça dos estados", "mp": "Ministérios Públicos", "trabalho": "Justiça do Trabalho",
-               "federal": "Justiça Federal", "superior": "Tribunais superiores", "militar": "Justiça Militar"}
+               "federal": "Justiça Federal", "militar": "Justiça Militar"}
 FORA_DA_CONTA = {"tse"}
 
 
@@ -173,6 +176,7 @@ def somar_pacote(conteudo: bytes, t: float) -> dict:
                 tipo, cc = r.get("tipo"), r.get("id_contracheque")
                 if tipo == "R/B":
                     por_cc[cc]["subsidio"] += v
+                    por_cc[cc]["bruto_base"] += v
                 elif tipo == "R/O":
                     macro = (r.get("desambiguacao_macro") or "").strip()
                     item = (r.get("item") or "").strip()
@@ -188,6 +192,8 @@ def somar_pacote(conteudo: bytes, t: float) -> dict:
     acima = 0
     excesso = 0.0
     for partes in por_cc.values():
+        if partes.get("bruto_base", 0.0) <= 0:
+            continue   # sem subsídio pago pelo órgão: pensionista, requisitado, convocado de outro tribunal
         soma = 0.0
         for i, g in enumerate(GRUPOS):
             soma += partes.get(g, 0.0)
@@ -272,8 +278,7 @@ def completo(x: dict) -> bool:
 
 def ler_cache(aid: str, tipo: str = "") -> dict[str, dict]:
     meses = {arq.name[:7]: json.loads(gzip.decompress(arq.read_bytes())) for arq in sorted((PASTA / aid).glob("*.json.gz"))}
-    # Nos tribunais superiores (STF, STJ, TST, STM) é comum ninguém receber nada além do subsídio.
-    incompletos = [] if tipo == "superior" else [m for m, x in meses.items() if not completo(x)]
+    incompletos = [m for m, x in meses.items() if not completo(x)]
     if incompletos:
         print(f"  {aid}: meses só com o subsídio, deixados de fora: {', '.join(incompletos)}")
     return {m: x for m, x in meses.items() if m not in incompletos}
@@ -294,6 +299,10 @@ def resumir(meses: dict[str, dict]) -> dict | None:
     acima = sum(x["acima"] for x in ms)
     if not membros:
         return None
+    # "Um mês típico" é a mediana dos meses: um mês com atrasados pagos a todos não puxa a conta.
+    acima_tipico = statistics.median(x["acima"] for x in ms)
+    parte_tipica = statistics.median(x["acima"] / x["membros"] for x in ms if x["membros"])
+    meses_acima = sum(1 for x in ms if x["acima"] >= MINIMO)
     grupos = {g: round(sum(x["grupos"][g] for x in ms)) for g in GRUPOS}
     limites = [f // DEGRAU for f in FAIXAS]   # degrau do histograma onde cada faixa começa
     faixas = [0.0] * (len(FAIXAS) + 1)
@@ -301,18 +310,20 @@ def resumir(meses: dict[str, dict]) -> dict | None:
         for i, c in enumerate(x["hist"]):
             faixas[sum(1 for lim in limites if i >= lim)] += c / n
     faixas = [round(f) for f in faixas]
-    poucos = acima / n < MINIMO
+    poucos = acima_tipico < MINIMO          # não mostra quantos num mês típico
+    nenhum = meses_acima == 0               # nem o valor do período
     return {
         "meses": sorted(meses),
         "membros": round(membros / n),                 # num mês típico
-        "acima": None if poucos else round(acima / n),  # num mês típico
-        "parte": None if poucos else round(acima / membros, 4),
-        "excesso": None if poucos else round(sum(x["excesso"] for x in ms)),   # soma do período
+        "acima": None if poucos else round(acima_tipico),   # num mês típico (mediana)
+        "parte": None if poucos else round(parte_tipica, 4),
+        "meses_acima": meses_acima,                         # meses com pelo menos 5 acima do teto
+        "excesso": None if nenhum else round(sum(x["excesso"] for x in ms)),   # soma do período
         "pago": round(sum(x["pago"] for x in ms)),
         "mediana": round(statistics.median([x["mediana"] for x in ms if x["mediana"] is not None])),
         "grupos": grupos,
         "camadas": [[round(sum(x["camadas"][i][0] for x in ms) / n), round(sum(x["camadas"][i][1] for x in ms))] for i in range(len(GRUPOS))],
-        "faixas": None if poucos else [f if f >= MINIMO else None for f in faixas],
+        "faixas": None if nenhum else [f if f >= MINIMO else None for f in faixas],
     }
 
 

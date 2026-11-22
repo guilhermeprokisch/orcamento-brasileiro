@@ -312,8 +312,24 @@ Quando o DadosJusBr não classifica uma rubrica (comum em 2026, com o contracheq
 do nome da rubrica (tempo de serviço, folga compensatória, férias, auxílio) e, para as vantagens
 pessoais, da categoria do CNJ; o resto fica em "atrasados e rubricas opacas".
 
-Conferência: os 27 TJs somam R$ 10,7 bi acima do teto em 2025, o mesmo número da Transparência Brasil e
-da República.org.
+Três regras vieram da conferência dos dados:
+
+- **Os tribunais superiores ficam de fora.** No STJ, 194 dos 313 contracheques de setembro de 2025 eram de
+  juízes temporários, auxiliares ou convocados (que recebem o salário no tribunal de origem), e os
+  "ministros" eram 64 para 33 cadeiras; no TST, 52 "ministros" para 27 cadeiras e 26 pensionistas. Os
+  arquivos misturam ativos, aposentados, pensionistas e convocados.
+- **Só conta quem recebeu subsídio do órgão no mês.** Nos TJs e MPs são poucos os outros (8 de 893 no
+  MPRJ, 14 de 198 no TJPI), mas sem subsídio não dá para dizer que é membro na ativa daquele órgão.
+- **"Um mês típico" é a mediana dos meses**, não a média: no STF, por exemplo, ninguém passava do teto na
+  maior parte dos meses e todos passavam em um, o que dava "49% num mês típico". A tabela mostra também em
+  quantos meses houve pelo menos 5 acima do teto.
+
+O TJBA parece estranho (pagava pouco além do subsídio em 2025 e passou a pagar perto do limite de 70%
+depois da decisão do STF), mas os metadados do DadosJusBr dão os dois anos como completos e detalhados:
+o site mostra o que os dados dizem.
+
+Conferência: os 27 TJs somam R$ 10,6 bi acima do teto em 2025, perto dos R$ 10,7 bi da Transparência
+Brasil e da República.org.
 
 O segundo passo também: `uv run supersalarios-federal` (seção "No Executivo federal" em `/supersalarios` e
 bloco "Acima do teto" na página de cada órgão federal). Lê, de dentro dos zips do Portal da Transparência,

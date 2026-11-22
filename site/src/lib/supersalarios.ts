@@ -8,9 +8,12 @@ import { docBase } from "./perfis";
 export interface Periodo {
   meses: string[];
   membros: number;
-  /** null quando menos de 5 passam do teto num mês típico (não se mostra). */
+  /** Quantos passam do teto num mês típico (a mediana dos meses); null quando são menos de 5 (não se mostra). */
   acima: number | null;
   parte: number | null;
+  /** Meses do período com pelo menos 5 acima do teto. */
+  meses_acima: number;
+  /** Soma do período; null quando nenhum mês teve 5 ou mais acima do teto. */
   excesso: number | null;
   pago: number;
   mediana: number;
@@ -45,7 +48,7 @@ interface DocSuper {
 const arquivos = import.meta.glob<DocSuper>("../../public/data/indicadores/supersalarios.json", { eager: true, import: "default" });
 export const docSuper: DocSuper | null = Object.values(arquivos)[0] ?? null;
 
-export const ORDEM_TIPOS: Tipo[] = ["tj", "mp", "trabalho", "federal", "superior", "militar"];
+export const ORDEM_TIPOS: Tipo[] = ["tj", "mp", "trabalho", "federal", "militar"];
 
 /** Cor de cada família de rubricas: o subsídio em cinza; o que vem por cima, do verde ao amarelo. */
 export const CORES_GRUPOS: Record<string, string> = {
