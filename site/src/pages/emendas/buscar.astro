@@ -15,6 +15,7 @@ import "../../styles/degraus.css";
 
 interface Resumo {
   fonte: string; ano: number; anos: number[]; pagamentos: string; textos: string; total: number;
+  copias?: Record<string, string>;   // cópias ordenadas por chave, para as fichas (explorador_emendas.py)
   tipos: Record<string, number>;
   autores: [string, number][];
   entidades: { codigo: string; nome: string; lugar: string; valor: number; autor: string }[];
@@ -35,7 +36,7 @@ const TIPOS: [string, string, string][] = [
 
 <Base title="Buscar emendas parlamentares · Orçamento Brasileiro" description="Procure emendas parlamentares emenda por emenda: por cidade, deputado, senador, entidade ou o que foi feito.">
   <div class="wrap"><EmendasAbas ativa="busca" /></div>
-  <div class="wrap explorador" data-emendas data-pagamentos={r?.pagamentos} data-textos={r?.textos} data-ano={r?.ano}
+  <div class="wrap explorador" data-emendas data-pagamentos={r?.pagamentos} data-textos={r?.textos} data-copias={JSON.stringify(r?.copias ?? {})} data-ano={r?.ano}
     data-total={r?.total} data-total-texto={r ? `${moedaCurta(r.total)} pagos` : undefined}>
     <nav class="degraus" aria-label="Caminho" data-voltar hidden></nav>
     <section class="topo" data-topo>
@@ -123,6 +124,14 @@ const TIPOS: [string, string, string][] = [
 <script is:inline type="module">
   const raiz = document.querySelector("[data-emendas]");
   const PAG = raiz?.dataset.pagamentos, TXT = raiz?.dataset.textos;
+  // Cada ficha lê a cópia ordenada pela sua chave (a emenda, o parlamentar, o CNPJ, o lugar): o navegador baixa
+  // só os blocos dela, menos de 1 MB, em vez dos arquivos inteiros. Sem a cópia, volta aos arquivos principais.
+  const COPIAS = JSON.parse(raiz?.dataset.copias || "{}");
+  let semCopias = false;
+  async function usar(pag, txt) {
+    const P = (!semCopias && COPIAS[pag]) || PAG, T = (!semCopias && COPIAS[txt]) || TXT;
+    await conn.query(`CREATE OR REPLACE VIEW p AS SELECT * FROM read_parquet('${P}'); CREATE OR REPLACE VIEW t AS SELECT * FROM read_parquet('${T}')`);
+  }
   const params = new URLSearchParams(location.search);
   const form = document.querySelector("[data-form]");
   for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
@@ -220,13 +229,18 @@ const TIPOS: [string, string, string][] = [
       topo("Carregando…", "", "Emendas");
       carregarLugares().then((l) => { const r = l.porCodigo.get(ente); if (r && document.querySelector("[data-titulo]").textContent === "Carregando…") topo(r.rotulo, "Carregando as emendas…", "Emendas"); });
     }
+    const rodar = async () => {
+      if (params.get("emenda")) { await usar("emenda", "textosEmenda"); await emenda(); }
+      else if (params.get("autor")) { await usar("autor", "textosAutor"); await autor(); }
+      else if (params.get("entidade")) { await usar("codigo", "textosCodigo"); await entidade(); }
+      else if (params.get("ente") && !params.get("q")) { await usar("lugar", "textosEmenda"); await lugar(); }
+      else await busca();
+    };
     try {
       await conectar();
-      if (params.get("emenda")) await emenda();
-      else if (params.get("autor")) await autor();
-      else if (params.get("entidade")) await entidade();
-      else if (params.get("ente") && !params.get("q")) await lugar();
-      else await busca();
+      // Se uma cópia ordenada ainda não estiver no espelho (a prévia de um PR, ou o minuto entre publicar o
+      // site e enviar os dados), tenta de novo com os arquivos principais.
+      try { await rodar(); } catch (erro) { if (semCopias || !Object.keys(COPIAS).length) throw erro; semCopias = true; await rodar(); }
     } catch (erro) {
       saida.innerHTML = `<p class="erro">Não foi possível consultar as emendas agora (${esc(erro.message || erro)}). Tente de novo em instantes.</p>`;
     } finally {
