@@ -8,6 +8,8 @@
 .degraus-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px 24px; flex-wrap: wrap; min-height: 32px; }
 .degraus-dica { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
 .degraus-abrir { display: none; }
+/* No celular, o "Caminho" e o "← Voltar" (quando o explorador o passa aos degraus) dividem a mesma linha. */
+.degraus-celular { display: contents; }
 
 .degraus-lista { display: flex; align-items: stretch; list-style: none; margin: 0; padding: 0; min-width: 0; }
 .degraus-lista > li { flex: 1 1 0; min-width: 0; max-width: 340px; margin: 0 0 0 -6px; padding: 0; }
@@ -50,7 +52,17 @@ a.degraus-voltar:hover, button.degraus-voltar:hover, .exp-abas button.degraus-vo
 @media (max-width: 720px) {
   .degraus-dica { display: none; }
   /* o caminho primeiro, os controles depois */
-  .degraus-abrir { order: -2; }
+  .degraus-abrir, .degraus-celular { order: -2; }
+  .degraus-celular { display: flex; gap: 8px; }
+  .degraus-celular .degraus-abrir { order: 0; flex: 1 1 0; min-width: 0; white-space: nowrap; gap: 6px; }
+  .degraus-celular button.degraus-voltar { width: auto; flex: 1 1 0; min-width: 0; }
+  .degraus-celular:has(.degraus-voltar) > * { padding-left: 10px; padding-right: 10px; }
+  .degraus-celular .degraus-voltar span { min-width: 0; }
+  /* com o Voltar ao lado, "abrir/fechar" vira uma seta, para caber numa linha */
+  .degraus-celular:has(.degraus-voltar) .degraus-abrir span { display: none; }
+  .degraus-celular:has(.degraus-voltar) .degraus-abrir::after { content: "▾"; color: var(--texto-3); }
+  .degraus.aberto .degraus-celular .degraus-abrir::after { content: "▴"; }
+  .degraus.aberto .degraus-celular button.degraus-voltar { display: none; }
   .degraus-lista { order: -1; }
   .degraus-cab:not(:has(> :not(.degraus-dica))) { display: none; }
   .degraus-abrir {

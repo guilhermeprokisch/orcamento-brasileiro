@@ -5,7 +5,7 @@
  * as listas são inteiras: todos os deputados e senadores, todas as comissões e bancadas, todas as cidades.
  * O estado fica na URL (?ano=, ?f=dim:código,…, ?por=, ?vista=), como nos outros exploradores.
  */
-import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
+import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show } from "solid-js";
 import Treemap from "../explorer/Treemap";
 import Tabela from "../explorer/Tabela";
 import BarrasAno, { type Ponto } from "../explorer/BarrasAno";
@@ -75,6 +75,8 @@ const proxima = (f: Filtro[]): Dim | null => {
 const ROTULOS: Rotulos = { atualizado: "", empenhado: null, realizado: "Pago", taxa: "", colTrilho: "Pago", colTaxa: "", codigo: false, soRealizado: true };
 const valores = (v: number): Valores => ({ inicial: 0, atualizado: 0, empenhado: 0, realizado: v });
 const MAX_MAPA = 30;
+/** As divisões que sempre têm mais de 12 itens: enquanto o motor liga, o campo de procurar já aparece nelas. */
+const MAIS_DE_12: Dim[] = ["autor", "uf", "mun", "favorecido", "area"];
 const sem = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 // ----- O DuckDB: carregado uma vez, na primeira consulta. -----
@@ -184,9 +186,12 @@ export default function ExplorerEmendas(props: Props) {
       }
       if (filtros.length) tt.push(t.v);
       if (minha !== vez) return;
+      batch(() => {
       setItens(por ? lista.map((x: any) => ({ codigo: String(x.cod), nome: nomeDe(por, String(x.cod), x.nome ?? undefined), valores: valores(x.v) })) : []);
       setTotal(t.v); setTotalAno(tAno.v); setNomes(n); setTotaisTrilha(tt);
       setSerie(s.map((x: any) => ({ ano: x.ano, valores: valores(x.v) })));
+      setCarregando(false); setPrimeira(false);
+      });
     } catch (e: any) {
       if (minha === vez) setErro(String(e?.message ?? e));
     } finally {
@@ -196,10 +201,26 @@ export default function ExplorerEmendas(props: Props) {
 
   const trilha = () => estado().filtros.map((f, i) => ({ ...f, nome: nomes()[`${f.dim}:${f.cod}`] ?? "…", filtros: estado().filtros.slice(0, i + 1) }));
   const ultimo = () => trilha().at(-1);
-  const irPara = (filtros: Filtro[]) => mudar({ filtros, por: proxima(filtros), vista: null }, true);
+  // O nome e o valor do nível para onde se vai já são conhecidos (o bloco clicado ou um degrau anterior): entram na
+  // hora, para o título, a frase e os degraus não piscarem com "…" e números velhos enquanto a consulta não volta.
+  const irPara = (filtros: Filtro[]) => {
+    const e = estado();
+    const tt = totaisTrilha();
+    if (filtros.length <= e.filtros.length && filtros.every((f, i) => f.dim === e.filtros[i]?.dim && f.cod === e.filtros[i]?.cod)) {
+      batch(() => { setTotaisTrilha(tt.slice(0, filtros.length)); setTotal(filtros.length ? tt[filtros.length - 1] ?? total() : totalAno()); });
+    }
+    mudar({ filtros, por: proxima(filtros), vista: null }, true);
+  };
   const podeDescer = () => livres(estado().filtros).length > 1;
   const descer = (it: Item) => {
-    const e = estado(); if (e.por) irPara([...e.filtros, { dim: e.por, cod: it.codigo }]);
+    const e = estado(); if (!e.por) return;
+    const f = { dim: e.por, cod: it.codigo };
+    batch(() => {
+      setNomes({ ...nomes(), [`${f.dim}:${f.cod}`]: it.nome });
+      setTotaisTrilha([...totaisTrilha().slice(0, e.filtros.length), it.valores.realizado]);
+      setTotal(it.valores.realizado);
+      mudar({ filtros: [...e.filtros, f], por: proxima([...e.filtros, f]), vista: null }, true);
+    });
   };
   const filtrados = createMemo(() => {
     const t = sem(busca().trim());
@@ -208,7 +229,10 @@ export default function ExplorerEmendas(props: Props) {
   });
   /** No mapa, uma lista longa mostra só os maiores (o resto vira poeira); por isso ela abre como lista. */
   const noMapa = createMemo(() => [...filtrados()].sort((a, b) => b.valores.realizado - a.valores.realizado).slice(0, MAX_MAPA));
-  const vista = () => estado().vista ?? ((itens()?.length ?? 0) > MAX_MAPA ? "lista" : "mapa");
+  // Sem vista escolhida, a lista longa abre como lista. Enquanto a consulta não volta, fica a vista que está na tela:
+  // senão o mapa virava a lista dos itens velhos e voltava a ser mapa quando os novos chegassem.
+  const vista = createMemo<"mapa" | "lista">((antes) =>
+    estado().vista ?? (carregando() && !primeira() ? antes : (itens()?.length ?? 0) > MAX_MAPA ? "lista" : "mapa"), "mapa");
   const subir = () => irPara(estado().filtros.slice(0, -1));
   const pai = () => (trilha().length > 1 ? trilha().at(-2)!.nome : `todas as emendas de ${estado().ano}`);
   /** O caminho para as emendas uma a uma, no explorador de busca. */
@@ -235,7 +259,7 @@ export default function ExplorerEmendas(props: Props) {
     const e = estado();
     const tt = totaisTrilha();
     const em = (filtros: Filtro[]) => ({ href: urlDe({ ...e, filtros, por: proxima(filtros), vista: null }), ir: () => irPara(filtros) });
-    const passos: Degrau[] = [{ tipo: `Emendas ${e.ano}`, nome: "Todas as emendas", valor: primeira() ? undefined : moedaCurta(totalAno()), ...em([]) }];
+    const passos: Degrau[] = [{ tipo: `Emendas ${e.ano}`, nome: "Todas as emendas", valor: primeira() ? "…" : moedaCurta(totalAno()), ...em([]) }];
     let antes = totalAno();
     trilha().forEach((t, i) => {
       const v = tt[i];
@@ -252,17 +276,16 @@ export default function ExplorerEmendas(props: Props) {
 
   return (
     <div class="exp exp-emendas">
-      <div class="exp-degraus">
-        <Degraus passos={degraus()} dicaInicio="Clique num bloco do mapa para descer um nível" extra={
-          <div class="exp-controles">
-            <label class="exp-ano">
-              <span class="visually-hidden">Ano</span>
-              <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })}>
-                <For each={[...props.anos].reverse()}>{(a) => <option value={a} selected={a === estado().ano}>{a}{a === anoCorrente ? " (até agora)" : ""}</option>}</For>
-              </select>
-            </label>
-          </div>
-        } />
+      {/* Em cima, o ano, que muda a ficha toda; os degraus ficam junto das vistas, mais abaixo (como no Explorer). */}
+      <div class="exp-barra-topo">
+        <div class="exp-controles">
+          <label class="exp-ano">
+            <span class="visually-hidden">Ano</span>
+            <select onChange={(e) => mudar({ ano: Number(e.currentTarget.value) })}>
+              <For each={[...props.anos].reverse()}>{(a) => <option value={a} selected={a === estado().ano}>{a}{a === anoCorrente ? " (até agora)" : ""}</option>}</For>
+            </select>
+          </label>
+        </div>
       </div>
 
       <Show when={erro()}><p class="exp-erro">Não foi possível consultar as emendas agora ({erro()}). Tente de novo em instantes.</p></Show>
@@ -270,15 +293,16 @@ export default function ExplorerEmendas(props: Props) {
       <section class="exp-topo">
         <div class="exp-titulo">
           <span class="sobretitulo">{ultimo() ? DIMS[ultimo()!.dim].rotulo : "Emendas parlamentares pagas"}</span>
-          <h1>{ultimo()?.nome ?? `Todas as emendas de ${estado().ano}`}</h1>
-          <Show when={!primeira()}>
-            <p class="exp-lede">
-              <Show when={ultimo()} fallback={<>Foram pagos <strong class="marca">{moedaExtenso(total())}</strong> em emendas em {estado().ano}{estado().ano === anoCorrente ? ", até agora" : ""}.</>}>
-                <strong class="marca">{moedaExtenso(total())}</strong> pagos em {estado().ano}, {pct(total() / Math.max(1, totalAno()))} de todas as emendas do ano.
-              </Show>
-            </p>
-            <Show when={detalhe()}>{(d) => <p class="exp-lede"><a href={d().href}><strong>{d().texto} →</strong></a></p>}</Show>
-          </Show>
+          {/* Nomes longos (entidades, comissões) com letra menor: cabem em duas linhas e não empurram o mapa. */}
+          <h1 classList={{ "exp-h1-longo": (ultimo()?.nome.length ?? 0) > 28, "exp-h1-muito": (ultimo()?.nome.length ?? 0) > 60 }}>{ultimo()?.nome ?? `Todas as emendas de ${estado().ano}`}</h1>
+          {/* A frase já ocupa o seu lugar enquanto o motor liga, com "…" no lugar dos números. */}
+          <p class="exp-lede" classList={{ "exp-lede-espera": carregando() }}>
+            <Show when={ultimo()} fallback={<>Foram pagos <strong class="marca">{primeira() ? "R$ … bilhões" : moedaExtenso(total())}</strong> em emendas em {estado().ano}{estado().ano === anoCorrente ? ", até agora" : ""}.</>}>
+              <strong class="marca">{primeira() ? "R$ … milhões" : moedaExtenso(total())}</strong> pagos em {estado().ano}, {primeira() ? "…%" : pct(total() / Math.max(1, totalAno()))} de todas as emendas do ano.
+            </Show>
+          </p>
+          {/* A linha do link para as emendas uma a uma existe em todo nível (vazia quando não há link): o título não sobe. */}
+          <p class="exp-lede exp-detalhe"><Show when={detalhe()}>{(d) => <a href={d().href}><strong>{d().texto} →</strong></a>}</Show></p>
         </div>
         <figure class="exp-serie">
           <figcaption>Pago por ano{ultimo() ? `: ${ultimo()!.nome}` : ""}</figcaption>
@@ -287,8 +311,14 @@ export default function ExplorerEmendas(props: Props) {
         </figure>
       </section>
 
+      {/* Os degraus logo acima das vistas: clicar no mapa ou na lista muda o degrau sem rolar a página. Aparecem já no
+          início, só com "Todas as emendas", para o mapa não descer no primeiro clique. */}
+      <div class="exp-degraus">
+        <Degraus passos={degraus()} sempre dicaInicio="Clique num bloco do mapa para descer um nível"
+          voltar={<Show when={ultimo()}><Voltar para={pai()} onClick={subir} /></Show>} />
+      </div>
+
       <div class="exp-abas">
-        <Show when={ultimo()}><Voltar para={pai()} onClick={subir} /></Show>
         <span class="muted">Dividir por</span>
         <div class="exp-abas-dims" role="tablist" aria-label="Dividir por">
           <For each={livres(estado().filtros)}>
@@ -305,15 +335,22 @@ export default function ExplorerEmendas(props: Props) {
         </div>
       </div>
 
-      <Show when={(itens()?.length ?? 0) > 12}>
-        <label class="exp-filtrar">
-          <span>Procurar na lista de {itens()!.length.toLocaleString("pt-BR")}</span>
-          <input type="search" value={busca()} onInput={(e) => { setBusca(e.currentTarget.value); if (e.currentTarget.value) mudar({ vista: "lista" }); }}
-            placeholder={estado().por === "autor" ? "Ex.: o nome de um deputado ou de uma comissão" : estado().por === "mun" ? "Ex.: o nome da sua cidade" : "Digite um nome"} />
-        </label>
-      </Show>
+      {/* Procurar na lista e o aviso dos 30 maiores numa linha de altura fixa, presente em todos os níveis (vazia quando a
+          lista é curta): o mapa fica sempre no mesmo lugar, do início ao último degrau. */}
+      <div class="exp-lista-barra">
+        <Show when={primeira() ? MAIS_DE_12.includes(estado().por!) : (itens()?.length ?? 0) > 12}>
+          <label class="exp-filtrar">
+            <span class="visually-hidden">Procurar na lista{primeira() ? "" : ` de ${itens()!.length.toLocaleString("pt-BR")}`}</span>
+            <input type="search" value={busca()} disabled={primeira()} onInput={(e) => { setBusca(e.currentTarget.value); if (e.currentTarget.value) mudar({ vista: "lista" }); }}
+              placeholder={primeira() ? "Procurar na lista" : `Procurar entre ${itens()!.length.toLocaleString("pt-BR")}: ${estado().por === "autor" ? "um deputado ou uma comissão" : estado().por === "mun" ? "a sua cidade" : "um nome"}`} />
+          </label>
+        </Show>
+        <Show when={!primeira() && vista() === "mapa" && !busca() && filtrados().length > MAX_MAPA}>
+          <p class="exp-aviso">O mapa mostra os {MAX_MAPA} maiores de {filtrados().length.toLocaleString("pt-BR")}. <button type="button" class="link" onClick={() => mudar({ vista: "lista" })}>Ver a lista inteira</button></p>
+        </Show>
+      </div>
 
-      <div class="exp-resultado" classList={{ "exp-ocupado": carregando() && !primeira() }}>
+      <div class="exp-resultado" classList={{ "exp-ocupado": carregando() && !primeira(), "exp-ligando": primeira() }}>
         <Show when={!primeira()} fallback={
           <div class="exp-carregando" aria-busy="true"><p><strong>Preparando o motor de consulta…</strong></p><p class="muted">O motor roda no seu navegador e leva alguns segundos para ligar; enquanto você fica nesta página, cada clique é rápido.</p></div>
         }>
@@ -325,9 +362,6 @@ export default function ExplorerEmendas(props: Props) {
               <Tabela itens={filtrados()} metrica="realizado" total={Math.max(1, total())} rotulos={ROTULOS}
                 rotuloNome={estado().por ? DIMS[estado().por!].rotulo : "Nome"} podeDescer={podeDescer()} onEscolher={descer} />
             }>
-              <Show when={filtrados().length > MAX_MAPA}>
-                <p class="exp-aviso">O mapa mostra os {MAX_MAPA} maiores de {filtrados().length.toLocaleString("pt-BR")}. <button type="button" class="link" onClick={() => mudar({ vista: "lista" })}>Ver a lista inteira</button></p>
-              </Show>
               <Treemap itens={noMapa()} metrica="realizado" total={Math.max(1, total())} rotulos={ROTULOS} podeDescer={podeDescer()} onEscolher={descer} />
             </Show>
           </Show>

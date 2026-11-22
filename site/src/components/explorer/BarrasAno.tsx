@@ -44,6 +44,8 @@ export default function BarrasAno(props: Props) {
     <div class="ba" onPointerLeave={() => setFoco(null)}>
       <Show when={props.serie === null}>
         <div class="ba-carregando" style={{ height: `${props.altura}px` }}>Carregando a série…</div>
+        {/* a linha dos anos já ocupa o seu lugar: a altura não muda quando a série chega */}
+        <div class="ba-rotulos" aria-hidden="true"><span>&nbsp;</span></div>
       </Show>
       <Show when={props.serie !== null}>
         <div class="ba-barras" style={{ height: `${props.altura}px`, "grid-template-columns": `repeat(${n()}, minmax(0, 1fr))` }}>
