@@ -110,15 +110,18 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
               <div class="grupo-lista">
                 {g.itens.map((i) => i.sub ? (
                   <div class="grupo-bloco">
-                    <span class="grupo-titulo">
-                      <span class="grupo-nome">{i.nome}</span>
-                      <span class="grupo-desc">{i.desc}</span>
-                    </span>
+                    <a class:list={["grupo-pai", { atual: i.sub.some((s) => ativo(s.href)) }]} href={i.href} aria-haspopup="true">
+                      <span class="grupo-texto">
+                        <span class="grupo-nome">{i.nome}</span>
+                        <span class="grupo-desc">{i.desc}</span>
+                      </span>
+                      <svg width="7" height="12" viewBox="0 0 7 12" aria-hidden="true"><path d="M1 1l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.6" /></svg>
+                    </a>
                     <div class="grupo-sub">
                       {i.sub.map((s) => (
                         <a href={s.href} aria-current={ativo(s.href)}>
-                          <span class="grupo-sub-nome">{s.nome}</span>
-                          <span class="grupo-sub-desc">{s.desc}</span>
+                          <span class="grupo-nome">{s.nome}</span>
+                          <span class="grupo-desc">{s.desc}</span>
                         </a>
                       ))}
                     </div>
@@ -285,14 +288,29 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
   .grupo-lista > :last-child { border-bottom: 0; }
   .grupo-lista a:hover, .grupo-lista a:focus-visible { background: var(--marca-texto-fundo); }
   .grupo-lista a[aria-current="page"] { box-shadow: inset 4px 0 0 var(--verde); }
-  /* Um item com páginas embaixo (as abas das emendas): o título e, recuadas, as páginas. */
-  .grupo-bloco { display: flex; flex-direction: column; padding: 14px 0 10px; border-bottom: 1px solid var(--regra-leve); }
-  .grupo-titulo { display: flex; flex-direction: column; gap: 3px; padding: 0 18px 8px; }
-  .grupo-sub { display: flex; flex-direction: column; margin: 0 18px; border-left: 2px solid var(--regra); }
-  .grupo-sub a { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px 8px 14px; color: var(--tinta); text-decoration: none; }
-  .grupo-sub a[aria-current="page"] { margin-left: -2px; padding-left: 16px; background: var(--marca-texto-fundo); }
-  .grupo-sub-nome { font-family: var(--serifa); font-size: 16px; font-weight: 700; }
-  .grupo-sub-desc { font-size: 13px; color: var(--texto-3); }
+  /* Um item com páginas embaixo (as abas das emendas): a linha leva a /emendas e, ao passar o mouse
+     ou chegar pelo teclado, abre ao lado um submenu com as páginas. */
+  .grupo-bloco { position: relative; border-bottom: 1px solid var(--regra-leve); }
+  .grupo-pai {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px;
+    color: var(--tinta); text-decoration: none;
+  }
+  .grupo-texto { display: flex; flex-direction: column; gap: 3px; }
+  .grupo-pai svg { flex: none; color: var(--texto-3); }
+  .grupo-pai.atual { box-shadow: inset 4px 0 0 var(--verde); }
+  .grupo-bloco:hover > .grupo-pai, .grupo-bloco:focus-within > .grupo-pai { background: var(--marca-texto-fundo); }
+  .grupo-bloco:hover > .grupo-pai svg, .grupo-bloco:focus-within > .grupo-pai svg { color: var(--tinta); }
+  .grupo-sub {
+    display: none; position: absolute; top: -2px; left: 100%; z-index: 31; width: 280px;
+    flex-direction: column; background: var(--papel); border: 2px solid var(--tinta); box-shadow: 6px 6px 0 var(--tinta);
+  }
+  .grupo-bloco:hover > .grupo-sub, .grupo-bloco:focus-within > .grupo-sub { display: flex; }
+  .grupo.a-direita .grupo-sub { left: auto; right: 100%; }
+  .grupo-sub a {
+    display: flex; flex-direction: column; gap: 3px; padding: 14px 18px;
+    color: var(--tinta); text-decoration: none; border-bottom: 1px solid var(--regra-leve);
+  }
+  .grupo-sub a:last-child { border-bottom: 0; }
   .grupo-nome { font-weight: 600; }
   .grupo-desc { font-size: 14px; line-height: 1.45; color: var(--texto-3); }
   .dateline {
