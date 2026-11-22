@@ -11,7 +11,7 @@ honorários tem de respeitar o teto, e em março de 2026 estendeu à advocacia p
 por cima do subsídio. Pode haver um limite aplicado fora do que o Portal publica. Antes de mostrar esses
 servidores na página "Acima do teto" como acima do teto, é preciso saber como o limite é aplicado.
 
-Canal: Fala.BR, https://falabr.cgu.gov.br/ → "Acesso à informação" → órgão "AGU – Advocacia-Geral da
+Canal: Informa.BR, https://informabr.cgu.gov.br/ (os pedidos de LAI saíram do Fala.BR em 2026) → "Acesso à informação" → órgão "AGU – Advocacia-Geral da
 União". Identificação pelo gov.br. Prazo legal: 20 dias, prorrogáveis por mais 10 (art. 11 da Lei
 12.527/2011).
 
@@ -52,4 +52,4 @@ As informações serão usadas em um projeto independente que explica o orçamen
 
 | Órgão | Enviado em | Protocolo | Prazo | Resposta |
 |---|---|---|---|---|
-| AGU | | | | |
+| AGU | 22/11/2026 | 01015.003440/2026-60 | 14/12/2026 | |
