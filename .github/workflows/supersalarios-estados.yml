@@ -17,6 +17,8 @@ name: Acima do teto (Executivo dos estados)
 on:
   schedule:
     - cron: "0 9 25 * *"
+  push:   # TEMPORÁRIO: teste no branch
+    branches: [claude/workflow-estados]
   workflow_dispatch:
     inputs:
       uf:
@@ -53,7 +55,7 @@ jobs:
       - name: Lista dos estados
         id: lista
         env:
-          PEDIDOS: ${{ inputs.uf }}
+          PEDIDOS: ${{ inputs.uf || 'MA,RO,PI,CE' }}   # TEMPORÁRIO: teste no branch
         run: |
           uv run --project pipeline python - <<'EOF' >> "$GITHUB_OUTPUT"
           import json, os
