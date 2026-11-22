@@ -6,10 +6,10 @@
  */
 import Base from "../layouts/Base.astro";
 import Termo from "../components/Termo.astro";
-import { moedaCurta, moedaExtenso } from "../lib/formato";
+import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
 import {
-  CORES_GRUPOS, NOMES_CURTOS, ORDEM_TIPOS, docSuper as d, linhas, mesCurto, mesExtenso, nosDois, serie, tetoAtual, total,
-  type Linha, type Tipo,
+  CORES_FEDERAL, CORES_GRUPOS, NOMES_CURTOS, NOMES_FEDERAL, ORDEM_TIPOS, docFederal, docSuper as d, linhas, linhasFederal, mesCurto,
+  mesExtenso, nosDois, periodoFederal, serie, tetoAtual, total, totalFederal, type Linha, type Tipo,
 } from "../lib/supersalarios";
 
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -40,6 +40,24 @@ function calcular() {
   return { doc: d, pA, pB, tA, tB, ca, comA, comB, gA, gB, s, maxSerie, grupos, extra };
 }
 const x = calcular();
+
+/** O Executivo federal (Portal da Transparência). */
+function calcularFederal() {
+  if (!docFederal) return null;
+  const ls = linhasFederal();
+  const t = totalFederal(ls);
+  if (!t) return null;
+  const comAcima = ls.filter((l) => l.excesso !== null);
+  const maiores = comAcima.slice(0, 12);
+  const resto = comAcima.slice(12);
+  const maxExc = Math.max(1, ...maiores.map((l) => l.excesso ?? 0));
+  // Quem passa do teto só por causa dos honorários: a diferença entre o 3º e o 2º degrau.
+  const [c1, c2, c3, c4] = t.camadas;
+  // O total sai da última camada, que soma também os órgãos com menos de 5 acima do teto (não mostrados um a um).
+  const periodo = periodoFederal();
+  return { doc: docFederal, ls, t, maiores, resto, maxExc, c1, c2, c3, c4, periodo, excesso: c4.excessoMes * t.meses };
+}
+const f = calcularFederal();
 const descricao = x
   ? `Em ${x.pA.rotulo}, ${pct0(x.tA.parte)} dos juízes e promotores receberam acima do teto num mês típico; passou do teto ${moedaExtenso(x.tA.excesso)} no ano.`
   : "Juízes e promotores que recebem acima do teto, órgão por órgão.";
@@ -89,6 +107,7 @@ const larguraGrupos = (l: Linha) => {
           <a href="#de-onde">De onde vem o dinheiro</a>
           <a href="#depois">Depois da decisão do STF</a>
           <a href="#orgaos">Órgão por órgão</a>
+          {f && <a href="#federal">No Executivo federal</a>}
           <a href="#cuidados">O que esta conta não diz</a>
         </nav>
 
@@ -297,7 +316,61 @@ const larguraGrupos = (l: Linha) => {
           </ul>
         </section>
 
-        <!-- 5. Cuidados -->
+        <!-- 5. Executivo federal -->
+        {f && (
+          <section class="bloco" id="federal">
+            <div class="texto">
+              <h2>No Executivo federal</h2>
+              <p>
+                Nos ministérios, autarquias e universidades federais, o salário quase nunca passa do teto: quando passa, o contracheque corta
+                a diferença (o abate-teto). Somando tudo o que receberam, porém, <strong>{nf0.format(f.c4.acima)} dos {nf0.format(f.t.servidores)}{" "}
+                servidores civis</strong> ({pct(f.c4.acima / f.t.servidores)}) passaram do teto num mês típico, {f.periodo}, e o que passou somou{" "}
+                <strong>{moedaExtenso(f.excesso)}</strong> em {f.t.meses} meses.
+              </p>
+              <p>
+                A maior parte vem dos <strong>honorários de sucumbência</strong>: o dinheiro que quem perde um processo contra a União paga, dividido
+                entre os advogados públicos federais (Advocacia-Geral da União e Procuradoria da Fazenda Nacional). Com o salário e os pagamentos
+                eventuais, {nf0.format(f.c2.acima)} servidores passam do teto num mês; com os honorários, {nf0.format(f.c3.acima)}. Os auxílios
+                levam o número a {nf0.format(f.c4.acima)}, quase sempre por pouco.
+              </p>
+              <p class="menor">
+                Em 2020, o Supremo decidiu que o salário somado aos honorários tem de respeitar o teto (ADI 6053). O arquivo publicado pelo
+                Portal da Transparência mostra os honorários sem nenhum corte; pode haver um limite aplicado fora dele, que o Portal não mostra.
+                A conta é de servidores civis na ativa, sem militares, aposentados, 13º e férias.
+              </p>
+            </div>
+            <div class="grafico">
+              <ol class="degraus" aria-label="Servidores civis do Executivo federal acima do teto, somando uma parte do que recebem por vez">
+                {f.t.camadas.map((c, i) => (
+                  <li>
+                    <span class="nome">{i === 0 ? "Só o salário" : `+ ${NOMES_FEDERAL[c.grupo].toLowerCase()}`}</span>
+                    <span class="trilho"><span class="barra ante" style={`width:${(c.acima / f.c4.acima) * 100}%;background:${CORES_FEDERAL[c.grupo] === "#ddd5c3" ? "var(--tinta)" : CORES_FEDERAL[c.grupo]}`}></span></span>
+                    <span class="num valor"><strong>{nf0.format(c.acima)}</strong> <span>{moedaCurta(c.excessoMes)}/mês</span></span>
+                  </li>
+                ))}
+              </ol>
+              <p class="menor-grafico">Servidores acima do teto num mês típico e quanto passa do teto por mês, somando uma parte por vez.</p>
+              <h3>Os órgãos com mais dinheiro acima do teto, em {f.t.meses} meses</h3>
+              <ol class="linhas federal" aria-label="Órgãos do Executivo federal com mais dinheiro acima do teto">
+                {f.maiores.map((l) => (
+                  <li title={`${l.nome}: ${nf0.format(l.acima ?? 0)} de ${nf0.format(l.servidores)} servidores acima do teto num mês típico`}>
+                    <span class="rotulo">{l.orcamento ? <a href={`/orgaos/${l.orcamento}`}>{l.nome}</a> : l.nome}</span>
+                    <span class="trilho"><span class="barra" style={`width:${((l.excesso ?? 0) / f.maxExc) * 100}%`}></span></span>
+                    <span class="num valor"><strong>{moedaCurta(l.excesso ?? 0)}</strong> <span>{nf0.format(l.acima ?? 0)} de {nf0.format(l.servidores)}</span></span>
+                  </li>
+                ))}
+              </ol>
+              {f.resto.length > 0 && (
+                <p class="menor-grafico">
+                  Outros {f.resto.length} órgãos com pelo menos 5 servidores acima do teto somam {moedaCurta(f.resto.reduce((t, l) => t + (l.excesso ?? 0), 0))}.
+                  Ao lado do valor, quantos servidores passam do teto num mês típico, de quantos.
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
+        <!-- 6. Cuidados -->
         <section class="fontes" id="cuidados">
           <h2>O que esta conta não diz</h2>
           <ul>
@@ -306,8 +379,8 @@ const larguraGrupos = (l: Linha) => {
               "Acima do teto" quer dizer só que a pessoa recebeu mais que R$ {nf0.format(TETO)} no mês.
             </li>
             <li>
-              <strong>Só juízes e promotores.</strong> Os servidores dos tribunais e dos Ministérios Públicos não entram, nem defensores, advogados
-              públicos, conselheiros de tribunais de contas, o Legislativo e o Executivo. Os tribunais eleitorais, o TSE, o CNJ e o CJF ficam de fora
+              <strong>Juízes, promotores e o Executivo federal.</strong> Os servidores dos tribunais e dos Ministérios Públicos não entram, nem
+              defensores, conselheiros de tribunais de contas, o Legislativo, os militares e os governos estaduais e municipais. Os tribunais eleitorais, o TSE, o CNJ e o CJF ficam de fora
               porque pagam só uma gratificação a quem recebe o salário em outro tribunal.
             </li>
             <li>
@@ -326,7 +399,8 @@ const larguraGrupos = (l: Linha) => {
           </ul>
           <p class="menor">
             Fonte: <a href={d.url}>DadosJusBr</a>, que coleta todo mês os contracheques que os tribunais enviam ao Conselho Nacional de Justiça e os
-            que os Ministérios Públicos publicam, e padroniza as rubricas (licença CC-BY 4.0). Atualizado em {d.gerado.split("-").reverse().join("/")}.{" "}
+            que os Ministérios Públicos publicam, e padroniza as rubricas (licença CC-BY 4.0).
+            {f && <> Executivo federal: <a href={f.doc.url}>Portal da Transparência</a> (CGU), remuneração dos servidores civis (SIAPE), honorários advocatícios e jetons. <a href="/data/indicadores/supersalarios-federal.json">Dados</a> (JSON).</>} Atualizado em {d.gerado.split("-").reverse().join("/")}.{" "}
             <a href="/data/indicadores/supersalarios.json">Baixe os dados desta página</a> (JSON).
           </p>
         </section>
@@ -389,6 +463,8 @@ const larguraGrupos = (l: Linha) => {
   .valor span { color: var(--texto-3); font-size: 13px; }
   .linhas li { display: grid; grid-template-columns: 130px minmax(0, 1fr) 110px; gap: 12px; align-items: center; font-size: 14px; }
   .linhas .rotulo { color: var(--texto-3); }
+  .linhas.federal li { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 150px; }
+  .linhas.federal .rotulo { color: var(--texto-2); line-height: 1.3; }
   .linhas.serie { gap: 4px; }
   .linhas.serie li { grid-template-columns: 56px minmax(0, 1fr) 110px; }
   .linhas.serie .barra { background: var(--tinta); }
@@ -452,6 +528,10 @@ const larguraGrupos = (l: Linha) => {
     .degraus .trilho { grid-column: 1 / -1; grid-row: 2; }
     .linhas li { grid-template-columns: 100px minmax(0, 1fr) 96px; gap: 8px; }
     .linhas.serie li { grid-template-columns: 48px minmax(0, 1fr) 100px; }
+    .linhas.federal li { grid-template-columns: minmax(0, 1fr) auto; }
+    .linhas.federal .trilho { grid-column: 1 / -1; grid-row: 2; }
+    #federal .degraus li { grid-template-columns: minmax(0, 1fr) auto; }
+    #federal .valor span { display: block; }
     .so-largo, .membros { display: none; }
     .barra-col { width: auto; }
     .celula-barra { grid-template-columns: minmax(40px, 1fr) auto; }

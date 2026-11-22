@@ -52,6 +52,7 @@ caminho-impostos = "orcamento_pipeline.caminho_impostos:main"
 previdencia = "orcamento_pipeline.previdencia:main"
 divida-ativa = "orcamento_pipeline.divida_ativa:main"
 supersalarios = "orcamento_pipeline.supersalarios:main"
+supersalarios-federal = "orcamento_pipeline.supersalarios_federal:main"
 
 [build-system]
 requires = ["hatchling"]

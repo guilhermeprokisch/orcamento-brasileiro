@@ -314,3 +314,11 @@ pessoais, da categoria do CNJ; o resto fica em "atrasados e rubricas opacas".
 
 Conferência: os 27 TJs somam R$ 10,7 bi acima do teto em 2025, o mesmo número da Transparência Brasil e
 da República.org.
+
+O segundo passo também: `uv run supersalarios-federal` (seção "No Executivo federal" em `/supersalarios` e
+bloco "Acima do teto" na página de cada órgão federal). Lê, de dentro dos zips do Portal da Transparência,
+a remuneração e o cadastro dos servidores civis (SIAPE) e os arquivos de honorários e jetons do mês
+seguinte (eles saem com um mês de atraso), soma por órgão de exercício e apaga os zips. Depois de alguns
+downloads seguidos, o Portal passa a pedir captcha: o comando para e monta a saída com os meses do cache, e
+completa os 12 meses em outras rodadas. Na primeira carga (22/11/2026) entraram julho e agosto de 2026.
+O pedido de informação à AGU sobre o teto nos honorários está em `docs/pedidos-lai/honorarios-agu-teto.md`.

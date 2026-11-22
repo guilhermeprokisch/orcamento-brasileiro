@@ -107,6 +107,10 @@ fila_independente() {
   # Juízes e promotores acima do teto (DadosJusBr): carga feita à mão uma vez por mês (uv run supersalarios; ~2.000
   # pacotes pequenos, lidos e somados por órgão, o cache em data/raw só com as somas). Aqui só a cópia de referência.
   pipe pode-falhar "Acima do teto (DadosJusBr)" supersalarios --sem-baixar
+  # Acima do teto no Executivo federal (Portal da Transparência, servidores civis, honorários e jetons): carga à mão
+  # (uv run supersalarios-federal; o Portal pede captcha depois de alguns downloads, e o comando completa os 12 meses
+  # em mais de uma rodada). Aqui só a cópia de referência.
+  pipe pode-falhar "Acima do teto: Executivo federal" supersalarios-federal --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).

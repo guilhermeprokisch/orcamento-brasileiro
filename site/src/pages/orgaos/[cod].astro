@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import ListaBarras from "../../components/perfil/ListaBarras.astro";
+import SupersalariosOrgao from "../../components/gasto/SupersalariosOrgao.astro";
 import EvolucaoPerfil from "../../components/perfil/EvolucaoPerfil";
 import { agrupar, taxaRealizacao, type Filtro } from "../../lib/dados";
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
@@ -99,6 +100,7 @@ const descricao = existeNoBase
         </div>
       </section>
     )}
+    <SupersalariosOrgao cod={cod} />
     <p class="nota">* {anoCorrente} ainda em execução. O código do órgão pode ter mudado em reorganizações do governo.</p>
   </div>
 </Base>

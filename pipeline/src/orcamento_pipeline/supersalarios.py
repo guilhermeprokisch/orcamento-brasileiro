@@ -137,7 +137,7 @@ def _get(url: str, timeout: int = 120) -> bytes:
             with urllib.request.urlopen(req, timeout=timeout, context=CONTEXTO_TLS) as resp:
                 return resp.read()
         except urllib.error.HTTPError as erro:
-            if erro.code in (400, 404):
+            if erro.code in (400, 403, 404):   # 403: o Portal da Transparência responde assim ao arquivo que ainda não saiu
                 raise
             if tentativa == 3:
                 raise
