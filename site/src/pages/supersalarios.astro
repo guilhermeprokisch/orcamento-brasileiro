@@ -543,7 +543,7 @@ const larguraGrupos = (l: Linha) => {
               <p>
                 Quase todos são <strong>servidores de carreira</strong>
                 {leg.efetivos.length > 0 && <> ({lista.format(leg.efetivos.map(({ o, g }) => `${nf0.format(g!.acima!)} de ${nf0.format(g!.vinculos)} no ${o.id === "camara" ? "quadro efetivo da Câmara" : o.id === "senado" ? "quadro efetivo do Senado" : "TCU"}`))})</>}.
-                {leg.parlamentares.length > 0 && <>Deputados e senadores recebem um subsídio do tamanho do teto; os que passam dele passam pelos auxílios e indenizações ({lista.format(leg.parlamentares.map((g) => `${nf0.format(g.acima ?? 0)} de ${nf0.format(g.vinculos)} ${g.nome.toLowerCase()}`))} num mês típico). </>}
+                {" "}{leg.parlamentares.length > 0 && <>Deputados e senadores recebem um subsídio do tamanho do teto; os que passam dele passam pelos auxílios e indenizações ({lista.format(leg.parlamentares.map((g) => `${nf0.format(g.acima ?? 0)} de ${nf0.format(g.vinculos)} ${g.nome.toLowerCase()}`))} num mês típico). </>}
                 Só com o salário, as vantagens pessoais e a
                 função, já depois do corte pelo teto, {nf0.format(leg.camadas[0].acima)} passam; com os pagamentos eventuais e os atrasados,{" "}
                 {nf0.format(leg.camadas[2].acima)}; com os auxílios e as indenizações, {nf0.format(leg.camadas[3].acima)}.
