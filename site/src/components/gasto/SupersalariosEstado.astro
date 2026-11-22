@@ -88,8 +88,8 @@ const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "
           <h3>No governo do estado</h3>
           <p>
             Fora do Judiciário e do Ministério Público, nas secretarias, autarquias, fundações e universidades do estado,{" "}
-            <strong>{nf0.format(exe.acima)} dos {nf0.format(exe.vinculos)} vínculos</strong> ({(exe.parte < 0.001 ? nf2 : nf1).format(exe.parte * 100)}%) passaram do teto num mês
-            típico, {exe.periodo}. O que passou do teto somou <strong>{moedaExtenso(exe.excesso)}</strong> em {exe.meses} meses
+            <strong>{nf0.format(exe.acima)} dos {nf0.format(exe.vinculos)} vínculos</strong> ({(exe.parte < 0.001 ? nf2 : nf1).format(exe.parte * 100)}%) {exe.sem_corte ? "tiveram salário bruto acima do teto" : "passaram do teto"} num mês
+            típico, {exe.periodo}. O que passou do teto{exe.sem_corte && " no bruto"} somou <strong>{moedaExtenso(exe.excesso)}</strong> em {exe.meses} meses
             {exeMaiorGrupo && exeMaiorGrupo[1] > 0 && <>, e a maior parte do que se paga além do salário está em {(exe.nomesGrupos[exeMaiorGrupo[0]] ?? exeMaiorGrupo[0]).toLowerCase()}</>}.
           </p>
           {exeMaiores.length > 0 && (
@@ -104,6 +104,7 @@ const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "
             A conta é por vínculo (quem tem dois cargos conta duas vezes) e usa o teto nacional; no governo estadual o limite é o salário do
             governador, mais baixo.
             {exe.estatais_fora.length > 0 && <>{" "}Ficam de fora as empresas estatais ({exe.estatais_fora.length}, como {exe.estatais_fora.slice(0, 2).join(" e ")}): o teto só vale para as que recebem dinheiro do Tesouro para pagar pessoal, e o arquivo não diz quais.</>}
+            {exe.sem_corte && <>{" "}O arquivo não mostra o corte pelo teto: a conta usa o salário bruto, e parte do que passa do teto pode ter sido descontada depois.</>}
             {exe.nota && <>{" "}{exe.nota}</>}
             {" "}Fonte: <a href={exe.url}>{exe.fonte}</a>.
           </p>
