@@ -1,0 +1,21 @@
+name: Testar fontes
+
+# Testa, de um runner do GitHub (fora do Brasil), se respondem as fontes das cargas que hoje rodam à mão:
+# dívida ativa (PGFN e cadastro de CNPJ da Receita), postos e hospitais (CNES, SIH, SIA, SISAB, SI-PNI e
+# cobertura da APS) e contratos (PNCP). Baixa só um pedaço de cada arquivo grande, para medir a velocidade,
+# e escreve a tabela no resumo da execução. Ver .github/scripts/testar-fontes.py.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Testar as fontes
+        run: uv run --project pipeline python .github/scripts/testar-fontes.py
