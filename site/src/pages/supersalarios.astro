@@ -8,7 +8,7 @@ import Base from "../layouts/Base.astro";
 import Termo from "../components/Termo.astro";
 import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
 import {
-  MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, compararEstados, fpmDeCidadesPequenas, imposto,
+  MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, compararEstados, executivoDoEstado, fpmDeCidadesPequenas, imposto,
   CORES_FEDERAL, CORES_GRUPOS, NOMES_CURTOS, NOMES_FEDERAL, ORDEM_TIPOS, docFederal, docSuper as d, linhas, linhasFederal, mesCurto,
   mesExtenso, nosDois, periodoFederal, serie, tetoAtual, total, totalFederal, type Linha, type Tipo,
 } from "../lib/supersalarios";
@@ -83,6 +83,9 @@ function calcularCusto() {
   };
 }
 const c = calcularCusto();
+
+/** O Executivo dos estados com folha detalhada (por enquanto, o Paraná). */
+const estadosExe = (["PR"] as const).map((uf) => ({ uf, e: executivoDoEstado(uf) })).filter((x) => x.e && x.e.acima >= 5);
 const descricao = x
   ? `Em ${x.pA.rotulo}, ${pct0(x.tA.parte)} dos juízes e promotores receberam acima do teto num mês típico; passou do teto ${moedaExtenso(x.tA.excesso)} no ano.`
   : "Juízes e promotores que recebem acima do teto, órgão por órgão.";
@@ -134,6 +137,7 @@ const larguraGrupos = (l: Linha) => {
           {c && <a href="#custo">Quanto isso custa</a>}
           <a href="#orgaos">Órgão por órgão</a>
           {f && <a href="#federal">No Executivo federal</a>}
+          {estadosExe.length > 0 && <a href="#estados">Nos governos estaduais</a>}
           <a href="#cuidados">O que esta conta não diz</a>
         </nav>
 
@@ -494,6 +498,43 @@ const larguraGrupos = (l: Linha) => {
           </section>
         )}
 
+        <!-- 5b. Executivo dos estados -->
+        {estadosExe.length > 0 && (
+          <section class="bloco" id="estados">
+            <div class="texto">
+              <h2>Nos governos estaduais</h2>
+              <p>
+                Poucos estados publicam a folha com as partes do salário separadas, em arquivos que dá para somar. O primeiro aqui é o Paraná.
+                {estadosExe.map(({ e }) => (
+                  <> Nas secretarias, autarquias, empresas e universidades do estado, <strong>{nf0.format(e!.acima)} dos{" "}
+                  {nf0.format(e!.vinculos)} vínculos</strong> ({pct(e!.parte)}) passaram do teto num mês típico, {e!.periodo}, e o que passou somou{" "}
+                  <strong>{moedaExtenso(e!.excesso)}</strong> em {e!.meses} meses.</>
+                ))}
+              </p>
+              <p class="menor">
+                Por vínculo (quem tem dois cargos conta duas vezes), sem aposentados, 13º e férias, com o teto nacional; no governo estadual o
+                limite é o salário do governador, mais baixo. Os juízes e promotores do estado estão nas partes de cima desta página.
+              </p>
+            </div>
+            <div class="grafico">
+              {estadosExe.map(({ uf, e }) => (
+                <>
+                  <h3><a href={`/estados/${uf.toLowerCase()}#teto`}>Paraná</a>: os órgãos com mais dinheiro acima do teto, em {e!.meses} meses</h3>
+                  <ol class="linhas federal" aria-label="Órgãos do governo do Paraná com mais dinheiro acima do teto">
+                    {e!.orgaos.filter((o) => o.excesso !== null).slice(0, 8).map((o, _i, arr) => (
+                      <li>
+                        <span class="rotulo">{o.nome}</span>
+                        <span class="trilho"><span class="barra" style={`width:${((o.excesso ?? 0) / (arr[0].excesso ?? 1)) * 100}%`}></span></span>
+                        <span class="num valor"><strong>{moedaCurta(o.excesso ?? 0)}</strong> <span>{o.acima !== null ? `${nf0.format(o.acima)} de ${nf0.format(o.vinculos)}` : `só em ${o.meses_acima} ${o.meses_acima === 1 ? "mês" : "meses"}`}</span></span>
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              ))}
+            </div>
+          </section>
+        )}
+
         <!-- 6. Cuidados -->
         <section class="fontes" id="cuidados">
           <h2>O que esta conta não diz</h2>
@@ -503,8 +544,8 @@ const larguraGrupos = (l: Linha) => {
               "Acima do teto" quer dizer só que a pessoa recebeu mais que R$ {nf0.format(TETO)} no mês.
             </li>
             <li>
-              <strong>Juízes, promotores e o Executivo federal.</strong> Os servidores dos tribunais e dos Ministérios Públicos não entram, nem
-              defensores, conselheiros de tribunais de contas, o Legislativo, os militares e os governos estaduais e municipais. Os tribunais eleitorais, o CNJ e o CJF ficam de fora
+              <strong>Juízes, promotores, o Executivo federal e o do Paraná.</strong> Os servidores dos tribunais e dos Ministérios Públicos não
+              entram, nem defensores, o Legislativo, os militares, os outros governos estaduais e as prefeituras. Os tribunais eleitorais, o CNJ e o CJF ficam de fora
               porque pagam só uma gratificação a quem recebe o salário em outro tribunal; os tribunais superiores (STF, STJ, TST e STM), porque os
               arquivos deles misturam ministros na ativa, aposentados, pensionistas e juízes convocados de outros tribunais. Só conta quem recebeu
               subsídio do órgão no mês.
@@ -589,7 +630,7 @@ const larguraGrupos = (l: Linha) => {
   .valor span { color: var(--texto-3); font-size: 13px; }
   .linhas li { display: grid; grid-template-columns: 130px minmax(0, 1fr) 110px; gap: 12px; align-items: center; font-size: 14px; }
   .linhas .rotulo { color: var(--texto-3); }
-  .linhas.federal li { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 150px; }
+  .linhas.federal li { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 170px; }
   #custo .degraus li, #federal .degraus li { grid-template-columns: 190px minmax(0, 1fr) 170px; }
   .linhas.federal .rotulo { color: var(--texto-2); line-height: 1.3; }
   .linhas.serie { gap: 4px; }
@@ -662,7 +703,7 @@ const larguraGrupos = (l: Linha) => {
     .linhas.federal .trilho { grid-column: 1 / -1; grid-row: 2; }
     #federal .degraus li, #custo .degraus li { grid-template-columns: minmax(0, 1fr) auto; }
     .exemplos li { grid-template-columns: 1fr; gap: 2px; }
-    #federal .valor span, #custo .valor span { display: block; }
+    #federal .valor span, #custo .valor span, #estados .valor span { display: block; }
     .so-largo, .membros { display: none; }
     .barra-col { width: auto; }
     .celula-barra { grid-template-columns: minmax(40px, 1fr) auto; }

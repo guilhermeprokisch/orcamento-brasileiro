@@ -53,6 +53,7 @@ previdencia = "orcamento_pipeline.previdencia:main"
 divida-ativa = "orcamento_pipeline.divida_ativa:main"
 supersalarios = "orcamento_pipeline.supersalarios:main"
 supersalarios-federal = "orcamento_pipeline.supersalarios_federal:main"
+supersalarios-estados = "orcamento_pipeline.supersalarios_estados:main"
 
 [build-system]
 requires = ["hatchling"]

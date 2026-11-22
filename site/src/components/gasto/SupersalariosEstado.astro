@@ -6,7 +6,7 @@
  */
 import Termo from "../Termo.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
-import { MINIMO_EDUCACAO, MINIMO_SAUDE, comparar, docSuper, doEstado, sigla, tetoAtual } from "../../lib/supersalarios";
+import { MINIMO_EDUCACAO, MINIMO_SAUDE, NOMES_ESTADUAL, comparar, docSuper, doEstado, executivoDoEstado, sigla, tetoAtual } from "../../lib/supersalarios";
 import type { Cidade } from "../../lib/cidades";
 
 interface Props { uf: string; ente?: Cidade }
@@ -30,6 +30,13 @@ const irPerdido = comIr.reduce((t, x) => t + Math.max(0, x.a!.ir_salario! - x.a!
 const gastoTotal = ente?.total?.[0] ?? null;
 const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const cmp = ente && excessoJuntos > 0 ? comparar(excessoJuntos, ente, "uf") : null;
+
+// O Executivo do estado, onde há a folha com as partes do salário (por enquanto, o Paraná).
+const exe = executivoDoEstado(uf);
+const exeMaiores = exe ? exe.orgaos.filter((o) => o.acima !== null).slice(0, 4) : [];
+const exeMaiorGrupo = exe
+  ? Object.entries(exe.grupos).filter(([g]) => g !== "base").sort((a, b) => b[1] - a[1])[0]
+  : null;
 /** 12.345 -> "12 mil"; 1.234.567 -> "1,2 milhão" */
 const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "milhão" : "milhões"} de` : n >= 1e4 ? `${nf0.format(Math.round(n / 1000))} mil` : nf0.format(Math.round(n / 10) * 10));
 ---
@@ -75,6 +82,29 @@ const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "
           {!b && <p class="menor">Ainda sem dados {pB.rotulo}.</p>}
         </div>
       ))}
+      {exe && exe.acima >= 5 && (
+        <div class="orgao executivo">
+          <h3>No governo do estado</h3>
+          <p>
+            Fora do Judiciário e do Ministério Público, nas secretarias, autarquias, empresas e universidades do estado,{" "}
+            <strong>{nf0.format(exe.acima)} dos {nf0.format(exe.vinculos)} vínculos</strong> ({nf1.format(exe.parte * 100)}%) passaram do teto num mês
+            típico, {exe.periodo}. O que passou do teto somou <strong>{moedaExtenso(exe.excesso)}</strong> em {exe.meses} meses
+            {exeMaiorGrupo && exeMaiorGrupo[1] > 0 && <>, e a maior parte do que se paga além do salário está em {NOMES_ESTADUAL[exeMaiorGrupo[0]].toLowerCase()}</>}.
+          </p>
+          {exeMaiores.length > 0 && (
+            <p>
+              Onde mais: {exeMaiores.map((o, i) => (
+                <>{i > 0 && (i === exeMaiores.length - 1 ? " e " : ", ")}{o.nome} ({nf0.format(o.acima!)} de {nf0.format(o.vinculos)}, {moedaCurta(o.excesso ?? 0)})</>
+              ))}.
+              {exe.irPerdido > 0 && <> Se o que esses vínculos acima do teto receberam fosse todo tributado como salário, o estado teria descontado até {moedaExtenso(exe.irPerdido)} a mais de imposto de renda.</>}
+            </p>
+          )}
+          <p class="menor">
+            A conta é por vínculo (quem tem dois cargos conta duas vezes) e usa o teto nacional; no governo estadual o limite é o salário do
+            governador, mais baixo. Fonte: <a href={exe.url}>{exe.fonte}</a>.
+          </p>
+        </div>
+      )}
       {orgaos.length > 0 && excessoJuntos > 0 && (
         <div class="orgao juntos">
           <h3>O que isso custa ao estado</h3>

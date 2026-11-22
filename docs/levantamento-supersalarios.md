@@ -359,3 +359,14 @@ Quem perde: o IR que um estado desconta dos seus servidores é do próprio estad
 e entra na base dos mínimos de educação (25%) e saúde (12%). O da União é repartido (art. 159, I): 25,5%
 para o FPM, 21,5% para o FPE e 3% para os fundos regionais. A amostra de setembro de 2025 deu até R$ 309 mi
 por mês nos estados e R$ 59 mi na União.
+
+## Executivo do Paraná (feito em 22/11/2026)
+
+`uv run supersalarios-estados` lê a mesma folha do Paraná que `estado_pr.py` (os 12 meses mais recentes, até
+outubro de 2026), tira aposentados e pensionistas pelo cadastro de vínculos e deixa de fora o TJ, o MP e a
+Assembleia, que aparecem no arquivo só em parte. O Tribunal de Contas aparece só com aposentados e pensionistas
+(a amostra do começo deste levantamento, que dava 292 acima do teto no TCE, os incluía por engano). Soma por órgão as camadas (vencimento e gratificação menos o
+redutor, "outros", retroativos, auxílios) e o imposto de renda, como no Judiciário. Aparece no bloco do estado
+(página do Paraná) e na seção "Nos governos estaduais" de `/supersalarios`. A conta é por vínculo e usa o teto
+nacional (no Executivo estadual o limite é o salário do governador). Os próximos candidatos, pela tabela de fontes:
+SP, MG, GO e DF, que têm folha em lote com o corte pelo teto.
