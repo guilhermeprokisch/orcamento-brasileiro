@@ -3,6 +3,8 @@
  * Só somas por órgão e período; nenhuma pessoa. Sem o arquivo, `docSuper` é null e as partes somem.
  */
 import { docBase } from "./perfis";
+import { docCidades, docEstados, type Cidade } from "./cidades";
+import { porAlunoDe, porAlunoEstado } from "./indicadores";
 
 /** Um órgão num período. Contagens de "um mês típico" (média dos meses com dado); valores somados no período. */
 export interface Periodo {
@@ -399,4 +401,55 @@ export function fpmPerdido(ibge: number): FpmPerdido | null {
   if (!fpm || !recebido || !fpm.total) return null;
   const fpmPais = uniao.diferenca * PARTE_FPM;
   return { ano: p.rotulo, recebido, anoFpm: fpm.ano, irUniao: uniao.diferenca, fpmPais, perdido: fpmPais * (recebido / fpm.total) };
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Comparações: o que o mesmo dinheiro pagaria nos serviços, com os números que o site já tem (gasto por aluno das
+// redes estaduais e municipais, gasto em saúde de cada governo, FPM de cada cidade).
+
+
+export interface Comparacao {
+  /** Quantos alunos um ano de escola pagaria, e o custo por aluno usado. */
+  alunos: number | null;
+  porAluno: number | null;
+  rede: "estadual" | "municipal";
+  /** Quantos dias de todo o gasto daquele governo com saúde. */
+  diasSaude: number | null;
+  anoContas: number | null;
+}
+
+/** O que `valor` pagaria em escola e saúde para um governo (estado ou prefeitura), pelos números dele. */
+export function comparar(valor: number, ente: Cidade, esfera: "uf" | "mun"): Comparacao {
+  const aluno = esfera === "uf" ? porAlunoEstado(ente, docEstados?.cidades ?? []) : porAlunoDe(ente);
+  const saude = ente.f?.["10"]?.[0] ?? 0;
+  return {
+    alunos: aluno ? valor / aluno.porAluno : null, porAluno: aluno?.porAluno ?? null, rede: esfera === "uf" ? "estadual" : "municipal",
+    diasSaude: saude > 0 ? valor / (saude / 365) : null, anoContas: ente.ano,
+  };
+}
+
+/** As mesmas comparações para o conjunto dos 27 governos estaduais. */
+export function compararEstados(valor: number) {
+  const estados = docEstados?.cidades ?? [];
+  let alunos = 0, basica = 0, saude = 0;
+  for (const e of estados) {
+    const a = porAlunoEstado(e, estados);
+    if (a) { alunos += a.alunos; basica += a.basica; }
+    saude += e.f?.["10"]?.[0] ?? 0;
+  }
+  const porAluno = alunos > 0 ? basica / alunos : null;
+  return {
+    porAluno, alunos: porAluno ? valor / porAluno : null,
+    diasSaude: saude > 0 ? valor / (saude / 365) : null,
+  };
+}
+
+/** Quantas cidades pequenas (até 10 mil moradores) teriam o FPM de um ano inteiro pago com `valor`. */
+export function fpmDeCidadesPequenas(valor: number) {
+  const fpm = docSuper ? fpmDoAno(Number(docSuper.periodos[0].id)) : null;
+  if (!fpm || !docCidades) return null;
+  const valores = docCidades.cidades.filter((c) => c.pop <= 10_000).map((c) => fpm.de(c.ibge)).filter((v): v is number => !!v).sort((a, b) => a - b);
+  if (!valores.length) return null;
+  const mediana = valores[Math.floor(valores.length / 2)];
+  return { cidades: valor / mediana, mediana, ano: fpm.ano };
 }

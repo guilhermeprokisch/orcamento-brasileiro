@@ -6,7 +6,7 @@
  */
 import Termo from "../Termo.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
-import { MINIMO_EDUCACAO, MINIMO_SAUDE, docSuper, doEstado, sigla, tetoAtual } from "../../lib/supersalarios";
+import { MINIMO_EDUCACAO, MINIMO_SAUDE, comparar, docSuper, doEstado, sigla, tetoAtual } from "../../lib/supersalarios";
 import type { Cidade } from "../../lib/cidades";
 
 interface Props { uf: string; ente?: Cidade }
@@ -29,6 +29,9 @@ const irPerdido = comIr.reduce((t, x) => t + Math.max(0, x.a!.ir_salario! - x.a!
 // A régua é tudo o que o governo estadual gastou (empenhado) no ano mais recente das contas.
 const gastoTotal = ente?.total?.[0] ?? null;
 const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const cmp = ente && excessoJuntos > 0 ? comparar(excessoJuntos, ente, "uf") : null;
+/** 12.345 -> "12 mil"; 1.234.567 -> "1,2 milhão" */
+const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "milhão" : "milhões"} de` : n >= 1e4 ? `${nf0.format(Math.round(n / 1000))} mil` : nf0.format(Math.round(n / 10) * 10));
 ---
 
 {orgaos.length > 0 && (
@@ -80,6 +83,14 @@ const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFr
             {ente?.pop && <>, ou R$&nbsp;{nf0.format(excessoJuntos / ente.pop)} por morador</>}
             {gastoTotal && ente?.ano && <>, o equivalente a {nf1.format((excessoJuntos / gastoTotal) * 100)}% de tudo o que o governo do estado gastou em {ente.ano}</>}.
           </p>
+          {cmp && (cmp.alunos || cmp.diasSaude) && (
+            <p>
+              Com o mesmo dinheiro, o governo do estado pagaria
+              {cmp.alunos && cmp.porAluno && <> <strong>um ano de escola para {quantos(cmp.alunos)} alunos</strong> da rede estadual (gastou R$&nbsp;{nf0.format(cmp.porAluno)} por aluno em {cmp.anoContas})</>}
+              {cmp.alunos && cmp.diasSaude && <>, ou</>}
+              {cmp.diasSaude && <> <strong>{nf0.format(cmp.diasSaude)} dias de todo o seu gasto com saúde</strong></>}.
+            </p>
+          )}
           {irPerdido > 0 && (
             <p>
               Como a maior parte do extra se chama indenização, não paga imposto de renda. Se tudo fosse tributado como salário, o estado teria

@@ -6,14 +6,16 @@
  */
 import Termo from "../Termo.astro";
 import { moedaExtenso } from "../../lib/formato";
-import { fpmPerdido } from "../../lib/supersalarios";
+import { comparar, fpmPerdido } from "../../lib/supersalarios";
 import type { Cidade } from "../../lib/cidades";
 
 interface Props { cidade: Cidade }
 const { cidade } = Astro.props;
 const f = fpmPerdido(cidade.ibge);
+const cmp = f ? comparar(f.perdido, cidade, "mun") : null;
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+const nf1d = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 /** "R$ 23 mil", "R$ 1,2 milhão" */
 const valor = (v: number) => (v >= 1e6 ? moedaExtenso(v) : `R$ ${nf0.format(Math.round(v / 1000))} mil`);
 ---
@@ -31,6 +33,10 @@ const valor = (v: number) => (v >= 1e6 ? moedaExtenso(v) : `R$ ${nf0.format(Math
       <p>
         Pela mesma divisão do FPM que a prefeitura de {cidade.nome} recebeu em {f.anoFpm} ({moedaExtenso(f.recebido)}), a parte dela seria de{" "}
         <strong>até {valor(f.perdido)}</strong>, {nf2.format((f.perdido / f.recebido) * 100)}% do que recebeu.
+        {cmp && cmp.alunos && cmp.porAluno && cmp.alunos >= 1 && (
+          <> É o que a prefeitura gasta, em um ano, com <strong>{nf0.format(Math.round(cmp.alunos))} {Math.round(cmp.alunos) === 1 ? "aluno" : "alunos"}</strong> das escolas
+          dela (R$&nbsp;{nf0.format(cmp.porAluno)} por aluno em {cmp.anoContas}){cmp.diasSaude && cmp.diasSaude >= 0.5 && <>, ou com {nf1d.format(cmp.diasSaude)} {cmp.diasSaude < 1.95 ? "dia" : "dias"} de toda a saúde</>}.</>
+        )}
       </p>
       <p class="menor">
         "Até" porque a conta trata como salário também o que é indenização de verdade. O imposto que os estados deixam de descontar dos seus

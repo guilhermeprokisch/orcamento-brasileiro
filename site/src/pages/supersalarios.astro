@@ -8,12 +8,15 @@ import Base from "../layouts/Base.astro";
 import Termo from "../components/Termo.astro";
 import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
 import {
-  MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, imposto,
+  MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, compararEstados, fpmDeCidadesPequenas, imposto,
   CORES_FEDERAL, CORES_GRUPOS, NOMES_CURTOS, NOMES_FEDERAL, ORDEM_TIPOS, docFederal, docSuper as d, linhas, linhasFederal, mesCurto,
   mesExtenso, nosDois, periodoFederal, serie, tetoAtual, total, totalFederal, type Linha, type Tipo,
 } from "../lib/supersalarios";
 
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const nf1d = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+/** 1.234.000 -> "1,2 milhão"; 3.400.000 -> "3,4 milhões"; 850.000 -> "850 mil" */
+const milhoesDe = (n: number) => (n >= 1e6 ? `${nf1d.format(n / 1e6)} ${n < 2e6 ? "milhão" : "milhões"}` : `${nf0.format(Math.round(n / 1000))} mil`);
 const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
 const reais = (v: number) => `R$ ${nf0.format(v)}`;
 /** "R$ 52 mil" para valores por pessoa */
@@ -74,6 +77,9 @@ function calcularCusto() {
     educacaoSaude: a.estado.diferenca * (MINIMO_EDUCACAO + MINIMO_SAUDE),
     fpm: a.uniao.diferenca * PARTE_FPM, fpe: a.uniao.diferenca * PARTE_FPE,
     porMesB: b ? (b.estado.diferenca + b.uniao.diferenca) / mesesB : null,
+    // Para comparar: o que o mesmo dinheiro pagaria.
+    nosEstados: compararEstados(a.estado.excesso),
+    naUniao: fpmDeCidadesPequenas(a.uniao.excesso),
   };
 }
 const c = calcularCusto();
@@ -335,6 +341,34 @@ const larguraGrupos = (l: Linha) => {
                 <li><span class="cor" style="background:#b3dfc4"></span><span class="nome"><strong>A União e os fundos regionais</strong></span><span class="num">{moedaCurta(c.a.uniao.diferenca - c.fpm - c.fpe)}</span></li>
               </ul>
               <p class="menor-grafico">Imposto de renda que deixou de entrar em {x.pA.rotulo}, por quem ficaria com ele.</p>
+              {(c.nosEstados.alunos || c.naUniao) && (
+                <>
+                  <h3>O que o mesmo dinheiro pagaria</h3>
+                  <ul class="exemplos">
+                    {c.nosEstados.alunos && c.nosEstados.porAluno && (
+                      <li>
+                        <strong class="num">{milhoesDe(c.nosEstados.alunos)}</strong>
+                        <span>{c.nosEstados.alunos >= 1e6 ? "de alunos" : "alunos"} com um ano de escola na rede estadual. É o que os {moedaCurta(c.a.estado.excesso)} pagos acima do teto pelos estados
+                        cobririam, ao custo médio de {moedaCurta(c.nosEstados.porAluno)} por aluno.</span>
+                      </li>
+                    )}
+                    {c.nosEstados.diasSaude && (
+                      <li>
+                        <strong class="num">{nf0.format(c.nosEstados.diasSaude)} dias</strong>
+                        <span>de todo o gasto dos 27 governos estaduais com saúde, com o mesmo dinheiro.</span>
+                      </li>
+                    )}
+                    {c.naUniao && (
+                      <li>
+                        <strong class="num">{nf0.format(Math.round(c.naUniao.cidades / 10) * 10)} cidades</strong>
+                        <span>pequenas (até 10 mil moradores) com o FPM de um ano inteiro pago pelos {moedaCurta(c.a.uniao.excesso)} da União acima do
+                        teto. A cidade pequena típica recebeu {moedaCurta(c.naUniao.mediana)} de FPM em {c.naUniao.ano}.</span>
+                      </li>
+                    )}
+                  </ul>
+                  <p class="menor-grafico">Com os números do próprio site: gasto em educação básica por aluno das escolas estaduais e gasto com saúde no ano mais recente das contas de cada governo; FPM de {c.naUniao?.ano ?? "2025"}.</p>
+                </>
+              )}
             </div>
           </section>
         )}
@@ -568,6 +602,9 @@ const larguraGrupos = (l: Linha) => {
   .legenda li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--regra-leve); font-size: 14px; }
   .legenda .cor { width: 14px; height: 14px; align-self: center; border: 1px solid rgba(0, 0, 0, 0.15); }
   .legenda .num { text-align: right; font-family: var(--serifa); font-size: 18px; font-weight: 700; white-space: nowrap; }
+  .exemplos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--regra); }
+  .exemplos li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 14px; color: var(--texto-2); line-height: 1.45; }
+  .exemplos strong { font-family: var(--serifa); font-size: 22px; font-weight: 700; color: var(--tinta); white-space: nowrap; }
   .legenda .num small { font-family: var(--sans, inherit); font-size: 14px; font-weight: 400; color: var(--texto-3); }
   .pilhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .pilhas li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: center; font-size: 14px; }
@@ -623,6 +660,7 @@ const larguraGrupos = (l: Linha) => {
     .linhas.federal li { grid-template-columns: minmax(0, 1fr) auto; }
     .linhas.federal .trilho { grid-column: 1 / -1; grid-row: 2; }
     #federal .degraus li, #custo .degraus li { grid-template-columns: minmax(0, 1fr) auto; }
+    .exemplos li { grid-template-columns: 1fr; gap: 2px; }
     #federal .valor span, #custo .valor span { display: block; }
     .so-largo, .membros { display: none; }
     .barra-col { width: auto; }
