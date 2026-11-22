@@ -131,6 +131,8 @@ fila_cidades() {
   # do Brasil, e este robô roda fora do país): cargas feitas à mão (uv run pagamentos [--uf AC|SC|PE]); aqui
   # só as cópias (pipeline/referencia/pagamentos*.json, todas de uma vez).
   # CE (API do TCE-CE) e ES (arquivos do TCE-ES) também: uv run pagamentos --uf CE|ES, à mão; aqui só as cópias.
+  # Os contratos (PNCP) vêm do contratos.yml, que baixa os dias novos de janeiro a abril e abre um pull request
+  # com pipeline/referencia/contratos.json e contratos-resumo.json; aqui só essas cópias.
   pipe pode-falhar "Contratos das prefeituras" contratos --sem-baixar
   pipe pode-falhar "Pagamentos das prefeituras" pagamentos --sem-baixar
   # (O passo acima copia também AM e TO, pagamentos-am.json e -to.json: uv run pagamentos --uf AM|TO, à mão,
@@ -143,6 +145,7 @@ fila_mapa() {
   pipe_ref "Emendas parlamentares (CGU)" pipeline/referencia/emendas.json site/public/data/indicadores/emendas.json emendas
   pipe pode-falhar "Mortalidade infantil" saude
   pipe pode-falhar "Homicídios" seguranca
+  # Os Parquet do explorador vão para o bucket pelo contratos.yml; aqui só o resumo (cópia de referência).
   pipe pode-falhar "Explorador de contratos" explorador-contratos --sem-baixar
   # Camadas do mapa: arrecadação federal por município, imposto de renda por residência, dinheiro
   # federal (o Portal da Transparência às vezes responde com CAPTCHA) e INSS.
