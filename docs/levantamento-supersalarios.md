@@ -422,3 +422,26 @@ O que isso quer dizer:
 - **RR** paga vencimentos de R$ 58 a 65 mil sem nenhuma rubrica de corte pelo teto no arquivo: vale perguntar
   ao estado.
 
+### Feito em 22/11/2026: ES, PE, PB, GO e DF
+
+`uv run supersalarios-estados` passou a ler, além do Paraná, o Espírito Santo, Pernambuco, a Paraíba, Goiás e o
+Distrito Federal (12 meses cada; Goiás, 10, porque os meses de 2025 só estão num arquivo anual consolidado). O Rio
+Grande do Norte já tem o leitor, mas a API do estado limita os pedidos e a carga leva horas: entra quando tiver pelo
+menos 6 meses (o comando não publica estado com menos).
+
+Regras que vieram da conferência:
+- **Empresas estatais ficam de fora** (Caesb, BRB e Terracap no DF; Cagepa na PB; Celepar e Cohapar no PR…). O teto
+  só vale para a estatal que recebe dinheiro do Tesouro para pagar pessoal (Constituição, art. 37, § 9º), e os arquivos
+  não dizem quais recebem. Com elas, o DF dava R$ 94 mi acima do teto em 12 meses; sem elas, R$ 38 mi.
+- **13º e férias**: no DF eles vêm dentro das verbas eventuais, com nomes como "DEC TERCEIRO-ATIVO"; o detalhamento por
+  rubrica diz quanto tirar (antes da correção, dezembro de 2025 tinha 7.351 acima do teto; depois, 683).
+- **ES**: o arquivo vem rubrica a rubrica, com estornos lançados como desconto (um "SUBSÍDIO" do lado do desconto);
+  pagamento de competência dois meses ou mais antes da folha conta como atrasado. "ABATE TETO RGPS" é o teto do regime
+  geral, para a contribuição, e não entra.
+- **Goiás** não publica o imposto de renda nem separa as partes: dá para contar quem passa do teto, não de onde vem.
+
+Resultado (12 meses, órgãos sem as estatais): Pernambuco R$ 101 mi (Secretaria da Fazenda, 606 de 960 vínculos acima
+do teto num mês típico), Goiás R$ 68 mi em 10 meses (a fiscalização da Receita e a Defensoria), Paraná R$ 65 mi, DF
+R$ 38 mi (a Procuradoria-Geral, 197 de 682), Paraíba R$ 20 mi e Espírito Santo R$ 4,5 mi (18 vínculos num mês típico:
+o abate-teto do ES corta de verdade).
+
