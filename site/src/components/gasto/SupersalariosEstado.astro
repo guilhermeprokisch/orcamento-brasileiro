@@ -6,10 +6,11 @@
  */
 import Termo from "../Termo.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
-import { docSuper, doEstado, sigla, tetoAtual } from "../../lib/supersalarios";
+import { MINIMO_EDUCACAO, MINIMO_SAUDE, docSuper, doEstado, sigla, tetoAtual } from "../../lib/supersalarios";
+import type { Cidade } from "../../lib/cidades";
 
-interface Props { uf: string }
-const { uf } = Astro.props;
+interface Props { uf: string; ente?: Cidade }
+const { uf, ente } = Astro.props;
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
 const mil = (v: number) => `R$\u00a0${nf0.format(Math.round(v / 1000))}\u00a0mil`;
@@ -19,6 +20,15 @@ const orgaos = doEstado(uf)
   .filter((x) => x.a);
 const quem = (tipo: string) => (tipo === "tj" ? "juízes e desembargadores" : "promotores e procuradores");
 const porMes = (p: { excesso: number | null; meses: string[] } | null) => (p && p.excesso !== null ? p.excesso / p.meses.length : null);
+
+// Juntos, o tribunal e o MP do estado: o que passou do teto frente ao gasto do governo estadual numa área, e o
+// imposto de renda que deixou de entrar (que é do próprio estado).
+const excessoJuntos = orgaos.reduce((t, x) => t + (x.a?.excesso ?? 0), 0);
+const comIr = orgaos.filter((x) => x.a?.ir != null && x.a?.ir_salario != null);
+const irPerdido = comIr.reduce((t, x) => t + Math.max(0, x.a!.ir_salario! - x.a!.ir!), 0);
+// A régua é tudo o que o governo estadual gastou (empenhado) no ano mais recente das contas.
+const gastoTotal = ente?.total?.[0] ?? null;
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 ---
 
 {orgaos.length > 0 && (
@@ -62,6 +72,24 @@ const porMes = (p: { excesso: number | null; meses: string[] } | null) => (p && 
           {!b && <p class="menor">Ainda sem dados {pB.rotulo}.</p>}
         </div>
       ))}
+      {orgaos.length > 0 && excessoJuntos > 0 && (
+        <div class="orgao juntos">
+          <h3>O que isso custa ao estado</h3>
+          <p>
+            Em {pA.rotulo}, o que passou do teto {orgaos.length > 1 ? "nos dois somou" : "somou"} <strong>{moedaExtenso(excessoJuntos)}</strong>
+            {ente?.pop && <>, ou R$&nbsp;{nf0.format(excessoJuntos / ente.pop)} por morador</>}
+            {gastoTotal && ente?.ano && <>, o equivalente a {nf1.format((excessoJuntos / gastoTotal) * 100)}% de tudo o que o governo do estado gastou em {ente.ano}</>}.
+          </p>
+          {irPerdido > 0 && (
+            <p>
+              Como a maior parte do extra se chama indenização, não paga imposto de renda. Se tudo fosse tributado como salário, o estado teria
+              descontado até <strong>{moedaExtenso(irPerdido)}</strong> a mais em {pA.rotulo}{comIr.length < orgaos.length && <> (só no {sigla(comIr[0].id)}, que mostra o desconto)</>}.
+              Esse imposto seria do próprio estado, e pelo menos {moedaExtenso(irPerdido * (MINIMO_EDUCACAO + MINIMO_SAUDE))} teriam de ir para educação e saúde.
+            </p>
+          )}
+          <p class="menor">"Até" porque a conta trata como salário também o que é indenização de verdade, como o reembolso do plano de saúde.</p>
+        </div>
+      )}
     </div>
   </section>
 )}

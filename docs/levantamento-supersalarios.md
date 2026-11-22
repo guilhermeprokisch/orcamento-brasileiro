@@ -338,3 +338,23 @@ seguinte (eles saem com um mês de atraso), soma por órgão de exercício e apa
 downloads seguidos, o Portal passa a pedir captcha: o comando para e monta a saída com os meses do cache, e
 completa os 12 meses em outras rodadas. Na primeira carga (22/11/2026) entraram julho e agosto de 2026.
 O pedido de informação à AGU sobre o teto nos honorários está em `docs/pedidos-lai/honorarios-agu-teto.md`.
+
+## Quanto isso custa (feito em 22/11/2026)
+
+A página mostra também o custo, em duas contas que não se somam (se o teto fosse cumprido, o dinheiro nem
+seria pago):
+
+- **O gasto acima do teto, por quem paga.** TJs, MPs e justiças militares dos estados estão no orçamento do
+  estado; Justiça Federal, do Trabalho, MP da União, TJDFT e MPDFT, no da União. No bloco do estado, o que
+  passou do teto no TJ e no MP aparece por morador e como parte de tudo o que o governo estadual gastou
+  no ano (comparar com uma área pequena, como saneamento, inflaria a impressão).
+- **O imposto de renda que deixa de entrar.** Para cada contracheque, o comando soma o IR descontado (sem o
+  do 13º e das férias, cobrado à parte) e calcula o que seria descontado se tudo o que conta fosse salário:
+  27,5% do que sobra depois da previdência, menos a parcela a deduzir (R$ 896,00 até abril de 2025, R$ 908,73
+  depois). A diferença é um teto da estimativa: trata como salário também o que é indenização de verdade.
+  Órgãos cujo arquivo não traz o desconto do IR (o TJMT, por exemplo) ficam fora dessa conta.
+
+Quem perde: o IR que um estado desconta dos seus servidores é do próprio estado (Constituição, art. 157, I)
+e entra na base dos mínimos de educação (25%) e saúde (12%). O da União é repartido (art. 159, I): 25,5%
+para o FPM, 21,5% para o FPE e 3% para os fundos regionais. A amostra de setembro de 2025 deu até R$ 309 mi
+por mês nos estados e R$ 59 mi na União.

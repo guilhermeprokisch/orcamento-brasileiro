@@ -8,6 +8,7 @@ import Base from "../layouts/Base.astro";
 import Termo from "../components/Termo.astro";
 import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
 import {
+  MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, imposto,
   CORES_FEDERAL, CORES_GRUPOS, NOMES_CURTOS, NOMES_FEDERAL, ORDEM_TIPOS, docFederal, docSuper as d, linhas, linhasFederal, mesCurto,
   mesExtenso, nosDois, periodoFederal, serie, tetoAtual, total, totalFederal, type Linha, type Tipo,
 } from "../lib/supersalarios";
@@ -58,6 +59,24 @@ function calcularFederal() {
   return { doc: docFederal, ls, t, maiores, resto, maxExc, c1, c2, c3, c4, periodo, excesso: c4.excessoMes * t.meses };
 }
 const f = calcularFederal();
+
+/** Quanto isso custa: o que passou do teto por pagador e o imposto de renda que deixou de entrar. */
+function calcularCusto() {
+  if (!d || !x) return null;
+  const a = imposto(x.pA.id);
+  if (!a.estado.orgaos && !a.uniao.orgaos) return null;
+  const b = x.tB ? imposto(x.pB.id) : null;
+  const mesesB = b ? Math.max(1, ...linhas(x.pB.id).map((l) => l.meses.length)) : 1;
+  const maxIr = Math.max(a.estado.irSalario, a.uniao.irSalario);
+  const diferenca = a.estado.diferenca + a.uniao.diferenca;
+  return {
+    a, b, mesesB, maxIr, diferenca,
+    educacaoSaude: a.estado.diferenca * (MINIMO_EDUCACAO + MINIMO_SAUDE),
+    fpm: a.uniao.diferenca * PARTE_FPM, fpe: a.uniao.diferenca * PARTE_FPE,
+    porMesB: b ? (b.estado.diferenca + b.uniao.diferenca) / mesesB : null,
+  };
+}
+const c = calcularCusto();
 const descricao = x
   ? `Em ${x.pA.rotulo}, ${pct0(x.tA.parte)} dos juízes e promotores receberam acima do teto num mês típico; passou do teto ${moedaExtenso(x.tA.excesso)} no ano.`
   : "Juízes e promotores que recebem acima do teto, órgão por órgão.";
@@ -106,6 +125,7 @@ const larguraGrupos = (l: Linha) => {
           <a href="#escada">Como se passa do teto</a>
           <a href="#de-onde">De onde vem o dinheiro</a>
           <a href="#depois">Depois da decisão do STF</a>
+          {c && <a href="#custo">Quanto isso custa</a>}
           <a href="#orgaos">Órgão por órgão</a>
           {f && <a href="#federal">No Executivo federal</a>}
           <a href="#cuidados">O que esta conta não diz</a>
@@ -251,6 +271,73 @@ const larguraGrupos = (l: Linha) => {
             <p class="menor-grafico">Ao lado do valor, a parte que passou do teto no mês.</p>
           </div>
         </section>
+
+        <!-- 3b. Quanto custa -->
+        {c && (
+          <section class="bloco" id="custo">
+            <div class="texto">
+              <h2>Quanto isso custa</h2>
+              <p>
+                O que passou do teto em {x.pA.rotulo}, {moedaExtenso(c.a.estado.excesso + c.a.uniao.excesso)}, saiu dos orçamentos públicos:{" "}
+                <strong>{moedaExtenso(c.a.estado.excesso)}</strong> dos estados, que pagam os tribunais de justiça e os Ministérios Públicos
+                estaduais, e <strong>{moedaExtenso(c.a.uniao.excesso)}</strong> da União, que paga a Justiça Federal, a do Trabalho, o Ministério
+                Público da União e a Justiça do Distrito Federal.
+              </p>
+              <p>
+                E há o imposto que não entra. Como boa parte do extra se chama <Termo id="verba-indenizatoria">indenização</Termo>, não paga
+                imposto de renda. Se tudo o que esses juízes e promotores receberam fosse tributado como salário, o imposto descontado seria{" "}
+                {moedaExtenso(c.a.estado.irSalario + c.a.uniao.irSalario)}; foi {moedaExtenso(c.a.estado.ir + c.a.uniao.ir)}. A diferença,{" "}
+                <strong>até {moedaExtenso(c.diferenca)}</strong>, deixou de entrar.
+              </p>
+              <p>
+                Quem perde é quem paga. O imposto de renda que um estado desconta dos seus servidores fica com o próprio estado: são até{" "}
+                {moedaExtenso(c.a.estado.diferenca)} a menos no caixa estadual, dos quais pelo menos {moedaExtenso(c.educacaoSaude)} teriam de ir
+                para educação e saúde (25% e 12% dos impostos). O da União é repartido: dos {moedaExtenso(c.a.uniao.diferenca)}, cerca de{" "}
+                {moedaCurta(c.fpm)} iriam para as prefeituras, pelo Fundo de Participação dos Municípios, e {moedaCurta(c.fpe)} para os estados, pelo
+                Fundo de Participação dos Estados.
+              </p>
+              {c.porMesB !== null && (
+                <p>
+                  {x.pB.rotulo[0].toUpperCase() + x.pB.rotulo.slice(1)}, com o limite do STF, a diferença caiu para cerca de{" "}
+                  {moedaCurta(c.porMesB)} por mês, contra {moedaCurta(c.diferenca / 12)} por mês em {x.pA.rotulo}.
+                </p>
+              )}
+              <p class="menor">
+                "Até" porque a conta trata como salário também o que é indenização de verdade, como o reembolso do plano de saúde. Fica fora o
+                imposto do 13º e das férias, cobrado à parte. Só entram os órgãos cujo arquivo traz o desconto do imposto de renda
+                ({c.a.estado.orgaos + c.a.uniao.orgaos} órgãos, com {pct0((c.a.estado.membros + c.a.uniao.membros) / (c.a.estado.membrosTodos + c.a.uniao.membrosTodos))} dos
+                juízes e promotores). As duas contas não se somam: se o teto fosse cumprido, o dinheiro nem seria pago.
+              </p>
+            </div>
+            <div class="grafico">
+              <h3>Imposto de renda em {x.pA.rotulo}: descontado e se fosse salário</h3>
+              <ul class="legenda-curta" aria-hidden="true">
+                <li><span class="cor ante"></span>Descontado</li>
+                <li><span class="cor depois"></span>Se tudo fosse salário</li>
+              </ul>
+              <ol class="degraus" aria-label="Imposto de renda descontado e o que seria descontado se tudo fosse salário, por quem paga">
+                {([["estado", "Tribunais e MPs dos estados"], ["uniao", "Justiça e MP da União"]] as const).map(([k, nome]) => (
+                  <li>
+                    <span class="nome">{nome}</span>
+                    <span class="trilho duplo">
+                      <span class="barra ante" style={`width:${(c.a[k].ir / c.maxIr) * 100}%`}></span>
+                      <span class="barra depois" style={`width:${(c.a[k].irSalario / c.maxIr) * 100}%`}></span>
+                    </span>
+                    <span class="num valor"><strong>{moedaCurta(c.a[k].ir)}</strong> <span>{moedaCurta(c.a[k].irSalario)}</span></span>
+                  </li>
+                ))}
+              </ol>
+              <h3>Quem deixa de receber</h3>
+              <ul class="legenda">
+                <li><span class="cor" style="background:#0a4a29"></span><span class="nome"><strong>Os governos estaduais</strong> <span>(imposto que fica com o estado)</span></span><span class="num">{moedaCurta(c.a.estado.diferenca)}</span></li>
+                <li><span class="cor" style="background:#1f7a47"></span><span class="nome"><strong>As prefeituras</strong> <span>(Fundo de Participação dos Municípios)</span></span><span class="num">{moedaCurta(c.fpm)}</span></li>
+                <li><span class="cor" style="background:#4fae73"></span><span class="nome"><strong>Os estados, pela União</strong> <span>(Fundo de Participação dos Estados)</span></span><span class="num">{moedaCurta(c.fpe)}</span></li>
+                <li><span class="cor" style="background:#b3dfc4"></span><span class="nome"><strong>A União e os fundos regionais</strong></span><span class="num">{moedaCurta(c.a.uniao.diferenca - c.fpm - c.fpe)}</span></li>
+              </ul>
+              <p class="menor-grafico">Imposto de renda que deixou de entrar em {x.pA.rotulo}, por quem ficaria com ele.</p>
+            </div>
+          </section>
+        )}
 
         <!-- 4. Órgão por órgão -->
         <section class="orgaos" id="orgaos">
@@ -468,6 +555,7 @@ const larguraGrupos = (l: Linha) => {
   .linhas li { display: grid; grid-template-columns: 130px minmax(0, 1fr) 110px; gap: 12px; align-items: center; font-size: 14px; }
   .linhas .rotulo { color: var(--texto-3); }
   .linhas.federal li { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 150px; }
+  #custo .degraus li { grid-template-columns: 190px minmax(0, 1fr) 150px; }
   .linhas.federal .rotulo { color: var(--texto-2); line-height: 1.3; }
   .linhas.serie { gap: 4px; }
   .linhas.serie li { grid-template-columns: 56px minmax(0, 1fr) 110px; }
@@ -534,8 +622,8 @@ const larguraGrupos = (l: Linha) => {
     .linhas.serie li { grid-template-columns: 48px minmax(0, 1fr) 100px; }
     .linhas.federal li { grid-template-columns: minmax(0, 1fr) auto; }
     .linhas.federal .trilho { grid-column: 1 / -1; grid-row: 2; }
-    #federal .degraus li { grid-template-columns: minmax(0, 1fr) auto; }
-    #federal .valor span { display: block; }
+    #federal .degraus li, #custo .degraus li { grid-template-columns: minmax(0, 1fr) auto; }
+    #federal .valor span, #custo .valor span { display: block; }
     .so-largo, .membros { display: none; }
     .barra-col { width: auto; }
     .celula-barra { grid-template-columns: minmax(40px, 1fr) auto; }

@@ -22,12 +22,19 @@ export interface Periodo {
   camadas: [number, number][];
   /** Quantos passam do teto em cada faixa num mês típico (null: menos de 5). */
   faixas: (number | null)[] | null;
+  /** Imposto de renda descontado no período e o que seria descontado se tudo fosse salário (null sem o desconto no arquivo). */
+  ir: number | null;
+  ir_salario: number | null;
+  previdencia: number | null;
+  meses_ir: number;
 }
 export type Tipo = "tj" | "mp" | "trabalho" | "federal" | "superior" | "militar";
 export interface Orgao {
   nome: string;
   tipo: Tipo;
   uf: string | null;
+  /** De quem é o orçamento que paga (e o imposto de renda descontado). */
+  pagador: "estado" | "uniao";
   periodos: Record<string, Periodo | null>;
 }
 interface DocSuper {
@@ -92,6 +99,7 @@ export interface Linha extends Periodo {
   nome: string;
   tipo: Tipo;
   uf: string | null;
+  pagador: "estado" | "uniao";
   /** Quanto passa do teto, em média, por membro, num mês. */
   porMembro: number | null;
 }
@@ -104,7 +112,7 @@ export function linhas(periodo: string, tipo?: Tipo): Linha[] {
     .map(([id, o]) => {
       const p = o.periodos[periodo]!;
       return {
-        ...p, id, sigla: sigla(id), nome: o.nome, tipo: o.tipo, uf: o.uf,
+        ...p, id, sigla: sigla(id), nome: o.nome, tipo: o.tipo, uf: o.uf, pagador: o.pagador,
         porMembro: p.excesso === null ? null : p.excesso / (p.membros * p.meses.length),
       };
     })
@@ -173,6 +181,46 @@ export function serie(tipos: Tipo[] = ORDEM_TIPOS) {
     }, [0, 0, 0, 0]);
     return { mes, orgaos: soma[0], membros: soma[1], parte: soma[1] ? soma[2] / soma[1] : 0, porMembro: soma[1] ? soma[3] / soma[1] : 0 };
   }).filter((x) => x.membros > 0);
+}
+
+// O imposto de renda que deixa de entrar. O que um estado desconta dos seus juízes e promotores é dele
+// (Constituição, art. 157, I) e entra na base dos mínimos de educação (25%) e saúde (12%). O que a União
+// desconta é repartido: metade do imposto de renda vai para o FPM (25,5%), o FPE (21,5%) e os fundos
+// regionais (3%) (art. 159, I).
+export const MINIMO_EDUCACAO = 0.25;
+export const MINIMO_SAUDE = 0.12;
+export const PARTE_FPM = 0.255;
+export const PARTE_FPE = 0.215;
+export const PARTE_FUNDOS = 0.03;
+
+export interface Imposto {
+  orgaos: number;
+  /** Membros (num mês típico) dos órgãos com o desconto do IR no arquivo. */
+  membros: number;
+  /** Membros de todos os órgãos daquele pagador, para dizer quanto a conta cobre. */
+  membrosTodos: number;
+  ir: number;
+  irSalario: number;
+  /** O que deixa de ser descontado: irSalario − ir. */
+  diferenca: number;
+  /** O que passou do teto, nos órgãos daquele pagador (todos). */
+  excesso: number;
+}
+
+/** O imposto de renda descontado e o que seria descontado se tudo fosse salário, por pagador, num período. */
+export function imposto(periodo: string, ls?: Linha[]): Record<"estado" | "uniao", Imposto> {
+  const todas = ls ?? linhas(periodo);
+  const soma = (pag: "estado" | "uniao"): Imposto => {
+    const daqui = todas.filter((l) => l.pagador === pag);
+    const com = daqui.filter((l) => l.ir !== null && l.ir_salario !== null);
+    const ir = com.reduce((t, l) => t + l.ir!, 0);
+    const irSalario = com.reduce((t, l) => t + l.ir_salario!, 0);
+    return {
+      orgaos: com.length, membros: com.reduce((t, l) => t + l.membros, 0), membrosTodos: daqui.reduce((t, l) => t + l.membros, 0),
+      ir, irSalario, diferenca: Math.max(0, irSalario - ir), excesso: daqui.reduce((t, l) => t + (l.excesso ?? 0), 0),
+    };
+  };
+  return { estado: soma("estado"), uniao: soma("uniao") };
 }
 
 /** O tribunal de justiça e o Ministério Público de um estado. */

@@ -100,6 +100,16 @@ NOMES_TIPOS = {"tj": "Tribunais de justiça dos estados", "mp": "Ministérios P�
 FORA_DA_CONTA = {"tse"}
 
 
+# Quem paga: a Justiça Federal, a do Trabalho, o Ministério Público da União e a Justiça e o MP do Distrito
+# Federal estão no orçamento da União; os tribunais de justiça, os MPs e as justiças militares dos estados, no
+# do estado. O imposto de renda que cada um desconta é de quem paga (Constituição, art. 157, I).
+DA_UNIAO = {"mpf", "mpt", "mpm", "tjdft", "mpdft"}
+
+
+def pagador(o: dict) -> str:
+    return "uniao" if o["tipo"] in ("trabalho", "federal") or o["id"] in DA_UNIAO else "estado"
+
+
 def teto(ano: int, mes: int) -> float:
     return [v for (a, m), v in TETOS if (ano, mes) >= (a, m)][-1]
 
@@ -163,8 +173,34 @@ def _valor(s: str) -> float:
         return 0.0
 
 
-def somar_pacote(conteudo: bytes, t: float) -> dict:
-    """As somas de um órgão num mês, a partir do remuneracao.csv do pacote. Nada por pessoa sai daqui."""
+# Imposto de renda: na faixa de cima da tabela mensal, 27,5% menos a parcela a deduzir (R$ 896,00 até abril de
+# 2025, R$ 908,73 desde maio de 2025; a mudança de 2026 só mexeu nas rendas até R$ 7.350).
+ALIQUOTA_IR = 0.275
+PARCELAS_IR = [((2023, 5), 884.96), ((2024, 2), 896.00), ((2025, 5), 908.73)]
+
+
+def parcela_ir(ano: int, mes: int) -> float:
+    return [v for (a, m), v in PARCELAS_IR if (ano, mes) >= (a, m)][-1]
+
+
+def _e_ir(item: str) -> bool:
+    i = item.lower()
+    if any(x in i for x in ("13", "natal", "féria", "feria")):
+        return False   # IR do 13º e das férias, cobrado à parte
+    return "imposto" in i or i.startswith("ir") or "irrf" in i
+
+
+def _e_previdencia(item: str) -> bool:
+    i = item.lower()
+    return any(x in i for x in ("previd", "pss", "contribui")) and "teto" not in i
+
+
+def somar_pacote(conteudo: bytes, t: float, parcela: float = 908.73) -> dict:
+    """As somas de um órgão num mês, a partir do remuneracao.csv do pacote. Nada por pessoa sai daqui.
+
+    Além do que passa do teto, soma o imposto de renda e a previdência descontados e o imposto que seria
+    cobrado se tudo o que conta fosse tributado como salário (27,5% do que sobra depois da previdência, menos a
+    parcela a deduzir): a diferença é o que deixa de ser cobrado porque parte do pagamento se chama indenização."""
     por_cc: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     macros: Counter = Counter()
     with zipfile.ZipFile(io.BytesIO(conteudo)) as zf:
@@ -183,14 +219,21 @@ def somar_pacote(conteudo: bytes, t: float) -> dict:
                     g = grupo(macro, r.get("categoria") or "", item)
                     macros[(g, macro or f"(sem classificação) {item[:60]}")] += v
                     por_cc[cc][g] += v
-                elif tipo == "D" and "teto" in (r.get("item") or "").lower():
-                    por_cc[cc]["subsidio"] -= abs(v)   # a retenção vem como desconto
+                elif tipo == "D":
+                    item = r.get("item") or ""
+                    if "teto" in item.lower():
+                        por_cc[cc]["subsidio"] -= abs(v)   # a retenção vem como desconto
+                    elif _e_ir(item):
+                        por_cc[cc]["ir"] += abs(v)
+                    elif _e_previdencia(item):
+                        por_cc[cc]["prev"] += abs(v)
     grupos = {g: 0.0 for g in GRUPOS}
     camadas = [[0, 0.0] for _ in GRUPOS]
     hist = [0] * (DEGRAUS + 1)
     totais: list[float] = []
     acima = 0
     excesso = 0.0
+    ir = prev = ir_salario = 0.0
     for partes in por_cc.values():
         if partes.get("bruto_base", 0.0) <= 0:
             continue   # sem subsídio pago pelo órgão: pensionista, requisitado, convocado de outro tribunal
@@ -204,6 +247,9 @@ def somar_pacote(conteudo: bytes, t: float) -> dict:
         if soma <= 0:
             continue
         totais.append(soma)
+        ir += partes.get("ir", 0.0)
+        prev += partes.get("prev", 0.0)
+        ir_salario += max(0.0, ALIQUOTA_IR * (soma - partes.get("prev", 0.0)) - parcela)
         if soma > t:
             acima += 1
             excesso += soma - t
@@ -213,6 +259,7 @@ def somar_pacote(conteudo: bytes, t: float) -> dict:
         "mediana": round(statistics.median(totais), 2) if totais else None, "teto": t,
         "grupos": {g: round(v, 2) for g, v in grupos.items()},
         "camadas": [[n, round(v, 2)] for n, v in camadas], "hist": hist,
+        "ir": round(ir, 2), "previdencia": round(prev, 2), "ir_salario": round(ir_salario, 2),
         "macros": {f"{g}|{m}": round(v, 2) for (g, m), v in macros.most_common(40)},
     }
 
@@ -260,7 +307,7 @@ def _atualizar(o: dict, meses: list[tuple[int, int]]) -> tuple[str, int, int]:
             url = (d.get("pacote_de_dados") or {}).get("url")
             if (ano, mes) not in falta or not url:
                 continue
-            soma = somar_pacote(_get(url), teto(ano, mes))
+            soma = somar_pacote(_get(url), teto(ano, mes), parcela_ir(ano, mes))
             soma["inconsistente"] = bool(d.get("inconsistente"))
             arq = pasta / f"{ano}-{mes:02d}.json.gz"
             tmp = arq.with_name(arq.name + ".tmp")
@@ -324,7 +371,18 @@ def resumir(meses: dict[str, dict]) -> dict | None:
         "grupos": grupos,
         "camadas": [[round(sum(x["camadas"][i][0] for x in ms) / n), round(sum(x["camadas"][i][1] for x in ms))] for i in range(len(GRUPOS))],
         "faixas": None if nenhum else [f if f >= MINIMO else None for f in faixas],
+        # Imposto de renda descontado e o que seria descontado se tudo fosse salário, nos meses em que o arquivo
+        # traz o desconto do IR (sem ele, null).
+        **_imposto(ms),
     }
+
+
+def _imposto(ms: list[dict]) -> dict:
+    com_ir = [x for x in ms if x.get("ir", 0) > 0]
+    if len(com_ir) < len(ms) / 2:
+        return {"ir": None, "ir_salario": None, "previdencia": None, "meses_ir": len(com_ir)}
+    return {"ir": round(sum(x["ir"] for x in com_ir)), "ir_salario": round(sum(x["ir_salario"] for x in com_ir)),
+            "previdencia": round(sum(x["previdencia"] for x in com_ir)), "meses_ir": len(com_ir)}
 
 
 def montar(lista: list[dict]) -> dict:
@@ -345,7 +403,7 @@ def montar(lista: list[dict]) -> dict:
             for k, v in x["macros"].items():
                 macros[k] += v
         periodos = {p["id"]: resumir({m: x for m, x in meses.items() if _no_periodo(m, p)}) for p in PERIODOS}
-        saida_orgaos[o["id"]] = {"nome": o["nome"], "tipo": o["tipo"], "uf": o["uf"], "periodos": periodos}
+        saida_orgaos[o["id"]] = {"nome": o["nome"], "tipo": o["tipo"], "uf": o["uf"], "pagador": pagador(o), "periodos": periodos}
     print("  rubricas por família (R$ mi, todos os meses), as maiores:")
     for k, v in macros.most_common(30):
         print(f"    {v / 1e6:9.1f}  {k}")

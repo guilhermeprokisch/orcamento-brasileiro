@@ -151,7 +151,7 @@ const descricao = temDados
     <div id="divida"><DividaEstado ibge={e.ibge} quem={quem} ano={e.ano} /></div>
     <div id="pessoal"><PessoalResultado ibge={e.ibge} quem={quem} ano={e.ano} grupo={ehDF ? null : "dos estados"} /></div>
     <div id="previdencia" data-so-padrao="a aposentadoria dos servidores"><PrevidenciaServidores ibge={e.ibge} esfera="uf" quem={quem} grupo={ehDF ? null : "dos estados"} /></div>
-    <div id="teto" data-so-padrao="os salários acima do teto"><SupersalariosEstado uf={e.uf} /></div>
+    <div id="teto" data-so-padrao="os salários acima do teto"><SupersalariosEstado uf={e.uf} ente={e} /></div>
     <div id="capag"><CapagNota ente={e} esfera="uf" quem={quem} grupo="dos estados" /></div>
     {temDados && <div id="ano-atual"><AnoEmAndamento ente={e} esfera="uf" quem={quem} /></div>}
 
