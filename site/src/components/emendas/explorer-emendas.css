@@ -1,8 +1,45 @@
 /* O que o explorador das emendas tem a mais que o de gastos: procurar dentro de uma lista longa e o aviso de que
    uma consulta está a caminho (o DuckDB leva um instante a cada clique). */
-.exp-filtrar { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 12px; max-width: 520px; font-size: 13px; color: var(--texto-3); }
-.exp-filtrar input { font: inherit; font-size: 16px; padding: 9px 12px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); }
+.exp-lista-barra { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; min-height: 40px; margin: 2px 0 12px; }
+.exp-filtrar { display: flex; flex: 0 1 440px; min-width: 0; }
+.exp-filtrar input { width: 100%; box-sizing: border-box; height: 40px; font: inherit; font-size: 16px; padding: 0 12px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); }
+.exp-filtrar input:disabled { opacity: .5; }
 .exp-resultado { transition: opacity .15s; }
 .exp-ocupado { opacity: .45; pointer-events: none; }
-.exp-aviso { margin: 0 0 8px; font-size: 14px; color: var(--texto-3); }
+.exp-emendas .exp-aviso { margin: 0; padding: 0; background: none; font-size: 14px; color: var(--texto-3); }
 .exp-aviso .link { font: inherit; color: var(--verde); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+
+/* Nada muda de altura quando o motor liga e quando uma consulta volta: o lugar do mapa já fica guardado (a altura do
+   Treemap, 520px, ou 440px no celular), a legenda da série não
+   quebra em duas linhas e o nome de cada degrau guarda duas linhas. */
+.exp-ligando { min-height: 520px; display: grid; align-items: center; }
+.exp-lede-espera strong { opacity: .6; }
+.exp-detalhe { min-height: 1.55em; }
+/* O título guarda o lugar de duas linhas (o espaço sobra em cima, acima do sobretítulo), e os nomes longos ficam com
+   letra menor: o que vem embaixo (degraus, abas, mapa) não se mexe de um nível para outro. */
+.exp-emendas .exp-titulo { justify-content: flex-end; min-height: 226px; }
+.exp-emendas .exp-topo { padding-top: 12px; }
+.exp-emendas .exp-titulo h1.exp-h1-longo { font-size: 44px; }
+.exp-emendas .exp-titulo h1.exp-h1-muito { font-size: 34px; }
+.exp-emendas .exp-serie figcaption { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exp-emendas .degrau-nome { min-height: 2.5em; }
+/* com muitos degraus, o valor e a fatia ficam numa linha (cortada no fim) em vez de quebrar e mudar a altura */
+.exp-emendas .degrau-valor { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* o primeiro degrau não tem a barra da fatia: guarda o lugar dela, para a altura não mudar no primeiro clique */
+.exp-emendas .degrau:not(:has(.degrau-barra))::after { content: ""; display: block; height: 4px; margin-top: auto; }
+.exp-emendas .exp-barra-topo { padding-top: 14px; }
+/* as oito divisões do início e as vistas cabem numa linha só, como nos níveis de baixo (que têm uma divisão a menos) */
+@media (min-width: 901px) { .exp-emendas .exp-abas-dims { gap: 16px; } }
+@media (max-width: 900px) {
+  .exp-emendas .exp-titulo { min-height: 200px; }
+  .exp-emendas .exp-titulo h1.exp-h1-longo { font-size: 30px; }
+  .exp-emendas .exp-titulo h1.exp-h1-muito { font-size: 24px; }
+}
+@media (max-width: 640px) {
+  .exp-ligando { min-height: 440px; }
+  .exp-filtrar { flex-basis: 100%; }
+}
+@media (max-width: 720px) {
+  .exp-emendas .degrau-nome { min-height: 0; }
+  .exp-emendas .degrau::after { display: none; }
+}

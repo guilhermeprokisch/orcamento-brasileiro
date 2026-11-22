@@ -16,16 +16,18 @@ const urlPagina = new URL(Astro.url.pathname, site).href;
 const imagemPrevia = new URL("/previa.png", site).href;
 const path = Astro.url.pathname;
 // O item do menu desta página: o de endereço mais longo que começa o caminho (/emendas/explorar acende
-// "Explorar as emendas", não "Emendas").
-const todosHrefs = () => GRUPOS.flatMap((g) => g.itens.map((i) => i.href));
+// "Explorar", não "O que são").
+const todosHrefs = () => GRUPOS.flatMap((g) => g.itens.flatMap((i) => (i.sub ? i.sub.map((s) => s.href) : [i.href])));
 const ativo = (p: string) => {
   const melhor = todosHrefs().filter((h) => path.startsWith(h)).sort((a, b) => b.length - a.length)[0];
   return p === melhor ? "page" : undefined;
 };
 
 // Menu principal: as páginas agrupadas pela pergunta de quem chega. Para incluir uma página,
-// acrescente um item ao grupo dela; o menu do computador e o do celular saem desta lista.
-const GRUPOS = [
+// acrescente um item ao grupo dela; o menu do computador e o do celular saem desta lista. Um item com
+// "sub" é um título com as suas páginas embaixo, recuadas (as abas das emendas: components/emendas/EmendasAbas.astro).
+interface ItemMenu { href: string; nome: string; desc: string; sub?: { href: string; nome: string; desc: string }[] }
+const GRUPOS: { nome: string; itens: ItemMenu[] }[] = [
   { nome: "Governo federal", itens: [
     { href: "/explorer", nome: "Gastos", desc: "Para onde vai o dinheiro: por órgão, área, programa e ação, em blocos ou em cascata." },
     { href: "/receitas", nome: "Receitas", desc: "De onde vem o dinheiro: impostos, contribuições, royalties e empréstimos." },
@@ -43,8 +45,11 @@ const GRUPOS = [
   ] },
   { nome: "Contratos e emendas", itens: [
     { href: "/contratos", nome: "Contratos", desc: "O que prefeituras, governos estaduais e o governo federal contrataram, e de quem." },
-    { href: "/emendas", nome: "Emendas", desc: "O que são as emendas parlamentares, quanto são e para onde vão." },
-    { href: "/emendas/explorar", nome: "Explorar as emendas", desc: "Todas as emendas pagas, por quem mandou, estado, cidade, quem recebeu e área." },
+    { href: "/emendas", nome: "Emendas parlamentares", desc: "O que são, quanto são e para onde vão.", sub: [
+      { href: "/emendas", nome: "O que são", desc: "a história, com os números" },
+      { href: "/emendas/explorar", nome: "Explorar", desc: "todas as listas, por quem, onde e para quê" },
+      { href: "/emendas/buscar", nome: "Buscar emenda por emenda", desc: "por lugar, parlamentar ou assunto" },
+    ] },
   ] },
   { nome: "Impostos", itens: [
     { href: "/impostos", nome: "Para quem vai o seu imposto", desc: "Quem cobra cada imposto, o que é repassado a estados e prefeituras e quem fica com o dinheiro." },
@@ -55,7 +60,7 @@ const GRUPOS = [
     { href: "/dados", nome: "Os dados", desc: "Baixe os arquivos das fontes oficiais e os dados já tratados." },
   ] },
 ];
-const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.href));
+const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? i.sub.some((s) => ativo(s.href)) : ativo(i.href)));
 ---
 
 <!doctype html>
@@ -100,7 +105,22 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
                 <svg width="10" height="6" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" /></svg>
               </summary>
               <div class="grupo-lista">
-                {g.itens.map((i) => (
+                {g.itens.map((i) => i.sub ? (
+                  <div class="grupo-bloco">
+                    <span class="grupo-titulo">
+                      <span class="grupo-nome">{i.nome}</span>
+                      <span class="grupo-desc">{i.desc}</span>
+                    </span>
+                    <div class="grupo-sub">
+                      {i.sub.map((s) => (
+                        <a href={s.href} aria-current={ativo(s.href)}>
+                          <span class="grupo-sub-nome">{s.nome}</span>
+                          <span class="grupo-sub-desc">{s.desc}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
                   <a href={i.href} aria-current={ativo(i.href)}>
                     <span class="grupo-nome">{i.nome}</span>
                     <span class="grupo-desc">{i.desc}</span>
@@ -128,7 +148,14 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
               {GRUPOS.map((g) => (
                 <>
                   <span class="menu-grupo">{g.nome}</span>
-                  {g.itens.map((i) => <a class="menu-item" href={i.href} aria-current={ativo(i.href)}>{i.nome}</a>)}
+                  {g.itens.map((i) => i.sub ? (
+                    <>
+                      <span class="menu-sub-titulo">{i.nome}</span>
+                      <div class="menu-sub">
+                        {i.sub.map((s) => <a class="menu-sub-item" href={s.href} aria-current={ativo(s.href)}>{s.nome}</a>)}
+                      </div>
+                    </>
+                  ) : <a class="menu-item" href={i.href} aria-current={ativo(i.href)}>{i.nome}</a>)}
                 </>
               ))}
               <a class="menu-codigo" href="https://github.com/guilhermeprokisch/orcamento-brasileiro">O código no GitHub</a>
@@ -243,18 +270,26 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
   .grupo summary svg { transition: transform 0.15s; }
   .grupo[open] summary svg { transform: rotate(180deg); }
   .grupo-lista {
-    position: absolute; top: calc(100% + 12px); left: 0; z-index: 30; width: 340px;
+    position: absolute; top: calc(100% + 12px); left: 0; z-index: 30; width: 360px;
     background: var(--papel); border: 2px solid var(--tinta); box-shadow: 6px 6px 0 var(--tinta);
     display: flex; flex-direction: column;
   }
   .grupo.a-direita .grupo-lista { left: auto; right: 0; }
-  .grupo-lista a {
+  .grupo-lista > a {
     display: flex; flex-direction: column; gap: 3px; padding: 14px 18px;
     color: var(--tinta); text-decoration: none; border-bottom: 1px solid var(--regra-leve);
   }
-  .grupo-lista a:last-child { border-bottom: 0; }
+  .grupo-lista > :last-child { border-bottom: 0; }
   .grupo-lista a:hover, .grupo-lista a:focus-visible { background: var(--marca-texto-fundo); }
   .grupo-lista a[aria-current="page"] { box-shadow: inset 4px 0 0 var(--verde); }
+  /* Um item com páginas embaixo (as abas das emendas): o título e, recuadas, as páginas. */
+  .grupo-bloco { display: flex; flex-direction: column; padding: 14px 0 10px; border-bottom: 1px solid var(--regra-leve); }
+  .grupo-titulo { display: flex; flex-direction: column; gap: 3px; padding: 0 18px 8px; }
+  .grupo-sub { display: flex; flex-direction: column; margin: 0 18px; border-left: 2px solid var(--regra); }
+  .grupo-sub a { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px 8px 14px; color: var(--tinta); text-decoration: none; }
+  .grupo-sub a[aria-current="page"] { margin-left: -2px; padding-left: 16px; background: var(--marca-texto-fundo); }
+  .grupo-sub-nome { font-family: var(--serifa); font-size: 16px; font-weight: 700; }
+  .grupo-sub-desc { font-size: 13px; color: var(--texto-3); }
   .grupo-nome { font-weight: 600; }
   .grupo-desc { font-size: 14px; line-height: 1.45; color: var(--texto-3); }
   .dateline {
@@ -285,7 +320,7 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
   }
   .menu summary::-webkit-details-marker { display: none; }
   .menu nav {
-    position: absolute; right: 0; top: 48px; z-index: 30; min-width: 200px;
+    position: absolute; right: 0; top: 48px; z-index: 30; width: min(290px, calc(100vw - 40px));
     background: var(--papel); border: 2px solid var(--tinta); box-shadow: 6px 6px 0 var(--tinta);
     display: flex; flex-direction: column;
   }
@@ -297,6 +332,11 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
     color: var(--texto-3); border-top: 1px solid var(--regra-leve);
   }
   .menu nav a.menu-item { padding: 10px 18px 10px 30px; border-bottom: 0; }
+  /* as abas das emendas: o título e, recuadas com um fio, as três páginas */
+  .menu .menu-sub-titulo { padding: 10px 18px 2px 30px; font-weight: 600; }
+  .menu .menu-sub { display: flex; flex-direction: column; margin: 0 0 6px 30px; border-left: 2px solid var(--regra); }
+  .menu nav a.menu-sub-item { padding: 10px 18px 10px 14px; border-bottom: 0; }
+  .menu nav a.menu-sub-item[aria-current="page"] { margin-left: -2px; padding-left: 16px; }
   .menu nav a[aria-current="page"] { background: var(--marca-texto-fundo); box-shadow: inset 4px 0 0 var(--verde); }
 
   /* Entre o celular e a tela larga o menu completo não cabe ao lado da marca: fica o menu

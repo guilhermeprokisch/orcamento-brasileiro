@@ -458,6 +458,35 @@ export function irMoradoresDe(c: Cidade, esfera: "mun" | "uf" = "mun"): IrMorado
 
 // ----- Para o mapa: os quatro números de "Como está a cidade", de cada cidade e estado -----
 
+/**
+ * Ideb da rede municipal (anos iniciais) e alunos das escolas da prefeitura, enxutos, para o mapa
+ * (/data/mapa/escolas.json): só o que a nota das escolas, o gasto por aluno e o cruzamento dos dois usam.
+ * `uf` é o Ideb dos anos finais da rede estadual em cada estado, média das cidades pesada pelas
+ * matrículas estaduais (uma aproximação da nota que o INEP publica por estado).
+ */
+export function escolasParaMapa() {
+  const ideb = doc, mat = docMatriculas;
+  const edicoes = ideb ? [2019, 2023, ideb.edicao].filter((a, i, l) => ideb.anos.includes(a) && l.indexOf(a) === i) : [];
+  const idx = edicoes.map((a) => ideb!.anos.indexOf(a)), iUlt = ideb ? ideb.anos.indexOf(ideb.edicao) : -1;
+  const anoMat = mat ? Object.keys(mat.anos).sort().at(-1) : undefined;
+  const mi: Record<string, (number | null)[]> = {};
+  const soma: Record<string, [number, number]> = {};
+  for (const [id, v] of Object.entries(ideb?.mun ?? {})) {
+    const serie = idx.map((i) => v.mi?.[i] ?? null);
+    if (serie.some((x) => x !== null)) mi[id] = serie;
+    const ef = v.ef?.[iUlt] ?? null, w = anoMat ? mat!.anos[anoMat][id]?.[1] ?? 0 : 0;
+    if (ef !== null && w) { const u = id.slice(0, 2); soma[u] ??= [0, 0]; soma[u][0] += ef * w; soma[u][1] += w; }
+  }
+  return {
+    fonte: ideb?.fonte ?? null,
+    edicoes,
+    mi,
+    uf: Object.fromEntries(Object.entries(soma).map(([u, [a, b]]) => [u, Math.round((a / b) * 100) / 100])),
+    fonteAlunos: mat?.fonte ?? null,
+    alunos: Object.fromEntries(Object.entries(mat?.anos ?? {}).map(([ano, m]) => [ano, Object.fromEntries(Object.entries(m).filter(([, x]) => x[0] > 0).map(([k, x]) => [k, x[0]]))])),
+  };
+}
+
 export interface SituacaoDoMapa {
   /** medida → { ano (texto), fonte, mun: ibge → valor, uf: código → valor, brasil } ; valor null = sem dado comparável */
   [medida: string]: { ano: string; fonte: string; mun: Record<string, number | null>; uf: Record<string, number | null>; brasil: number | null };

@@ -53,9 +53,14 @@ export default function Degraus(props: {
   extra?: JSX.Element;
   /** O texto da linha de cima quando ainda não há caminho (só o primeiro degrau). */
   dicaInicio?: string;
+  /** Mostra os degraus já no início, só com o primeiro: a altura não muda no primeiro clique. */
+  sempre?: boolean;
+  /** No celular, o "← Voltar" na mesma linha do "Caminho" (em vez de uma linha a mais, que empurraria o conteúdo). */
+  voltar?: JSX.Element;
 }) {
   const [aberto, setAberto] = createSignal(false);
   const temCaminho = () => props.passos.length > 1;
+  const mostra = () => temCaminho() || !!props.sempre;
   return (
     <div class="degraus" classList={{ aberto: aberto() }}>
       <div class="degraus-cab">
@@ -64,10 +69,13 @@ export default function Degraus(props: {
         </span>
         {props.extra}
       </div>
-      <Show when={temCaminho()}>
-        <button type="button" class="degraus-abrir" aria-expanded={aberto()} onClick={() => setAberto(!aberto())}>
-          Caminho: {props.passos.length} passos <span>{aberto() ? "fechar" : "abrir"}</span>
-        </button>
+      <Show when={mostra()}>
+        <div class="degraus-celular">
+          {props.voltar}
+          <button type="button" class="degraus-abrir" aria-expanded={aberto()} onClick={() => setAberto(!aberto())}>
+            {temCaminho() ? `Caminho: ${props.passos.length} passos` : `Caminho: ${props.passos[0]?.nome ?? ""}`} <span>{aberto() ? "fechar" : "abrir"}</span>
+          </button>
+        </div>
         <ol class="degraus-lista" aria-label="O caminho até aqui">
           <For each={props.passos}>
             {(p, i) => {
