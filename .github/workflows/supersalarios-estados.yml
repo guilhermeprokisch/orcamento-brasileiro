@@ -55,7 +55,7 @@ jobs:
       - name: Lista dos estados
         id: lista
         env:
-          PEDIDOS: ${{ inputs.uf || 'MA,RO,PI,CE' }}   # TEMPORÁRIO: teste no branch
+          PEDIDOS: ${{ inputs.uf }}
         run: |
           uv run --project pipeline python - <<'EOF' >> "$GITHUB_OUTPUT"
           import json, os
@@ -103,7 +103,7 @@ jobs:
       # O limite fica no passo, não só no job: se um portal travar, os passos seguintes ainda guardam o que veio.
       - name: Baixar e somar
         timeout-minutes: 300
-        run: uv run --project pipeline supersalarios-estados --uf "$UF" 2>&1 | tee "$RUNNER_TEMP/saida-$UF.log"
+        run: uv run --project pipeline supersalarios-estados --uf "$UF" --meses 1 2>&1 | tee "$RUNNER_TEMP/saida-$UF.log"   # TEMPORÁRIO: --meses 1
 
       - name: Guardar o cache
         if: always()
