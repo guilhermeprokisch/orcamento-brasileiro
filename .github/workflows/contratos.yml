@@ -20,9 +20,6 @@ name: Contratos (PNCP)
 on:
   schedule:
     - cron: "0 5 * 1-4 1"
-  push:   # TEMPORÁRIO: só para testar no branch antes do merge
-    branches: [claude/contratos-actions]
-    paths: [".github/workflows/contratos.yml"]
   workflow_dispatch:
     inputs:
       ano:
@@ -44,7 +41,7 @@ env:
   ESPELHO: https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados
   BUCKET: orcamento-brasileiro-dados
   RAMO: dados/contratos
-  ANO: ${{ inputs.ano || (github.event_name == 'push' && '2026') || '' }}   # TEMPORÁRIO
+  ANO: ${{ inputs.ano }}
   # Só a main grava no bucket e abre o pull request; em outro branch (teste), o resultado fica como artefato.
   NA_MAIN: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
