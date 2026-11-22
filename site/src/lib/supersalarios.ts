@@ -495,6 +495,8 @@ interface ExecutivoUf {
   com_ir: boolean;
   /** Empresas estatais deixadas de fora (o teto só vale para as que dependem do Tesouro, e o arquivo não diz quais). */
   estatais_fora: string[];
+  /** Um cuidado próprio do arquivo deste estado (um mês deixado de fora, uma parte que não se separa). */
+  nota?: string;
   fonte: string;
   url: string;
   de: string;
@@ -537,5 +539,6 @@ export function executivoDoEstado(uf: string) {
   return {
     ...e, periodo, orgaos, vinculos, acima: ultima.acima, parte: ultima.acima / vinculos, excesso: ultima.excesso,
     camadas, grupos, nomesGrupos: e.grupos, ir, irSalario, irPerdido: e.com_ir ? Math.max(0, irSalario - ir) : 0,
+    estatais_fora: e.estatais_fora.map((n) => nomeLegivel(n, null)),
   };
 }

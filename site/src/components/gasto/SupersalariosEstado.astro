@@ -104,6 +104,7 @@ const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "
             A conta é por vínculo (quem tem dois cargos conta duas vezes) e usa o teto nacional; no governo estadual o limite é o salário do
             governador, mais baixo.
             {exe.estatais_fora.length > 0 && <>{" "}Ficam de fora as empresas estatais ({exe.estatais_fora.length}, como {exe.estatais_fora.slice(0, 2).join(" e ")}): o teto só vale para as que recebem dinheiro do Tesouro para pagar pessoal, e o arquivo não diz quais.</>}
+            {exe.nota && <>{" "}{exe.nota}</>}
             {" "}Fonte: <a href={exe.url}>{exe.fonte}</a>.
           </p>
         </div>
