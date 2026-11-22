@@ -470,3 +470,31 @@ só se busca o histórico de quem tem líquido de R$ 25 mil ou mais (uma vez por
 os outros entram só na contagem. "Eventuais" ficam fora (é onde aparece o terço de férias), o mês 13 (o 13º) também.
 Setembro de 2026 veio vazio na API.
 
+## Legislativo federal: Câmara, Senado e TCU (feito em 23/11/2026)
+
+`uv run supersalarios-legislativo` lê as três folhas (o levantamento completo, com o Legislativo estadual e as
+prefeituras, está nas notas da sessão, `legislativo-prefeituras.md`):
+
+- **Câmara**: um CSV por mês nos relatórios consolidados da transparência, sem nome e sem CPF. O endereço do mês varia
+  (`outubro-de-2026-csv`, `fevereiro-de-2026-1`): o leitor lê os links da página do ano e fica com o que é CSV.
+  Ativos pelo grupo funcional (deputados, efetivos, natureza especial, secretários parlamentares, estagiários).
+- **Senado**: a API de dados abertos administrativos. A remuneração não diz quem é ativo, e o `sequencial` dela não casa
+  com o cadastro; casa pelo nome com as listas de ativos e inativos da mesma API (só na memória). Quem se aposentou
+  depois do mês conta como ativo.
+- **TCU**: a API da consulta de remuneração, servidores ativos e autoridades ativas (ministros, ministros-substitutos e
+  procuradores do MP junto ao TCU, no formato do contracheque nacional). O sinal do abate-teto muda de um grupo para
+  outro: vale o valor absoluto.
+
+A conta é por pessoa no mês (folha normal e complementar somadas; a complementar conta como atrasado), só ativos, sem
+13º, terço de férias, abono de permanência e diárias. Resultado (nov/2025 a out/2026): Câmara R$ 117 mi (2.031 de
+2.597 efetivos acima do teto num mês típico), Senado R$ 91 mi (1.292 de 2.245 efetivos), TCU R$ 82 mi (1.284 de 2.228
+servidores, quase todos pelos auxílios: o salário chega ao teto e o auxílio-alimentação e o ressarcimento do plano de
+saúde passam dele). Deputados e senadores quase nunca passam.
+
+**Mudança em meados de 2026**: a partir de jul/ago, na Câmara e no Senado, centenas de servidores passam do teto só com
+o salário, as vantagens pessoais e a função, mesmo depois do corte (a Câmara corta 2.071 linhas exatamente em
+R$ 46.366,19 em out/2026, mas centenas ficam em valores fixos acima, como R$ 56.058,87 e R$ 51.429,54). A folha não diz
+por quê; vale perguntar às duas Casas.
+
+No Actions (`supersalarios-legislativo.yml`, todo dia 22), com o cache no release `dados-supersalarios-legislativo`.
+

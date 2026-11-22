@@ -11,6 +11,7 @@ import {
   MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, compararEstados, estadosComExecutivo, fpmDeCidadesPequenas, imposto,
   CORES_FEDERAL, CORES_GRUPOS, NOMES_CURTOS, NOMES_FEDERAL, ORDEM_TIPOS, docFederal, docSuper as d, linhas, linhasFederal, mesCurto,
   mesExtenso, nosDois, periodoFederal, serie, tetoAtual, total, totalFederal, MOSTRA_NOME, EXTRA_EVENTUAL, type Linha, type Tipo,
+  docLegislativo, linhasLegislativo,
 } from "../lib/supersalarios";
 
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -63,6 +64,33 @@ function calcularFederal() {
   return { doc: docFederal, ls, t, maiores, resto, algumEventual, maxExc, c1, c2, c3, c4, periodo, excesso: c4.excessoMes * t.meses };
 }
 const f = calcularFederal();
+
+/** O Legislativo federal (Câmara, Senado e TCU). */
+function calcularLegislativo() {
+  const os = linhasLegislativo().filter((o) => o.resumo.acima !== null && o.resumo.acima >= 5);
+  if (!docLegislativo || !os.length) return null;
+  const soma = (k: (o: (typeof os)[number]) => number) => os.reduce((t, o) => t + k(o), 0);
+  const acima = soma((o) => o.resumo.acima ?? 0), vinculos = soma((o) => o.resumo.vinculos), excesso = soma((o) => o.resumo.excesso ?? 0);
+  // A escada somada: quantos passam do teto com cada família de pagamento, nos três órgãos.
+  const camadas = docLegislativo.grupos.map((g, i) => ({ g, acima: soma((o) => o.resumo.camadas[i][0]), excesso: soma((o) => o.resumo.camadas[i][1]) }));
+  const mesmoPeriodo = os.every((o) => o.de === os[0].de && o.ate === os[0].ate);
+  const periodo = mesmoPeriodo ? `de ${mesExtenso(os[0].de)} a ${mesExtenso(os[0].ate)}` : "nos últimos 12 meses publicados";
+  const efetivos = os.map((o) => ({ o, g: Object.values(o.grupos_funcionais).find((g) => /efetivo|servidores$/i.test(g.nome)) })).filter((x) => x.g && x.g.acima);
+  const irPerdido = soma((o) => Math.max(0, o.resumo.ir_salario - o.resumo.ir));
+  // No último mês: quantos já passam só com o salário (o corte pelo teto não leva todos até o teto).
+  const ultimoMes = os.map((o) => o.ultimo_mes.mes).sort().at(-1)!;
+  const soSalarioUltimo = soma((o) => (o.ultimo_mes.mes === ultimoMes ? o.ultimo_mes.camadas[0][0] : 0));
+  return { os, acima, vinculos, excesso, camadas, periodo, efetivos, irPerdido, ultimoMes, soSalarioUltimo, maxExc: Math.max(1, ...os.map((o) => o.resumo.excesso ?? 0)) };
+}
+const leg = calcularLegislativo();
+const NOMES_LEG: Record<string, string> = { base: "Salário, vantagens pessoais e função", outros: "eventuais e horas extras", retroativos: "folha complementar (atrasados)", auxilios: "auxílios e indenizações" };
+/** A nota ao lado de um órgão ou grupo quando mais da metade do que passou do teto veio de uma família só, fora o salário. */
+function notaLeg(p: { eventuais: number; atrasados: number; auxilios: number }) {
+  if (p.atrasados >= EXTRA_EVENTUAL) return "atrasados";
+  if (p.eventuais >= EXTRA_EVENTUAL) return "eventuais";
+  if (p.auxilios >= EXTRA_EVENTUAL) return "auxílios";
+  return null;
+}
 
 /** Quanto isso custa: o que passou do teto por pagador e o imposto de renda que deixou de entrar. */
 function calcularCusto() {
@@ -139,6 +167,7 @@ const larguraGrupos = (l: Linha) => {
           {c && <a href="#custo">Quanto isso custa</a>}
           <a href="#orgaos">Órgão por órgão</a>
           {f && <a href="#federal">No Executivo federal</a>}
+          {leg && <a href="#legislativo">No Legislativo federal</a>}
           {estadosExe.length > 0 && <a href="#estados">Nos governos estaduais</a>}
           <a href="#cuidados">O que esta conta não diz</a>
         </nav>
@@ -500,6 +529,76 @@ const larguraGrupos = (l: Linha) => {
           </section>
         )}
 
+        <!-- 5a. Legislativo federal -->
+        {leg && (
+          <section class="bloco" id="legislativo">
+            <div class="texto">
+              <h2>No Legislativo federal</h2>
+              <p>
+                Na Câmara, no Senado e no Tribunal de Contas da União, que ajuda o Congresso a fiscalizar o governo,{" "}
+                <strong>{nf0.format(leg.acima)} dos {nf0.format(leg.vinculos)} servidores e parlamentares na ativa</strong> ({pct(leg.acima / leg.vinculos)})
+                passaram do teto num mês típico, {leg.periodo}, e o que passou somou <strong>{moedaExtenso(leg.excesso)}</strong> em 12 meses.
+              </p>
+              <p>
+                Quase todos são <strong>servidores de carreira</strong>
+                {leg.efetivos.length > 0 && <> ({lista.format(leg.efetivos.map(({ o, g }) => `${nf0.format(g!.acima!)} de ${nf0.format(g!.vinculos)} no ${o.id === "camara" ? "quadro efetivo da Câmara" : o.id === "senado" ? "quadro efetivo do Senado" : "TCU"}`))})</>}.
+                Deputados e senadores recebem um subsídio do tamanho do teto e quase nunca passam dele. Só com o salário, as vantagens pessoais e a
+                função, já depois do corte pelo teto, {nf0.format(leg.camadas[0].acima)} passam; com os pagamentos eventuais e os atrasados,{" "}
+                {nf0.format(leg.camadas[2].acima)}; com os auxílios e as indenizações, {nf0.format(leg.camadas[3].acima)}.
+              </p>
+              {leg.soSalarioUltimo > 2 * leg.camadas[0].acima && (
+                <p>
+                  Isso mudou no meio de 2026. Em {mesExtenso(leg.ultimoMes)}, <strong>{nf0.format(leg.soSalarioUltimo)} já passavam do teto só com o
+                  salário, as vantagens pessoais e a função</strong>, mesmo depois do corte: na Câmara e no Senado, a folha mostra o corte pelo teto,
+                  mas para centenas de servidores ele não chega até o teto, e a folha não diz por quê.
+                </p>
+              )}
+              <p class="menor">
+                Só quem está na ativa, sem 13º, terço de férias, abono de permanência e diárias, com o teto do Supremo. O Senado não diz na folha
+                quem está na ativa: isso sai da lista de servidores ativos e aposentados de hoje, e quem se aposentou depois conta como ativo.
+                Fontes: <a href="https://www2.camara.leg.br/transparencia/recursos-humanos/remuneracao/relatorios-consolidados-por-ano-e-mes">Câmara</a>,{" "}
+                <a href="https://adm.senado.gov.br/adm-dadosabertos/swagger-ui/index.html">Senado</a> e <a href="https://consultaremuneracao.apps.tcu.gov.br/">TCU</a>.
+              </p>
+            </div>
+            <div class="grafico">
+              <ol class="degraus" aria-label="Servidores e parlamentares do Legislativo federal acima do teto, somando uma parte do que recebem por vez">
+                {leg.camadas.map((c, i) => (
+                  <li>
+                    <span class="nome">{i === 0 ? NOMES_LEG.base : `+ ${NOMES_LEG[c.g]}`}</span>
+                    <span class="trilho"><span class="barra ante" style={`width:${(c.acima / Math.max(1, leg.camadas[3].acima)) * 100}%`}></span></span>
+                    <span class="num valor"><strong>{nf0.format(c.acima)}</strong> <span>{moedaCurta(c.excesso / 12)}/mês</span></span>
+                  </li>
+                ))}
+              </ol>
+              <p class="menor-grafico">Acima do teto num mês típico e quanto passa do teto por mês, somando uma parte por vez.</p>
+              <h3>Por órgão, em 12 meses</h3>
+              <ol class="linhas federal" aria-label="Órgãos do Legislativo federal e o que passou do teto">
+                {leg.os.map((o) => {
+                  const nota = notaLeg(o.partes);
+                  const grupos = Object.values(o.grupos_funcionais).filter(MOSTRA_NOME);
+                  return (
+                    <li title={`${o.nome}: ${nf0.format(o.resumo.acima!)} de ${nf0.format(o.resumo.vinculos)} na ativa acima do teto num mês típico`}>
+                      <span class="rotulo">
+                        {o.id === "tcu" ? <a href={`/orgaos/${o.orcamento}`}>{o.nome}</a> : o.nome}
+                        {grupos.length > 0 && <small class="maior"> · {grupos.map((g) => `${g.nome.toLowerCase()} ${nf0.format(g.acima!)} de ${nf0.format(g.vinculos)}`).join("; ")}</small>}
+                      </span>
+                      <span class="trilho"><span class="barra" style={`width:${((o.resumo.excesso ?? 0) / leg.maxExc) * 100}%`}></span></span>
+                      <span class="num valor"><strong>{moedaCurta(o.resumo.excesso ?? 0)}</strong> <span>{nf0.format(o.resumo.acima!)} de {nf0.format(o.resumo.vinculos)}{nota && <em class="eventual"> · {nota}</em>}</span></span>
+                    </li>
+                  );
+                })}
+              </ol>
+              <p class="menor-grafico">
+                Ao lado do nome, os grupos com pelo menos 5 pessoas acima do teto num mês típico; embaixo do valor, quantos passam do teto, de quantos.
+                Quando aparece <em class="eventual">auxílios</em>, <em class="eventual">eventuais</em> ou <em class="eventual">atrasados</em>, mais da metade
+                do que passou do teto veio dessa parte: no TCU, quase todos chegam ao teto com o salário e passam dele pelo auxílio-alimentação e
+                pelo ressarcimento do plano de saúde.
+                {leg.irPerdido > 0 && <> Se tudo o que esses servidores receberam acima do teto fosse tributado como salário, a União teria descontado até {moedaExtenso(leg.irPerdido)} a mais de imposto de renda.</>}
+              </p>
+            </div>
+          </section>
+        )}
+
         <!-- 5b. Executivo dos estados -->
         {estadosExe.length > 0 && (
           <section class="bloco" id="estados">
@@ -551,8 +650,9 @@ const larguraGrupos = (l: Linha) => {
               "Acima do teto" quer dizer só que a pessoa recebeu mais que R$ {nf0.format(TETO)} no mês.
             </li>
             <li>
-              <strong>Juízes, promotores, o Executivo federal e o de alguns estados.</strong> Os servidores dos tribunais e dos Ministérios
-              Públicos não entram, nem o Legislativo, os militares, os outros governos estaduais e as prefeituras. Os tribunais eleitorais, o CNJ e o CJF ficam de fora
+              <strong>Juízes, promotores, o Executivo federal, o Legislativo federal e o Executivo de alguns estados.</strong> Os servidores dos
+              tribunais e dos Ministérios Públicos não entram, nem as Assembleias e os Tribunais de Contas dos estados, os militares, os outros
+              governos estaduais e as prefeituras. Os tribunais eleitorais, o CNJ e o CJF ficam de fora
               porque pagam só uma gratificação a quem recebe o salário em outro tribunal; os tribunais superiores (STF, STJ, TST e STM), porque os
               arquivos deles misturam ministros na ativa, aposentados, pensionistas e juízes convocados de outros tribunais. Só conta quem recebeu
               subsídio do órgão no mês.

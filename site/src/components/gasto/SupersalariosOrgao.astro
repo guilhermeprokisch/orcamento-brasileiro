@@ -5,7 +5,7 @@
  * (lib/supersalarios.ts). Some quando nenhum casa ou quando nenhum tem pelo menos 5 servidores acima do teto.
  */
 import { moedaExtenso } from "../../lib/formato";
-import { EXTRA_EVENTUAL, MOSTRA_NOME, NOMES_FEDERAL, docFederal, federalDoOrgao, periodoFederal, tetoAtual } from "../../lib/supersalarios";
+import { EXTRA_EVENTUAL, MOSTRA_NOME, NOMES_FEDERAL, docFederal, federalDoOrgao, legislativoDoOrgao, mesExtenso, periodoFederal, tetoAtual } from "../../lib/supersalarios";
 
 interface Props { cod: string }
 const { cod } = Astro.props;
@@ -17,6 +17,10 @@ const pct0 = (v: number) => `${(v < 0.01 ? nf1 : nf0).format(v * 100)}%`;
 const todos = federalDoOrgao(cod).filter((l) => l.excesso !== null);
 const ls = todos.filter(MOSTRA_NOME).slice(0, 5);
 const resto = todos.filter((l) => !ls.includes(l));
+// Câmara, Senado e TCU: a folha do próprio órgão (supersalarios-legislativo).
+const leg = legislativoDoOrgao(cod);
+const legOk = leg && leg.resumo.acima !== null && leg.resumo.acima >= 5;
+const legGrupos = leg ? Object.values(leg.grupos_funcionais).filter(MOSTRA_NOME) : [];
 /** A maior parte do que o órgão paga por cima do salário (a todos os servidores, não só aos que passam do teto). */
 const maiorParte = (g: Record<string, number>) => {
   const extra = Object.entries(g).filter(([k]) => k !== "base").sort((a, b) => b[1] - a[1]);
@@ -52,6 +56,29 @@ const maiorParte = (g: Record<string, number>) => {
       </p>
     )}
     <p class="menor">Fonte: Portal da Transparência (CGU). Só somas: nenhum servidor aparece. <a href="/supersalarios#federal">Todo o Executivo federal →</a></p>
+  </section>
+)}
+
+{legOk && leg && (
+  <section class="teto">
+    <h2>Acima do teto</h2>
+    <p class="abre">
+      Servidores e autoridades na ativa que receberam mais que o <a href="/supersalarios#legislativo">teto constitucional</a>, R$ {nf0.format(tetoAtual())} por
+      mês, de {mesExtenso(leg.de)} a {mesExtenso(leg.ate)}, somando salário, pagamentos eventuais, atrasados, auxílios e indenizações (sem 13º, férias
+      e abono de permanência): <strong>{nf0.format(leg.resumo.acima!)} dos {nf0.format(leg.resumo.vinculos)}</strong> ({pct0(leg.resumo.parte!)}) passaram do teto
+      num mês típico, e o que passou somou <strong>{moedaExtenso(leg.resumo.excesso ?? 0)}</strong> em {leg.meses} meses
+      {leg.partes.auxilios >= EXTRA_EVENTUAL && <>, mais da metade disso em auxílios e indenizações (quase todos chegam ao teto com o salário e passam dele pelo auxílio-alimentação e pelo ressarcimento do plano de saúde)</>}
+      {leg.partes.eventuais >= EXTRA_EVENTUAL && <>, mais da metade disso em pagamentos eventuais</>}
+      {leg.partes.atrasados >= EXTRA_EVENTUAL && <>, mais da metade disso em pagamentos atrasados</>}.
+    </p>
+    {legGrupos.length > 0 && (
+      <ul>
+        {legGrupos.map((g) => (
+          <li><strong>{g.nome}</strong>: {nf0.format(g.acima!)} de {nf0.format(g.vinculos)} ({pct0(g.parte!)}) acima do teto num mês típico; {moedaExtenso(g.excesso ?? 0)} em {g.meses} meses.</li>
+        ))}
+      </ul>
+    )}
+    <p class="menor">Fonte: <a href={leg.url}>{leg.fonte}</a>. Só somas: ninguém aparece; um grupo só aparece com pelo menos 5 pessoas acima do teto num mês típico. <a href="/supersalarios#legislativo">Todo o Legislativo federal →</a></p>
   </section>
 )}
 

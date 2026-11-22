@@ -285,6 +285,9 @@ def montar(orgao: str, meses: dict[str, dict]) -> dict:
     return {**ORGAOS[orgao], "de": ordem[0], "ate": ordem[-1], "meses": len(ordem),
             "resumo": resumir([meses[m]["orgao"] for m in ordem]),
             "serie": {m: [meses[m]["orgao"]["vinculos"], meses[m]["orgao"]["acima"], round(meses[m]["orgao"]["excesso"])] for m in ordem},
+            # A escada do último mês: a mediana dos 12 esconde uma mudança recente (na Câmara e no Senado, a partir de
+            # jul-ago/2026, centenas passam do teto só com o salário, mesmo depois do corte).
+            "ultimo_mes": {"mes": ordem[-1], "camadas": [[n, round(x)] for n, x in meses[ordem[-1]]["orgao"]["camadas"]]},
             "grupos_funcionais": dict(sorted(grupos.items(), key=lambda i: -(i[1]["excesso"] or 0)))}
 
 

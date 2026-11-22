@@ -542,3 +542,66 @@ export function executivoDoEstado(uf: string) {
     estatais_fora: e.estatais_fora.map((n) => nomeLegivel(n, null)),
   };
 }
+
+// ---------------------------------------------------------------------------------------------------- Legislativo
+// Câmara, Senado e TCU (pipeline/…/supersalarios_legislativo.py). Mesma forma do Executivo dos estados: somas por mês
+// resumidas pela mediana, "acima" nulo quando são menos de 5 num mês típico.
+export interface GrupoLegislativo {
+  nome: string;
+  meses: number;
+  vinculos: number;
+  acima: number | null;
+  parte: number | null;
+  meses_acima: number;
+  excesso: number | null;
+  grupos: Record<string, number>;
+  /** Por família de pagamento, na ordem de `grupos` do arquivo: [quantos passam do teto até aqui, quanto passa]. */
+  camadas: [number, number][];
+  ir: number;
+  ir_salario: number;
+}
+export interface OrgaoLegislativo {
+  nome: string;
+  orcamento: string;
+  fonte: string;
+  url: string;
+  de: string;
+  ate: string;
+  meses: number;
+  resumo: GrupoLegislativo;
+  /** mês -> [na ativa, acima do teto, quanto passou] */
+  serie: Record<string, [number, number, number]>;
+  /** A escada do último mês (quantos passam do teto com cada família, quanto passa). */
+  ultimo_mes: { mes: string; camadas: [number, number][] };
+  /** Deputados, servidores efetivos, comissionados…, do que mais passou do teto ao que menos. */
+  grupos_funcionais: Record<string, GrupoLegislativo>;
+}
+interface DocLegislativo {
+  gerado: string;
+  grupos: string[];
+  nomes_grupos: Record<string, string>;
+  orgaos: Record<string, OrgaoLegislativo>;
+}
+const arquivosLegislativo = import.meta.glob<DocLegislativo>("../../public/data/indicadores/supersalarios-legislativo.json", { eager: true, import: "default" });
+export const docLegislativo: DocLegislativo | null = Object.values(arquivosLegislativo)[0] ?? null;
+
+/** De onde veio o que passou do teto: a parte que cada família acrescenta à escada (eventuais, atrasados, auxílios). */
+export function partesDoExcesso(g: GrupoLegislativo): { eventuais: number; atrasados: number; auxilios: number } {
+  const c = g.camadas.map(([, x]) => x);
+  const tot = c.at(-1) || 1;
+  const d = (i: number) => Math.max(0, (c[i] ?? 0) - (c[i - 1] ?? 0)) / tot;
+  return { eventuais: d(1), atrasados: d(2), auxilios: d(3) };
+}
+
+/** Os órgãos do Legislativo com os números do período, do que mais passou do teto ao que menos. */
+export function linhasLegislativo() {
+  if (!docLegislativo) return [];
+  return Object.entries(docLegislativo.orgaos)
+    .map(([id, o]) => ({ id, ...o, partes: partesDoExcesso(o.resumo) }))
+    .sort((a, b) => (b.resumo.excesso ?? 0) - (a.resumo.excesso ?? 0));
+}
+
+/** O órgão do Legislativo cuja página no site é /orgaos/[cod], se houver. */
+export function legislativoDoOrgao(cod: string) {
+  return linhasLegislativo().find((o) => o.orcamento === cod) ?? null;
+}
