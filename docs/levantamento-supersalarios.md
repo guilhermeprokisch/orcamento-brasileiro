@@ -368,5 +368,57 @@ Assembleia, que aparecem no arquivo só em parte. O Tribunal de Contas aparece s
 (a amostra do começo deste levantamento, que dava 292 acima do teto no TCE, os incluía por engano). Soma por órgão as camadas (vencimento e gratificação menos o
 redutor, "outros", retroativos, auxílios) e o imposto de renda, como no Judiciário. Aparece no bloco do estado
 (página do Paraná) e na seção "Nos governos estaduais" de `/supersalarios`. A conta é por vínculo e usa o teto
-nacional (no Executivo estadual o limite é o salário do governador). Os próximos candidatos, pela tabela de fontes:
-SP, MG, GO e DF, que têm folha em lote com o corte pelo teto.
+nacional (no Executivo estadual o limite é o salário do governador). Os próximos candidatos estão na tabela dos 27
+estados, abaixo.
+
+## A folha do Executivo nos 27 estados (levantamento de 22/11/2026)
+
+Juízes e promotores de todos os estados já estão na página, pelo DadosJusBr. Esta tabela é do Executivo
+(secretarias, polícias, professores). Testado de verdade, com download ou chamada à API (inclusive a API interna
+que a própria página pública chama), sem resolver captcha nem contornar bloqueio anti-robô. Dificuldade: **1** =
+arquivo limpo · **5** = só consulta nome a nome ou bloqueado.
+
+| UF | Fonte e método | Lote? | Separa as partes? | Corte pelo teto? | Meses | Dif. |
+|---|---|---|---|---|---|---|
+| **PR** | Zip mensal do Portal da Transparência | Sim | Em parte ("outros" sem detalhe) | Sim (`redutor`) | 2012– | 1 (**no site**) |
+| **ES** | CKAN, CSV mensal (82 MB) | Sim | **Rubrica a rubrica** | Sim (`ABATE TETO EC 41`) | 2009-01 a 2026-10 | 1 |
+| **PE** | CKAN, CSV/JSON mensal, ativos e inativos separados | Sim | Em parte | Sim (`r_desconto_excedente`) | 2012-01 a 2026-10 | 1 |
+| **DF** | Zip anual (224 MB) | Sim | Sim (benefícios, eventuais, judiciais, licença-prêmio) | Sim (`TETO REDUTOR`) | 2013 a 2026-09 | 1 |
+| **PB** | API documentada, 1.000 por página | Sim | Parte fixa e variável | Sim (`valorRedutor`) | 2021-01 a 2026-09 | 1–2 |
+| **RN** | API interna: lista de órgãos + CSV por órgão (46 por mês) | Sim | Pouco | Sim (`RedutorArt.37/CF`) | 2010 a 2026-09 | 1–2 |
+| **GO** | CKAN, CSV mensal (73 MB) | Sim | Não tem coluna de indenizações (há a lista de rubricas) | Sim (`VALR_CORTE_TETO`) | 2012 a 2026-10 | 2 |
+| **MS** | CKAN, CSV mensal | Sim | Base e "outras verbas" | Não | 2018-01 a 2026-10 | 1 |
+| **MA** | DKAN, CSV mensal | Sim | Total, 13º, férias | Não | 2019 a 2026-10 | 1–2 |
+| **SC** | API interna, CSV mensal | Sim | **Não** (só o bruto) | Não | 2016– | 2 |
+| **AL** | Zip anual até 2023 (2024–2026 dão 404) + JSON interno | Até 2023 | Sim | Sim (`TETO_REDUTOR`) | 2012 a 2026-10 | 2 / 3 |
+| **CE** | CSV mensal estático, sem cabeçalho | Sim | Só no detalhe por servidor | Provável (a coluna 6, a confirmar) | 2013-02 a 2026-09 | 2 |
+| **PI** | API OpenAPI, 100 por página; CSV de até 50 mil linhas | Sim, com filtros | Básica, variável, eventual | Não | 2022 a 2026-10 | 2 |
+| **RO** | CSV mensal por POST, com token do próprio formulário | Sim | Só no detalhe | Não visto | 2016 a 2026-09 | 2 |
+| **SP** | CSV corrente + histórico em RAR | Sim | Em parte (indenizações junto com o abono) | Sim (`REDUTOR SALARIAL`) | 2012 a 2026-03 (parado desde maio) | 2 |
+| **MG** | CKAN, CSV mensal | Sim, mas o servidor recusa download por script (403) | Indenizações misturadas em "eventual" | Sim (`teto`) | 2012 a 2026-09 | 2 / 4 |
+| **RR** | API interna: CSV de bruto e líquido + JSON com as rubricas (lento) | CSV, sim | Sim, no JSON | Não achei nenhuma rubrica de teto | 2011 a 2026-09 | 2–3 |
+| **PA** | API interna, 1.000 por página (o export pede captcha) | Sim | Só no detalhe | Não visto | 2016 a 2026-10 | 2–3 |
+| **AC** | Tabela da página por POST, com o token do formulário | Sim | Só no detalhe | Junto com "outros descontos" | 2015 a 2026-07 | 3 |
+| **SE** | API interna por órgão, 50 por página; inativos em PDF | Lento | Só os proventos | Não (desconto único) | 2021-12 a 2026-10 | 3 |
+| **RS** | Painel Power BI, com botão de download sem endereço direto | Parcial | Não (indenizações fora da folha) | ? | — | 3 |
+| **TO** | Tela Vaadin, exige 2 filtros; botão "Exportar" só pelo navegador | Não confirmado | ? | ? | — | 4 |
+| **AM** | Sem folha consolidada; cada um dos 99 órgãos publica a sua, quase sempre em PDF | Não | Não | No formato padrão (`DESC.TETO`) | Varia | 4–5 |
+| **BA** | Só painel Power BI | Não | ? | ? | — | 4 |
+| **RJ** | Consulta nominal; o portal não abriu nos testes | Não confirmado | ? | ? | — | ? |
+| **MT** | Consulta com reCAPTCHA v3; nenhum dado aberto de folha | — | — | — | 2010–2026 na tela | **Bloqueado** |
+| **AP** | As três consultas de folha têm reCAPTCHA v2 | — | — | — | — | **Bloqueado** |
+
+O que isso quer dizer:
+
+- **Prontos para entrar como o Paraná (arquivo em lote com o corte pelo teto):** ES (o melhor caso, todas as
+  rubricas), PE, DF, PB, RN e GO. Depois, AL até 2023 e CE, quando a coluna do teto for confirmada.
+- **Em lote, mas só com o bruto:** SC, MS, MA, PI, RO. Dá para contar quem passa do teto, não de onde vem o extra.
+  Em AC, PA, RR e SE dá para baixar a lista do mês e pedir o detalhe só de quem passa do teto (umas poucas
+  centenas de chamadas por mês), que é o que a própria página faz ao abrir cada servidor.
+- **Precisam de navegador, de download à mão ou de pedido por LAI:** TO e RS (painéis), MG (o servidor recusa
+  scripts; dá para o usuário baixar no navegador), AM (consolidar 99 órgãos) e BA. **MT e AP** só têm a folha
+  atrás de captcha, numa consulta por vez: resolver o captcha à mão não leva ao arquivo inteiro, então o caminho é
+  o pedido por LAI do arquivo completo (MT: SEPLAG-MT ou TCE-MT; AP: Secretaria de Administração).
+- **RR** paga vencimentos de R$ 58 a 65 mil sem nenhuma rubrica de corte pelo teto no arquivo: vale perguntar
+  ao estado.
+
