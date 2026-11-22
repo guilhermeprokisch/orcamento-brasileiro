@@ -77,10 +77,11 @@ function calcularLegislativo() {
   const periodo = mesmoPeriodo ? `de ${mesExtenso(os[0].de)} a ${mesExtenso(os[0].ate)}` : "nos últimos 12 meses publicados";
   const efetivos = os.map((o) => ({ o, g: Object.values(o.grupos_funcionais).find((g) => /efetivo|servidores$/i.test(g.nome)) })).filter((x) => x.g && x.g.acima);
   const irPerdido = soma((o) => Math.max(0, o.resumo.ir_salario - o.resumo.ir));
+  const parlamentares = os.flatMap((o) => Object.values(o.grupos_funcionais).filter((g) => /^(deputados|senadores)$/i.test(g.nome)));
   // No último mês: quantos já passam só com o salário (o corte pelo teto não leva todos até o teto).
   const ultimoMes = os.map((o) => o.ultimo_mes.mes).sort().at(-1)!;
   const soSalarioUltimo = soma((o) => (o.ultimo_mes.mes === ultimoMes ? o.ultimo_mes.camadas[0][0] : 0));
-  return { os, acima, vinculos, excesso, camadas, periodo, efetivos, irPerdido, ultimoMes, soSalarioUltimo, maxExc: Math.max(1, ...os.map((o) => o.resumo.excesso ?? 0)) };
+  return { os, acima, vinculos, excesso, camadas, periodo, efetivos, irPerdido, parlamentares, ultimoMes, soSalarioUltimo, maxExc: Math.max(1, ...os.map((o) => o.resumo.excesso ?? 0)) };
 }
 const leg = calcularLegislativo();
 const NOMES_LEG: Record<string, string> = { base: "Salário, vantagens pessoais e função", outros: "eventuais e horas extras", retroativos: "folha complementar (atrasados)", auxilios: "auxílios e indenizações" };
@@ -542,7 +543,8 @@ const larguraGrupos = (l: Linha) => {
               <p>
                 Quase todos são <strong>servidores de carreira</strong>
                 {leg.efetivos.length > 0 && <> ({lista.format(leg.efetivos.map(({ o, g }) => `${nf0.format(g!.acima!)} de ${nf0.format(g!.vinculos)} no ${o.id === "camara" ? "quadro efetivo da Câmara" : o.id === "senado" ? "quadro efetivo do Senado" : "TCU"}`))})</>}.
-                Deputados e senadores recebem um subsídio do tamanho do teto e quase nunca passam dele. Só com o salário, as vantagens pessoais e a
+                {leg.parlamentares.length > 0 && <>Deputados e senadores recebem um subsídio do tamanho do teto; os que passam dele passam pelos auxílios e indenizações ({lista.format(leg.parlamentares.map((g) => `${nf0.format(g.acima ?? 0)} de ${nf0.format(g.vinculos)} ${g.nome.toLowerCase()}`))} num mês típico). </>}
+                Só com o salário, as vantagens pessoais e a
                 função, já depois do corte pelo teto, {nf0.format(leg.camadas[0].acima)} passam; com os pagamentos eventuais e os atrasados,{" "}
                 {nf0.format(leg.camadas[2].acima)}; com os auxílios e as indenizações, {nf0.format(leg.camadas[3].acima)}.
               </p>
@@ -739,7 +741,7 @@ const larguraGrupos = (l: Linha) => {
   .linhas .rotulo { color: var(--texto-3); }
   .linhas.federal li { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 170px; }
   .linhas.federal .valor span { display: block; }
-  #custo .degraus li, #federal .degraus li { grid-template-columns: 190px minmax(0, 1fr) 170px; }
+  #custo .degraus li, #federal .degraus li, #legislativo .degraus li { grid-template-columns: 190px minmax(0, 1fr) 170px; }
   .linhas.federal .rotulo { color: var(--texto-2); line-height: 1.3; }
   .linhas.serie { gap: 4px; }
   .linhas.serie li { grid-template-columns: 56px minmax(0, 1fr) 110px; }
@@ -811,9 +813,9 @@ const larguraGrupos = (l: Linha) => {
     .linhas.serie li { grid-template-columns: 48px minmax(0, 1fr) 100px; }
     .linhas.federal li { grid-template-columns: minmax(0, 1fr) auto; }
     .linhas.federal .trilho { grid-column: 1 / -1; grid-row: 2; }
-    #federal .degraus li, #custo .degraus li { grid-template-columns: minmax(0, 1fr) auto; }
+    #federal .degraus li, #custo .degraus li, #legislativo .degraus li { grid-template-columns: minmax(0, 1fr) auto; }
     .exemplos li { grid-template-columns: 1fr; gap: 2px; }
-    #federal .valor span, #custo .valor span, #estados .valor span { display: block; }
+    #federal .valor span, #custo .valor span, #estados .valor span, #legislativo .valor span { display: block; }
     .so-largo, .membros { display: none; }
     .barra-col { width: auto; }
     .celula-barra { grid-template-columns: minmax(40px, 1fr) auto; }
