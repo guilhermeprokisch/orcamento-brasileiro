@@ -601,10 +601,10 @@ interface ContratosCidade {
   total: number;
   /** valor por tipo, na ordem de DocContratos.tipos */
   tipos: number[];
-  /** [objeto, valor, empresa (null para pessoa física ou MEI)] */
-  maiores: [string, number, string | null][];
-  /** [nome, valor, contratos] */
-  empresas: [string, number, number][];
+  /** [objeto, valor, empresa (null para pessoa física ou MEI), raiz do CNPJ (8 dígitos; "" ou ausente nas cópias antigas)] */
+  maiores: [string, number, string | null, string?][];
+  /** [nome, valor, contratos, raiz do CNPJ] */
+  empresas: [string, number, number, string?][];
   pessoas: number;
   /** [contratos, valor] com valor maior que todo o gasto da prefeitura no ano: erro de digitação */
   fora: [number, number];

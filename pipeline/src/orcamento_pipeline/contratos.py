@@ -22,8 +22,8 @@ Saída em site/public/data/indicadores/contratos.json, com cópia em pipeline/re
 (a primeira carga leva horas; nas seguintes, só os dias que faltam):
     {"fonte", "ano", "tipos": [...],
      "mun": {ibge: {"n", "total", "tipos": [valor por tipo, na ordem de "tipos"],
-                    "maiores": [[objeto, valor, empresa ou null], ...],
-                    "empresas": [[nome, valor, contratos], ...],
+                    "maiores": [[objeto, valor, empresa ou null, raiz do CNPJ ou ""], ...],
+                    "empresas": [[nome, valor, contratos, raiz do CNPJ], ...],
                     "pessoas": valor para pessoas físicas e MEI, "fora": [contratos, valor]}},
      "uf": {código: {... o mesmo, para os órgãos estaduais}}}
 """
@@ -185,16 +185,18 @@ def agregar(ano: int) -> dict:
                 e[2] += 1
             else:
                 m["pessoas"] += valor
-            m["contratos"].append((valor, objeto, nome_empresa(fornecedor) if empresa else None))
+            m["contratos"].append((valor, objeto, nome_empresa(fornecedor) if empresa else None, cnpj[:8] if empresa else ""))
     saida = {}
     for ibge, m in mun.items():
         if not m["n"]:
             continue
         maiores = sorted(m["contratos"], key=lambda x: -x[0])[:3]
-        empresas = sorted(m["empresas"].values(), key=lambda e: -e[1])[:3]
+        empresas = sorted(m["empresas"].items(), key=lambda x: -x[1][1])[:3]
         saida[ibge] = {"n": m["n"], "total": round(m["total"]), "tipos": [round(v) for v in m["tipos"]],
-                       "maiores": [[o, round(v), f] for v, o, f in maiores],
-                       "empresas": [[e[0].most_common(1)[0][0], round(e[1]), e[2]] for e in empresas],
+                       # o último campo é a raiz do CNPJ (8 dígitos), para o link aos contratos da empresa em
+                       # todo o país (/contratos?empresa=); vazio para pessoa física e MEI
+                       "maiores": [[o, round(v), f, r] for v, o, f, r in maiores],
+                       "empresas": [[e[0].most_common(1)[0][0], round(e[1]), e[2], k[:8]] for k, e in empresas],
                        "pessoas": round(m["pessoas"]), "fora": [m["fora"][0], round(m["fora"][1])]}
     return {"fonte": FONTE, "ano": ano, "tipos": TIPOS,
             "mun": {k: v for k, v in sorted(saida.items()) if len(k) == 7},
