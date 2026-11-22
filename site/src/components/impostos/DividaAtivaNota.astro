@@ -1,0 +1,38 @@
+---
+/**
+ * Ao lado do que deixa de entrar (benefícios fiscais): o que é cobrado e não é pago, a dívida ativa da União.
+ * Fica fora do diagrama porque é um estoque acumulado em décadas, não o que deixou de entrar num ano.
+ * Dados: lib/divida-ativa.ts (pipeline/…/divida_ativa.py).
+ */
+import Termo from "../Termo.astro";
+import { moedaExtenso } from "../../lib/formato";
+import { docDividaAtiva, mesPorExtenso } from "../../lib/divida-ativa";
+
+const d = await docDividaAtiva();
+const b = d?.brasil;
+---
+
+{d && b && (
+  <aside class="divida-ativa-nota">
+    <strong>E o que é cobrado e não é pago</strong>
+    <p>
+      Além do que deixa de ser cobrado, há o que é cobrado e fica sem pagar. Empresas e pessoas devem{" "}
+      <strong>{moedaExtenso(b.total)}</strong> ao governo federal na <Termo id="divida-ativa">dívida ativa da União</Termo>{" "}
+      ({mesPorExtenso(d.posicao)}): {moedaExtenso(b.tipos[0])} em impostos e multas, {moedaExtenso(b.tipos[1])} em contribuições
+      ao INSS e {moedaExtenso(b.tipos[2])} de FGTS, que é do trabalhador. Não está no desenho porque é uma conta acumulada em
+      décadas, não o que deixou de entrar num ano.
+    </p>
+    <p>
+      A maior parte não volta: o Tesouro dá como perdidos R$ 2,7 trilhões dos R$ 3,4 trilhões inscritos, quase sempre de empresas
+      que fecharam. Em 2025, a Procuradoria-Geral da Fazenda Nacional recuperou R$ 66,1 bilhões. A página de cada cidade mostra as
+      empresas de lá que mais devem.
+    </p>
+  </aside>
+)}
+
+<style>
+  .divida-ativa-nota { margin: 20px 0 0; padding: 14px 0 0; border-top: 1px solid var(--regra); display: flex; flex-direction: column; gap: 8px; max-width: 620px; }
+  .divida-ativa-nota > strong { font-size: 17px; }
+  .divida-ativa-nota p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--texto-2); }
+  .divida-ativa-nota p strong { color: var(--tinta); }
+</style>

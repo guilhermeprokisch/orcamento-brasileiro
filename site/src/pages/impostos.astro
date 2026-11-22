@@ -13,6 +13,7 @@ import Base from "../layouts/Base.astro";
 import Termo from "../components/Termo.astro";
 import HistoriaRio from "../components/impostos/HistoriaRio.astro";
 import SerieDeixa from "../components/impostos/SerieDeixa.astro";
+import DividaAtivaNota from "../components/impostos/DividaAtivaNota.astro";
 import Diagrama from "../components/impostos/Diagrama.astro";
 import Painel from "../components/impostos/Painel.astro";
 import SigaImposto from "../components/impostos/SigaImposto.astro";
@@ -84,6 +85,7 @@ const descricao = doc && g
                   <Diagrama doc={doc} forma="largo" deixa={deixa} classe="so-largo explorar-svg" />
                   <Diagrama doc={doc} forma="estreito" deixa={deixa} classe="so-estreito explorar-svg" />
                   <SerieDeixa doc={doc} />
+                  <DividaAtivaNota />
                 </div>
               )}
             </div>
@@ -110,6 +112,7 @@ const descricao = doc && g
             <li><strong>Impostos de estados e prefeituras e o que cada um recebeu</strong>: {doc.fonte.dca}, entregue por cada governo ao Tesouro (SICONFI). {doc.fonte.faltam.com_ano_anterior} prefeituras que ainda não entregaram a de {doc.ano} entram com a do ano anterior.</li>
             {doc.deixa?.uniao && <li><strong><Termo id="beneficio-fiscal">Benefícios fiscais</Termo> da União</strong>: Receita Federal, <a href={doc.deixa.uniao.pagina}>Demonstrativo dos Gastos Tributários</a> ({doc.deixa.uniao.estimativa}).</li>}
             {doc.deixa?.estados && <li><strong>Incentivos de ICMS</strong>: {doc.deixa.estados.fonte}, sem {doc.deixa.estados.sem.join(" e ")}. Não há o valor de cada estado.</li>}
+            <li><strong><Termo id="divida-ativa">Dívida ativa</Termo> da União</strong>: PGFN, <a href="https://dadosabertos.pgfn.gov.br/">dados abertos da dívida ativa</a>; perdas: Tesouro Nacional, Relatório de Riscos Fiscais da União (8ª edição, 2026); recuperação: PGFN, resultados de 2025.</li>
           </ul>
           <p>
             <strong>Sem contar duas vezes.</strong> Cada real entra uma vez só, no imposto, no governo que o cobra. O <Termo id="fpm" />, por exemplo, não é um

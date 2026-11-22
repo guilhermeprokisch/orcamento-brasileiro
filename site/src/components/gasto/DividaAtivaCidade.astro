@@ -1,0 +1,135 @@
+---
+/**
+ * O que empresas da cidade devem ao governo federal e não pagaram (dívida ativa da União, PGFN): o total,
+ * por situação e por tipo, e as empresas que mais devem. Pessoas físicas só no total do estado, sem nomes.
+ * Dados: lib/divida-ativa.ts (pipeline/…/divida_ativa.py).
+ */
+import Termo from "../Termo.astro";
+import { moedaCompleta, moedaCurta, moedaExtenso } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
+import { deUf, type Cidade } from "../../lib/cidades";
+import { dividaAtivaEm, mesPorExtenso, nomeDeEmpresa } from "../../lib/divida-ativa";
+
+interface Props {
+  cidade: Cidade;
+}
+const { cidade } = Astro.props;
+const d = await dividaAtivaEm(cidade);
+const ehDF = cidade.ibge === 53;
+const de = ehDF ? "do Distrito Federal" : `de ${cidade.nome}`;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct = (v: number) => `${nf0.format(Math.round(v * 100))}%`;
+const maiorSit = d ? Math.max(...d.situacoes.map((s) => s.valor), 1) : 1;
+const situacoes = d?.situacoes.filter((s) => s.valor >= 1) ?? [];
+const tipos = d?.tipos.filter((t) => t.valor >= 1) ?? [];
+---
+
+{d && (
+  <section class="divida-ativa">
+    <div class="texto">
+      <h2>O que se deve ao governo federal</h2>
+      {d.total > 0 ? (
+        <p>
+          Empresas {de} devem <strong>{moedaExtenso(d.total)}</strong> ao governo federal em impostos, contribuições ao INSS e
+          FGTS que não pagaram. É a <Termo id="divida-ativa">dívida ativa da União</Termo>, cobrada pela Procuradoria-Geral da
+          Fazenda Nacional. {d.empresas === 1 ? "É um devedor" : <>São <strong>{nf0.format(d.empresas)} empresas e entidades</strong></>} com
+          endereço {ehDF ? "no DF" : "na cidade"}{d.publico > 0.05 * d.total && <>; {moedaExtenso(d.publico)} disso é de órgãos públicos com endereço aqui (prefeitura, câmara, autarquias), que também deixaram de pagar</>}.
+        </p>
+      ) : (
+        <p>
+          Nenhuma empresa com endereço {ehDF ? "no DF" : "na cidade"} aparece na <Termo id="divida-ativa">dívida ativa da União</Termo>,
+          a lista do que se deve ao governo federal e não foi pago.
+        </p>
+      )}
+      {d.pessoasUf.n > 0 && (
+        <p>
+          Pessoas também devem, mas a lista não diz a cidade delas: no estado {deUf(cidade.uf)}, são{" "}
+          {nf0.format(d.pessoasUf.n)} pessoas, que devem {moedaExtenso(d.pessoasUf.valor)} somadas. Ninguém aparece pelo nome.
+        </p>
+      )}
+      {d.total > 0 && (
+        <p class="menor">
+          A maior parte dessa dívida não volta.{d.fechadas > 0.1 * d.total && <> Aqui, {pct(d.fechadas / d.total)} é de empresas que já fecharam ou estão inativas no cadastro da Receita.</>}{" "}
+          No país, o Tesouro dá como perdidos R$ 2,7 trilhões dos R$ 3,4 trilhões inscritos e espera recuperar R$ 778 bilhões em 15 anos;
+          em 2025, a Procuradoria recuperou R$ 66,1 bilhões.
+        </p>
+      )}
+      {d.maiores.length > 0 && (
+        <p class="menor">
+          Estar na lista não quer dizer que a empresa agiu de má-fé nem que a dívida é definitiva: parte está parcelada, garantida
+          por penhora ou depósito ou sendo discutida na Justiça. Ao lado de cada empresa está a situação da maior parte da dívida dela.
+        </p>
+      )}
+    </div>
+    <div class="dados">
+      {d.total > 0 && (
+        <>
+          <h3>Em que situação está a dívida</h3>
+          <ul class="barras">
+            {situacoes.map((s, k) => (
+              <li>
+                <span class="lb-linha"><span>{s.nome.charAt(0).toUpperCase() + s.nome.slice(1)}</span><strong class="num" title={moedaCompleta(s.valor)}>{moedaCurta(s.valor)} · {pct(s.valor / d.total)}</strong></span>
+                <span class="lb-barra" style={`width:${(s.valor / maiorSit) * 100}%;background:${corDaRampa(Math.min(1, k / 4))}`}></span>
+              </li>
+            ))}
+          </ul>
+          <p class="tipos">
+            {tipos.map((t, i) => <>{i > 0 && " · "}{t.nome}: <strong>{moedaCurta(t.valor)}</strong></>)}
+          </p>
+        </>
+      )}
+      {d.maiores.length > 0 && (
+        <>
+          <h3>{d.maiores.length === 1 ? "A empresa que mais deve" : `As ${d.maiores.length} empresas que mais devem`}</h3>
+          <ol class="maiores">
+            {d.maiores.map((e) => (
+              <li>
+                <div>
+                  <strong>{nomeDeEmpresa(e.nome)}</strong>
+                  <small>CNPJ {e.cnpj} · {e.situacao}</small>
+                </div>
+                <span class="num" title={moedaCompleta(e.valor)}>{moedaCurta(e.valor)}</span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+      <p class="fonte">
+        Fonte: {d.fonte}. Posição de {mesPorExtenso(d.posicao)}. Cada dívida conta na cidade do estabelecimento devedor. Empresários
+        individuais e MEIs entram nas somas, mas não pelo nome, porque o nome deles é o de uma pessoa. Perdas: Tesouro Nacional,
+        Relatório de Riscos Fiscais da União (8ª edição, 2026); recuperação: PGFN, resultados de 2025.
+      </p>
+    </div>
+  </section>
+)}
+
+<style>
+  .divida-ativa { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .barras li { display: flex; flex-direction: column; gap: 4px; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .lb-linha > span { min-width: 0; font-weight: 600; }
+  .lb-linha strong { white-space: nowrap; font-weight: 600; }
+  .lb-barra { display: block; height: 10px; min-width: 2px; }
+  .tipos { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .tipos strong { color: var(--tinta); font-weight: 600; white-space: nowrap; }
+  h3 { margin: 6px 0 0; font-family: var(--sans, inherit); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .maiores { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .maiores li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; }
+  .maiores li div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .maiores strong { font-weight: 600; overflow-wrap: anywhere; }
+  .maiores small { font-size: 13px; color: var(--texto-3); }
+  .maiores .num { white-space: nowrap; font-weight: 600; }
+  .fonte { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .divida-ativa { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; line-height: 1.1; }
+  }
+</style>

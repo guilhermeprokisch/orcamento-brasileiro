@@ -83,6 +83,10 @@ fila_independente() {
   # O que o governo federal gasta ele mesmo em cada cidade (execução da despesa do Portal e cidade de
   # cada unidade no Compras.gov.br). Se um dos dois não responder, usa a cópia em pipeline/referencia/.
   pipe pode-falhar "Gasto federal direto nas cidades" gasto-federal 2025
+  # Dívida ativa da União (PGFN) por cidade, com a cidade de cada empresa no cadastro de CNPJ da Receita: carga
+  # feita à mão (uv run divida-ativa; ~1,5 GB da PGFN e ~6,7 GB da Receita, lidos e apagados), uma vez por
+  # trimestre. Aqui só a cópia de referência.
+  pipe pode-falhar "Dívida ativa da União" divida-ativa --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).
