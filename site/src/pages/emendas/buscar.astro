@@ -297,7 +297,7 @@ const TIPOS: [string, string, string][] = [
         <section><h3>Para quem</h3>${barras(quem, (x) => esc(x.grupo))}</section>
         <section><h3>Para quê</h3>${barras(area, (x) => esc(x.area), "azul")}</section>
       </div>
-      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: para quem foi pago e o que disseram que fariam.</p><ol class="lista">${emendas.map((x) => `<li><span>${linkEmenda(x.emenda)}<small>${esc(titulo(x.favorecido))}${x.n > 1 ? ` e mais ${x.n - 1}` : ""}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}
+      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: para quem foi pago e o que disseram que fariam.</p><ol class="lista" data-emendas-lista>${emendas.map((x, i) => `<li${i >= LIMITE ? " hidden" : ""}><span>${linkEmenda(x.emenda)}<small>${esc(titulo(x.favorecido))}${x.n > 1 ? ` e mais ${x.n - 1}` : ""}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}
       ${ent.length ? `<section><h3>Entidades e empresas que receberam</h3><ol class="lista">${ent.map((x) => `<li><span>${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.favorecido))}</a>` : esc(titulo(x.favorecido))}</span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}
       ${pix.length ? `<section><h3>O que disseram que fariam com as emendas Pix de ${ano}</h3><p class="menor">É o plano declarado por quem recebeu, não o que foi feito.</p>
         <div class="tabela t3" role="table"><div class="linha cab" role="row"><span role="columnheader">Quem recebeu</span><span role="columnheader">O plano declarado</span><span role="columnheader" class="d">Valor</span></div>
@@ -316,6 +316,12 @@ const TIPOS: [string, string, string][] = [
     trilha.passo({ valor: `${curto(s.valor)} em todos os anos`, v: s.valor, base: "pagamentos", ano: "todos" });
     const autores = await consulta(`SELECT autor, sum(valor) AS valor FROM x GROUP BY autor ORDER BY valor DESC LIMIT 10`);
     const textos = await consulta(`SELECT fonte, ano, autor, objeto, valor, emenda FROM t WHERE codigo = ? ORDER BY valor DESC LIMIT 15`, [cod]);
+    // Cada emenda que pagou a esta entidade, das maiores para as menores; as 20 primeiras à vista, o resto num botão.
+    const LIMITE = 20;
+    const emendas = await consulta(`SELECT emenda, any_value(autor) AS autor, any_value(tipo) AS tipo, min(ano)::INTEGER AS de, max(ano)::INTEGER AS ate, mode(coalesce(nullif(area, ''), '')) AS area, sum(valor) AS valor
+      FROM x WHERE emenda <> 'Sem informação' GROUP BY emenda ORDER BY valor DESC`);
+    const [sem] = await consulta(`SELECT sum(valor) AS valor FROM x WHERE emenda = 'Sem informação'`);
+    const nEmendas = s.emendas - (sem.valor ? 1 : 0);
     topo(titulo(s.nome), `${esc(s.municipio)}${s.uf ? ` (${esc(s.uf)})` : ""}. Recebeu <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, somando todos os anos.`,
       `Quem recebeu · CNPJ ${cod}`);
     saida.innerHTML = `
@@ -323,8 +329,16 @@ const TIPOS: [string, string, string][] = [
         <section><h3>Ano a ano</h3>${barras(anos, (x) => String(x.ano))}</section>
         <section><h3>Quem mandou</h3>${barras(autores, (x) => linkAutor(x.autor))}</section>
       </div>
+      ${emendas.length ? `<section><h3>${nEmendas === 1 ? "A emenda que pagou" : `As ${nf0.format(nEmendas)} emendas que pagaram`}</h3><p class="menor">Clique numa emenda para ver a ficha dela: quem mandou, para quem mais foi pago e o que disseram que fariam.</p>
+        <ol class="lista" data-emendas-lista>${emendas.map((x, i) => `<li${i >= LIMITE ? " hidden" : ""}><span>${linkEmenda(x.emenda)}<small>${esc(x.autor)}${x.tipo ? ` · ${esc(x.tipo.toLowerCase())}` : ""}${x.area ? ` · ${esc(x.area)}` : ""} · ${x.de === x.ate ? `paga em ${x.de}` : `paga de ${x.de} a ${x.ate}`}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol>
+        ${emendas.length > LIMITE ? `<p><button type="button" class="botao-mais" data-mais-emendas>Ver as outras ${nf0.format(emendas.length - LIMITE)} emendas</button></p>` : ""}
+        ${sem.valor ? `<p class="menor">Mais ${curto(sem.valor)} foram pagos sem o número da emenda no Portal.</p>` : ""}</section>` : ""}
       ${textos.length ? `<section><h3>Para fazer o quê</h3><div class="tabela t4" role="table"><div class="linha cab" role="row"><span role="columnheader">Quem mandou</span><span role="columnheader">Objeto</span><span role="columnheader">Tipo</span><span role="columnheader" class="d">Valor</span></div>
         ${textos.map((x) => `<div class="linha" role="row"><span role="cell">${linkAutor(x.autor)}<small>${temCodigo(x.emenda) ? linkEmenda(x.emenda) : x.ano || ""}</small></span><span role="cell">${esc(frase(x.objeto))}</span><span role="cell">${esc(x.fonte)}</span><strong role="cell" class="d">${curto(x.valor)}</strong></div>`).join("")}</div></section>` : ""}`;
+    saida.querySelector("[data-mais-emendas]")?.addEventListener("click", (ev) => {
+      saida.querySelectorAll("[data-emendas-lista] > li[hidden]").forEach((li) => { li.hidden = false; });
+      ev.currentTarget.closest("p").remove();
+    });
   }
 
   async function lugar() {
@@ -356,7 +370,7 @@ const TIPOS: [string, string, string][] = [
         <section><h3>Quem recebeu</h3>${barras(quem, (x) => `${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.favorecido))}</a>` : esc(titulo(x.favorecido))}<small>${esc(x.grupo)}</small>`)}</section>
         <section><h3>Para quê</h3>${barras(area, (x) => esc(x.area), "azul")}</section>
       </div>
-      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: quem mandou, para quem foi pago e o que disseram que fariam.</p><ol class="lista">${emendas.map((x) => `<li><span>${linkEmenda(x.emenda)}<small>${esc(x.autor)} · ${esc(titulo(x.favorecido))}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}`;
+      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: quem mandou, para quem foi pago e o que disseram que fariam.</p><ol class="lista" data-emendas-lista>${emendas.map((x, i) => `<li${i >= LIMITE ? " hidden" : ""}><span>${linkEmenda(x.emenda)}<small>${esc(x.autor)} · ${esc(titulo(x.favorecido))}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}`;
   }
 
   async function busca() {
@@ -503,7 +517,7 @@ const TIPOS: [string, string, string][] = [
     .tabela .cab { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--texto-3); border-bottom-color: var(--tinta); }
     .d { text-align: right; }
     .pe { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; color: var(--texto-3); }
-    .pe button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
+    .pe button, .botao-mais { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
 
     @media (max-width: 900px) {
       .topo h1 { font-size: 38px; }
