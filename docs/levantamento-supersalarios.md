@@ -336,7 +336,8 @@ bloco "Acima do teto" na página de cada órgão federal). Lê, de dentro dos zi
 a remuneração e o cadastro dos servidores civis (SIAPE) e os arquivos de honorários e jetons do mês
 seguinte (eles saem com um mês de atraso), soma por órgão de exercício e apaga os zips. Depois de alguns
 downloads seguidos, o Portal passa a pedir captcha: o comando para e monta a saída com os meses do cache, e
-completa os 12 meses em outras rodadas. Na primeira carga (22/11/2026) entraram julho e agosto de 2026.
+completa os 12 meses em outras rodadas. Na primeira carga (22/11/2026) entraram julho e agosto de 2026; na segunda,
+no mesmo dia, sem captcha, o resto: setembro de 2025 a agosto de 2026, R$ 1,3 bi acima do teto em 12 meses.
 O pedido de informação à AGU sobre o teto nos honorários está em `docs/pedidos-lai/honorarios-agu-teto.md`.
 
 ## Quanto isso custa (feito em 22/11/2026)

@@ -369,7 +369,7 @@ def resumir(meses: dict[str, dict]) -> dict | None:
         "pago": round(sum(x["pago"] for x in ms)),
         "mediana": round(statistics.median([x["mediana"] for x in ms if x["mediana"] is not None])),
         "grupos": grupos,
-        "camadas": [[round(sum(x["camadas"][i][0] for x in ms) / n), round(sum(x["camadas"][i][1] for x in ms))] for i in range(len(GRUPOS))],
+        "camadas": [[round(statistics.median(x["camadas"][i][0] for x in ms)), round(sum(x["camadas"][i][1] for x in ms))] for i in range(len(GRUPOS))],
         "faixas": None if nenhum else [f if f >= MINIMO else None for f in faixas],
         # Imposto de renda descontado e o que seria descontado se tudo fosse salário, nos meses em que o arquivo
         # traz o desconto do IR (sem ele, null).

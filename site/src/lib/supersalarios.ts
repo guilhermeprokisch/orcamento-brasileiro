@@ -245,8 +245,11 @@ export interface OrgaoFederal {
   nome: string;
   meses: number;
   servidores: number;
+  /** Num mês típico (a mediana dos meses); null quando são menos de 5. */
   acima: number | null;
   parte: number | null;
+  /** Meses com pelo menos 5 acima do teto. */
+  meses_acima: number;
   excesso: number | null;
   pago: number;
   mediana: number;

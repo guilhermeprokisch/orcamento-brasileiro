@@ -476,17 +476,18 @@ const larguraGrupos = (l: Linha) => {
               <h3>Os órgãos com mais dinheiro acima do teto, em {f.t.meses} meses</h3>
               <ol class="linhas federal" aria-label="Órgãos do Executivo federal com mais dinheiro acima do teto">
                 {f.maiores.map((l) => (
-                  <li title={`${l.nome}: ${nf0.format(l.acima ?? 0)} de ${nf0.format(l.servidores)} servidores acima do teto num mês típico`}>
+                  <li title={l.acima !== null ? `${l.nome}: ${nf0.format(l.acima)} de ${nf0.format(l.servidores)} servidores acima do teto num mês típico` : `${l.nome}: 5 ou mais acima do teto em ${l.meses_acima} dos ${l.meses} meses`}>
                     <span class="rotulo">{l.orcamento ? <a href={`/orgaos/${l.orcamento}`}>{l.nome}</a> : l.nome}</span>
                     <span class="trilho"><span class="barra" style={`width:${((l.excesso ?? 0) / f.maxExc) * 100}%`}></span></span>
-                    <span class="num valor"><strong>{moedaCurta(l.excesso ?? 0)}</strong> <span>{nf0.format(l.acima ?? 0)} de {nf0.format(l.servidores)}</span></span>
+                    <span class="num valor"><strong>{moedaCurta(l.excesso ?? 0)}</strong> <span>{l.acima !== null ? `${nf0.format(l.acima)} de ${nf0.format(l.servidores)}` : `só em ${l.meses_acima} ${l.meses_acima === 1 ? "mês" : "meses"}`}</span></span>
                   </li>
                 ))}
               </ol>
               {f.resto.length > 0 && (
                 <p class="menor-grafico">
                   Outros {f.resto.length} órgãos com pelo menos 5 servidores acima do teto somam {moedaCurta(f.resto.reduce((t, l) => t + (l.excesso ?? 0), 0))}.
-                  Ao lado do valor, quantos servidores passam do teto num mês típico, de quantos.
+                  Ao lado do valor, quantos servidores passam do teto num mês típico, de quantos; "só em N meses" quando o extra veio
+                  de uma vez, em poucos meses (pagamentos atrasados, em geral).
                 </p>
               )}
             </div>
@@ -589,7 +590,7 @@ const larguraGrupos = (l: Linha) => {
   .linhas li { display: grid; grid-template-columns: 130px minmax(0, 1fr) 110px; gap: 12px; align-items: center; font-size: 14px; }
   .linhas .rotulo { color: var(--texto-3); }
   .linhas.federal li { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 150px; }
-  #custo .degraus li { grid-template-columns: 190px minmax(0, 1fr) 150px; }
+  #custo .degraus li, #federal .degraus li { grid-template-columns: 190px minmax(0, 1fr) 170px; }
   .linhas.federal .rotulo { color: var(--texto-2); line-height: 1.3; }
   .linhas.serie { gap: 4px; }
   .linhas.serie li { grid-template-columns: 56px minmax(0, 1fr) 110px; }

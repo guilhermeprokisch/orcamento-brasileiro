@@ -186,8 +186,12 @@ def resumir(meses: list[dict], cod: str) -> dict | None:
         return None
     n = len(xs)
     servidores = sum(x["servidores"] for x in xs)
-    acima = sum(x["acima"] for x in xs)
-    poucos = acima / n < MINIMO
+    # "Um mês típico" é a mediana dos meses, como no Judiciário: um mês de atrasados pagos de uma vez não puxa a conta.
+    acima_tipico = statistics.median(x["acima"] for x in xs)
+    parte_tipica = statistics.median(x["acima"] / x["servidores"] for x in xs if x["servidores"])
+    meses_acima = sum(1 for x in xs if x["acima"] >= MINIMO)
+    poucos = acima_tipico < MINIMO
+    nenhum = meses_acima == 0
     limites = [f // DEGRAU for f in FAIXAS]
     faixas = [0.0] * (len(FAIXAS) + 1)
     for x in xs:
@@ -196,14 +200,15 @@ def resumir(meses: list[dict], cod: str) -> dict | None:
     return {
         "nome": xs[-1]["nome"], "meses": n,
         "servidores": round(servidores / n),
-        "acima": None if poucos else round(acima / n),
-        "parte": None if poucos else round(acima / servidores, 4),
-        "excesso": None if poucos else round(sum(x["excesso"] for x in xs)),
+        "acima": None if poucos else round(acima_tipico),
+        "parte": None if poucos else round(parte_tipica, 4),
+        "meses_acima": meses_acima,
+        "excesso": None if nenhum else round(sum(x["excesso"] for x in xs)),
         "pago": round(sum(x["pago"] for x in xs)),
         "mediana": round(statistics.median([x["mediana"] for x in xs])),
         "grupos": {g: round(sum(x["grupos"][g] for x in xs)) for g in GRUPOS},
-        "camadas": [[round(sum(x["camadas"][k][0] for x in xs) / n), round(sum(x["camadas"][k][1] for x in xs))] for k in range(len(GRUPOS))],
-        "faixas": None if poucos else [round(f) if f >= MINIMO else None for f in faixas],
+        "camadas": [[round(statistics.median(x["camadas"][k][0] for x in xs)), round(sum(x["camadas"][k][1] for x in xs))] for k in range(len(GRUPOS))],
+        "faixas": None if nenhum else [round(f) if f >= MINIMO else None for f in faixas],
     }
 
 

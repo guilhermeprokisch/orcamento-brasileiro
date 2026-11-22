@@ -31,8 +31,11 @@ const maiorParte = (g: Record<string, number>) => {
     <ul>
       {ls.map((l) => (
         <li>
-          <strong>{l.nome}</strong>: {nf0.format(l.acima!)} dos {nf0.format(l.servidores)} servidores ({pct0(l.parte!)}) passaram do teto num mês
-          típico; o que passou somou {moedaExtenso(l.excesso!)} em {l.meses} meses
+          <strong>{l.nome}</strong>:{" "}
+          {l.acima !== null && l.parte !== null
+            ? <>{nf0.format(l.acima)} dos {nf0.format(l.servidores)} servidores ({pct0(l.parte)}) passaram do teto num mês típico</>
+            : <>menos de 5 dos {nf0.format(l.servidores)} servidores passaram do teto num mês típico, mas 5 ou mais passaram em {l.meses_acima} {l.meses_acima === 1 ? "mês" : "meses"}</>};
+          o que passou somou {moedaExtenso(l.excesso!)} em {l.meses} meses
           {maiorParte(l.grupos) && <>. Do que o órgão paga além do salário, a maior parte são {maiorParte(l.grupos)}</>}.
         </li>
       ))}
