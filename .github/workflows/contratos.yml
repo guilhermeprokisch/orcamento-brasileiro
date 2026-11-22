@@ -1,0 +1,241 @@
+name: Contratos (PNCP)
+
+# Baixa do Portal Nacional de Contratações Públicas os dias que faltam do último ano fechado, monta os
+# arquivos do explorador de contratos e abre um pull request em rascunho com as cópias de referência
+# (pipeline/referencia/contratos.json e contratos-resumo.json), para conferir antes de irem ao ar. A
+# publicação diária só copia essas cópias (dados.sh, --sem-baixar).
+#
+# Dois downloads, em dois runners ao mesmo tempo (`uv run contratos` e `uv run contratos --todos`): o das
+# prefeituras e estados, para a página de cada cidade, e o completo, com os federais, para o explorador.
+# Os dias já baixados ficam no bucket público (brutos/pncp/contratos/ e contratos-todos/, um arquivo por
+# dia): cada execução parte deles e só pede ao PNCP os que faltam. Os dias novos e os dois Parquet do
+# explorador sobem para o bucket (segredos B2_KEY_ID e B2_APPLICATION_KEY) e o cache da Cloudflare é
+# limpo (CF_PURGE_TOKEN e CF_ZONE_ID). O Parquet de um ano novo tem outro nome (contratos-{ano}.parquet):
+# o site só passa a usá-lo quando o pull request com o resumo entra.
+#
+# Quando roda: toda segunda de janeiro a abril. O ano é o último fechado, e os contratos dele são
+# publicados até o fim de março do ano seguinte (contratos.py). De maio a dezembro não há dia novo.
+# A primeira execução de janeiro tem ~365 dias por baixar (16 páginas por dia, umas 3 a 4 h): o limite de
+# dias por execução deixa o resto para a segunda-feira seguinte.
+on:
+  schedule:
+    - cron: "0 5 * 1-4 1"
+  workflow_dispatch:
+    inputs:
+      ano:
+        description: Ano de assinatura (vazio = o último fechado)
+        default: ""
+      max_dias:
+        description: Dias novos baixados por execução, em cada download
+        default: "250"
+
+concurrency:
+  group: contratos
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # o branch do pull request
+  pull-requests: write   # abrir o pull request
+
+env:
+  ESPELHO: https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados
+  BUCKET: orcamento-brasileiro-dados
+  RAMO: dados/contratos
+  ANO: ${{ inputs.ano }}
+  # Só a main grava no bucket e abre o pull request; em outro branch (teste), o resultado fica como artefato.
+  NA_MAIN: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { pasta: contratos, opcao: "" }
+          - { pasta: contratos-todos, opcao: "--todos" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Ano
+        run: echo "ANO=${ANO:-$(( $(date -u +%Y) - 1 ))}" >> "$GITHUB_ENV"
+
+      # A conta de "valor impossível" compara cada contrato com o gasto da prefeitura ou do estado no ano.
+      - name: Gasto das prefeituras e dos estados (site no ar)
+        run: |
+          mkdir -p site/public/data/cidades
+          for f in municipios estados; do
+            curl -fsSL --retry 3 -o "site/public/data/cidades/$f.json" "https://orcamentobrasileiro.com.br/data/cidades/$f.json"
+          done
+
+      # Os dias do ano (de 1º de janeiro a 31 de março do ano seguinte) que o bucket já tem.
+      - name: Dias já baixados (bucket público)
+        run: |
+          curl -fsSL --retry 3 "$ESPELHO/indice.txt" \
+            | grep -E "/brutos/pncp/${{ matrix.pasta }}/(${ANO}[0-9]{4}|$((ANO + 1))0[1-3][0-9]{2})\.json\.gz$" > "$RUNNER_TEMP/dias.txt" || true
+          echo "no bucket: $(wc -l < "$RUNNER_TEMP/dias.txt") dias de $ANO"
+          mkdir -p data/raw
+          [ -s "$RUNNER_TEMP/dias.txt" ] && wget -q -x -nH --cut-dirs=3 -P data/raw -i "$RUNNER_TEMP/dias.txt"
+          mkdir -p "data/raw/pncp/${{ matrix.pasta }}"
+          ls "data/raw/pncp/${{ matrix.pasta }}" | sort > "$RUNNER_TEMP/antes.txt"
+
+      - name: Baixar os dias que faltam (PNCP)
+        env:
+          MAX: ${{ github.event_name == 'push' && '3' || inputs.max_dias || '250' }}
+        run: uv run --project pipeline contratos ${{ matrix.opcao }} --ano "$ANO" --max-dias "$MAX"
+
+      - name: O que mudou
+        if: always()
+        run: |
+          ls "data/raw/pncp/${{ matrix.pasta }}" | sort > "$RUNNER_TEMP/depois.txt"
+          novos=$(comm -13 "$RUNNER_TEMP/antes.txt" "$RUNNER_TEMP/depois.txt" | wc -l)
+          echo "::notice::${{ matrix.pasta }}: $novos dias novos"
+          # Só os dias novos seguem para o job seguinte (os outros já estão no bucket).
+          mkdir -p "$RUNNER_TEMP/saida/pncp/${{ matrix.pasta }}"
+          comm -13 "$RUNNER_TEMP/antes.txt" "$RUNNER_TEMP/depois.txt" \
+            | xargs -r -I{} cp "data/raw/pncp/${{ matrix.pasta }}/{}" "$RUNNER_TEMP/saida/pncp/${{ matrix.pasta }}/"
+          if [ -z "${{ matrix.opcao }}" ]; then
+            mkdir -p "$RUNNER_TEMP/saida/referencia"
+            cp pipeline/referencia/contratos.json "$RUNNER_TEMP/saida/referencia/"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.pasta }}
+          path: ${{ runner.temp }}/saida/
+          retention-days: 7
+
+  montar:
+    needs: baixar
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Ano
+        run: echo "ANO=${ANO:-$(( $(date -u +%Y) - 1 ))}" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: ${{ runner.temp }}/novos
+          merge-multiple: true
+
+      - name: Juntar os dias do bucket e os novos
+        run: |
+          mkdir -p site/public/data/cidades site/public/data/mapa data/raw
+          for f in cidades/municipios cidades/estados mapa/nomes; do
+            curl -fsSL --retry 3 -o "site/public/data/$f.json" "https://orcamentobrasileiro.com.br/data/$f.json"
+          done
+          curl -fsSL --retry 3 "$ESPELHO/indice.txt" \
+            | grep -E "/brutos/pncp/contratos-todos/(${ANO}[0-9]{4}|$((ANO + 1))0[1-3][0-9]{2})\.json\.gz$" > "$RUNNER_TEMP/dias.txt" || true
+          [ -s "$RUNNER_TEMP/dias.txt" ] && wget -q -x -nH --cut-dirs=3 -P data/raw -i "$RUNNER_TEMP/dias.txt"
+          mkdir -p data/raw/pncp
+          cp -r "$RUNNER_TEMP/novos/pncp/." data/raw/pncp/ 2>/dev/null || true
+          [ -f "$RUNNER_TEMP/novos/referencia/contratos.json" ] && cp "$RUNNER_TEMP/novos/referencia/contratos.json" pipeline/referencia/
+          echo "NOVOS=$(find "$RUNNER_TEMP/novos/pncp" -name '*.json.gz' 2>/dev/null | wc -l)" >> "$GITHUB_ENV"
+
+      # O explorador só é refeito com o download completo inteiro: sem os federais, o Parquet sairia menor
+      # que o do ar (explorador_contratos.py cai para as prefeituras e estados).
+      - name: Explorador de contratos
+        id: explorador
+        run: |
+          completo=$(uv run --project pipeline python -c "
+          from orcamento_pipeline.explorador_contratos import dias, PASTA_TODOS
+          print(all(a.exists() for a in dias(PASTA_TODOS, $ANO)))")
+          if [ "$completo" != True ]; then
+            echo "::notice::O download completo de $ANO ainda não terminou; o explorador fica como está."
+            exit 0
+          fi
+          uv run --project pipeline explorador-contratos --ano "$ANO"
+          echo "parquet=sim" >> "$GITHUB_OUTPUT"
+
+      - name: Ver se as cópias de referência mudaram
+        id: mudou
+        run: |
+          git status --short pipeline/referencia/
+          if git diff --quiet -- pipeline/referencia/contratos.json pipeline/referencia/contratos-resumo.json; then
+            echo "mudou=nao" >> "$GITHUB_OUTPUT"
+          else
+            echo "mudou=sim" >> "$GITHUB_OUTPUT"
+          fi
+          echo "dias novos: $NOVOS"
+
+      - name: Artefato do teste
+        if: always() && env.NA_MAIN != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultado
+          path: |
+            pipeline/referencia/contratos.json
+            pipeline/referencia/contratos-resumo.json
+            data/publico/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Enviar ao bucket
+        if: env.NA_MAIN == 'true' && env.NOVOS != '0'
+        env:
+          B2_APPLICATION_KEY_ID: ${{ secrets.B2_KEY_ID }}
+          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
+          PARQUET: ${{ steps.explorador.outputs.parquet }}
+        run: |
+          for pasta in contratos contratos-todos; do
+            [ -d "data/raw/pncp/$pasta" ] && uvx --from b2 b2 sync --compare-versions size --no-progress \
+              "data/raw/pncp/$pasta" "b2://$BUCKET/brutos/pncp/$pasta"
+          done
+          if [ "$PARQUET" = sim ]; then
+            for arq in data/publico/contratos-"$ANO"*.parquet; do
+              uvx --from b2 b2 file upload --no-progress --quiet "$BUCKET" "$arq" "explorador/$(basename "$arq")"
+            done
+          fi
+
+      # Os Parquet têm nome fixo, e a Cloudflare guarda cada arquivo por 30 dias: sem a limpeza, a borda
+      # misturaria pedaços do Parquet anterior com os do novo (ver publicar.yml).
+      - name: Limpar o cache do espelho
+        if: env.NA_MAIN == 'true' && steps.explorador.outputs.parquet == 'sim' && env.NOVOS != '0'
+        env:
+          CF_PURGE_TOKEN: ${{ secrets.CF_PURGE_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CF_ZONE_ID }}
+        run: |
+          curl -sS --fail-with-body -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/purge_cache" \
+            -H "Authorization: Bearer $CF_PURGE_TOKEN" -H "Content-Type: application/json" \
+            --data '{"hosts":["dados.orcamentobrasileiro.com.br"]}'
+
+      # Um branch fixo, refeito a partir da main a cada execução: o pull request aberto é atualizado. Precisa
+      # de "Allow GitHub Actions to create and approve pull requests" (Settings → Actions → General); sem
+      # isso, o branch sobe e o aviso traz o link para abrir à mão.
+      - name: Pull request com as cópias de referência
+        if: steps.mudou.outputs.mudou == 'sim' && env.NA_MAIN == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$RAMO"
+          git add pipeline/referencia/contratos.json pipeline/referencia/contratos-resumo.json
+          git commit -q -m "Contratos de $ANO: dias do PNCP até $(date -u +%d/%m/%Y)"
+          git push -f origin "$RAMO"
+          {
+            echo "Atualização automática (workflow \`contratos.yml\`) das cópias de referência dos contratos de **$ANO** (PNCP): $NOVOS dias novos baixados."
+            echo
+            echo "Os dois Parquet do explorador já foram para o bucket. Num ano novo o nome muda, e o site só passa a usá-lo quando este pull request entra. Confira os números antes de marcar como pronto e fazer o merge."
+            echo
+            git diff --stat HEAD~1
+            echo
+            echo "Execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$RUNNER_TEMP/corpo.md"
+          if [ "$(gh pr view "$RAMO" --json state -q .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit "$RAMO" --body-file "$RUNNER_TEMP/corpo.md"
+            echo "::notice::Pull request atualizado: $(gh pr view "$RAMO" --json url -q .url)"
+          elif ! gh pr create --draft --base "${{ github.event.repository.default_branch }}" --head "$RAMO" \
+                 --title "Contratos de $ANO (PNCP)" --body-file "$RUNNER_TEMP/corpo.md"; then
+            echo "::warning::O Actions não pôde abrir o pull request (ative 'Allow GitHub Actions to create and approve pull requests' em Settings → Actions → General). Abra à mão: ${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.repository.default_branch }}...$RAMO?expand=1"
+          fi
