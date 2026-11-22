@@ -102,12 +102,14 @@ function calcularPoderes() {
     acima: estadosExe.reduce((t, e) => t + e.e.acima, 0),
     vinculos: estadosExe.reduce((t, e) => t + e.e.vinculos, 0),
     meses: estadosExe[0]?.e.meses ?? 12,
+    // Estado com menos meses no cache (RN, GO) entra com o que tem: a legenda diz "até 12 meses".
+    todos12: estadosExe.every((e) => e.e.meses >= 12),
   };
   const bruto = estadosBruto.reduce((t, e) => t + e.e.excesso, 0);
   const partes = [
     { nome: "Judiciário e MP", excesso: x.tA.excesso, quando: x.pA.rotulo, cor: "var(--tinta)" },
     ...(f ? [{ nome: "Executivo federal", excesso: f.excesso, quando: `${f.t.meses} meses`, cor: "var(--verde)" }] : []),
-    ...(est.excesso > 0 ? [{ nome: `Governos de ${estadosExe.length} estados`, excesso: est.excesso, quando: `${est.meses} meses`, cor: "#6fb28a" }] : []),
+    ...(est.excesso > 0 ? [{ nome: `Governos de ${estadosExe.length} estados`, excesso: est.excesso, quando: est.todos12 ? "12 meses" : "até 12 meses", cor: "#6fb28a" }] : []),
   ];
   const soma = partes.reduce((t, p) => t + p.excesso, 0);
   return { est, bruto, partes, soma };
@@ -476,7 +478,7 @@ const larguraGrupos = (l: Linha) => {
                 {estadosExe.length} que publicam ({lista.format(estadosExe.map((x) => x.e.nome))}), nas secretarias, autarquias, fundações e
                 universidades, <strong>{nf0.format(estadosExe.reduce((t, x) => t + x.e.acima, 0))} dos{" "}
                 {nf0.format(estadosExe.reduce((t, x) => t + x.e.vinculos, 0))} vínculos</strong> passaram do teto num mês típico, e o que passou
-                somou <strong>{moedaExtenso(estadosExe.reduce((t, x) => t + x.e.excesso, 0))}</strong> em um ano.
+                somou <strong>{moedaExtenso(estadosExe.reduce((t, x) => t + x.e.excesso, 0))}</strong> em {poderes!.est.todos12 ? "um ano" : "até 12 meses (cada estado com os meses que tem)"}.
               </p>
               <p class="menor">
                 Por vínculo (quem tem dois cargos conta duas vezes), só quem está na ativa, sem 13º e férias, com o teto nacional; no governo

@@ -493,3 +493,7 @@ Também não há a conta do imposto (vem somado à previdência ou sobre tudo).
   página) e o contracheque de cada um, que separa atrasados, verbas indenizatórias, 13º e férias. Só se busca o
   contracheque de quem tem bruto acima do teto; os outros vínculos entram na contagem pelo total de cada órgão.
 
+
+**RN** entrou com 6 meses (mai a out/2026): a API do estado limita os pedidos, e daqui a carga levou mais de 4 horas
+para 6 meses; no Actions (teste de 22/11/2026), o mesmo mês saiu em minutos. Os meses que faltam entram pela carga mensal.
+O topo da página soma os estados com o que cada um tem (até 12 meses: RN com 6, GO com 10).
