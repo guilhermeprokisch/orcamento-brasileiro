@@ -689,13 +689,13 @@ def carregar(uf: str, so_cache: bool) -> dict[str, dict]:
 
 
 def main() -> None:
+    global MESES
     p = argparse.ArgumentParser(prog="supersalarios-estados", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--sem-baixar", action="store_true", help="só copia a versão guardada em pipeline/referencia")
     p.add_argument("--so-cache", action="store_true", help="monta a saída com o que já está em data/raw, sem baixar")
     p.add_argument("--uf", help="só estes estados, separados por vírgula (os outros vêm do cache)")
     p.add_argument("--meses", type=int, default=MESES, help=f"quantos meses guardar por estado (padrão {MESES}; menos, para testar)")
     args = p.parse_args()
-    global MESES
     MESES = args.meses
     if args.sem_baixar:
         if not REFERENCIA.exists():
