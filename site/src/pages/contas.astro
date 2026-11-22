@@ -9,6 +9,7 @@ import Base from "../layouts/Base.astro";
 import Termo from "../components/Termo.astro";
 import { moedaCurta, moedaExtenso } from "../lib/formato";
 import { docContas as k, PARTES, type DocContasFederal, type Resultados } from "../lib/contas-federal";
+import { contaVelha, desembolso, doAno, docFluxo, mesCurto as mesFluxo, mesLongo, porMes, type DocFluxo } from "../lib/fluxo-federal";
 import { docDivida, mesCurto, mesExtenso, ultimoMes } from "../lib/divida-federal";
 import { docCidades, docEstados, NOMES_UF } from "../lib/cidades";
 import { saldosDoAno, vermelhoNoAno } from "../lib/contas";
@@ -79,6 +80,39 @@ function amarrado(k: DocContasFederal) {
   return { anos, u, p0, emCem, livre, livreComRepasses };
 }
 
+/**
+ * Quando o dinheiro sai: o investimento mês a mês (empenho, pagamento do ano e pagamento de
+ * anos anteriores) e, por tipo de despesa, quanto do que saiu do caixa era conta velha.
+ */
+function quando(f: DocFluxo) {
+  const inv = porMes(f.por_grupo, "investimento");
+  const max = Math.max(...inv.flatMap((m) => [m.etapas.empenhado, m.etapas.pago, m.etapas.rap_pagos]));
+  const barra = (v: number) => `${Math.max((v / max) * 100, v > 0 ? 1.5 : 0)}%`;
+  const velhas = [
+    ...["obr", "esc", "eme"].map((t) => ({ nome: f.tipos[t] ?? t, destaque: false, e: doAno(f.por_tipo, t) })),
+    { nome: "Só investimento", destaque: true, e: doAno(f.por_grupo, "investimento") },
+  ].map((l) => ({ ...l, velha: contaVelha(l.e) }));
+  const maxVelha = Math.max(...velhas.map((l) => l.velha));
+  const invAno = doAno(f.por_grupo, "investimento");
+  const pico = inv.reduce((a, b) => (b.etapas.empenhado > a.etapas.empenhado ? b : a));
+  const primeiro = inv[0];
+  return {
+    ano: f.ano,
+    meses: inv.map((m) => ({
+      rotulo: mesFluxo(m.competencia),
+      emp: barra(m.etapas.empenhado), pago: barra(m.etapas.pago), rap: barra(m.etapas.rap_pagos),
+      titulo: `${mesFluxo(m.competencia)}: empenhado ${moedaCurta(m.etapas.empenhado)}; pago do ano ${moedaCurta(m.etapas.pago)}; de anos anteriores ${moedaCurta(m.etapas.rap_pagos)}`,
+    })),
+    velhas, maxVelha, invAno,
+    velhaInvestimento: contaVelha(invAno),
+    velhaObrigatoria: contaVelha(doAno(f.por_tipo, "obr")),
+    velhaEscolha: contaVelha(doAno(f.por_tipo, "esc")),
+    pico, primeiro,
+    primeiroSoVelha: desembolso(primeiro.etapas) > 0 && primeiro.etapas.pago / desembolso(primeiro.etapas) < 0.02,
+    completo: inv.length === 12,
+  };
+}
+
 async function estadosECidades() {
   const anoMax = Math.max(...(docCidades?.cidades ?? []).map((c) => c.ano ?? 0));
   const anos = (docCidades?.anos ?? []).filter((a) => a <= anoMax && a >= 2014);
@@ -99,6 +133,7 @@ async function estadosECidades() {
 
 const res = k ? resultado(k) : null;
 const am = k ? amarrado(k) : null;
+const qd = docFluxo ? quando(docFluxo) : null;
 const ec = await estadosECidades();
 const iDiv = docDivida ? ultimoMes(docDivida) : -1;
 const bruta = docDivida && iDiv >= 0 ? { pib: docDivida.dbgg_pib[iDiv], valor: docDivida.dbgg[iDiv], mes: docDivida.meses[iDiv] } : null;
@@ -159,6 +194,7 @@ const descricao = res && am
         <nav class="indice" aria-label="Nesta página">
           <a href="#resultado">Sem e com os juros</a>
           <a href="#amarrado">Quanto está amarrado</a>
+          {qd && <a href="#quando">Quando o dinheiro sai</a>}
           {ec && <a href="#estados-e-cidades">Estados e prefeituras</a>}
           <a href="/divida">A dívida federal →</a>
         </nav>
@@ -290,7 +326,75 @@ const descricao = res && am
           </div>
         </section>
 
-        <!-- 3. Estados e prefeituras -->
+        <!-- 3. Quando o dinheiro sai -->
+        {qd && (
+          <section class="bloco" id="quando">
+            <div class="texto">
+              <h2>Quando o dinheiro sai</h2>
+              <p class="forte">
+                De cada R$ 100 que o governo pagou de investimento em {qd.ano}, <strong class="marca">R$ {Math.round(qd.velhaInvestimento * 100)}</strong> quitavam
+                obra empenhada em anos anteriores.
+              </p>
+              <p>
+                O gasto tem três etapas: o governo <Termo id="empenho">empenha</Termo> (reserva o dinheiro e assume o compromisso),{" "}
+                <Termo id="liquidacao">liquida</Termo> (confere que a obra foi entregue) e paga. Elas podem cair em anos diferentes — o que
+                fica empenhado e não é pago até 31 de dezembro vira <Termo id="restos-a-pagar">restos a pagar</Termo> e passa para o ano seguinte.
+              </p>
+              <p>
+                Na despesa <Termo id="despesa-obrigatoria">obrigatória</Termo> isso quase não acontece: aposentadoria é paga no mês, e só
+                {" "}{pp(qd.velhaObrigatoria * 100)} do que saiu do caixa era conta velha. No que o governo escolhe foram {pp(qd.velhaEscolha * 100)};
+                no investimento, {pp(qd.velhaInvestimento * 100)}.
+                {qd.primeiroSoVelha && <> Em {mesLongo(qd.primeiro.competencia)} de {qd.ano}, <strong>todo</strong> o dinheiro de investimento que saiu do caixa pagava compromisso de anos anteriores.</>}
+              </p>
+              <p>
+                É por isso que medir investimento pelo empenho mostra um governo mais ativo do que ele foi: o empenho de
+                {" "}{mesLongo(qd.pico.competencia)} é promessa — {moedaCurta(qd.pico.etapas.empenhado)} num mês só — e o caixa sente
+                dois ou três anos depois.
+              </p>
+              <p class="menor">
+                "Pago" e "restos a pagar pagos" são colunas separadas no arquivo da CGU: somam-se, não se sobrepõem.
+                {!qd.completo && <> O ano de {qd.ano} ainda não está fechado: são os meses já publicados.</>}
+              </p>
+            </div>
+            <div class="grafico">
+              <h3>O investimento mês a mês, em {qd.ano}</h3>
+              <ol class="meses-fluxo" aria-label={`Investimento federal mês a mês em ${qd.ano}: empenhado, pago do ano e pago de anos anteriores`}>
+                {qd.meses.map((m) => (
+                  <li>
+                    <span class="barras" title={m.titulo}>
+                      <span class="emp" style={`height:${m.emp}`}></span>
+                      <span class="pago" style={`height:${m.pago}`}></span>
+                      <span class="rap" style={`height:${m.rap}`}></span>
+                    </span>
+                    <span class="num rotulo">{m.rotulo}</span>
+                  </li>
+                ))}
+              </ol>
+              <ul class="legenda legenda-fluxo">
+                <li><span class="cor" style="background:var(--areia)"></span><span class="nome"><strong>Empenhado</strong> <span>o compromisso assumido no mês</span></span></li>
+                <li><span class="cor" style="background:var(--verde)"></span><span class="nome"><strong>Pago, do próprio ano</strong> <span>empenho do ano que já saiu do caixa</span></span></li>
+                <li><span class="cor" style="background:var(--marca-texto)"></span><span class="nome"><strong>Pago de anos anteriores</strong> <span>restos a pagar quitados no mês</span></span></li>
+              </ul>
+
+              <h3>Quanto do desembolso era conta velha</h3>
+              <ul class="linhas velhas">
+                {qd.velhas.map((l) => (
+                  <li class:list={{ atual: l.destaque }}>
+                    <span class="rotulo">{l.nome}</span>
+                    <span class="trilho"><span class="barra" style={`width:${(l.velha / qd.maxVelha) * 100}%`}></span></span>
+                    <span class="num valor">{pp(l.velha * 100)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p class="menor-grafico">
+                Do que saiu do caixa em {qd.ano}, a parte que pagou empenho de anos anteriores. Desembolso de investimento no ano:
+                {" "}{moedaCurta(desembolso(qd.invAno))}, dos quais {moedaCurta(qd.invAno.rap_pagos)} de conta velha.
+              </p>
+            </div>
+          </section>
+        )}
+
+        <!-- 4. Estados e prefeituras -->
         {ec && (
           <section class="bloco" id="estados-e-cidades">
             <div class="texto">
@@ -361,10 +465,21 @@ const descricao = res && am
               Tesouro Nacional, <a href={k.rtn.pagina}>Resultado do Tesouro Nacional</a>, série histórica (<a href={k.rtn.url}>planilha</a>, tabela 2.1):
               despesa do governo central por tipo. "Obrigatórias com ritmo controlado" é a linha "obrigatórias com controle de fluxo".
             </li>
+            {qd && (
+              <li>
+                Portal da Transparência (CGU), execução da despesa: um arquivo por mês com o empenhado, o liquidado, o pago e os
+                restos a pagar de cada linha do orçamento. O tipo de despesa de cada linha vem do resultado primário do SIOP, o
+                mesmo que o <a href="/explorer?por=tipo&amp;refin=0">Explorer</a> usa. Não inclui o refinanciamento da dívida.
+                Atenção: "pago" é pagamento de empenho do próprio ano e "restos a pagar pagos" é desembolso de anos anteriores —
+                as duas colunas somam-se, não se sobrepõem.
+              </li>
+            )}
             {bruta && <li>Dívida bruta do governo geral: Banco Central (séries 13761 e 13762), como na página <a href="/divida">da dívida</a>.</li>}
             {ec && <li>Estados e prefeituras: receita e despesa das Declarações de Contas Anuais (SICONFI, Tesouro Nacional), as mesmas do <a href="/mapa/">mapa</a>.</li>}
           </ul>
-          <p class="menor"><a href="/data/federal/contas.json">Baixe os dados desta página</a> (JSON).</p>
+          <p class="menor">
+            <a href="/data/federal/contas.json">Baixe os dados desta página</a> (JSON){qd && <>, e o <a href={`/data/federal/fluxo-${qd.ano}.json`}>mês a mês de {qd.ano}</a></>}.
+          </p>
         </section>
       </>
     )}
@@ -467,7 +582,28 @@ const descricao = res && am
   .fontes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
   .fontes .menor { margin: 0; font-size: 14px; color: var(--texto-3); }
 
+  /* Quando o dinheiro sai: três barras por mês (empenhado, pago do ano, pago de anos anteriores) */
+  .meses-fluxo { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px; }
+  .meses-fluxo li { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .meses-fluxo .barras { display: flex; align-items: flex-end; gap: 2px; height: 180px; border-bottom: 1px solid var(--tinta); }
+  .meses-fluxo .barras > span { flex: 1 1 0; display: block; min-width: 2px; }
+  .meses-fluxo .emp { background: var(--areia); }
+  .meses-fluxo .pago { background: var(--verde); }
+  .meses-fluxo .rap { background: var(--marca-texto); }
+  .meses-fluxo .rotulo { font-size: 12px; color: var(--texto-3); text-align: center; }
+  .legenda-fluxo li { grid-template-columns: 14px minmax(0, 1fr); }
+
+  .linhas.velhas li { grid-template-columns: 180px minmax(0, 1fr) 56px; }
+  .linhas.velhas .trilho { height: 18px; }
+  .linhas.velhas .atual .rotulo, .linhas.velhas .atual .valor { color: var(--tinta); font-weight: 700; }
+  .linhas.velhas .atual .barra { background: var(--marca-texto); outline: 1px solid var(--tinta); }
+
   @media (max-width: 900px) {
+    .meses-fluxo { gap: 4px; }
+    .meses-fluxo .barras { height: 120px; gap: 1px; }
+    .meses-fluxo .barras > span { min-width: 1px; }
+    .meses-fluxo .rotulo { font-size: 10px; }
+    .linhas.velhas li { grid-template-columns: 118px minmax(0, 1fr) 44px; }
     .cabeca { padding: 28px 0 24px; }
     .cabeca h1 { font-size: 40px; }
     .cabeca p { font-size: 17px; }
