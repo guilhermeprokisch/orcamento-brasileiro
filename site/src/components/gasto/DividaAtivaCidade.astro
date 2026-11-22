@@ -33,7 +33,7 @@ const tipos = d?.tipos.filter((t) => t.valor >= 1) ?? [];
           Empresas {de} devem <strong>{moedaExtenso(d.total)}</strong> ao governo federal em impostos, contribuições ao INSS e
           FGTS que não pagaram. É a <Termo id="divida-ativa">dívida ativa da União</Termo>, cobrada pela Procuradoria-Geral da
           Fazenda Nacional. {d.empresas === 1 ? "É um devedor" : <>São <strong>{nf0.format(d.empresas)} empresas e entidades</strong></>} com
-          endereço {ehDF ? "no DF" : "na cidade"}{d.publico > 0.05 * d.total && <>; {moedaExtenso(d.publico)} disso é de órgãos públicos com endereço aqui (prefeitura, câmara, autarquias), que também deixaram de pagar</>}.
+          endereço {ehDF ? "no DF" : "na cidade"}{d.publico > 0.05 * d.total && <>; {moedaExtenso(d.publico)} disso é de órgãos públicos com endereço aqui (a prefeitura, órgãos do estado, autarquias), que também deixaram de pagar</>}.
         </p>
       ) : (
         <p>
@@ -49,15 +49,15 @@ const tipos = d?.tipos.filter((t) => t.valor >= 1) ?? [];
       )}
       {d.total > 0 && (
         <p class="menor">
-          A maior parte dessa dívida não volta.{d.fechadas > 0.1 * d.total && <> Aqui, {pct(d.fechadas / d.total)} é de empresas que já fecharam ou estão inativas no cadastro da Receita.</>}{" "}
-          No país, o Tesouro dá como perdidos R$ 2,7 trilhões dos R$ 3,4 trilhões inscritos e espera recuperar R$ 778 bilhões em 15 anos;
-          em 2025, a Procuradoria recuperou R$ 66,1 bilhões.
+          {d.fechadas > 0.1 * d.total && <>{pct(d.fechadas / d.total)} dessa dívida é de empresas que já fecharam ou estão inativas no cadastro da Receita. </>}
+          No país, a maior parte da dívida ativa não volta: o Tesouro dá como perdidos R$ 2,7 trilhões dos R$ 3,4 trilhões inscritos e
+          espera recuperar R$ 778 bilhões em 15 anos. Em 2025, a Procuradoria recuperou R$ 66,1 bilhões.
         </p>
       )}
       {d.maiores.length > 0 && (
         <p class="menor">
-          Estar na lista não quer dizer que a empresa agiu de má-fé nem que a dívida é definitiva: parte está parcelada, garantida
-          por penhora ou depósito ou sendo discutida na Justiça. Ao lado de cada empresa está a situação da maior parte da dívida dela.
+          Estar na lista não quer dizer que a empresa ou o órgão agiu de má-fé nem que a dívida é definitiva: parte está parcelada, garantida
+          por penhora ou depósito ou sendo discutida na Justiça. Ao lado de cada nome está a situação da maior parte da dívida.
         </p>
       )}
     </div>
@@ -80,7 +80,7 @@ const tipos = d?.tipos.filter((t) => t.valor >= 1) ?? [];
       )}
       {d.maiores.length > 0 && (
         <>
-          <h3>{d.maiores.length === 1 ? "A empresa que mais deve" : `As ${d.maiores.length} empresas que mais devem`}</h3>
+          <h3>{d.maiores.length === 1 ? "Quem mais deve" : `Os ${d.maiores.length} que mais devem`}</h3>
           <ol class="maiores">
             {d.maiores.map((e) => (
               <li>

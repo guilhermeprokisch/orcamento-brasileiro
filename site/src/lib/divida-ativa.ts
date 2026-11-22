@@ -100,10 +100,11 @@ export async function dividaAtivaEm(c: Cidade): Promise<DividaAtivaCidade | null
   };
 }
 
-const SIGLAS = new Set(["me", "epp", "eireli", "s/a", "s.a.", "sa", "cnpj", "sus", "ltda"]);
+const SIGLAS = new Set(["me", "epp", "eireli", "s/a", "s.a.", "sa", "cnpj", "sus", "ltda", "brb", "cagepa", "see"]);
 const PEQUENAS = new Set(["de", "da", "do", "das", "dos", "e", "em", "para", "a", "o", "as", "os", "com", "no", "na", "nos", "nas"]);
 /** "CONSTRUTORA BOA OBRA LTDA" → "Construtora Boa Obra Ltda" */
-export function nomeDeEmpresa(s: string): string {
+export function nomeDeEmpresa(nome: string): string {
+  const s = nome.replace(/\s+/g, " ").trim().replace(/(?<![A-Z])S\.? ?A\.?(?= |$)/g, "S.A.");
   if (s !== s.toUpperCase() || !/[A-ZÀ-Ú]{4}/.test(s)) return s;
   return s.toLowerCase().split(" ").map((x, i) =>
     x === "ltda" || x === "ltda." ? "Ltda" : SIGLAS.has(x) ? x.toUpperCase() : i > 0 && PEQUENAS.has(x) ? x : x.charAt(0).toUpperCase() + x.slice(1),
