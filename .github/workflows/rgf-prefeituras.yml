@@ -18,6 +18,9 @@ on:
   schedule:
     - cron: "0 4 * 3-7 1"
     - cron: "0 4 1 1,2,8-12 *"
+  push:   # TEMPORÁRIO: só para testar no branch antes do merge
+    branches: [claude/dados-actions]
+    paths: [".github/workflows/rgf-prefeituras.yml"]
   workflow_dispatch:
     inputs:
       max_chamadas:

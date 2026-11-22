@@ -5,6 +5,9 @@ name: Testar fontes
 # cobertura da APS) e contratos (PNCP). Baixa só um pedaço de cada arquivo grande, para medir a velocidade,
 # e escreve a tabela no resumo da execução. Ver .github/scripts/testar-fontes.py.
 on:
+  push:   # TEMPORÁRIO: só para testar no branch antes do merge
+    branches: [claude/dados-actions]
+    paths: [".github/workflows/testar-fontes.yml"]
   workflow_dispatch:
 
 permissions:
