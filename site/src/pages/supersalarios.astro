@@ -86,7 +86,11 @@ function calcularCusto() {
 const c = calcularCusto();
 
 /** O Executivo dos estados com folha detalhada (por enquanto, o Paraná). */
-const estadosExe = estadosComExecutivo().filter((x) => x.e.acima >= 5);
+const estadosTodos = estadosComExecutivo().filter((x) => x.e.acima >= 5);
+const estadosExe = estadosTodos.filter((x) => !x.e.sem_corte);
+/** Os que publicam só o bruto, sem o corte pelo teto: lista à parte, para não somar com os outros. */
+const estadosBruto = estadosTodos.filter((x) => x.e.sem_corte);
+const maiorExcessoUf = Math.max(...estadosTodos.map((x) => x.e.excesso), 1);
 const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
 const descricao = x
   ? `Em ${x.pA.rotulo}, ${pct0(x.tA.parte)} dos juízes e promotores receberam acima do teto num mês típico; passou do teto ${moedaExtenso(x.tA.excesso)} no ano.`
@@ -527,7 +531,7 @@ const larguraGrupos = (l: Linha) => {
                   return (
                     <li title={maior ? `Maior: ${maior.nome}, ${nf0.format(maior.acima!)} de ${nf0.format(maior.vinculos)} vínculos acima do teto num mês típico` : undefined}>
                       <span class="rotulo"><a href={`/estados/${uf.toLowerCase()}#teto`}>{e.nome}</a>{maior && <small class="maior"> · {maior.nome}</small>}</span>
-                      <span class="trilho"><span class="barra" style={`width:${(e.excesso / estadosExe[0].e.excesso) * 100}%`}></span></span>
+                      <span class="trilho"><span class="barra" style={`width:${(e.excesso / maiorExcessoUf) * 100}%`}></span></span>
                       <span class="num valor"><strong>{moedaCurta(e.excesso)}</strong> <span>{nf0.format(e.acima)} de {nf0.format(e.vinculos)}</span></span>
                     </li>
                   );
@@ -535,8 +539,34 @@ const larguraGrupos = (l: Linha) => {
               </ol>
               <p class="menor-grafico">
                 O que passou do teto em {estadosExe[0].e.meses} meses e, embaixo, quantos vínculos passam do teto num mês típico, de quantos. Ao lado
-                do nome, o órgão com mais dinheiro acima do teto. Faltam os outros 20 estados: alguns publicam só o salário bruto, outros só uma
-                consulta servidor por servidor (o levantamento está nos <a href="https://github.com/guilhermeprokisch/orcamento-brasileiro/blob/main/docs/levantamento-supersalarios.md">documentos do projeto</a>).
+                do nome, o órgão com mais dinheiro acima do teto.
+              </p>
+              {estadosBruto.length > 0 && (
+                <>
+                  <h3 class="sub-lista">Só o salário bruto</h3>
+                  <p class="menor">
+                    Em {lista.format(estadosBruto.map((x) => x.e.nome))}, o arquivo mostra o salário bruto, mas não o corte pelo teto. Ali,{" "}
+                    {nf0.format(estadosBruto.reduce((t, x) => t + x.e.acima, 0))} vínculos tiveram bruto acima do teto num mês típico, somando{" "}
+                    {moedaExtenso(estadosBruto.reduce((t, x) => t + x.e.excesso, 0))} além do teto em um ano. É o máximo possível: parte disso pode
+                    ter sido descontada depois, e por isso não entra na soma de cima.
+                  </p>
+                  <ol class="linhas federal bruto" aria-label="O bruto acima do teto no Executivo dos estados que não mostram o corte">
+                    {estadosBruto.map(({ uf, e }) => {
+                      const maior = e.orgaos.find(MOSTRA_NOME);
+                      return (
+                        <li title={maior ? `Maior: ${maior.nome}, ${nf0.format(maior.acima!)} de ${nf0.format(maior.vinculos)} vínculos com bruto acima do teto num mês típico` : undefined}>
+                          <span class="rotulo"><a href={`/estados/${uf.toLowerCase()}#teto`}>{e.nome}</a>{maior && <small class="maior"> · {maior.nome}</small>}</span>
+                          <span class="trilho"><span class="barra" style={`width:${(e.excesso / maiorExcessoUf) * 100}%`}></span></span>
+                          <span class="num valor"><strong>{moedaCurta(e.excesso)}</strong> <span>{nf0.format(e.acima)} de {nf0.format(e.vinculos)}</span></span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </>
+              )}
+              <p class="menor-grafico">
+                Faltam os outros {27 - estadosTodos.length} estados: alguns só têm uma consulta servidor por servidor, outros só painéis ou nada
+                aberto (o levantamento está nos <a href="https://github.com/guilhermeprokisch/orcamento-brasileiro/blob/main/docs/levantamento-supersalarios.md">documentos do projeto</a>).
               </p>
             </div>
           </section>
@@ -647,6 +677,9 @@ const larguraGrupos = (l: Linha) => {
   .linhas.serie .apos .barra { background: var(--verde); }
   .linhas.serie .apos .rotulo { color: var(--tinta); }
   .menor-grafico { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .sub-lista { margin: 18px 0 0; font-family: var(--serifa); font-size: 18px; }
+  /* Só o bruto: a barra listrada diz "no máximo", porque parte pode ter sido cortada depois. */
+  .linhas.bruto .barra { background: repeating-linear-gradient(135deg, var(--verde) 0 4px, transparent 4px 7px); border: 1px solid var(--verde); }
 
   .legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--regra); }
   .legenda li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--regra-leve); font-size: 14px; }

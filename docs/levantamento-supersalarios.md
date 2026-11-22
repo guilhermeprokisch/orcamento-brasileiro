@@ -387,13 +387,13 @@ arquivo limpo · **5** = só consulta nome a nome ou bloqueado.
 | **PB** | API documentada, 1.000 por página | Sim | Parte fixa e variável | Sim (`valorRedutor`) | 2021-01 a 2026-09 | 1–2 |
 | **RN** | API interna: lista de órgãos + CSV por órgão (46 por mês) | Sim | Pouco | Sim (`RedutorArt.37/CF`) | 2010 a 2026-09 | 1–2 |
 | **GO** | CKAN, CSV mensal (73 MB) | Sim | Não tem coluna de indenizações (há a lista de rubricas) | Sim (`VALR_CORTE_TETO`) | 2012 a 2026-10 | 2 |
-| **MS** | CKAN, CSV mensal | Sim | Base e "outras verbas" | Não | 2018-01 a 2026-10 | 1 |
-| **MA** | DKAN, CSV mensal | Sim | Total, 13º, férias | Não | 2019 a 2026-10 | 1–2 |
-| **SC** | API interna, CSV mensal | Sim | **Não** (só o bruto) | Não | 2016– | 2 |
+| **MS** | CKAN, CSV mensal | Sim | Base e "outras verbas" | Não | 2018-01 a 2026-10 | 1 (**no site, só bruto**) |
+| **MA** | DKAN, CSV mensal | Sim | Total, 13º, férias | Não | 2019 a 2026-10 | 1–2 (**no site, só bruto**) |
+| **SC** | API interna: lista ordenada pelo bruto (20 por página) + contracheque de cada um (o CSV passou a vir vazio) | Sim | Sim, no contracheque (atrasados, indenizações, 13º, férias) | Não | 2016– | 2 (**no site, só bruto**) |
 | **AL** | API interna: lista do mês (só o líquido) + histórico de cada servidor (as partes do bruto) | Sim | Sim | Sim (`teto_redutor`) | 2012 a 2026-10 (set/2026 vazio) | 2 (**no site**) |
 | **CE** | CSV mensal estático, sem cabeçalho | Sim | Só no detalhe por servidor (que tem desafio anti-robô) | Sim (a 6ª coluna, conferida na página do servidor) | 2013-02 a 2026-09 | 2 (**no site**) |
-| **PI** | API OpenAPI, 100 por página; CSV de até 50 mil linhas | Sim, com filtros | Básica, variável, eventual | Não | 2022 a 2026-10 | 2 |
-| **RO** | CSV mensal por POST, com token do próprio formulário | Sim | Só no detalhe | Não visto | 2016 a 2026-09 | 2 |
+| **PI** | API OpenAPI, 100 por página; CSV de até 50 mil linhas | Sim, com filtros | Básica, variável, eventual | Não | 2022 a 2026-10 | 2 (**no site, só bruto**) |
+| **RO** | CSV mensal por POST, com token do próprio formulário | Sim | Só no detalhe | Não visto | 2016 a 2026-10 | 2 (**no site, só bruto**) |
 | **SP** | CSV corrente + histórico em RAR | Sim | Em parte (indenizações junto com o abono) | Sim (`REDUTOR SALARIAL`) | 2012 a 2026-03 (parado desde maio) | 2 |
 | **MG** | CKAN, CSV mensal | Sim, mas o servidor recusa download por script (403) | Indenizações misturadas em "eventual" | Sim (`teto`) | 2012 a 2026-09 | 2 / 4 |
 | **RR** | API interna: CSV de bruto e líquido + JSON com as rubricas (lento) | CSV, sim | Sim, no JSON | Não achei nenhuma rubrica de teto | 2011 a 2026-09 | 2–3 |
@@ -469,4 +469,27 @@ previdência; numa amostra de 60 vínculos entre R$ 18 mil e R$ 25 mil líquidos
 só se busca o histórico de quem tem líquido de R$ 25 mil ou mais (uma vez por servidor, serve para todos os meses);
 os outros entram só na contagem. "Eventuais" ficam fora (é onde aparece o terço de férias), o mês 13 (o 13º) também.
 Setembro de 2026 veio vazio na API.
+
+### Feito em 22/11/2026: os só-bruto (MS, MA, PI, RO, SC)
+
+Nenhum dos cinco mostra o corte pelo teto. O valor é o bruto, e parte do que passa do teto pode ter sido descontada
+depois: em MS, os descontos obrigatórios dos auditores da Fazenda passam muito do imposto e da previdência, sinal de
+um abate que o arquivo não mostra. Por isso o site os põe numa lista à parte ("Só o salário bruto", com barra
+listrada) e não os soma aos estados com o corte; na página de cada estado o texto diz "salário bruto acima do teto".
+Também não há a conta do imposto (vem somado à previdência ou sobre tudo).
+
+- **MS**: CSV mensal (CKAN). Remuneração base + "outras verbas", que junta tudo; não separa 13º e férias (nenhum mês
+  salta). Janeiro de 2026 veio com 40 mil vínculos, contra uns 56 mil nos outros.
+- **MA**: CSV mensal (DKAN), com o certificado sem o intermediário: o pipeline recebe o YE1 e a raiz nova "Root YE"
+  (assinada pela ISRG Root X2) da própria Let's Encrypt, sem desligar a verificação. As **férias vêm dentro** do total
+  de vantagens (conferido mês contra mês: a diferença no total é igual à coluna de férias) e são tiradas. O **13º de
+  junho vem só na coluna própria**, fora do total (o total de junho não muda); o de **dezembro vem dentro do total, com
+  a coluna zerada** (o total dos ativos vai de uns R$ 530 mi a R$ 982 mi): dezembro fica de fora.
+- **PI**: o CSV da API em faixas de bruto (a API recusa mais de 50 mil linhas). Básica + variável; a "eventual" (13º,
+  férias) fica fora. O mês não publicado responde HTTP 400.
+- **RO**: o CSV do botão da página (POST com o token do formulário). Só o bruto; junho e dezembro ficam de fora (as
+  parcelas do 13º: 587 e 627 acima do teto, contra uns 450).
+- **SC**: o CSV de exportação passou a vir vazio. A página chama a lista dos ativos ordenada pelo bruto (20 por
+  página) e o contracheque de cada um, que separa atrasados, verbas indenizatórias, 13º e férias. Só se busca o
+  contracheque de quem tem bruto acima do teto; os outros vínculos entram na contagem pelo total de cada órgão.
 
