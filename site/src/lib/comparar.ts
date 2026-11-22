@@ -152,6 +152,14 @@ export interface Linha {
   frase: Frase;
   /** Linha principal do bloco: a frase dela vai para o topo do bloco. */
   principal?: boolean;
+  /**
+   * A régua da barra. No mesmo bloco, as linhas com a mesma régua têm barras na mesma escala
+   * (a maior de todas enche o trilho). Sem nada, a régua é o formato: reais por morador com
+   * reais por morador, e nunca moradores com reais.
+   */
+  regua?: string;
+  /** A régua vai pelo menos até aqui: 10 na nota do Ideb, o limite da lei na dívida. */
+  teto?: number;
 }
 export interface Bloco { id: string; titulo: string; nota?: string; linhas: Linha[]; frases: string[]; recolher?: number }
 
@@ -272,7 +280,7 @@ export function montar(la: Lado, lb: Lado, ano: number): Comparacao {
           frase: { tipo: "verbo", verbo: "recebe", plural: "recebem", comp: "por morador" } },
         { rotulo: "Arrecadação própria", dica: mun ? "ISS, IPTU, taxas" : "ICMS, IPVA", a: pm(ca.propria, fa), b: pm(cb.propria, fb), fmt: "porMorador", principal: true,
           frase: { tipo: "verbo", verbo: "arrecada", plural: "arrecadam", comp: "por morador com impostos próprios" } },
-        { rotulo: "De cada R$ 100, arrecadados por conta própria", a: ca.receita ? (ca.propria / ca.receita) * 100 : null, b: cb.receita ? (cb.propria / cb.receita) * 100 : null, fmt: "emCem",
+        { rotulo: "De cada R$ 100, arrecadados por conta própria", a: ca.receita ? (ca.propria / ca.receita) * 100 : null, b: cb.receita ? (cb.propria / cb.receita) * 100 : null, fmt: "emCem", teto: 100,
           frase: { tipo: "nenhuma" } },
         { rotulo: "Repasses da União", dica: mun ? "FPM, SUS e outros" : "FPE, SUS e outros", a: pm(ca.uniao, fa), b: pm(cb.uniao, fb), fmt: "porMorador",
           frase: { tipo: "verbo", verbo: "recebe", plural: "recebem", comp: "por morador da União" } },
@@ -315,7 +323,7 @@ export function montar(la: Lado, lb: Lado, ano: number): Comparacao {
       linhas: [
         { rotulo: "Dívida por morador", a: da ? Math.max(0, da[1]) / la.info.pop : null, b: db ? Math.max(0, db[1]) / lb.info.pop : null, fmt: "porMorador", bom: "menos",
           frase: { tipo: "verbo", verbo: "deve", plural: "devem", comp: "por morador" } },
-        { rotulo: "Para cada R$ 100 de receita", dica: `limite: R$ ${nf0.format(limite * 100)}`, a: da ? Math.max(0, da[1] / da[2]) * 100 : null, b: db ? Math.max(0, db[1] / db[2]) * 100 : null, fmt: "emCem", bom: "menos",
+        { rotulo: "Para cada R$ 100 de receita", dica: `limite: R$ ${nf0.format(limite * 100)}`, a: da ? Math.max(0, da[1] / da[2]) * 100 : null, b: db ? Math.max(0, db[1] / db[2]) * 100 : null, fmt: "emCem", bom: "menos", teto: limite * 100,
           frase: { tipo: "nenhuma" } },
       ],
     });
@@ -325,9 +333,9 @@ export function montar(la: Lado, lb: Lado, ano: number): Comparacao {
   const linhasEscola: Linha[] = [];
   if (mun && (la.info.ideb || lb.info.ideb)) {
     linhasEscola.push(
-      { rotulo: "Nota do Ideb, 1º ao 5º ano", dica: "escolas da prefeitura, de 0 a 10", a: la.info.ideb?.[0] ?? null, b: lb.info.ideb?.[0] ?? null, fmt: "nota", bom: "mais", principal: true,
+      { rotulo: "Nota do Ideb, 1º ao 5º ano", dica: "escolas da prefeitura, de 0 a 10", a: la.info.ideb?.[0] ?? null, b: lb.info.ideb?.[0] ?? null, fmt: "nota", bom: "mais", principal: true, teto: 10,
         frase: { tipo: "pontos", medida: "a nota das escolas da prefeitura do 1º ao 5º ano" } },
-      { rotulo: "Nota do Ideb, 6º ao 9º ano", dica: "escolas da prefeitura, de 0 a 10", a: la.info.ideb?.[1] ?? null, b: lb.info.ideb?.[1] ?? null, fmt: "nota", bom: "mais",
+      { rotulo: "Nota do Ideb, 6º ao 9º ano", dica: "escolas da prefeitura, de 0 a 10", a: la.info.ideb?.[1] ?? null, b: lb.info.ideb?.[1] ?? null, fmt: "nota", bom: "mais", teto: 10,
         frase: { tipo: "pontos", medida: "a nota das escolas da prefeitura do 6º ao 9º ano" } },
     );
   }
@@ -345,11 +353,11 @@ export function montar(la: Lado, lb: Lado, ano: number): Comparacao {
   // 8. Saúde e segurança
   const linhasSaude: Linha[] = [];
   if (la.info.mortalidade !== null || lb.info.mortalidade !== null) {
-    linhasSaude.push({ rotulo: "Mortalidade infantil", dica: "bebês que morrem antes de 1 ano, a cada mil nascidos", a: la.info.mortalidade, b: lb.info.mortalidade, fmt: "taxa", bom: "menos", principal: true,
+    linhasSaude.push({ rotulo: "Mortalidade infantil", dica: "bebês que morrem antes de 1 ano, a cada mil nascidos", a: la.info.mortalidade, b: lb.info.mortalidade, fmt: "taxa", bom: "menos", principal: true, regua: "mortalidade",
       frase: { tipo: "medida", medida: "a mortalidade infantil", maior: "maior" } });
   }
   if (la.info.homicidios || lb.info.homicidios) {
-    linhasSaude.push({ rotulo: "Homicídios", dica: "por 100 mil moradores", a: la.info.homicidios?.[1] ?? null, b: lb.info.homicidios?.[1] ?? null, fmt: "taxa", bom: "menos",
+    linhasSaude.push({ rotulo: "Homicídios", dica: "por 100 mil moradores", a: la.info.homicidios?.[1] ?? null, b: lb.info.homicidios?.[1] ?? null, fmt: "taxa", bom: "menos", regua: "homicidios",
       frase: { tipo: "medida", medida: "a taxa de homicídios", maior: "maior" } });
   }
   if (linhasSaude.length) {
@@ -409,9 +417,20 @@ const largura = (v: number | null, max: number) => (v === null || max <= 0 ? 0 :
 const maxDe = (l: Linha) => Math.max(Math.abs(l.a ?? 0), Math.abs(l.b ?? 0));
 const frasesHtml = (fr: string[]) => (fr.length ? `<ul class="cp-frases">${fr.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : "");
 
+/**
+ * O fim da régua de cada linha do bloco: o maior valor entre as linhas da mesma régua (e o teto,
+ * se houver). Assim, em "Para onde vai o dinheiro", saúde e transporte não ficam do mesmo tamanho.
+ */
+function reguas(bl: Bloco): Map<Linha, number> {
+  const chave = (l: Linha) => l.regua ?? l.fmt;
+  const fim = new Map<string, number>();
+  for (const l of bl.linhas) fim.set(chave(l), Math.max(fim.get(chave(l)) ?? 0, l.teto ?? 0, maxDe(l)));
+  return new Map(bl.linhas.map((l) => [l, fim.get(chave(l))!]));
+}
+
 /** Uma linha: o valor de A e a barra dele à esquerda, o nome no meio, B à direita. */
-function linhaHtml(l: Linha): string {
-  const max = maxDe(l), bom = melhorLado(l);
+function linhaHtml(l: Linha, max: number): string {
+  const bom = melhorLado(l);
   const lado = (s: "a" | "b") => {
     const v = l[s];
     return `<div class="cp-esp cp-${s}${bom === s ? " cp-bom" : ""}">
@@ -424,11 +443,26 @@ function linhaHtml(l: Linha): string {
 
 /** As linhas do bloco; as que passam de `recolher` ficam num "ver as outras". */
 function linhasHtml(bl: Bloco): string {
+  const fim = reguas(bl);
+  const linha = (l: Linha) => linhaHtml(l, fim.get(l)!);
   const vis = bl.recolher ? bl.linhas.slice(0, bl.recolher) : bl.linhas;
   const resto = bl.recolher ? bl.linhas.slice(bl.recolher) : [];
-  return vis.map(linhaHtml).join("") + (resto.length
-    ? `<details class="cp-mais cp-centro"><summary>Ver as outras ${resto.length} áreas</summary>${resto.map(linhaHtml).join("")}</details>` : "");
+  return vis.map(linha).join("") + (resto.length
+    ? `<details class="cp-mais cp-centro"><summary>Ver as outras ${resto.length} áreas</summary>${resto.map(linha).join("")}</details>` : "");
 }
+
+/**
+ * A largura do número, igual em todas as linhas do bloco (pelo número mais comprido), para que
+ * os trilhos das barras tenham o mesmo comprimento e dê para comparar uma linha com a outra.
+ */
+const larguraNumero = (bl: Bloco) =>
+  (Math.max(...bl.linhas.flatMap((l) => [emCh(valor(l.fmt, l.a)), emCh(valor(l.fmt, l.b))])) + 0.3).toFixed(1);
+/**
+ * Quanto o texto ocupa, em ch (a largura de um algarismo, que é tabular nesses números): medido
+ * na Source Serif 4 em negrito. Algarismos, "$", "−" e "+" valem 1.
+ */
+const LARGURA_CH: Record<string, number> = { R: 1.26, ".": 0.55, ",": 0.55, " ": 0.39, b: 1.13, m: 1.68, i: 0.59, l: 0.6, t: 0.66, r: 0.86, "%": 1.65, "—": 1.54 };
+const emCh = (t: string) => [...t].reduce((s, c) => s + (LARGURA_CH[c] ?? 1), 0);
 
 export function desenhar(c: Comparacao): string {
   return `<section class="cp-resumo" aria-label="As maiores diferenças">
@@ -437,7 +471,7 @@ export function desenhar(c: Comparacao): string {
   </section>
   <div class="cp-espelho">
     <div class="cp-cabeca-esp"><h2 class="cp-a">${esc(c.A.curto)}</h2><span>×</span><h2 class="cp-b">${esc(c.B.curto)}</h2></div>
-    ${c.blocos.map((bl) => `<section class="cp-bloco" id="cp-${bl.id}">
+    ${c.blocos.map((bl) => `<section class="cp-bloco" id="cp-${bl.id}" style="--cp-num:${larguraNumero(bl)}ch">
       <div class="cp-bloco-topo cp-centro"><h3>${esc(bl.titulo)}</h3>${bl.nota ? `<p class="cp-nota">${esc(bl.nota)}</p>` : ""}</div>
       ${frasesHtml(bl.frases)}
       ${linhasHtml(bl)}
