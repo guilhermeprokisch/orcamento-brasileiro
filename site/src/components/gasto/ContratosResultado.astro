@@ -80,9 +80,9 @@ const maiorTipo = k ? Math.max(...k.porTipo.map(([, v]) => v)) : 1;
         <div class="lista">
           <h3>Os maiores contratos</h3>
           <ol>
-            {k.maiores.map(([o, v, e]) => (
+            {k.maiores.map(([o, v, e, r]) => (
               <li>
-                <div><span>{objeto(o) || "Sem descrição"}</span>{e && <small>{empresa(e)}</small>}</div>
+                <div><span>{objeto(o) || "Sem descrição"}</span>{e && <small>{r ? <a href={`/contratos?empresa=${r}`} title="Todos os contratos desta empresa no país">{empresa(e)}</a> : empresa(e)}</small>}</div>
                 <strong class="num">{moedaCurta(v)}</strong>
               </li>
             ))}
@@ -93,8 +93,15 @@ const maiorTipo = k ? Math.max(...k.porTipo.map(([, v]) => v)) : 1;
         <div class="lista">
           <h3>As empresas que mais receberam contratos</h3>
           <ol>
-            {k.empresas.map(([nome, v, n]) => (
-              <li><div><span>{empresa(nome)}</span><small>{n} {n === 1 ? "contrato" : "contratos"}</small></div><strong class="num">{moedaCurta(v)}</strong></li>
+            {k.empresas.map(([nome, v, n, r]) => (
+              <li>
+                <div>
+                  {/* O nome leva aos contratos da empresa em todo o país, como os deputados nas emendas. */}
+                  {r ? <a href={`/contratos?empresa=${r}`}>{empresa(nome)}</a> : <span>{empresa(nome)}</span>}
+                  <small>{n} {n === 1 ? "contrato" : "contratos"} {mun ? "aqui" : "com o estado"}{r && <> · <a href={`/contratos?empresa=${r}`}>ver todos os dela no país →</a></>}</small>
+                </div>
+                <strong class="num">{moedaCurta(v)}</strong>
+              </li>
             ))}
           </ol>
         </div>

@@ -67,9 +67,11 @@ const situacao = (r: number) => (r >= LIMITE ? "acima" : r >= ALERTA ? "alerta" 
           <span class="num ano">{a.ano}</span>
           <span class="trilho">
             <span class="barra" style={`width:${Math.max(0, a.razao / escala) * 100}%`}></span>
+            {/* Mais dinheiro em caixa do que dívida: a conta dá negativo, e "-78%" numa barra vazia confunde. */}
+            {a.razao < 0 && <span class="sem-divida">caixa maior que a dívida</span>}
             <span class="limite" style={`left:${(LIMITE / escala) * 100}%`}></span>
           </span>
-          <strong class="num">{pct(a.razao)}</strong>
+          <strong class="num">{a.razao < 0 ? <span class="sem-divida-valor">sem dívida</span> : pct(a.razao)}</strong>
         </li>
       ))}
       <li class="legenda" aria-hidden="true"><span></span><span class="trilho"><span class="rotulo-limite" style={`left:${(LIMITE / escala) * 100}%`}>limite {pct(LIMITE)}</span></span><span></span></li>
@@ -86,7 +88,9 @@ const situacao = (r: number) => (r >= LIMITE ? "acima" : r >= ALERTA ? "alerta" 
   .texto p strong { color: var(--tinta); }
   .texto .menor { font-size: 14px; color: var(--texto-3); }
   .anos-divida { grid-column: span 7; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; align-self: center; }
-  .anos-divida li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 60px; gap: 14px; align-items: center; font-size: 14px; }
+  .anos-divida li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 76px; gap: 14px; align-items: center; font-size: 14px; }
+  .sem-divida { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; line-height: 1; color: var(--texto-3); white-space: nowrap; }
+  .sem-divida-valor { font-size: 12px; font-weight: 600; color: var(--verde); }
   .anos-divida .ano { color: var(--texto-3); }
   .anos-divida strong { text-align: right; }
   .trilho { position: relative; display: block; height: 14px; }
