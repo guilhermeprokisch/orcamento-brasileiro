@@ -113,6 +113,9 @@ fila_independente() {
   # (uv run supersalarios-federal; o Portal pede captcha depois de alguns downloads, e o comando completa os 12 meses
   # em mais de uma rodada). Aqui só a cópia de referência.
   pipe pode-falhar "Acima do teto: Executivo federal" supersalarios-federal --sem-baixar
+  # Acima do teto no Executivo dos estados (por enquanto o Paraná, pela folha que estado_pr.py também lê): carga à mão
+  # (uv run supersalarios-estados; o servidor do PR trava por minutos depois de alguns downloads). Só a cópia aqui.
+  pipe pode-falhar "Acima do teto: Executivo dos estados" supersalarios-estados --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).

@@ -5,15 +5,18 @@
  * (lib/supersalarios.ts). Some quando nenhum casa ou quando nenhum tem pelo menos 5 servidores acima do teto.
  */
 import { moedaExtenso } from "../../lib/formato";
-import { NOMES_FEDERAL, docFederal, federalDoOrgao, periodoFederal, tetoAtual } from "../../lib/supersalarios";
+import { EXTRA_EVENTUAL, MOSTRA_NOME, NOMES_FEDERAL, docFederal, federalDoOrgao, periodoFederal, tetoAtual } from "../../lib/supersalarios";
 
 interface Props { cod: string }
 const { cod } = Astro.props;
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
-const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
+const nf1 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+/** "19%", e "0,5%" abaixo de 1%. */
+const pct0 = (v: number) => `${(v < 0.01 ? nf1 : nf0).format(v * 100)}%`;
+// Pelo nome, só os órgãos com pelo menos 5 servidores acima do teto num mês típico; os outros entram na soma do fim.
 const todos = federalDoOrgao(cod).filter((l) => l.excesso !== null);
-const ls = todos.slice(0, 5);
-const resto = todos.slice(5);
+const ls = todos.filter(MOSTRA_NOME).slice(0, 5);
+const resto = todos.filter((l) => !ls.includes(l));
 /** A maior parte do que o órgão paga por cima do salário (a todos os servidores, não só aos que passam do teto). */
 const maiorParte = (g: Record<string, number>) => {
   const extra = Object.entries(g).filter(([k]) => k !== "base").sort((a, b) => b[1] - a[1]);
@@ -32,17 +35,22 @@ const maiorParte = (g: Record<string, number>) => {
       {ls.map((l) => (
         <li>
           <strong>{l.nome}</strong>:{" "}
-          {l.acima !== null && l.parte !== null
-            ? <>{nf0.format(l.acima)} dos {nf0.format(l.servidores)} servidores ({pct0(l.parte)}) passaram do teto num mês típico</>
-            : <>menos de 5 dos {nf0.format(l.servidores)} servidores passaram do teto num mês típico, mas 5 ou mais passaram em {l.meses_acima} {l.meses_acima === 1 ? "mês" : "meses"}</>};
+          {nf0.format(l.acima!)} dos {nf0.format(l.servidores)} servidores ({pct0(l.parte!)}) passaram do teto num mês típico;
           o que passou somou {moedaExtenso(l.excesso!)} em {l.meses} meses
-          {maiorParte(l.grupos) && <>. Do que o órgão paga além do salário, a maior parte são {maiorParte(l.grupos)}</>}.
+          {(l.eventuaisParte ?? 0) >= EXTRA_EVENTUAL && <>, mais da metade disso em pagamentos eventuais</>}
+          {(l.eventuaisParte ?? 0) < EXTRA_EVENTUAL && maiorParte(l.grupos) && <>. Do que o órgão paga além do salário, a maior parte são {maiorParte(l.grupos)}</>}.
         </li>
       ))}
       {resto.length > 0 && (
-        <li>Outros {resto.length} órgãos ligados a este, com pelo menos 5 servidores acima do teto, somam {moedaExtenso(resto.reduce((t, l) => t + (l.excesso ?? 0), 0))}.</li>
+        <li>Outros {resto.length} órgãos ligados a este, com alguém acima do teto, somam {moedaExtenso(resto.reduce((t, l) => t + (l.excesso ?? 0), 0))} (só aparece pelo nome quem tem pelo menos 5 servidores acima do teto num mês típico).</li>
       )}
     </ul>
+    {ls.some((l) => (l.eventuaisParte ?? 0) >= EXTRA_EVENTUAL) && (
+      <p class="menor">
+        Pagamentos eventuais: a coluna "outras remunerações eventuais" da folha, que o Portal não detalha. Pode ser pagamento atrasado, decisão
+        judicial ou outra parcela fora do salário; por isso o valor pode ser alto para pouca gente.
+      </p>
+    )}
     <p class="menor">Fonte: Portal da Transparência (CGU). Só somas: nenhum servidor aparece. <a href="/supersalarios#federal">Todo o Executivo federal →</a></p>
   </section>
 )}

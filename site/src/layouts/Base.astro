@@ -40,7 +40,6 @@ const GRUPOS: { nome: string; itens: ItemMenu[] }[] = [
     { href: "/estados", nome: "Estados", desc: "Quanto cada governo estadual gastou, área por área, por morador." },
     { href: "/mapa/", nome: "Mapa", desc: "Todas as cidades do país num mapa, para comparar." },
     { href: "/comparar", nome: "Comparar", desc: "Duas cidades ou dois estados lado a lado." },
-    { href: "/supersalarios", nome: "Acima do teto", desc: "Juízes, promotores e servidores federais que recebem mais que o teto, órgão por órgão." },
     { href: "/quem-publica", nome: "Quem publica", desc: "Quais estados mostram quanto gastam em cada cidade." },
   ] },
   { nome: "Contratos e emendas", itens: [
@@ -50,6 +49,9 @@ const GRUPOS: { nome: string; itens: ItemMenu[] }[] = [
       { href: "/emendas/explorar", nome: "Explorar", desc: "todas as listas, por quem, onde e para quê" },
       { href: "/emendas/buscar", nome: "Buscar emenda por emenda", desc: "por lugar, parlamentar ou assunto" },
     ] },
+  ] },
+  { nome: "Servidores", itens: [
+    { href: "/supersalarios", nome: "Acima do teto", desc: "Juízes, promotores e servidores que recebem mais que o teto, órgão por órgão, e quanto isso custa." },
   ] },
   { nome: "Impostos", itens: [
     { href: "/impostos", nome: "Para quem vai o seu imposto", desc: "Quem cobra cada imposto, o que é repassado a estados e prefeituras e quem fica com o dinheiro." },
@@ -341,9 +343,10 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
 
   /* Entre o celular e a tela larga o menu completo não cabe ao lado da marca: fica o menu
      recolhido, como no celular (as classes so-largo e so-celular trocam em 640px). A marca, os
-     cinco grupos e a busca pedem ~1.130px, ou seja, uma tela de ~1.280px. Páginas novas entram
-     dentro dos grupos e não mudam essa conta; um grupo novo muda. */
-  @media (min-width: 641px) and (max-width: 1280px) {
+     seis grupos e a busca pedem ~1.230px; com folga, uma tela de 1.400px (com cinco grupos era 1.280px;
+     o grupo "Servidores" acrescentou ~90px). Páginas novas entram dentro dos grupos e não mudam essa
+     conta; um grupo novo muda. */
+  @media (min-width: 641px) and (max-width: 1400px) {
     .topo .nav.so-largo { display: none !important; }
     .topo .nav-celular.so-celular { display: flex !important; }
   }

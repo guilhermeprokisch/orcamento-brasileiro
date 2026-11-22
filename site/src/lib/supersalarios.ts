@@ -314,6 +314,8 @@ function nomeLegivel(nome: string, orcamento: string | null): string {
 
 export interface LinhaFederal extends OrgaoFederal {
   cod: string;
+  /** Parte do que passou do teto que veio dos pagamentos eventuais (o que o degrau dos eventuais acrescenta). */
+  eventuaisParte: number | null;
   /** Código do órgão no orçamento, quando o nome casa. */
   orcamento: string | null;
   porServidor: number | null;
@@ -325,8 +327,10 @@ export function linhasFederal(): LinhaFederal[] {
   return Object.entries(docFederal.orgaos)
     .map(([cod, o]) => {
       const orcamento = codOrcamento.get(normal(o.nome)) ?? null;
+      const eventuais = o.camadas[1][1] - o.camadas[0][1];
       return {
         ...o, cod, orcamento, nome: nomeLegivel(o.nome, orcamento),
+        eventuaisParte: o.excesso ? Math.max(0, eventuais) / o.excesso : null,
         porServidor: o.excesso === null || o.acima === null ? null : o.excesso / (o.acima * o.meses),
       };
     })
@@ -358,6 +362,11 @@ export function periodoFederal(): string {
     ? `de ${mesExtenso(de).replace(/ de \d{4}$/, "")} a ${mesExtenso(ate)}`
     : `de ${mesExtenso(de)} a ${mesExtenso(ate)}`;
 }
+
+/** Só aparece pelo nome o órgão com pelo menos 5 pessoas acima do teto num mês típico; os outros entram só nas somas. */
+export const MOSTRA_NOME = (o: { acima: number | null; excesso: number | null }) => o.acima !== null && o.excesso !== null;
+/** Quando mais da metade do que passou do teto veio de pagamentos eventuais ou atrasados. */
+export const EXTRA_EVENTUAL = 0.5;
 
 /** Os órgãos do SIAPE que casam com um órgão do orçamento. */
 export const federalDoOrgao = (cod: string) => linhasFederal().filter((l) => l.orcamento === cod);
@@ -455,4 +464,68 @@ export function fpmDeCidadesPequenas(valor: number) {
   if (!valores.length) return null;
   const mediana = valores[Math.floor(valores.length / 2)];
   return { cidades: valor / mediana, mediana, ano: fpm.ano };
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Executivo dos estados (por enquanto, o Paraná), de pipeline/…/supersalarios_estados.py.
+
+export interface OrgaoEstadual {
+  nome: string;
+  meses: number;
+  vinculos: number;
+  acima: number | null;
+  parte: number | null;
+  meses_acima: number;
+  excesso: number | null;
+  pago: number;
+  mediana: number;
+  grupos: Record<string, number>;
+  camadas: [number, number][];
+  faixas: (number | null)[] | null;
+  ir: number;
+  ir_salario: number;
+  previdencia: number;
+}
+interface ExecutivoUf {
+  fonte: string;
+  url: string;
+  de: string;
+  ate: string;
+  meses: number;
+  orgaos: Record<string, OrgaoEstadual>;
+  /** mês -> [vínculos, acima do teto, quanto passou] */
+  serie: Record<string, [number, number, number]>;
+}
+interface DocEstadosTeto { gerado: string; grupos: [string, string][]; faixas: number[]; estados: Record<string, ExecutivoUf> }
+const arquivosEstadosTeto = import.meta.glob<DocEstadosTeto>("../../public/data/indicadores/supersalarios-estados.json", { eager: true, import: "default" });
+export const docEstadosTeto: DocEstadosTeto | null = Object.values(arquivosEstadosTeto)[0] ?? null;
+
+export const NOMES_ESTADUAL: Record<string, string> = {
+  base: "Vencimento e gratificação", outros: "\"Outros\" (sem detalhe)", retroativos: "Pagamentos atrasados", auxilios: "Auxílio-transporte e alimentação",
+};
+
+/** O Executivo de um estado: os órgãos (do que mais passou do teto ao que menos) e as somas. */
+export function executivoDoEstado(uf: string) {
+  const e = docEstadosTeto?.estados[uf.toUpperCase()];
+  if (!e || !docEstadosTeto) return null;
+  // A parte do que passou do teto que veio dos pagamentos atrasados (o que o degrau dos retroativos acrescenta).
+  const orgaos = Object.entries(e.orgaos).map(([sigla, o]) => ({
+    ...o, sigla, nome: nomeLegivel(o.nome, null),
+    atrasadosParte: o.excesso ? Math.max(0, o.camadas[2][1] - o.camadas[1][1]) / o.excesso : null,
+  }))
+    .sort((a, b) => (b.excesso ?? -1) - (a.excesso ?? -1) || b.vinculos - a.vinculos);
+  const vinculos = orgaos.reduce((t, o) => t + o.vinculos, 0);
+  const camadas = docEstadosTeto.grupos.map(([g], i) => ({
+    grupo: g, acima: orgaos.reduce((t, o) => t + o.camadas[i][0], 0), excesso: orgaos.reduce((t, o) => t + o.camadas[i][1], 0),
+  }));
+  const ultima = camadas.at(-1)!;
+  const grupos = Object.fromEntries(docEstadosTeto.grupos.map(([g]) => [g, orgaos.reduce((t, o) => t + o.grupos[g], 0)]));
+  const ir = orgaos.reduce((t, o) => t + o.ir, 0), irSalario = orgaos.reduce((t, o) => t + o.ir_salario, 0);
+  const periodo = e.de.slice(0, 4) === e.ate.slice(0, 4)
+    ? `de ${mesExtenso(e.de).replace(/ de \d{4}$/, "")} a ${mesExtenso(e.ate)}`
+    : `de ${mesExtenso(e.de)} a ${mesExtenso(e.ate)}`;
+  return {
+    ...e, periodo, orgaos, vinculos, acima: ultima.acima, parte: ultima.acima / vinculos, excesso: ultima.excesso,
+    camadas, grupos, ir, irSalario, irPerdido: Math.max(0, irSalario - ir),
+  };
 }
