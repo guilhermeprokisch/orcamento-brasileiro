@@ -189,13 +189,18 @@ As 88.947 empresas da Dirbi 2025, pela raiz do CNPJ:
   quase todo o valor é do Banco do Brasil (R$ 19,5 bi), que aparece porque paga as emendas, não
   porque as recebe. Fora ele, R$ 1 bi, quase tudo compra de veículos e máquinas (Stellantis, Toyota,
   CNH). **Não rende história**; serve só para a ficha.
-- **Dívida ativa da União (PGFN, posição de setembro de 2026)**: **27.560 empresas (31%) devem à União**
-  e, juntas, declararam **R$ 225 bi**, 61% de todo o benefício de 2025. A dívida delas é de R$ 703 bi,
-  mas quase toda está garantida (R$ 319 bi), parcelada (R$ 246 bi) ou suspensa na Justiça (R$ 36 bi).
-  **Em cobrança** são R$ 103 bi. 4.852 empresas devem mais de R$ 1 mi em cobrança; 179 devem mais de
-  R$ 100 mi. Das 537 que tiveram mais de R$ 100 mi de benefício, 34 têm mais de R$ 1 mi em cobrança.
-- **As três coisas juntas** (benefício em 2025, dívida em cobrança e contrato público em 2025): 582
+- **Dívida ativa da União (PGFN, posição de setembro de 2026)**, só o devedor principal (o corresponsável
+  repete o mesmo débito, e a página da dívida ativa também não o conta): das 85.305 empresas que podem aparecer
+  pelo nome, **26.014 (30%) têm alguma dívida com a União** e declararam R$ 222 bi, 60% do benefício de 2025.
+  A dívida delas soma R$ 595 bi, mas quase toda está garantida, parcelada ou suspensa na Justiça. **Em
+  cobrança** são R$ 84 bi, de **16.318 empresas (18% do total)**, que declararam R$ 57 bi de benefício (16%).
+  4.627 empresas devem mais de R$ 1 mi em cobrança; 129 devem mais de R$ 100 mi. Das 537 que tiveram mais
+  de R$ 100 mi de benefício, 33 têm mais de R$ 1 mi em cobrança. A página usa a dívida em cobrança.
+- **As três coisas juntas** (benefício em 2025, dívida em cobrança e contrato público em 2025): 575
   empresas, R$ 22 bi de benefício.
+
+(Uma primeira conta, feita antes do pipeline, juntava os corresponsáveis e dava 31% e 61%; os números acima
+são os do `beneficios_fiscais.py`.)
 
 O cruzamento com a dívida é o mais forte, e é parecido com o que o TCE-SP apontou em São Paulo (3,3
 mil empresas com incentivo de ICMS inscritas na dívida do estado). Mas precisa de cuidado no texto:
@@ -290,3 +295,18 @@ Um `beneficios_fiscais.py`, no jeito do `divida_ativa.py`:
 - Entrar com o cruzamento da dívida ativa já na primeira versão?
 - Ir atrás da lista de Minas por empresa (e do Salic, para a Rouanet por projeto)?
 - Acompanhar o que a Portaria 745/2026 vai publicar nos próximos seis meses.
+
+## O que foi implementado (22/11/2026)
+
+- `pipeline/src/orcamento_pipeline/beneficios_fiscais.py` (`uv run beneficios-fiscais`): baixa a Dirbi de cada ano, lê a
+  natureza jurídica no cadastro de CNPJ (para não nomear empresário individual nem MEI), soma a dívida ativa pelo devedor
+  principal e junta os contratos do PNCP e as emendas pagas a empresas (sem o Banco do Brasil e a Caixa, que só pagam).
+  Os grupos e os nomes dos 173 códigos ficam fixos no programa. Testes em `pipeline/tests/test_beneficios_fiscais.py`.
+- Saídas: `data/publico/beneficios-fiscais-empresas.parquet` (5 MB, uma linha por empresa) e
+  `beneficios-fiscais-por-cnpj.parquet` (8 MB, empresa × ano × benefício), que vão para o bucket; e o resumo
+  `site/public/data/beneficios-fiscais/resumo.json`, com cópia em `pipeline/referencia/beneficios-fiscais.json`. A
+  publicação automática só copia o resumo (`--sem-baixar`); a carga é à mão, a cada atualização semestral da Dirbi.
+- A página `/impostos/empresas` (menu "Impostos" › "Quem deixa de pagar"), com a busca e a ficha de cada empresa
+  (`?empresa=raiz do CNPJ`) consultando os Parquet no navegador. A ficha da empresa em `/contratos` ganha uma linha com o
+  benefício e o link. O galho "o que deixa de entrar" de `/impostos` ganha a nota "Que empresas são essas".
+- A Dirbi de 2026 vai até junho (a atualização de setembro); a página trata o ano como incompleto.

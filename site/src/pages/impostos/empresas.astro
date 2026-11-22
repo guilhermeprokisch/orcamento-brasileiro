@@ -1,0 +1,557 @@
+---
+/**
+ * Quem deixa de pagar imposto: as empresas que declararam benefícios fiscais federais na Dirbi, quanto e com o quê.
+ * A página inicial sai pronta do build (resumo.json, de pipeline/…/beneficios_fiscais.py). A busca (?q=) e a ficha de
+ * cada empresa (?empresa=raiz do CNPJ) consultam no navegador, com o DuckDB, os dois Parquet do bucket público, como
+ * o explorador de contratos. O que os dados sustentam e o que não sustentam: docs/levantamento-isencoes-empresas.md.
+ */
+import Base from "../../layouts/Base.astro";
+import Termo from "../../components/Termo.astro";
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { COR_TIPO, NOME_TIPO, docBeneficios as r, nomeExibido, type Tipo } from "../../lib/beneficios-fiscais";
+
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct = (v: number, t: number) => `${nf0.format(t > 0 ? (v / t) * 100 : 0)}%`;
+const c = r?.concentracao;
+const partes = r && c ? [
+  { v: c.top10, nome: "as 10 maiores", cor: "#0a4a29" },
+  { v: c.top100 - c.top10, nome: "da 11ª à 100ª", cor: "#0e6b3b" },
+  { v: c.top1pct - c.top100, nome: `da 101ª à ${nf0.format(c.n1pct)}ª (o 1% do topo)`, cor: "#6f9a7f" },
+  { v: r.total - c.top1pct, nome: `as outras ${nf0.format(r.empresas - c.n1pct)}`, cor: "#ddd5c3" },
+] : [];
+const totalGeral = r?.total ?? 0;
+const maxGrupo = r ? Math.max(...r.grupos.map((g) => g.valor)) : 1;
+const anoBase = r?.ano ?? 0;
+const parcial = r?.anos.find((a) => a.ano > anoBase);
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const posicaoPgfn = r?.pgfn ? `${MESES[Number(r.pgfn.slice(0, 2)) - 1]} de ${r.pgfn.slice(3)}` : "";
+const tipoDoGrupo = Object.fromEntries((r?.grupos ?? []).map((g) => [g.id, g.tipo]));
+const exemploZfm = r?.grupos.find((g) => g.id === "zfm")?.maiores[0];
+const VISIVEIS = 20;
+// No computador, os Parquet vêm de site/public/data/beneficios-fiscais/ (cópia local), para testar antes do bucket.
+const arquivoEmpresas = import.meta.env.DEV ? "/data/beneficios-fiscais/empresas.parquet" : r?.empresasArquivo;
+const arquivoDetalhe = import.meta.env.DEV ? "/data/beneficios-fiscais/por-cnpj.parquet" : r?.porCnpj;
+const descricao = r
+  ? `Em ${r.ano}, ${nf0.format(r.empresas)} empresas declararam à Receita que deixaram de pagar ${moedaExtenso(r.total)} em impostos federais com isenções e regimes especiais. Veja quais são.`
+  : "As empresas que deixam de pagar imposto federal com isenções e regimes especiais.";
+---
+
+<Base title="Quem deixa de pagar imposto · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap beneficios" data-beneficios data-ano={r?.ano} data-empresas={arquivoEmpresas} data-detalhe={arquivoDetalhe}
+    data-tipos={JSON.stringify(tipoDoGrupo)} data-contratos-ano={r?.contratosAno ?? ""} data-pgfn={posicaoPgfn}
+    data-parciais={JSON.stringify(Object.fromEntries((r?.anos ?? []).filter((a) => a.meses < 12).map((a) => [a.ano, a.ultimoMes])))}>
+    {!r || !c ? (
+      <section class="abre"><h1>Quem deixa de pagar imposto</h1><p>Os dados dos benefícios fiscais ainda não foram carregados.</p></section>
+    ) : (
+      <>
+        <header class="abre">
+          <p class="caminho"><a href="/impostos">Impostos</a> › Quem deixa de pagar</p>
+          <span class="sobretitulo verde">Benefícios fiscais · {r.ano}</span>
+          <h1>Quem deixa de pagar imposto</h1>
+          <p>
+            Em {r.ano}, <strong>{nf0.format(r.empresas)} empresas</strong> disseram à Receita Federal que deixaram de pagar{" "}
+            <strong class="marca">{moedaExtenso(r.total)}</strong> em impostos federais por causa de isenções, reduções e regimes especiais.
+            Metade delas ficou com menos de {moedaCurta(r.mediana)}. As 100 maiores ficaram com {pct(c.top100, r.total)} de tudo.
+          </p>
+        </header>
+
+        <section class="resultado" data-resultado hidden aria-live="polite"></section>
+
+        <div data-inicio>
+          <section class="numeros" aria-label="Os números">
+            <div><span>deixaram de ser pagos</span><strong>{moedaCurta(r.total)}</strong><span>em {r.ano}, sem o Simples Nacional</span></div>
+            <div><span>empresas que declararam</span><strong>{nf0.format(r.empresas)}</strong><span>pela raiz do CNPJ</span></div>
+            <div><span>ficaram com as 100 maiores</span><strong>{pct(c.top100, r.total)}</strong><span>o 1% do topo, com {pct(c.top1pct, r.total)}</span></div>
+            <div><span>também devem à União</span><strong>{pct(r.cruzamentos.devem[0], r.empresas)}</strong><span>e ficaram com {pct(r.cruzamentos.devem[1], r.total)} do benefício</span></div>
+          </section>
+
+          <section class="bloco" id="concentracao">
+            <div class="cabeca">
+              <h2>Poucas empresas, quase tudo</h2>
+              <p>Cada pedaço da barra é uma parte dos {moedaCurta(r.total)}</p>
+            </div>
+            <div class="barra-toda" role="img" aria-label={partes.map((p) => `${p.nome}: ${pct(p.v, totalGeral)}`).join("; ")}>
+              {partes.map((p) => <span style={`flex: ${p.v} 1 0; background: ${p.cor}`}></span>)}
+            </div>
+            <ul class="legenda-toda">
+              {partes.map((p) => <li style={`flex: ${p.v} 1 0`}><i style={`background: ${p.cor}`} aria-hidden="true"></i><strong>{pct(p.v, totalGeral)}</strong><span>{p.nome}</span></li>)}
+            </ul>
+            <p class="texto">
+              A empresa do meio da lista deixou de pagar <strong>{moedaCurta(r.mediana)}</strong> no ano. As {c.bilhao[0]} maiores passaram de R$ 1 bilhão
+              cada e, juntas, somam {moedaCurta(c.bilhao[1])}. A metade de baixo da lista, {nf0.format(c.metadeBaixo[0])} empresas, soma {moedaCurta(c.metadeBaixo[1])}.
+            </p>
+          </section>
+
+          <section class="bloco" id="dois-tipos">
+            <div class="cabeca coluna">
+              <h2>Dois tipos de benefício</h2>
+              <p>O dado diz quem <strong>deixou de recolher</strong> o imposto. Isso nem sempre é quem ficou com o dinheiro.</p>
+            </div>
+            <div class="tipos">
+              <article style={`border-top-color: ${COR_TIPO.empresa}`}>
+                <span class="sobretitulo verde">Da empresa · {moedaCurta(r.tipos.empresa ?? 0)} · {pct(r.tipos.empresa ?? 0, r.total)}</span>
+                <h3>{exemploZfm ? `${nomeExibido(exemploZfm)}, na Zona Franca` : "A fábrica na Zona Franca"}</h3>
+                <p>
+                  A empresa precisa de um projeto aprovado, de uma habilitação ou de estar num lugar: Zona Franca de Manaus, Sudam e Sudene, Lei do Bem,
+                  Perse, Reidi, subvenção para investimento. O benefício é dela, e faz sentido perguntar por que esta empresa e não outra.
+                </p>
+              </article>
+              <article style={`border-top-color: ${COR_TIPO.produto}`}>
+                <span class="sobretitulo">Do produto · {moedaCurta(r.tipos.produto ?? 0)} · {pct(r.tipos.produto ?? 0, r.total)}</span>
+                <h3>A carne sem PIS e Cofins no supermercado</h3>
+                <p>
+                  A lei zera o imposto de um produto: carne, café, leite, adubo, defensivo, remédio. Quem declara é quem vende, mas parte do desconto vai
+                  para o preço que o comprador paga, e ninguém sabe quanto. Por isso supermercados e frigoríficos aparecem no alto da lista.
+                </p>
+              </article>
+            </div>
+            {r.tipos.setor && <p class="menor">Os outros {moedaCurta(r.tipos.setor)} ({pct(r.tipos.setor, r.total)}) são a desoneração da folha, que vale para setores inteiros, como frigoríficos, comunicação e transporte.</p>}
+          </section>
+
+          <section class="bloco" id="por-beneficio">
+            <div class="cabeca">
+              <h2>Para onde vai, por benefício</h2>
+              <ul class="chaves">
+                {(["empresa", "produto", "setor"] as Tipo[]).map((t) => <li><i style={`background: ${COR_TIPO[t]}`} aria-hidden="true"></i>{NOME_TIPO[t]}</li>)}
+              </ul>
+            </div>
+            <p class="menor">Clique num grupo para ver as empresas que mais deixaram de pagar nele.</p>
+            <div class="grupos">
+              {r.grupos.map((g) => (
+                <details open={g.id === "zfm"}>
+                  <summary>
+                    <span class="nome"><strong>{g.nome}</strong><small>{g.sub}</small></span>
+                    <span class="trilho"><i style={`width: ${(g.valor / maxGrupo) * 100}%; background: ${COR_TIPO[g.tipo]}`}></i></span>
+                    <strong class="valor">{moedaCurta(g.valor)}</strong>
+                    <span class="sinal" aria-hidden="true"></span>
+                  </summary>
+                  <div class="dentro">
+                    <p>{nf0.format(g.empresas)} {g.empresas === 1 ? "empresa" : "empresas"}. As 10 maiores ficam com {nf0.format(g.top10 * 100)}% do grupo.</p>
+                    <ol>
+                      {g.maiores.map((m) => (
+                        <li><a href={m.raiz ? `?empresa=${m.raiz}` : undefined}>{nomeExibido(m)}</a><strong>{moedaCurta(m.valor)}</strong></li>
+                      ))}
+                    </ol>
+                  </div>
+                </details>
+              ))}
+            </div>
+          </section>
+
+          <section class="bloco" id="as-maiores">
+            <div class="cabeca">
+              <div class="coluna">
+                <h2>As maiores</h2>
+                <p class="menor">As que mais deixaram de pagar em {r.ano}. Estado e setor são os da matriz.</p>
+              </div>
+              <div class="filtros" role="group" aria-label="Filtrar por tipo de benefício">
+                <button type="button" data-filtro="" aria-pressed="true">Todas</button>
+                <button type="button" data-filtro="empresa" aria-pressed="false">Benefício da empresa</button>
+                <button type="button" data-filtro="produto" aria-pressed="false">Benefício do produto</button>
+              </div>
+            </div>
+            <div class="rolagem">
+              <table class="maiores">
+                <thead><tr><th>#</th><th>Empresa</th><th>UF</th><th>Benefício maior</th><th class="d">Em {r.ano}</th><th>Na mesma empresa</th></tr></thead>
+                <tbody>
+                  {r.maiores.map((m, i) => (
+                    <tr data-tipo={m.tipo} class={i >= VISIVEIS ? "extra" : undefined} hidden={i >= VISIVEIS}>
+                      <td class="pos">{m.pos}</td>
+                      <td class="empresa">{m.raiz ? <a href={`?empresa=${m.raiz}`}>{nomeExibido(m)}</a> : <span>{nomeExibido(m)}</span>}<small>{m.setor}</small></td>
+                      <td>{m.uf}</td>
+                      <td><span class="ponto" style={`background: ${COR_TIPO[m.tipo]}`} aria-hidden="true"></span>{m.beneficio}</td>
+                      <td class="d valor">{moedaCurta(m.valor)}</td>
+                      <td class="marcas">
+                        {m.cobranca > 0 && <span class="deve">deve {moedaCurta(m.cobranca)} à União</span>}
+                        {m.restricao && <span class="escondido">nome escondido por decisão judicial</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button type="button" class="mais" data-mais>Mostrar as {r.maiores.length} maiores</button>
+            <p class="menor">
+              "Deve à União" é a <Termo id="divida-ativa">dívida ativa</Termo> em cobrança na Procuradoria da Fazenda ({posicaoPgfn}), sem a parte
+              parcelada, garantida ou suspensa na Justiça. Dívida em cobrança não é condenação. Na ficha de cada empresa estão também os contratos
+              com governos{r.contratosAno ? ` em ${r.contratosAno}` : ""}.
+            </p>
+          </section>
+        </div>
+
+        <section class="bloco procurar" id="procurar">
+          <div class="coluna">
+            <h2>Procure uma empresa</h2>
+            <p class="texto">A ficha mostra o que ela deixou de pagar, ano a ano e por benefício, ao lado dos contratos com governos, das emendas e da dívida com a União.</p>
+          </div>
+          <form role="search" action="/impostos/empresas" method="get" data-form>
+            <label for="busca-beneficios">Nome ou CNPJ da empresa</label>
+            <div class="linha-busca">
+              <input id="busca-beneficios" name="q" type="search" placeholder="Ex.: Vale, 33.592.510" autocomplete="off" />
+              <button type="submit">Procurar</button>
+            </div>
+            <p class="menor">Empresário individual e MEI entram só nos totais: o nome deles é o nome de uma pessoa ({nf0.format(r.ocultas[0])} empresas, {moedaCurta(r.ocultas[1])}).</p>
+          </form>
+        </section>
+
+        <section class="bloco ler" id="como-ler">
+          <h2>Como ler estes números</h2>
+          <ul>
+            <li><strong>É o que a empresa declarou.</strong> Desde 2024, quem usa benefício federal e não está no Simples informa todo mês, na Dirbi, quanto deixou de pagar. A Receita confere depois.</li>
+            <li><strong>O estado é o da sede.</strong> Uma empresa com sede em São Paulo e fábricas em outros estados conta inteira em São Paulo. Por isso não há mapa.</li>
+            <li><strong>Fica de fora o Simples Nacional</strong> (o maior <Termo id="beneficio-fiscal">benefício fiscal</Termo> de todos, perto de R$ 120 bi por ano), o que é de pessoa física e o ICMS dos estados, que quase nenhum estado publica por empresa.</li>
+            {r.restricao[0] > 0 && <li><strong>{r.restricao[0] === 1 ? "Uma empresa escondeu" : `${r.restricao[0]} empresas esconderam`} o nome na Justiça.</strong> {r.restricao[0] === 1 ? "Ela aparece" : "Elas aparecem"} como "Restrição judicial", com {moedaCurta(r.restricao[1])} em {r.ano}.</li>}
+            <li><strong>Não diz se valeu a pena.</strong> Nenhum dado aqui mostra empregos ou investimento em troca do benefício.</li>
+            {parcial && <li><strong>{parcial.ano} ainda está pela metade:</strong> até {MESES[parcial.ultimoMes - 1]}, {moedaCurta(parcial.valor)}. Está na ficha de cada empresa.</li>}
+          </ul>
+          <p class="menor">
+            Fontes: Receita Federal, <a href="https://dados.gov.br/dados/conjuntos-dados/renuncias-fiscais-de-tributos-federais">Dirbi</a> e cadastro de CNPJ;
+            PGFN, <a href="https://dadosabertos.pgfn.gov.br/">dívida ativa da União</a> ({posicaoPgfn}); PNCP, contratos{r.contratosAno ? ` de ${r.contratosAno}` : ""}.
+            O total de tudo o que a União deixa de cobrar, empresas e pessoas, está em <a href="/impostos#caminho-inteiro">Para quem vai o seu imposto</a>.
+          </p>
+        </section>
+      </>
+    )}
+  </div>
+</Base>
+
+<script is:inline type="module">
+  const raiz = document.querySelector("[data-beneficios]");
+  const params = new URLSearchParams(location.search);
+
+  // A tabela das maiores: os filtros por tipo e o "mostrar todas".
+  const linhas = [...document.querySelectorAll("table.maiores tbody tr")];
+  let filtro = "", todas = false;
+  const aplicar = () => {
+    let n = 0;
+    for (const l of linhas) {
+      const passa = !filtro || l.dataset.tipo === filtro;
+      l.hidden = !passa || (!todas && n >= 20);
+      if (passa) n += 1;
+    }
+  };
+  document.querySelectorAll("[data-filtro]").forEach((b) => b.addEventListener("click", () => {
+    filtro = b.dataset.filtro;
+    document.querySelectorAll("[data-filtro]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    aplicar();
+  }));
+  document.querySelector("[data-mais]")?.addEventListener("click", (e) => { todas = true; e.currentTarget.hidden = true; aplicar(); });
+
+  // A busca e a ficha da empresa: DuckDB no navegador, lendo os Parquet (como o explorador de contratos).
+  const saida = document.querySelector("[data-resultado]");
+  const inicio = document.querySelector("[data-inicio]");
+  const q = (params.get("q") || "").trim();
+  const empresa = (params.get("empresa") || "").trim();
+  if (q) document.querySelector("#busca-beneficios").value = q;
+
+  const ANO = Number(raiz?.dataset.ano);
+  const TIPOS = JSON.parse(raiz?.dataset.tipos || "{}");
+  const COR = { empresa: "#0e6b3b", produto: "#c3bba7", setor: "#8a8475" };
+  const abs = (u) => new URL(u, location.href).href;
+  const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const curto = (v) => (v >= 1e9 ? `R$ ${nf1.format(v / 1e9)} bi` : v >= 1e6 ? `R$ ${nf1.format(v / 1e6)} mi` : v >= 1e3 ? `R$ ${nf0.format(v / 1e3)} mil` : `R$ ${nf0.format(v)}`);
+  const extenso = (v) => { const u = (x, s, p) => `R$ ${nf1.format(x).replace(/,0$/, "")} ${x < 2 ? s : p}`; return v >= 1e9 ? u(v / 1e9, "bilhão", "bilhões") : v >= 1e6 ? u(v / 1e6, "milhão", "milhões") : curto(v); };
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const sem = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const pequenas = new Set(["de", "da", "do", "das", "dos", "e", "em", "para"]);
+  const titulo = (s) => {
+    if (!s || s !== s.toUpperCase()) return s || "";
+    const l = s.replace(/\s+(LTDA\.?|S\/A\.?|S\.A\.?|SA|EIRELI|ME|EPP)\s*$/i, "");
+    return l.toLowerCase().split(/\s+/).map((p, i) => (/^(s\/?a|me|epp|eireli)$/.test(p) ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
+  };
+  const nomeDe = (e) => (e.raiz ? titulo(e.nome) : String(e.nome).replace(/restri[çc][ãa]o judicial/i, "Restrição judicial"));
+  const cnpj8 = (r) => r.replace(/^(\d{2})(\d{3})(\d{3})$/, "$1.$2.$3");
+  const frase = (s) => { const t = s && s === s.toUpperCase() ? s.toLowerCase() : s || ""; return t.charAt(0).toUpperCase() + t.slice(1); };
+
+  let conn;
+  function carregando(texto) {
+    saida.hidden = false;
+    saida.innerHTML = `<div class="carregando" role="status"><div class="barra-carga" aria-hidden="true"><i></i></div><p><strong>${esc(texto)}</strong></p>
+      <p class="menor">A consulta roda no seu navegador: o motor leva alguns segundos para ligar.</p></div>`;
+  }
+  async function conectar() {
+    carregando("Preparando o motor de consulta…");
+    const duckdb = await import("https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.29.0/+esm");
+    const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+    const url = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" }));
+    const db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), new Worker(url));
+    await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+    URL.revokeObjectURL(url);
+    conn = await db.connect();
+  }
+  const consulta = async (sql, valores = []) => {
+    const stmt = await conn.prepare(sql);
+    const t = await stmt.query(...valores);
+    await stmt.close();
+    return t.toArray().map((l) => l.toJSON());
+  };
+  const num = (v) => (v === null || v === undefined ? 0 : Number(v));
+
+  async function iniciar() {
+    inicio.hidden = true;
+    try {
+      await conectar();
+      if (empresa) await ficha(empresa);
+      else await busca(q);
+      saida.scrollIntoView({ block: "start" });
+    } catch (erro) {
+      console.error(erro);
+      saida.innerHTML = `<p class="aviso">Não deu para consultar agora. Tente de novo em alguns minutos.</p><p><a href="/impostos/empresas">Voltar para a página inicial</a></p>`;
+    }
+  }
+
+  async function busca(texto) {
+    carregando("Procurando as empresas…");
+    const d = texto.replace(/\D/g, "");
+    const onde = d.length >= 8 && d.length === texto.replace(/[\s./-]/g, "").length ? ["raiz = ?", [d.slice(0, 8)]]
+      : ["strip_accents(lower(nome)) LIKE ?", [`%${sem(texto)}%`]];
+    const achadas = await consulta(`SELECT raiz, chave, nome, uf, municipio, setor, beneficio, grupo, coalesce(v${ANO}, 0) AS valor
+      FROM read_parquet('${abs(raiz.dataset.empresas)}') WHERE ${onde[0]} ORDER BY valor DESC LIMIT 40`, onde[1]);
+    const voltar = `<p class="voltar"><a href="/impostos/empresas">← Todas as empresas</a></p>`;
+    if (!achadas.length) {
+      saida.innerHTML = `${voltar}<h2>Nada encontrado para “${esc(texto)}”</h2><p class="texto">A Dirbi só tem as empresas fora do Simples Nacional que usaram algum benefício federal desde 2024. Empresário individual e MEI não aparecem pelo nome.</p>`;
+      return;
+    }
+    saida.innerHTML = `${voltar}<h2>${achadas.length === 40 ? "As 40 primeiras" : nf0.format(achadas.length)} para “${esc(texto)}”</h2>
+      <ol class="achadas">${achadas.map((e) => `<li><a href="?empresa=${encodeURIComponent(e.chave)}"><span class="col"><strong>${esc(nomeDe(e))}</strong>
+        <small>${esc(frase(e.setor))}${e.municipio ? ` · ${esc(titulo(e.municipio))} (${esc(e.uf)})` : ""}</small></span>
+        <span class="col d"><strong>${e.valor ? curto(num(e.valor)) : "—"}</strong><small>${esc(e.beneficio || "")}</small></span></a></li>`).join("")}</ol>
+      <p class="menor">O valor é o de ${ANO}; uma empresa sem valor em ${ANO} declarou benefício em outro ano.</p>`;
+  }
+
+  async function ficha(chave) {
+    carregando("Procurando a empresa…");
+    const [e] = await consulta(`SELECT * FROM read_parquet('${abs(raiz.dataset.empresas)}') WHERE chave = ?`, [chave]);
+    const voltar = `<p class="voltar"><a href="/impostos/empresas">← Todas as empresas</a></p>`;
+    if (!e) { saida.innerHTML = `${voltar}<h2>Essa empresa não está na lista</h2><p class="texto">Ela não declarou benefício na Dirbi desde 2024, ou é empresário individual (que não aparece pelo nome).</p>`; return; }
+    carregando("Somando os benefícios…");
+    const det = await consulta(`SELECT ano, beneficio, grupo, valor FROM read_parquet('${abs(raiz.dataset.detalhe)}') WHERE chave = ? ORDER BY ano, valor DESC`, [chave]);
+    const [pos] = await consulta(`SELECT count(*)::INTEGER + 1 AS pos FROM read_parquet('${abs(raiz.dataset.empresas)}') WHERE v${ANO} > ?`, [num(e[`v${ANO}`])]);
+    const anos = [...new Set(det.map((x) => x.ano))].sort();
+    const doAno = det.filter((x) => x.ano === ANO);
+    const totalAno = num(e[`v${ANO}`]);
+    const maior = Math.max(...doAno.map((x) => num(x.valor)), 1);
+    const daEmpresa = doAno.filter((x) => TIPOS[x.grupo] === "empresa").reduce((t, x) => t + num(x.valor), 0);
+    const tipoFrase = totalAno ? (daEmpresa / totalAno > 0.66 ? "Quase tudo é benefício da própria empresa, não de um produto." : daEmpresa / totalAno < 0.33 ? "Quase tudo é benefício de produto: a empresa deixa de recolher, mas parte vai para o preço." : "Uma parte é benefício da empresa; outra, de produto.") : "";
+    const nome = nomeDe(e);
+    document.title = `${nome} · Benefícios fiscais · Orçamento Brasileiro`;
+    const barras = doAno.slice(0, 10).map((x) => `<li><span class="lb-linha"><span>${esc(x.beneficio)}</span><strong>${curto(num(x.valor))}</strong></span>
+      <span class="lb-trilho"><i style="width:${(num(x.valor) / maior) * 100}%;background:${COR[TIPOS[x.grupo] || "produto"]}"></i></span></li>`).join("");
+    const PARCIAIS = JSON.parse(raiz.dataset.parciais || "{}");
+    const MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    const porAno = anos.map((a) => { const v = det.filter((x) => x.ano === a).reduce((t, x) => t + num(x.valor), 0);
+      return `<li><span>${a}${PARCIAIS[a] ? ` (até ${MES[PARCIAIS[a] - 1]})` : ""}</span><strong>${curto(v)}</strong></li>`; }).join("");
+    const contratosAno = raiz.dataset.contratosAno;
+    const outro = [
+      contratosAno ? `<div><span>contratos com governos em ${contratosAno}</span><strong>${num(e.contratos) ? curto(num(e.contratos)) : "nenhum"}</strong>
+        <span>${num(e.n_contratos) ? `${nf0.format(num(e.n_contratos))} ${num(e.n_contratos) === 1 ? "contrato" : "contratos"} no PNCP` : "no PNCP"}</span>
+        ${num(e.contratos) && e.raiz ? `<a href="/contratos?empresa=${e.raiz}">Ver os contratos</a>` : ""}</div>` : "",
+      `<div><span>pago com emendas, desde 2024</span><strong>${num(e.emendas) ? curto(num(e.emendas)) : "nada"}</strong><span>como favorecida direta</span></div>`,
+      `<div><span>dívida ativa com a União</span><strong>${num(e.divida) ? curto(num(e.divida)) : "nenhuma"}</strong>
+        <span>${num(e.divida) ? `<mark>${curto(num(e.cobranca))} em cobrança</mark>; o resto parcelado, garantido ou na Justiça` : `na PGFN, em ${esc(raiz.dataset.pgfn)}`}</span></div>`,
+    ].join("");
+    saida.innerHTML = `${voltar}
+      <div class="ficha-topo">
+        <span class="sobretitulo">${e.raiz ? `Empresa · CNPJ ${cnpj8(e.raiz)}` : "Empresa com o nome escondido por decisão judicial"}</span>
+        <h2 class="grande">${esc(nome)}</h2>
+        <p class="menor">${esc(frase(e.setor || ""))}${e.municipio ? ` · sede em ${esc(titulo(e.municipio))} (${esc(e.uf)})` : ""}</p>
+      </div>
+      <section class="ficha-bloco">
+        <div class="texto-ficha">
+          <h3>Benefícios fiscais</h3>
+          <p>${totalAno ? `Em ${ANO}, a empresa declarou ter deixado de pagar <strong class="marca">${extenso(totalAno)}</strong> em impostos federais. É a ${nf0.format(pos.pos)}ª maior do país. ${tipoFrase}`
+            : `A empresa não declarou benefício em ${ANO}.`}</p>
+          <ul class="por-ano">${porAno}</ul>
+          <p class="menor">Valor que a empresa informou à Receita na Dirbi${Object.keys(PARCIAIS).length ? `; ${Object.keys(PARCIAIS).join(", ")} ainda não fechou` : ""}.</p>
+        </div>
+        ${barras ? `<ul class="lb">${barras}</ul>` : ""}
+      </section>
+      <section class="ficha-outro">
+        <h3>A mesma empresa, do outro lado</h3>
+        <div class="tres">${outro}</div>
+        <p class="menor">Dívida em cobrança é o que a Procuradoria da Fazenda cobra hoje (${esc(raiz.dataset.pgfn)}); não é condenação, e empresas grandes costumam discutir parte dela na Justiça.</p>
+      </section>`;
+  }
+
+  // Por último: a busca e a ficha usam as funções acima.
+  if (raiz && saida && (q || empresa)) iniciar();
+</script>
+
+<style>
+  .abre { padding: 40px 0 28px; max-width: 880px; display: flex; flex-direction: column; gap: 14px; }
+  .abre .caminho { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .abre h1 { font-size: 64px; line-height: 1; letter-spacing: -0.025em; }
+  .abre p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .abre strong { color: var(--tinta); }
+  .numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 36px; font-weight: 700; white-space: nowrap; }
+  .bloco { border-top: 2px solid var(--tinta); padding: 36px 0 44px; display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 12px; }
+  #concentracao { border-top: 0; }
+  .bloco h2 { font-size: 34px; }
+  .cabeca { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 10px 24px; }
+  .cabeca p { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .coluna { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .coluna p { font-size: 16px; color: var(--texto-2); }
+  .coluna strong { color: var(--tinta); }
+  .texto { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); max-width: 760px; }
+  .texto strong { color: var(--tinta); }
+  .menor { margin: 0; font-size: 14px; line-height: 1.55; color: var(--texto-3); max-width: 880px; }
+  .barra-toda { display: flex; gap: 2px; height: 56px; }
+  .legenda-toda { list-style: none; margin: 0; padding: 0; display: flex; gap: 2px; }
+  .legenda-toda li { display: flex; flex-direction: column; padding-right: 8px; min-width: 0; font-size: 14px; color: var(--texto-2); line-height: 1.35; }
+  .legenda-toda i { display: none; }
+  .legenda-toda strong { font-family: var(--serifa); font-size: 22px; color: var(--tinta); }
+  .tipos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 48px; }
+  .tipos article { border-top: 6px solid; padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .tipos h3 { font-size: 24px; }
+  .tipos p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .chaves { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--texto-2); }
+  .chaves li { display: inline-flex; align-items: center; gap: 6px; }
+  .chaves i, .ponto { display: inline-block; width: 12px; height: 12px; flex: none; }
+  .ponto { width: 10px; height: 10px; margin-right: 8px; }
+  .grupos { border-top: 1px solid var(--tinta); }
+  .grupos details { border-bottom: 1px solid var(--regra-leve); }
+  .grupos summary { list-style: none; cursor: pointer; padding: 12px 0; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr) 96px 24px; gap: 8px 20px; align-items: center; }
+  .grupos summary::-webkit-details-marker { display: none; }
+  .grupos summary:hover .nome strong { text-decoration: underline; }
+  .grupos .nome { display: flex; flex-direction: column; min-width: 0; }
+  .grupos .nome strong { font-weight: 600; font-size: 15px; }
+  .grupos .nome small { font-size: 12px; color: var(--texto-3); }
+  .grupos .trilho { display: block; height: 14px; }
+  .grupos .trilho i { display: block; height: 100%; min-width: 2px; }
+  .grupos .valor { text-align: right; font-variant-numeric: tabular-nums; }
+  .grupos .sinal::before { content: "+"; font-size: 18px; color: var(--texto-3); }
+  .grupos details[open] .sinal::before { content: "−"; }
+  .grupos .dentro { padding: 0 0 20px; }
+  .grupos .dentro p { margin: 0 0 6px; font-size: 14px; color: var(--texto-2); }
+  .grupos ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
+  .grupos ol li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px dotted var(--regra); font-size: 15px; }
+  .grupos ol a:not([href]) { color: var(--tinta); }
+  .grupos ol strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .filtros { display: flex; flex-wrap: wrap; gap: 8px; }
+  .filtros button, .mais { min-height: 44px; padding: 0 16px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .filtros button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
+  .mais { align-self: flex-start; }
+  .rolagem { overflow-x: auto; }
+  .maiores { width: 100%; min-width: 860px; border-collapse: collapse; font-size: 15px; }
+  .maiores th { text-align: left; font-weight: 400; font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 16px 8px 0; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--tinta); }
+  .maiores td { padding: 11px 16px 11px 0; border-bottom: 1px solid var(--regra-leve); vertical-align: middle; }
+  .maiores .d { text-align: right; }
+  .maiores .pos { color: var(--texto-3); font-variant-numeric: tabular-nums; width: 36px; }
+  .maiores .empresa a, .maiores .empresa span { font-weight: 600; color: var(--tinta); }
+  .maiores .empresa small { display: block; font-size: 12px; color: var(--texto-3); }
+  .maiores .valor { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .maiores .marcas { min-width: 190px; }
+  .marcas span { display: inline-block; font-size: 12px; padding: 2px 8px; margin: 2px 6px 2px 0; }
+  .marcas .deve { background: var(--marca-texto-fundo); }
+  .marcas .escondido { border: 1px dashed var(--texto-3); color: var(--texto-2); }
+  .procurar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px 48px; align-items: start; }
+  .procurar form { display: flex; flex-direction: column; gap: 8px; }
+  .procurar label { font-size: 14px; font-weight: 600; }
+  .linha-busca { display: flex; flex-wrap: wrap; gap: 8px; }
+  .linha-busca input { flex: 1 1 240px; height: 50px; padding: 0 16px; border: 1px solid var(--tinta); background: #fff; font: inherit; color: var(--tinta); }
+  .linha-busca button { height: 50px; padding: 0 24px; background: var(--verde); color: #fff; border: 0; font: inherit; font-weight: 600; cursor: pointer; }
+  .linha-busca button:hover { background: var(--verde-escuro); }
+  .ler { max-width: 880px; }
+  .ler h2 { font-size: 28px; }
+  .ler ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.6; color: var(--texto-2); }
+  .ler li strong { color: var(--tinta); }
+
+  @media (max-width: 900px) {
+    .abre { padding: 28px 0 20px; }
+    .abre h1 { font-size: 40px; }
+    .abre p { font-size: 17px; }
+    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(odd) { padding-left: 0; }
+    .numeros div:nth-child(even) { border-right: 0; padding-right: 0; }
+    .numeros strong { font-size: 26px; }
+    .bloco { padding: 28px 0 32px; }
+    .bloco h2 { font-size: 26px; }
+    .barra-toda { height: 40px; }
+    .legenda-toda { flex-direction: column; gap: 6px; }
+    .legenda-toda li { flex: none !important; flex-direction: row; align-items: center; gap: 10px; }
+    .legenda-toda i { display: inline-block; width: 12px; height: 12px; flex: none; }
+    .legenda-toda strong { font-family: var(--sans); font-size: 14px; width: 40px; }
+    .tipos { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .tipos h3 { font-size: 20px; }
+    .tipos p { font-size: 15px; }
+    .grupos summary { grid-template-columns: minmax(0, 1fr) auto 20px; gap: 6px 12px; }
+    .grupos .trilho { grid-column: 1 / -1; grid-row: 2; height: 10px; }
+    .grupos .nome small { display: none; }
+    .grupos ol { grid-template-columns: minmax(0, 1fr); }
+    .procurar { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  }
+  /* No celular, a tabela vira uma lista de cartões: nome e valor em cima, benefício e estado embaixo. */
+  @media (max-width: 640px) {
+    .maiores { min-width: 0; border-top: 1px solid var(--tinta); }
+    .maiores thead { display: none; }
+    .maiores tr:not([hidden]) { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; column-gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--regra-leve); }
+    .maiores td { padding: 0; border: 0; }
+    .maiores .pos { grid-row: 1; grid-column: 1; }
+    .maiores .empresa { grid-row: 1; grid-column: 2; }
+    .maiores .valor { grid-row: 1; grid-column: 3; }
+    .maiores td:nth-child(3) { grid-row: 2; grid-column: 3; text-align: right; font-size: 13px; color: var(--texto-3); }
+    .maiores td:nth-child(4) { grid-row: 2; grid-column: 2; font-size: 13px; color: var(--texto-2); padding-top: 4px; }
+    .maiores .marcas { grid-row: 3; grid-column: 2 / -1; }
+    .maiores .marcas:empty { display: none; }
+  }
+</style>
+
+<style is:global>
+  /* A busca e a ficha são montadas no navegador, fora do escopo do Astro: estilos globais, só dentro de .beneficios. */
+  @keyframes corre-beneficios { from { left: -35%; } to { left: 100%; } }
+  .beneficios [hidden] { display: none !important; }
+  .beneficios .resultado { border-top: 2px solid var(--tinta); padding: 24px 0 44px; display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 12px; }
+  .beneficios .resultado h2 { font-size: 30px; }
+  .beneficios .resultado h2.grande { font-size: 44px; line-height: 1.05; }
+  .beneficios .resultado h3 { font-family: var(--serifa); font-size: 28px; margin: 0; }
+  .beneficios .resultado .voltar { margin: 0; font-size: 15px; }
+  .beneficios .resultado .aviso { color: #8f3d1d; margin: 0; }
+  .beneficios .carregando { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; }
+  .beneficios .carregando p { margin: 0; }
+  .beneficios .barra-carga { position: relative; height: 4px; background: var(--regra-leve); overflow: hidden; max-width: 420px; }
+  .beneficios .barra-carga i { position: absolute; top: 0; bottom: 0; width: 35%; background: var(--verde); animation: corre-beneficios 1.1s linear infinite; }
+  .beneficios .achadas { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .beneficios .achadas a { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--regra-leve); color: var(--tinta); text-decoration: none; }
+  .beneficios .achadas a:hover strong { text-decoration: underline; }
+  .beneficios .achadas .col { display: flex; flex-direction: column; min-width: 0; }
+  .beneficios .achadas .d { text-align: right; flex: none; }
+  .beneficios .achadas small { font-size: 12px; color: var(--texto-3); }
+  .beneficios .ficha-topo { display: flex; flex-direction: column; gap: 6px; }
+  .beneficios .ficha-bloco { border-top: 2px solid var(--tinta); padding-top: 24px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 32px; }
+  .beneficios .texto-ficha { display: flex; flex-direction: column; gap: 12px; }
+  .beneficios .texto-ficha p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .beneficios .texto-ficha strong { color: var(--tinta); }
+  .beneficios .por-ano { list-style: none; margin: 0; padding: 0; display: flex; gap: 0; border-top: 1px solid var(--regra); border-bottom: 1px solid var(--regra); }
+  .beneficios .por-ano li { flex: 1; display: flex; flex-direction: column; padding: 8px 12px 8px 0; font-size: 13px; color: var(--texto-3); }
+  .beneficios .por-ano strong { font-family: var(--serifa); font-size: 20px; color: var(--tinta); }
+  .beneficios .lb { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; align-self: center; }
+  .beneficios .lb li { display: flex; flex-direction: column; gap: 4px; }
+  .beneficios .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+  .beneficios .lb-linha strong { white-space: nowrap; }
+  .beneficios .lb-trilho { display: block; height: 10px; background: var(--regra-leve); }
+  .beneficios .lb-trilho i { display: block; height: 100%; min-width: 2px; }
+  .beneficios .ficha-outro { border-top: 2px solid var(--tinta); padding-top: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .beneficios .ficha-outro h3 { font-size: 22px; }
+  .beneficios .tres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--regra); border-bottom: 1px solid var(--regra); }
+  .beneficios .tres div { padding: 16px 20px; border-right: 1px solid var(--regra); display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--texto-2); }
+  .beneficios .tres div:first-child { padding-left: 0; }
+  .beneficios .tres div:last-child { border-right: 0; padding-right: 0; }
+  .beneficios .tres div > span:first-child { color: var(--texto-3); }
+  .beneficios .tres strong { font-family: var(--serifa); font-size: 30px; color: var(--tinta); }
+  .beneficios .tres a { font-size: 14px; font-weight: 600; }
+  .beneficios .tres mark { background: var(--marca-texto-fundo); padding: 0 4px; }
+  @media (max-width: 900px) {
+    .beneficios .resultado h2.grande { font-size: 32px; }
+    .beneficios .ficha-bloco { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .beneficios .tres { grid-template-columns: minmax(0, 1fr); }
+    .beneficios .tres div { padding: 14px 0; border-right: 0; border-bottom: 1px solid var(--regra); }
+    .beneficios .tres div:last-child { border-bottom: 0; }
+  }
+</style>

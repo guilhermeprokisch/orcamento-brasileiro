@@ -106,6 +106,10 @@ fila_independente() {
   # feita à mão (uv run divida-ativa; ~1,5 GB da PGFN e ~6,7 GB da Receita, lidos e apagados), uma vez por
   # trimestre. Aqui só a cópia de referência.
   pipe pode-falhar "Dívida ativa da União" divida-ativa --sem-baixar
+  # Benefícios fiscais por empresa (/impostos/empresas): a Dirbi da Receita (~1,6 GB por três anos), o cadastro de CNPJ
+  # (natureza jurídica, ~1,3 GB) e a dívida ativa, numa carga à mão (uv run beneficios-fiscais), a cada atualização
+  # semestral da Dirbi. Os Parquet ficam no bucket; aqui só a cópia de referência do resumo.
+  pipe pode-falhar "Benefícios fiscais por empresa" beneficios-fiscais --sem-baixar
   # Juízes e promotores acima do teto (DadosJusBr): o supersalarios.yml baixa os meses novos todo dia 20 e abre um
   # pull request com a cópia de referência; aqui só essa cópia.
   pipe pode-falhar "Acima do teto (DadosJusBr)" supersalarios --sem-baixar

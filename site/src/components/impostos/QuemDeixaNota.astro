@@ -1,0 +1,29 @@
+---
+/**
+ * Ao lado do que deixa de entrar: quais empresas declaram os benefícios fiscais, com o link para /impostos/empresas.
+ * Dados: lib/beneficios-fiscais.ts (pipeline/…/beneficios_fiscais.py).
+ */
+import { moedaExtenso } from "../../lib/formato";
+import { docBeneficios as r } from "../../lib/beneficios-fiscais";
+
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+---
+
+{r && (
+  <aside class="quem-deixa-nota">
+    <strong>Que empresas são essas</strong>
+    <p>
+      Em {r.ano}, {nf0.format(r.empresas)} empresas fora do Simples declararam à Receita que deixaram de pagar{" "}
+      <strong>{moedaExtenso(r.total)}</strong> com benefícios federais. As 100 maiores ficaram com {nf0.format((r.concentracao.top100 / r.total) * 100)}%.{" "}
+      <a href="/impostos/empresas">Veja quem são</a>.
+    </p>
+  </aside>
+)}
+
+<style>
+  .quem-deixa-nota { margin: 20px 0 0; padding: 14px 0 0; border-top: 1px solid var(--regra); display: flex; flex-direction: column; gap: 8px; max-width: 620px; }
+  .quem-deixa-nota > strong { font-size: 17px; }
+  .quem-deixa-nota p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--texto-2); }
+  .quem-deixa-nota p strong { color: var(--tinta); }
+  .quem-deixa-nota a { font-weight: 600; }
+</style>
