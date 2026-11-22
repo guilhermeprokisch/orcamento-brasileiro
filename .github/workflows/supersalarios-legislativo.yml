@@ -12,6 +12,8 @@ name: Acima do teto (Legislativo federal)
 on:
   schedule:
     - cron: "0 7 22 * *"
+  push:   # TEMPORÁRIO: teste no branch
+    branches: [claude/teto-legislativo]
   workflow_dispatch:
 
 concurrency:
