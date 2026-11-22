@@ -104,6 +104,9 @@ fila_independente() {
   # feita à mão (uv run divida-ativa; ~1,5 GB da PGFN e ~6,7 GB da Receita, lidos e apagados), uma vez por
   # trimestre. Aqui só a cópia de referência.
   pipe pode-falhar "Dívida ativa da União" divida-ativa --sem-baixar
+  # Juízes e promotores acima do teto (DadosJusBr): carga feita à mão uma vez por mês (uv run supersalarios; ~2.000
+  # pacotes pequenos, lidos e somados por órgão, o cache em data/raw só com as somas). Aqui só a cópia de referência.
+  pipe pode-falhar "Acima do teto (DadosJusBr)" supersalarios --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).

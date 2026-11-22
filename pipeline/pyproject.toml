@@ -51,6 +51,7 @@ gasto-federal = "orcamento_pipeline.gasto_federal:main"
 caminho-impostos = "orcamento_pipeline.caminho_impostos:main"
 previdencia = "orcamento_pipeline.previdencia:main"
 divida-ativa = "orcamento_pipeline.divida_ativa:main"
+supersalarios = "orcamento_pipeline.supersalarios:main"
 
 [build-system]
 requires = ["hatchling"]

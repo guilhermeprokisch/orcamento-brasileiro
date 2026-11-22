@@ -282,7 +282,7 @@ Não entra na página da cidade: os dados são por órgão, e a lotação não d
 Ordem sugerida de trabalho:
 
 1. **Judiciário e MP pelo DadosJusBr**: 2025 inteiro (o ano com mais cobertura) e 2026 desde
-   abril, lado a lado, com cópia em `pipeline/referencia/` como nos outros comandos. É onde está
+   maio (a decisão valeu desde abril, mas o corte só apareceu nos pagamentos de maio), lado a lado, com cópia em `pipeline/referencia/` como nos outros comandos. É onde está
    quase todo o dinheiro (R$ 1,3 bi no mês em 2025, contra R$ 0,1 bi no Executivo federal), a fonte
    já vem padronizada, e o antes e depois da decisão do STF é a notícia.
 2. **Executivo federal pelo Portal**, depois de perguntar à AGU (por LAI) se há corte nos honorários
@@ -298,3 +298,19 @@ Ordem sugerida de trabalho:
 - Começar pelo Judiciário e MP (onde está o dinheiro) ou pelo Executivo federal (fonte oficial,
   mas com a dúvida dos honorários)?
 - Página própria primeiro, ou o bloco na página de estado primeiro?
+
+## Como atualizar (feito em 22/11/2026)
+
+O primeiro passo da ordem acima está no ar como `uv run supersalarios` (página `/supersalarios` e bloco
+"Juízes e promotores acima do teto" na página de cada estado). O comando baixa do DadosJusBr os meses
+que faltam desde janeiro de 2025, lê só o `remuneracao.csv` de cada pacote (o arquivo com os nomes nunca
+é aberto) e guarda em `data/raw/supersalarios/` só as somas de cada órgão no mês. A primeira carga leva
+uns 20 minutos; as seguintes, só os meses novos. A publicação usa a cópia em
+`pipeline/referencia/supersalarios.json` (`--sem-baixar`): rodar à mão uma vez por mês.
+
+Quando o DadosJusBr não classifica uma rubrica (comum em 2026, com o contracheque único), a família sai
+do nome da rubrica (tempo de serviço, folga compensatória, férias, auxílio) e, para as vantagens
+pessoais, da categoria do CNJ; o resto fica em "atrasados e rubricas opacas".
+
+Conferência: os 27 TJs somam R$ 10,7 bi acima do teto em 2025, o mesmo número da Transparência Brasil e
+da República.org.

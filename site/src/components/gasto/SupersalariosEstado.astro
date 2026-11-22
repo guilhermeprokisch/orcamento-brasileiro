@@ -1,0 +1,82 @@
+---
+/**
+ * Na página do estado: os juízes do tribunal de justiça e os promotores do Ministério Público do estado que
+ * recebem acima do teto, em 2025 e depois da decisão do STF (pagamentos desde maio de 2026). Só somas por órgão
+ * (lib/supersalarios.ts); some quando não há dado.
+ */
+import Termo from "../Termo.astro";
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { docSuper, doEstado, sigla, tetoAtual } from "../../lib/supersalarios";
+
+interface Props { uf: string }
+const { uf } = Astro.props;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
+const mil = (v: number) => `R$\u00a0${nf0.format(Math.round(v / 1000))}\u00a0mil`;
+const [pA, pB] = docSuper?.periodos ?? [];
+const orgaos = doEstado(uf)
+  .map(({ id, o }) => ({ id, o, a: pA ? o.periodos[pA.id] : null, b: pB ? o.periodos[pB.id] : null }))
+  .filter((x) => x.a);
+const quem = (tipo: string) => (tipo === "tj" ? "juízes e desembargadores" : "promotores e procuradores");
+const porMes = (p: { excesso: number | null; meses: string[] } | null) => (p && p.excesso !== null ? p.excesso / p.meses.length : null);
+---
+
+{orgaos.length > 0 && (
+  <section class="teto">
+    <div class="texto">
+      <h2>Acima do teto</h2>
+      <p>
+        Ninguém no serviço público pode ganhar mais que um ministro do Supremo, R$ {nf0.format(tetoAtual())} por mês (o{" "}
+        <Termo id="teto-constitucional">teto constitucional</Termo>). No Judiciário e no Ministério Público do estado, que têm orçamento próprio,
+        muitos passam dele com pagamentos que a lei chama de <Termo id="verba-indenizatoria">indenização</Termo> e deixa fora do teto.
+      </p>
+      <p class="menor">
+        Só juízes e promotores, não os servidores; sem 13º, férias e diárias; fonte: DadosJusBr. <a href="/supersalarios">Todos os tribunais e Ministérios Públicos do país →</a>
+      </p>
+    </div>
+    <div class="dados">
+      {orgaos.map(({ id, o, a, b }) => (
+        <div class="orgao">
+          <h3><abbr title={o.nome}>{sigla(id)}</abbr> <span>{o.nome}</span></h3>
+          <p>
+            {a!.parte === null ? (
+              <>Em {pA.rotulo}, menos de 5 dos {nf0.format(a!.membros)} {quem(o.tipo)} passaram do teto num mês típico.</>
+            ) : (
+              <>
+                Em {pA.rotulo}, <strong>{pct0(a!.parte)}</strong> dos {nf0.format(a!.membros)} {quem(o.tipo)} receberam acima do teto num mês típico, e o
+                que passou do teto somou <strong>{moedaExtenso(a!.excesso!)}</strong>{a!.meses.length < 12 && <> em {a!.meses.length} meses com dados</>}.
+                Metade recebeu mais de {mil(a!.mediana)} no mês.
+              </>
+            )}
+          </p>
+          {b && porMes(a) !== null && porMes(b) !== null && (
+            <p>
+              {pB.rotulo[0].toUpperCase() + pB.rotulo.slice(1)}, com o limite do STF, passa do teto {moedaCurta(porMes(b)!)} por mês ({pct0(b.parte ?? 0)} acima do teto), contra{" "}
+              {moedaCurta(porMes(a)!)} por mês em {pA.rotulo}.
+            </p>
+          )}
+          {!b && <p class="menor">Ainda sem dados {pB.rotulo}.</p>}
+        </div>
+      ))}
+    </div>
+  </section>
+)}
+
+<style>
+  .teto { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 40px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p, .orgao p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto .menor, .orgao .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 20px; }
+  .orgao { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--regra); padding-top: 12px; }
+  .orgao:first-child { border-top: 0; padding-top: 0; }
+  .orgao h3 { font-size: 20px; }
+  .orgao h3 abbr { text-decoration: none; }
+  .orgao h3 span { font-family: var(--sans, inherit); font-size: 14px; font-weight: 400; color: var(--texto-3); }
+  .orgao strong { color: var(--tinta); }
+  @media (max-width: 900px) {
+    .teto { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; }
+  }
+</style>
