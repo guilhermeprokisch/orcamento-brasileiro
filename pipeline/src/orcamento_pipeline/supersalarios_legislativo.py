@@ -191,11 +191,12 @@ def mes_tcu(ano: int, mes: int, ctx: dict) -> tuple[Somador, Somador] | None:
     if not servidores:
         return None
     pessoas: dict = {}
-    for r in servidores:
+
+    def plano(r: dict, grupo: str) -> dict:
+        """O formato dos servidores (e o das autoridades até jul/2026): um campo por parcela."""
         v = lambda k: float(r.get(k) or 0)
-        chave = ("s", (r.get("id") or {}).get("codPessoa") or len(pessoas))
-        pessoas[chave] = {
-            "grupo": "Servidores",
+        return {
+            "grupo": grupo,
             # O sinal do abate-teto muda de um grupo para outro: vale o valor absoluto.
             "base": v("valorRemuneracaoBasica") + v("valorVantagNaturezaPessoal") + v("valorFuncaoCargoComissao") - abs(v("valorAbateTeto")),
             "outros": v("valorOutrasRemunTemporarias") + v("valorFeriasIndenizadas") + v("valorLicencaPremioIndeniz"),
@@ -204,7 +205,24 @@ def mes_tcu(ano: int, mes: int, ctx: dict) -> tuple[Somador, Somador] | None:
                         + v("valorRessarcAssistSaude") + v("valorOutrasIndenizacoes"),
             "ir": abs(v("valorImpostoDeRenda")), "prev": abs(v("valorContribuicaoPrevidenciaria")),
         }
+
+    for r in servidores:
+        pessoas[("s", (r.get("id") or {}).get("codPessoa") or len(pessoas))] = plano(r, "Servidores")
     for r in _tcu(ano, mes, "AUTORIDADE_ATIVA"):
+        if not r.get("contracheque"):
+            # Até jul/2026, as autoridades vinham num formato próprio, um campo por parcela (subsídio, GAJU, PVTAC...).
+            v = lambda k: float(r.get(k) or 0)
+            pessoas[("a", (r.get("id") or {}).get("codPessoa") or len(pessoas))] = {
+                "grupo": "Ministros e procuradores",
+                "base": v("valorSubsidio") + v("valorATS") + v("valorPVTAC") - abs(v("valorAbateTeto")),
+                "outros": v("valorGaju") + v("valorGecjao") + v("valorRepresentaoPresidencia") + v("valorSubstituicaoAutoridade")
+                          + v("valorFeriasIndenizadas") + v("valorLicencaPremioIndeniz"),
+                "retroativos": 0.0,
+                "auxilios": v("valorAuxAlimentacao") + v("valorBeneficioPreEscola") + v("valorAjudaCusto") + v("valorOutrosAuxilios")
+                            + v("valorRessarcAssistSaude") + v("valorOutrasIndenizacoes"),
+                "ir": abs(v("valorImpostoDeRenda")), "prev": abs(v("valorContribuicaoPrevidenciaria")),
+            }
+            continue
         p = {"grupo": "Ministros e procuradores", "base": 0.0, "outros": 0.0, "retroativos": 0.0, "auxilios": 0.0, "ir": 0.0, "prev": 0.0}
         for secao in (r.get("contracheque") or {}).get("secoes") or []:
             for item in secao.get("itens") or []:
@@ -225,7 +243,15 @@ def mes_tcu(ano: int, mes: int, ctx: dict) -> tuple[Somador, Somador] | None:
                     elif "previdenci" in desc and "13" not in desc:
                         p["prev"] += abs(valor)
                 elif secao.get("id") == "INDENIZATORIA":
-                    p["auxilios"] += valor
+                    # Como no formato antigo: o acúmulo de jurisdição vai com os eventuais; a parcela por tempo de
+                    # carreira, com as vantagens pessoais.
+                    desc = (item.get("descricao") or "").lower()
+                    if "cumulativ" in desc or "jurisdi" in desc:
+                        p["outros"] += valor
+                    elif "tempo" in desc or "antiguidade" in desc:
+                        p["base"] += valor
+                    else:
+                        p["auxilios"] += valor
                 elif secao.get("id") == "RETROATIVO":
                     p["retroativos"] += valor
                 elif secao.get("id") in ("COMPENSATORIA", "TRANSITORIA"):
