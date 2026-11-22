@@ -68,13 +68,19 @@ def palavras(nome: str) -> frozenset[str]:
 
 
 def baixar(url: str, destino: Path, contexto) -> Path | None:
+    """Baixa um .zip do INEP; um arquivo estragado (corte no meio, página de erro) é apagado e conta como falha."""
     if destino.exists():
-        return destino
+        if zipfile.is_zipfile(destino):
+            return destino
+        destino.unlink()   # o cache guardou um arquivo estragado: baixa de novo
     try:
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         with urllib.request.urlopen(req, timeout=600, context=contexto) as resp:
             destino.parent.mkdir(parents=True, exist_ok=True)
             destino.write_bytes(resp.read())
+        if not zipfile.is_zipfile(destino):
+            destino.unlink()
+            raise ValueError("o arquivo baixado não é um .zip")
         return destino
     except Exception as erro:   # o INEP recusa conexões de fora do país
         print(f"  {url}: {erro}", flush=True)
@@ -150,6 +156,16 @@ def casar(escolas: list[tuple[str, frozenset]], conselhos: list[tuple[str, froze
     return casados
 
 
+def usar_referencia(motivo: str) -> None:
+    """Sem dados novos do INEP, a página sai com a última cópia boa (pipeline/referencia/escolas.json)."""
+    if REFERENCIA.exists():
+        SAIDA.parent.mkdir(parents=True, exist_ok=True)
+        SAIDA.write_text(REFERENCIA.read_text(encoding="utf-8"), encoding="utf-8")
+        print(f"{motivo}: saída copiada de {REFERENCIA.relative_to(RAIZ)}", flush=True)
+    else:
+        print(f"{motivo}: sem cópia de referência", flush=True)
+
+
 def main() -> None:
     hoje = date.today()
     contexto = contexto_tls_com_intermediario(INTERMEDIARIO)
@@ -159,15 +175,16 @@ def main() -> None:
     arqs_ideb = {etapa: baixar(URL_IDEB.format(etapa=etapa, edicao=edicao), PASTA / f"divulgacao_{etapa}_escolas_{edicao}.zip", contexto)
                  for etapa in ("anos_iniciais", "anos_finais")}
     if not arq_censo or not all(arqs_ideb.values()):
-        if REFERENCIA.exists():
-            SAIDA.parent.mkdir(parents=True, exist_ok=True)
-            SAIDA.write_text(REFERENCIA.read_text(encoding="utf-8"), encoding="utf-8")
-            print(f"sem o download do INEP: saída copiada de {REFERENCIA.relative_to(RAIZ)}")
+        usar_referencia("sem o download do INEP")
         return
     ano_censo = int(re.search(r"(\d{4})", arq_censo.name).group(1))
-    escolas = censo(arq_censo)
+    try:
+        escolas = censo(arq_censo)
+        ini, fin = ideb(arqs_ideb["anos_iniciais"], edicao), ideb(arqs_ideb["anos_finais"], edicao)
+    except (zipfile.BadZipFile, StopIteration, KeyError, UnicodeDecodeError) as erro:
+        usar_referencia(f"arquivo do INEP ilegível ({erro!r})")
+        return
     print(f"Censo Escolar {ano_censo}: {len(escolas)} escolas municipais e estaduais em atividade", flush=True)
-    ini, fin = ideb(arqs_ideb["anos_iniciais"], edicao), ideb(arqs_ideb["anos_finais"], edicao)
     print(f"Ideb {edicao}: {len(ini)} escolas nos anos iniciais, {len(fin)} nos finais", flush=True)
     ano_pdde = hoje.year - 1
     conselhos = pdde(ano_pdde)
