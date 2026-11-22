@@ -297,7 +297,7 @@ const TIPOS: [string, string, string][] = [
         <section><h3>Para quem</h3>${barras(quem, (x) => esc(x.grupo))}</section>
         <section><h3>Para quê</h3>${barras(area, (x) => esc(x.area), "azul")}</section>
       </div>
-      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: para quem foi pago e o que disseram que fariam.</p><ol class="lista" data-emendas-lista>${emendas.map((x, i) => `<li${i >= LIMITE ? " hidden" : ""}><span>${linkEmenda(x.emenda)}<small>${esc(titulo(x.favorecido))}${x.n > 1 ? ` e mais ${x.n - 1}` : ""}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}
+      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: para quem foi pago e o que disseram que fariam.</p><ol class="lista">${emendas.map((x) => `<li><span>${linkEmenda(x.emenda)}<small>${esc(titulo(x.favorecido))}${x.n > 1 ? ` e mais ${x.n - 1}` : ""}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}
       ${ent.length ? `<section><h3>Entidades e empresas que receberam</h3><ol class="lista">${ent.map((x) => `<li><span>${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.favorecido))}</a>` : esc(titulo(x.favorecido))}</span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}
       ${pix.length ? `<section><h3>O que disseram que fariam com as emendas Pix de ${ano}</h3><p class="menor">É o plano declarado por quem recebeu, não o que foi feito.</p>
         <div class="tabela t3" role="table"><div class="linha cab" role="row"><span role="columnheader">Quem recebeu</span><span role="columnheader">O plano declarado</span><span role="columnheader" class="d">Valor</span></div>
@@ -370,7 +370,7 @@ const TIPOS: [string, string, string][] = [
         <section><h3>Quem recebeu</h3>${barras(quem, (x) => `${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.favorecido))}</a>` : esc(titulo(x.favorecido))}<small>${esc(x.grupo)}</small>`)}</section>
         <section><h3>Para quê</h3>${barras(area, (x) => esc(x.area), "azul")}</section>
       </div>
-      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: quem mandou, para quem foi pago e o que disseram que fariam.</p><ol class="lista" data-emendas-lista>${emendas.map((x, i) => `<li${i >= LIMITE ? " hidden" : ""}><span>${linkEmenda(x.emenda)}<small>${esc(x.autor)} · ${esc(titulo(x.favorecido))}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}`;
+      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: quem mandou, para quem foi pago e o que disseram que fariam.</p><ol class="lista">${emendas.map((x) => `<li><span>${linkEmenda(x.emenda)}<small>${esc(x.autor)} · ${esc(titulo(x.favorecido))}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}`;
   }
 
   async function busca() {
