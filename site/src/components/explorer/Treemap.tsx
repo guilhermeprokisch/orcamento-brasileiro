@@ -32,7 +32,8 @@ export default function Treemap(props: Props) {
   });
 
   const r = () => props.rotulos ?? ROTULOS_DESPESA;
-  const altura = () => (largura() < 640 ? 440 : 520);
+  // Antes da primeira medida, a largura da página: o mapa já nasce com a altura certa, sem crescer depois.
+  const altura = () => ((largura() || document.documentElement.clientWidth) < 640 ? 440 : 520);
 
   const folhas = createMemo<No[]>(() => {
     const w = largura();
