@@ -2,7 +2,7 @@
 
     uv run explorador-emendas            # a partir do zip da CGU já baixado por emendas.py
     uv run explorador-emendas --sem-baixar   # só copia o resumo versionado (publicação automática)
-    uv run explorador-emendas --so-copias    # refaz as cópias ordenadas das fichas (depois, uv run espelho)
+    uv run explorador-emendas --so-copias    # refaz as cópias ordenadas e as fichas prontas (depois, uv run espelho)
 
 Lê o arquivo "Emendas Parlamentares" da CGU (data/raw/cgu/emendas/EmendasParlamentares.zip):
 - PorFavorecido: cada pagamento de uma emenda, com o autor, o tipo, o mês, quem recebeu e onde. Vira
@@ -32,6 +32,7 @@ from pathlib import Path
 import duckdb
 
 from . import cidades as c
+from . import fichas_emendas
 from .rfb import casador
 
 ZIP = c.RAIZ / "data" / "raw" / "cgu" / "emendas" / "EmendasParlamentares.zip"
@@ -161,6 +162,12 @@ def gravar_copias() -> dict[str, str]:
     return urls
 
 
+def gravar_fichas() -> str:
+    """As fichas prontas da busca (fichas_emendas.py); devolve o endereço da pasta da versão no espelho."""
+    v = fichas_emendas.gerar(PASTA / "emendas-pagamentos.parquet", PASTA / "emendas-textos.parquet", PASTA / "fichas")
+    return f"{URL}/fichas/{v}"
+
+
 def panorama(parquet: Path, ano: int) -> dict:
     """A visão geral da página /emendas, a partir dos pagamentos: a série por tipo, para onde (áreas, quem recebe)
     e o cruzamento tipo → quem recebe → área do ano fechado, e os maiores autores coletivos."""
@@ -193,11 +200,12 @@ def main() -> None:
     p = argparse.ArgumentParser(prog="explorador-emendas", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--sem-baixar", action="store_true")
     p.add_argument("--so-panorama", action="store_true", help="refaz só a visão geral do resumo, a partir do Parquet já gravado")
-    p.add_argument("--so-copias", action="store_true", help="refaz só as cópias ordenadas das fichas, a partir dos Parquets já gravados")
+    p.add_argument("--so-copias", action="store_true", help="refaz só as cópias ordenadas e as fichas prontas, a partir dos Parquets já gravados")
     args = p.parse_args()
     if args.so_copias:
         resumo = json.loads(REFERENCIA_RESUMO.read_text(encoding="utf-8"))
         resumo["copias"] = gravar_copias()
+        resumo["fichas"] = gravar_fichas()
         for alvo in (SAIDA_RESUMO, REFERENCIA_RESUMO):
             alvo.parent.mkdir(parents=True, exist_ok=True)
             alvo.write_text(json.dumps(resumo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -284,12 +292,14 @@ def main() -> None:
             "uf": "VARCHAR", "municipio": "VARCHAR", "objeto": "VARCHAR", "valor": "DOUBLE"}, "fonte, ano, valor DESC")
 
     copias = gravar_copias()
+    fichas = gravar_fichas()
 
     anos = sorted({r["ano"] for r in pagamentos})
     resumo = {
         "fonte": FONTE, "ano": ano_fechado, "anos": anos,
         "pagamentos": f"{URL}/emendas-pagamentos.parquet", "textos": f"{URL}/emendas-textos.parquet",
         "copias": copias,
+        "fichas": fichas,
         "total": round(sum(por_tipo.values())),
         "tipos": {k: round(v) for k, v in sorted(por_tipo.items(), key=lambda x: -x[1])},
         "autores": [[a, round(v)] for a, v in sorted(por_autor.items(), key=lambda x: -x[1])[:10]],

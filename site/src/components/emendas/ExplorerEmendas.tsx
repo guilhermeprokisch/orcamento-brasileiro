@@ -315,7 +315,7 @@ export default function ExplorerEmendas(props: Props) {
 
       <div class="exp-resultado" classList={{ "exp-ocupado": carregando() && !primeira() }}>
         <Show when={!primeira()} fallback={
-          <div class="exp-carregando" aria-busy="true"><p><strong>Preparando o motor de consulta…</strong></p><p class="muted">Na primeira vez leva alguns segundos; depois cada clique é rápido.</p></div>
+          <div class="exp-carregando" aria-busy="true"><p><strong>Preparando o motor de consulta…</strong></p><p class="muted">O motor roda no seu navegador e leva alguns segundos para ligar; enquanto você fica nesta página, cada clique é rápido.</p></div>
         }>
           <Show when={filtrados().length > 0} fallback={
             <div class="exp-carregando"><p>{busca() ? `Nada com “${busca()}” nesta lista.` : `Nenhuma emenda paga neste caminho em ${estado().ano}.`}</p>
