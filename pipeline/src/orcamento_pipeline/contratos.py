@@ -3,6 +3,10 @@
     uv run contratos                 # contratos assinados no último ano fechado
     uv run contratos --ano 2025 --max-dias 60
     uv run contratos --sem-baixar    # só copia pipeline/referencia/contratos.json para o site (CI)
+    uv run contratos --todos         # todas as esferas, para o explorador (também aceita --max-dias)
+
+O workflow contratos.yml roda os dois downloads toda segunda de janeiro a abril, partindo dos dias que já estão
+no bucket público (brutos/pncp/), e abre um pull request com as cópias de referência.
 
 Fonte: a API de consulta do PNCP (/api/consulta/v1/contratos), que lista tudo o que foi publicado
 num dia, de todas as esferas (cerca de 5 mil registros por dia, em páginas de 500). Baixa dia a dia,
@@ -245,6 +249,8 @@ def main() -> None:
         dias = [dt.date(args.ano, 1, 1) + dt.timedelta(days=i) for i in range((fim - dt.date(args.ano, 1, 1)).days + 1)]
         faltam = [d for d in dias if not (PASTA_TODOS / f"{d:%Y%m%d}.json.gz").exists()]
         print(f"todas as esferas: {len(dias)} dias; faltam {len(faltam)}", flush=True)
+        if args.max_dias:
+            faltam = faltam[: args.max_dias]
         with ThreadPoolExecutor(args.paralelo) as ex:
             for i, (d, f) in enumerate({d: ex.submit(baixar_dia_todos, d) for d in faltam}.items(), 1):
                 try:

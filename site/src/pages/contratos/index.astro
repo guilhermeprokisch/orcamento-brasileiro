@@ -10,6 +10,7 @@ import Base from "../../layouts/Base.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import "../../styles/onde.css";
 import "../../styles/degraus.css";
+import { docBeneficios } from "../../lib/beneficios-fiscais";
 
 interface Empresa { cnpj: string; nome: string; lugares: number; n: number; valor: number; teto: boolean }
 interface Resumo {
@@ -32,11 +33,13 @@ const nome = (s: string) => (s === s.toUpperCase()
   ? s.toLowerCase().split(/\s+/).map((p, i) => (SIGLAS.test(p.toUpperCase()) && !/^ltda$/i.test(p) ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ")
   : s);
 const tem = (e: string) => !!r?.esferas[e];
+// A ficha da empresa avisa quando ela também declarou benefício fiscal (/impostos/empresas). No computador, a cópia local.
+const beneficios = import.meta.env.DEV ? "/data/beneficios-fiscais/empresas.parquet" : docBeneficios?.empresasArquivo;
 ---
 
 <Base title="Contratos · Orçamento Brasileiro" description="Busque os contratos que prefeituras, governos estaduais e o governo federal assinaram e publicaram no Portal Nacional de Contratações Públicas.">
   <div class="wrap explorador" data-explorador data-arquivo={r?.arquivo} data-por-cnpj={r?.porCnpj} data-ano={r?.ano}
-    data-total={r?.total.valor} data-total-texto={r ? `${moedaCurta(r.total.valor)} · ${nf0.format(r.total.n)} contratos` : undefined}>
+    data-beneficios={docBeneficios ? beneficios : undefined} data-beneficios-ano={docBeneficios?.ano} data-total={r?.total.valor} data-total-texto={r ? `${moedaCurta(r.total.valor)} · ${nf0.format(r.total.n)} contratos` : undefined}>
     <nav class="degraus" aria-label="Caminho" data-voltar hidden></nav>
     <section class="topo" data-topo>
       <span class="sobretitulo" data-sobretitulo hidden></span>
@@ -424,6 +427,17 @@ const tem = (e: string) => !!r?.esferas[e];
       <h3>Os maiores contratos</h3>
       <div class="tabela" role="table" aria-label="Contratos da empresa"><div class="linha cab" role="row"><span role="columnheader">Quem contratou</span><span role="columnheader">O que foi contratado</span><span role="columnheader">Fornecedor</span><span role="columnheader" class="d">Data</span><span role="columnheader" class="d">Valor</span></div>${contratos.map((x) => linhaContrato(x, s.valor)).join("")}</div>
       <p class="menor">Uma empresa contratada por muitos lugares não é sinal de problema: distribuidores de remédios e material hospitalar vencem pregões em centenas de cidades. Filiais da mesma empresa (a mesma raiz de CNPJ) aparecem juntas.</p>`;
+    await notaBeneficios(raizCnpj0);
+  }
+  /** Se a empresa também declarou benefício fiscal no ano (Dirbi), uma linha no alto da ficha, com o link. */
+  async function notaBeneficios(raizCnpj0) {
+    const arq = raiz.dataset.beneficios, ano = raiz.dataset.beneficiosAno;
+    if (!arq || !ano) return;
+    try {
+      const [b] = await consulta(`SELECT beneficio, v${Number(ano)} AS valor FROM read_parquet('${new URL(arq, location.href).href}') WHERE chave = ?`, [raizCnpj0]);
+      if (!b || !Number(b.valor)) return;
+      saida.insertAdjacentHTML("afterbegin", `<p class="nota-beneficio">Em ${esc(ano)}, a mesma empresa declarou à Receita ter deixado de pagar <strong>${curto(Number(b.valor))}</strong> em impostos federais com benefícios fiscais (o maior: ${esc(b.beneficio)}). <a href="/impostos/empresas?empresa=${raizCnpj0}">Ver os benefícios</a></p>`);
+    } catch (e) { console.warn("benefícios fiscais:", e); }
   }
   // Por último: a busca usa as funções acima.
   if (ARQ && pergunta && saida) iniciar();
@@ -464,6 +478,8 @@ const tem = (e: string) => !!r?.esferas[e];
   small { display: block; font-size: 12px; color: var(--texto-3); }
   .aviso { color: #8f3d1d; }
   [hidden] { display: none !important; }   /* o display das seções abaixo não pode vencer o "escondido" */
+  .nota-beneficio { margin: 0; padding: 12px 16px; background: var(--marca-texto-fundo); font-size: 15px; line-height: 1.55; }
+  .nota-beneficio a { font-weight: 600; white-space: nowrap; }
   .inicio { display: flex; flex-direction: column; gap: 36px; padding-bottom: 32px; }
   .tipos { border-top: 2px solid var(--tinta); padding-top: 20px; display: flex; flex-direction: column; gap: 12px; }
   .cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
