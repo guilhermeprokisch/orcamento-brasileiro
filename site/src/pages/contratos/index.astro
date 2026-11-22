@@ -227,7 +227,7 @@ const tem = (e: string) => !!r?.esferas[e];
     saida.innerHTML = `<div class="carregando" role="status" aria-live="polite">
       <div class="barra-carga" aria-hidden="true"><i></i></div>
       <p><strong>${esc(texto)}</strong></p>
-      <p class="menor">Passo ${n} de 3. A primeira consulta baixa o motor de busca e a parte dos dados de que precisa; as seguintes são mais rápidas.</p>
+      <p class="menor">Passo ${n} de 3. A consulta roda no seu navegador: o motor leva alguns segundos para ligar.</p>
     </div>`;
   }
   async function conectar() {
