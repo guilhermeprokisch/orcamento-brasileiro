@@ -56,6 +56,7 @@ beneficios-fiscais = "orcamento_pipeline.beneficios_fiscais:main"
 supersalarios = "orcamento_pipeline.supersalarios:main"
 supersalarios-federal = "orcamento_pipeline.supersalarios_federal:main"
 supersalarios-estados = "orcamento_pipeline.supersalarios_estados:main"
+supersalarios-legislativo = "orcamento_pipeline.supersalarios_legislativo:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -125,6 +125,9 @@ fila_independente() {
   # 25 (um job por estado) e abre um pull request com a cópia de referência; aqui só essa cópia. CE, AL e PI recusam os
   # servidores do GitHub e seguem à mão (uv run supersalarios-estados --uf CE,AL,PI).
   pipe pode-falhar "Acima do teto: Executivo dos estados" supersalarios-estados --sem-baixar
+  # Acima do teto no Legislativo federal (Câmara, Senado e TCU): o supersalarios-legislativo.yml baixa os meses novos
+  # todo dia 22 e abre um pull request com a cópia de referência; aqui só essa cópia.
+  pipe pode-falhar "Acima do teto: Legislativo federal" supersalarios-legislativo --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).

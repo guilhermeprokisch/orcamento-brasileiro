@@ -1,0 +1,135 @@
+name: Acima do teto (Legislativo federal)
+
+# Uma vez por mês, baixa a folha da Câmara, do Senado e do TCU (`uv run supersalarios-legislativo`) e abre um pull
+# request em rascunho com a cópia de referência (pipeline/referencia/supersalarios-legislativo.json), para conferir os
+# números antes de irem ao ar. A publicação diária só copia essa cópia (dados.sh, --sem-baixar).
+#
+# O cache data/raw/supersalarios-legislativo/ (somas por órgão e por grupo, por mês, nenhum dado de pessoa) fica no
+# release "dados-supersalarios-legislativo" entre uma execução e outra: assim só se baixam os meses novos. Sem ele, a
+# primeira execução baixa 12 meses de cada órgão (uns 5 minutos).
+#
+# Quando roda: dia 22 de cada mês, depois que os três publicam a folha do mês anterior.
+on:
+  schedule:
+    - cron: "0 7 22 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: supersalarios-legislativo
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # o cache no release e o branch do pull request
+  pull-requests: write   # abrir o pull request
+
+env:
+  RELEASE: dados-supersalarios-legislativo
+  RAMO: dados/supersalarios-legislativo
+  # Só a main grava no release e abre o pull request; em outro branch (teste), o resultado fica como artefato.
+  NA_MAIN: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Cache já publicado
+        run: |
+          mkdir -p data/raw
+          if gh release download "$RELEASE" --pattern supersalarios-legislativo.tar --dir "$RUNNER_TEMP" 2>/dev/null; then
+            tar -xf "$RUNNER_TEMP/supersalarios-legislativo.tar" -C data/raw
+            echo "cache: $(find data/raw/supersalarios-legislativo -name '*.json.gz' | wc -l) meses de órgãos"
+          else
+            echo "::notice::Sem o release $RELEASE: baixa 12 meses de cada órgão."
+          fi
+          find data/raw/supersalarios-legislativo -name '*.json.gz' 2>/dev/null | sort | sha256sum > "$RUNNER_TEMP/antes.sha256"
+
+      - name: Baixar e somar
+        run: uv run --project pipeline supersalarios-legislativo 2>&1 | tee "$RUNNER_TEMP/saida.log"
+
+      - name: Guardar o cache
+        if: always()
+        run: |
+          find data/raw/supersalarios-legislativo -name '*.json.gz' 2>/dev/null | sort | sha256sum > "$RUNNER_TEMP/depois.sha256"
+          if cmp -s "$RUNNER_TEMP/antes.sha256" "$RUNNER_TEMP/depois.sha256"; then
+            echo "::notice::Nenhum mês novo no cache."
+            exit 0
+          fi
+          tar -cf "$RUNNER_TEMP/supersalarios-legislativo.tar" -C data/raw supersalarios-legislativo
+          echo "cache: $(du -h "$RUNNER_TEMP/supersalarios-legislativo.tar" | cut -f1)"
+          if [ "$NA_MAIN" != true ]; then
+            echo "::notice::Branch de teste: o cache não vai para o release; fica como artefato da execução."
+            exit 0
+          fi
+          if ! gh release view "$RELEASE" >/dev/null 2>&1; then
+            gh release create "$RELEASE" --latest=false --title "Acima do teto, Legislativo (cache)" --notes \
+              "Cache do workflow supersalarios-legislativo.yml: as somas da Câmara, do Senado e do TCU por mês, no órgão e em cada grupo (data/raw/supersalarios-legislativo/{órgão}/{ano}-{mês}.json.gz). Nenhum dado de pessoa. Não é uma versão do código."
+          fi
+          gh release upload "$RELEASE" "$RUNNER_TEMP/supersalarios-legislativo.tar" --clobber
+
+      - name: Ver se a cópia de referência mudou
+        id: mudou
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, subprocess
+          novo = json.load(open("pipeline/referencia/supersalarios-legislativo.json", encoding="utf-8"))
+          velho = subprocess.run(["git", "show", "HEAD:pipeline/referencia/supersalarios-legislativo.json"], capture_output=True, text=True).stdout
+          velho = json.loads(velho) if velho else {}
+          for d in (novo, velho):
+              d.pop("gerado", None)   # a data de geração muda sempre
+          print(f"mudou={'sim' if novo != velho else 'nao'}")
+          print(f"ultimo={max((o.get('ate') or '' for o in novo.get('orgaos', {}).values()), default='')}")
+          EOF
+          cat "$GITHUB_OUTPUT"
+
+      - name: Artefato do teste
+        if: always() && env.NA_MAIN != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: supersalarios-legislativo
+          path: |
+            pipeline/referencia/supersalarios-legislativo.json
+            ${{ runner.temp }}/supersalarios-legislativo.tar
+            ${{ runner.temp }}/saida.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Um branch fixo, refeito a partir da main a cada mês: se o pull request do mês anterior não entrou,
+      # o deste mês o substitui. Precisa de "Allow GitHub Actions to create and approve pull requests"
+      # (Settings → Actions → General); sem isso, o branch sobe e o aviso traz o link para abrir à mão.
+      - name: Pull request com a cópia de referência
+        if: steps.mudou.outputs.mudou == 'sim' && env.NA_MAIN == 'true'
+        env:
+          ULTIMO: ${{ steps.mudou.outputs.ultimo }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$RAMO"
+          git add pipeline/referencia/supersalarios-legislativo.json
+          git commit -q -m "Acima do teto: Legislativo federal até $ULTIMO"
+          git push -f origin "$RAMO"
+          {
+            echo "Atualização mensal automática (workflow \`supersalarios-legislativo.yml\`) da cópia de referência do Legislativo federal (Câmara, Senado e TCU) na página /supersalarios, com a folha até **$ULTIMO**."
+            echo
+            echo "Confira os números antes de marcar como pronto e fazer o merge. Resumo da execução:"
+            echo
+            echo '```'
+            grep -E "^(camara|senado|tcu) |falhou|gravado" "$RUNNER_TEMP/saida.log" || true
+            echo '```'
+            echo
+            echo "Execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$RUNNER_TEMP/corpo.md"
+          if [ "$(gh pr view "$RAMO" --json state -q .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit "$RAMO" --body-file "$RUNNER_TEMP/corpo.md"
+            echo "::notice::Pull request atualizado: $(gh pr view "$RAMO" --json url -q .url)"
+          elif ! gh pr create --draft --base "${{ github.event.repository.default_branch }}" --head "$RAMO" \
+                 --title "Acima do teto: Legislativo federal até $ULTIMO" --body-file "$RUNNER_TEMP/corpo.md"; then
+            echo "::warning::O Actions não pôde abrir o pull request (ative 'Allow GitHub Actions to create and approve pull requests' em Settings → Actions → General). Abra à mão: ${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.repository.default_branch }}...$RAMO?expand=1"
+          fi
