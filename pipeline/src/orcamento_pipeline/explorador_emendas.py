@@ -37,7 +37,7 @@ ZIP = c.RAIZ / "data" / "raw" / "cgu" / "emendas" / "EmendasParlamentares.zip"
 PASTA = c.RAIZ / "data" / "publico"
 SAIDA_RESUMO = c.RAIZ / "site" / "public" / "data" / "emendas-explorador" / "resumo.json"
 REFERENCIA_RESUMO = c.RAIZ / "pipeline" / "referencia" / "emendas-explorador-resumo.json"
-URL = "https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/explorador"
+URL = "https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/explorador"
 FONTE = "Controladoria-Geral da União, Portal da Transparência: emendas parlamentares"
 
 # Bancadas e comissões por extenso (a mesma lista de site/src/lib/autores-emendas.ts).
@@ -131,10 +131,51 @@ def gravar(regs, destino: Path, colunas: dict[str, str], ordem: str) -> None:
                    f"TO '{destino}' (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 50000)")
 
 
+PRIMEIRO_ANO_SERIE = 2017   # em 2016 há R$ 9 bi pagos à Caixa (Bolsa Família) como "relator", sem autor: fica fora da série
+TIPOS = ("Individual", "Pix", "Bancada", "Comissão", "Relator")
+AREAS_NO_CRUZADO = 7
+
+
+def panorama(parquet: Path, ano: int) -> dict:
+    """A visão geral da página /emendas, a partir dos pagamentos: a série por tipo, para onde (áreas, quem recebe)
+    e o cruzamento tipo → quem recebe → área do ano fechado, e os maiores autores coletivos."""
+    con = duckdb.connect()
+    con.execute(f"CREATE VIEW p AS SELECT * FROM read_parquet('{parquet}')")
+    q = lambda s, *v: con.execute(s, list(v)).fetchall()
+    serie = defaultdict(dict)
+    for a, t, v in q("SELECT ano, tipo, sum(valor) FROM p WHERE ano >= ? GROUP BY ALL ORDER BY ano", PRIMEIRO_ANO_SERIE):
+        serie[a][t] = round(v)
+    meses = dict(q("SELECT ano, max(mes) FROM p GROUP BY ano"))
+    areas = [[a or "Sem área", round(v)] for a, v in q("SELECT area, sum(valor) v FROM p WHERE ano = ? GROUP BY area ORDER BY v DESC", ano)]
+    principais = {a for a, _ in areas[:AREAS_NO_CRUZADO] if a not in ("Múltiplo", "Sem área")}
+    cruzado = defaultdict(float)
+    for t, g, a, v in q("SELECT tipo, grupo, area, sum(valor) FROM p WHERE ano = ? GROUP BY ALL", ano):
+        cruzado[(t, g, a if a in principais else "Outras áreas")] += v
+    [(n_emendas, n_lugares, n_autores)] = q("SELECT count(DISTINCT emenda), count(DISTINCT nullif(ibge, '')), count(DISTINCT autor) FILTER (tipo IN ('Individual', 'Pix')) FROM p WHERE ano = ?", ano)
+    coletivos = [[a, t, round(v)] for a, t, v in q("SELECT autor, tipo, sum(valor) v FROM p WHERE ano = ? AND tipo IN ('Bancada', 'Comissão') GROUP BY ALL ORDER BY v DESC LIMIT 12", ano)]
+    [cota] = q("SELECT quantile_cont(v, 0.5) FROM (SELECT sum(valor) v FROM p WHERE ano = ? AND tipo IN ('Individual', 'Pix') GROUP BY autor HAVING v > 1e6)", ano)
+    return {
+        "serie": [{"ano": a, "parcial": meses.get(a, 12) < 12, "meses": meses.get(a, 12), **{t: serie[a].get(t, 0) for t in TIPOS}} for a in sorted(serie)],
+        "areas": areas,
+        "grupos": [[g, round(v)] for g, v in q("SELECT grupo, sum(valor) v FROM p WHERE ano = ? GROUP BY grupo ORDER BY v DESC", ano)],
+        "cruzado": [[t, g, a, round(v)] for (t, g, a), v in sorted(cruzado.items(), key=lambda x: -x[1]) if v >= 1e6],
+        "coletivos": coletivos,
+        "contagem": {"emendas": n_emendas, "lugares": n_lugares, "parlamentares": n_autores, "mediana_individual": round(cota[0])},
+    }
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="explorador-emendas", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--sem-baixar", action="store_true")
+    p.add_argument("--so-panorama", action="store_true", help="refaz só a visão geral do resumo, a partir do Parquet já gravado")
     args = p.parse_args()
+    if args.so_panorama:
+        resumo = json.loads(REFERENCIA_RESUMO.read_text(encoding="utf-8"))
+        resumo["panorama"] = panorama(PASTA / "emendas-pagamentos.parquet", resumo["ano"])
+        for alvo in (SAIDA_RESUMO, REFERENCIA_RESUMO):
+            alvo.write_text(json.dumps(resumo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        print(f"saída: {REFERENCIA_RESUMO.relative_to(c.RAIZ)} (panorama de {resumo['ano']})")
+        return
     if args.sem_baixar:
         if REFERENCIA_RESUMO.exists():
             SAIDA_RESUMO.parent.mkdir(parents=True, exist_ok=True)
@@ -216,6 +257,7 @@ def main() -> None:
         "entidades": [{"codigo": k, "nome": e["nome"], "lugar": e["lugar"], "valor": round(e["valor"]), "autor": e["autores"].most_common(1)[0][0]}
                       for k, e in sorted(entidades.items(), key=lambda x: -x[1]["valor"])[:10]],
         "nomes": sorted({r["autor"] for r in pagamentos}),   # para a busca reconhecer um parlamentar
+        "panorama": panorama(PASTA / "emendas-pagamentos.parquet", ano_fechado),
     }
     for alvo in (SAIDA_RESUMO, REFERENCIA_RESUMO):
         alvo.parent.mkdir(parents=True, exist_ok=True)

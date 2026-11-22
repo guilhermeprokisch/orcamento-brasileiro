@@ -1,0 +1,185 @@
+---
+/**
+ * O fundo de aposentadoria dos servidores (regime próprio de previdência): quanto falta para pagar o que já
+ * foi prometido, pelas contas do próprio fundo, e a nota do Ministério da Previdência (ISP). Nas cidades sem
+ * fundo próprio, uma frase dizendo que os servidores estão no INSS.
+ */
+import Termo from "../Termo.astro";
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { previdenciaDe } from "../../lib/previdencia";
+
+interface Props {
+  ibge: number;
+  esfera: "mun" | "uf";
+  /** "a prefeitura de Fortaleza", "o governo do Ceará" */
+  quem: string;
+  /** "das cidades parecidas", "dos estados"; null para não comparar */
+  grupo: string | null;
+}
+const { ibge, esfera, quem, grupo } = Astro.props;
+const p = previdenciaDe(ibge, esfera);
+const mun = esfera === "mun";
+const ente = mun ? "a prefeitura" : "o governo";
+const daEnte = mun ? "da prefeitura" : "do governo";
+const Quem = quem.charAt(0).toUpperCase() + quem.slice(1);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+const anos = (v: number) => {
+  const x = Math.round(v * 10) / 10;
+  return x < 1 ? `${nf0.format(Math.round(v * 12))} ${Math.round(v * 12) === 1 ? "mês" : "meses"}` : `${nf1.format(x)} ${x < 2 ? "ano" : "anos"}`;
+};
+const pessoas = (n: number | null, sing: string, plur: string) => (n === null ? null : `${nf0.format(n)} ${n === 1 ? sing : plur}`);
+
+const f = p?.tipo === "fundo" ? p : null;
+const segurados = f ? [pessoas(f.ativos, "servidor na ativa", "servidores na ativa"), pessoas(f.aposentados, "aposentado", "aposentados"), pessoas(f.pensionistas, "pensionista", "pensionistas")].filter((x): x is string => !!x && !x.startsWith("0 ")) : [];
+const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
+// A parte do compromisso que já se decidiu pagar com o caixa de cada ano, sem juntar fundo.
+const financeiro = f && f.financeiro && f.provisoes && f.financeiro >= f.provisoes * 0.2 ? f.financeiro : null;
+const antigo = f && f.anoDraa && f.anoIsp && f.anoDraa < f.anoIsp;
+// Com o rombo calculado, provisões e dinheiro aplicado existem; aqui viram números (0 quando faltam).
+const provisoes = f?.provisoes ?? 0, aplicado = f?.aplicado ?? 0;
+const escala = f && f.falta !== null ? Math.max(provisoes, aplicado) : 0;
+const larguraPrecisa = escala ? `width:${(provisoes / escala) * 100}%` : "";
+const larguraTem = escala ? `width:${Math.max(0.5, (aplicado / escala) * 100)}%` : "";
+const classe = (n: string | null) => (n ? `n${n.toLowerCase()}` : "nsem");
+const SIGNIFICADO: Record<string, string> = { A: "a melhor das quatro", B: "a segunda melhor", C: "a segunda pior", D: "a pior das quatro" };---
+
+{p && (
+  <section class="previdencia">
+    <div class="texto">
+      <h2>A aposentadoria dos servidores</h2>
+      {p.tipo === "inss" && (
+        <p>
+          Os servidores {daEnte} se aposentam pelo INSS, como os trabalhadores das empresas: {ente} não tem um fundo
+          próprio de aposentadoria (o <Termo id="rpps">regime próprio de previdência</Termo>) e, por isso, não tem esse
+          tipo de rombo. Paga ao INSS a contribuição de patrão sobre os salários, como qualquer empregador.
+        </p>
+      )}
+      {p.tipo === "extincao" && (
+        <p>
+          {Quem} está fechando o seu fundo próprio de aposentadoria (o <Termo id="rpps">regime próprio de previdência</Termo>):
+          os servidores passaram a contribuir para o INSS, mas {ente} continua a pagar as aposentadorias e pensões de quem
+          se aposentou pelo regime antigo, até a última delas.
+        </p>
+      )}
+      {f && (
+        <>
+          <p>
+            {Quem} tem um fundo próprio para pagar a aposentadoria e a pensão dos servidores, em vez de deixá-los no INSS
+            (o <Termo id="rpps">regime próprio de previdência</Termo>).
+            {segurados.length > 0 && <> Ele cobre {lista.format(segurados)}.</>}
+          </p>
+          {f.falta === null ? (
+            f.provisoes === null ? (
+              <p>O fundo não entregou ao Ministério da Previdência a avaliação atuarial dos dois últimos anos; por isso não dá para dizer quanto falta para pagar o que já foi prometido.</p>
+            ) : (
+              <p>Os números que o fundo entregou ao Ministério da Previdência não fecham entre si (o dinheiro aplicado declarado é maior do que três anos de receita); por isso esta página não calcula quanto falta.</p>
+            )
+          ) : f.falta > 0 ? (
+            <p>
+              Pelas contas do próprio fundo{f.anoDraa && <>, de {f.anoDraa}</>}, faltam <strong>{moedaExtenso(f.falta)}</strong> para
+              pagar o que já foi prometido: o fundo calcula que precisaria ter hoje {moedaCurta(provisoes)} e tinha {moedaCurta(aplicado)} aplicados.
+              {f.anos !== null && <> É o equivalente a <strong>{anos(f.anos)} de toda a receita corrente líquida</strong> {daEnte}.</>}
+              {f.anos !== null && f.mediana !== null && grupo && <> A mediana {grupo} com fundo próprio é {anos(f.mediana)}.</>}
+              {antigo && <> O fundo não entregou a avaliação de {f.anoIsp}; esta é a do ano anterior.</>}
+            </p>
+          ) : (
+            <p>
+              Pelas contas do próprio fundo{f.anoDraa && <>, de {f.anoDraa}</>}, o dinheiro aplicado ({moedaCurta(aplicado)}) <strong>cobre o que
+              já foi prometido</strong> ({moedaCurta(provisoes)}).
+              {antigo && <> O fundo não entregou a avaliação de {f.anoIsp}; esta é a do ano anterior.</>}
+            </p>
+          )}
+          {financeiro && f.falta !== null && f.falta > 0 && (
+            <p>
+              Do compromisso, {financeiro >= provisoes * 0.95 ? "quase tudo é" : `${moedaCurta(financeiro)} são`} de um grupo, em geral o dos
+              servidores mais antigos, que {ente} decidiu pagar com o dinheiro de cada ano, sem juntar fundo
+              (o <Termo id="plano-financeiro">plano financeiro</Termo>): para esse grupo, o rombo é esperado e vai sendo coberto pelo caixa.
+            </p>
+          )}
+          {f.receita !== null && f.despesa !== null && f.anoContas && (
+            <p>
+              Em {f.anoContas}, entraram no fundo {moedaCurta(f.receita)} em contribuições dos servidores e {daEnte}, e saíram {moedaCurta(f.despesa)} em
+              aposentadorias e pensões.
+              {f.despesa > f.receita * 1.02 && <> A diferença sai do caixa {daEnte} ou do dinheiro guardado.</>}
+            </p>
+          )}
+          {f.falta !== null && <p class="menor">
+            O rombo (o <Termo id="deficit-atuarial">déficit atuarial</Termo>) é uma projeção para as próximas décadas, feita por um atuário
+            contratado pelo próprio fundo: depende de premissas como os juros que o dinheiro vai render e quanto tempo os aposentados vão
+            viver, e muda bastante com elas. Não é uma conta vencida nem faz parte da dívida {daEnte}: as duas não se somam. O cálculo
+            não desconta as contribuições extras que o fundo tenha aprovado para cobrir o rombo nas próximas décadas.
+          </p>}
+        </>
+      )}
+    </div>
+    {f && (
+      <div class="dados">
+        <div class="nota">
+          <span class={`letra ${classe(f.nota)}`} aria-label={f.nota ? `Nota ${f.nota}` : "Sem nota"}>{f.nota ?? "—"}</span>
+          <p>
+            {f.nota
+              ? <>Na avaliação do Ministério da Previdência de {f.anoIsp} (o <Termo id="isp">ISP</Termo>), o fundo tirou <strong>nota {f.nota}</strong>, {SIGNIFICADO[f.nota]}.</>
+              : <>O fundo ficou sem nota na avaliação do Ministério da Previdência de {f.anoIsp} (o <Termo id="isp">ISP</Termo>).</>}
+            {" "}Dos {nf0.format(f.avaliados)} fundos avaliados, {nf0.format(f.porNota.A ?? 0)} tiraram A, {nf0.format(f.porNota.B ?? 0)} B,
+            {" "}{nf0.format(f.porNota.C ?? 0)} C e {nf0.format(f.porNota.D ?? 0)} D.
+          </p>
+        </div>
+        {escala > 0 && (
+          <ul class="barras" aria-label="O que o fundo precisaria ter e o que tem">
+            <li>
+              <span class="rotulo">Precisaria ter</span>
+              <span class="trilho"><span class="barra precisa" style={larguraPrecisa}></span></span>
+              <strong class="num">{moedaCurta(provisoes)}</strong>
+            </li>
+            <li>
+              <span class="rotulo">Tem aplicado</span>
+              <span class="trilho"><span class="barra tem" style={larguraTem}></span></span>
+              <strong class="num">{moedaCurta(aplicado)}</strong>
+            </li>
+          </ul>
+        )}
+      </div>
+    )}
+    <p class="fonte">
+      {f
+        ? <>Fonte: {f.fonte}, {f.versao}: provisões matemáticas da avaliação atuarial (DRAA) e dinheiro aplicado no fim do ano anterior (DAIR).</>
+        : <>Fonte: Ministério da Previdência Social, cadastro dos regimes próprios e Índice de Situação Previdenciária.</>}
+    </p>
+  </section>
+)}
+
+<style>
+  .previdencia { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p, .nota p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong, .nota p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 6; display: flex; flex-direction: column; gap: 24px; align-self: center; }
+  .nota { display: flex; gap: 20px; align-items: center; }
+  .nota p { font-size: 15px; line-height: 1.5; }
+  .letra { flex: none; width: 96px; height: 96px; display: flex; align-items: center; justify-content: center; font-family: var(--serifa); font-size: 52px; font-weight: 700; color: #fff; }
+  .na { background: var(--verde); }
+  .nb { background: #4fae73; }
+  .nc { background: #c2913a; }
+  .nd { background: #a3401a; }
+  .nsem { background: var(--regra); color: var(--tinta); }
+  /* Uma grade só para as duas linhas: as barras começam no mesmo ponto e têm a mesma escala. */
+  .barras { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 14px; align-items: center; font-size: 14px; }
+  .barras li { display: contents; }
+  .rotulo { color: var(--texto-3); white-space: nowrap; }
+  .barras strong { text-align: right; white-space: nowrap; }
+  .trilho { display: block; height: 16px; }
+  .barra { display: block; height: 100%; }
+  .precisa { background: #a3401a; }
+  .tem { background: var(--verde); }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .previdencia { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; }
+    .letra { width: 72px; height: 72px; font-size: 40px; }
+    .barras { gap: 8px 10px; }
+  }
+</style>

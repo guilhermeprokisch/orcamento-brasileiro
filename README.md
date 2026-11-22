@@ -20,7 +20,7 @@ Projeto independente, sem vínculo com o governo.
 
 ## Os dados
 
-Tudo vem de dados abertos oficiais. Os arquivos das fontes, como vieram, e os JSONs que o site usa ficam numa cópia pública no Backblaze B2 ([LEIA-ME](https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/LEIA-ME.md), [índice](https://f005.backblazeb2.com/file/orcamento-brasileiro-dados/indice.csv)), atualizada a cada publicação.
+Tudo vem de dados abertos oficiais. Os arquivos das fontes, como vieram, e os JSONs que o site usa ficam numa cópia pública no Backblaze B2 ([LEIA-ME](https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/LEIA-ME.md), [índice](https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/indice.csv)), atualizada a cada publicação.
 
 | Fonte | O que vem dela | Comando |
 |---|---|---|

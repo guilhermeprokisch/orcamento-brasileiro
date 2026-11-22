@@ -1,0 +1,100 @@
+---
+/**
+ * As três portas do explorador de emendas, para quem não sabe o que procurar: um lugar (o campo "Onde",
+ * public/explorador/onde.js), um parlamentar (o mesmo campo, com a lista de nomes do resumo) ou um assunto
+ * (com sugestões prontas). Cada uma abre /emendas com a pergunta na URL (?ente=, ?autor=, ?q=), como os links das
+ * páginas de cidade.
+ */
+import { ANO, resumo } from "../../lib/emendas-panorama";
+import "../../styles/onde.css";
+
+interface Props { titulo?: string; id?: string }
+const { titulo = "Explore as emendas", id = "explore" } = Astro.props;
+const ASSUNTOS = ["ambulância", "pavimentação", "trator", "hospital", "creche", "show", "quadra", "poço"];
+// Os nomes para o campo do parlamentar, separados em deputados e senadores, bancadas e comissões (onde.js, fonteDeNomes).
+// (a CGU escreve algumas comissões sem acento: "Comissao de Relacoes Exteriores…")
+const tipoDe = (n: string) => (/^bancada/i.test(n) ? "banc" : /^comiss[aã]o/i.test(n) ? "com" : /^relator|^sem informa/i.test(n) ? "outro" : "parl");
+const nomes = (resumo?.nomes ?? []).filter((n) => tipoDe(n) !== "outro")
+  .map((n) => ({ tipo: tipoDe(n), codigo: n, nome: n, rotulo: n, dica: tipoDe(n) === "banc" ? "bancada" : tipoDe(n) === "com" ? "comissão" : "" }));
+---
+
+<section class="explorar" id={id} data-explorar>
+  <h2>{titulo}</h2>
+  <p class="sub">Comece por onde quiser. Cada caminho abre as emendas pagas, emenda por emenda, com quem mandou e quem recebeu.</p>
+  <div class="portas">
+    <div class="porta">
+      <h3><span>1</span> Um lugar</h3>
+      <p>O que chegou a uma cidade ou a um estado, e de quem.</p>
+      <div class="onde" data-onde>
+        <span id={`${id}-onde-rotulo`} class="visually-hidden">Cidade ou estado</span>
+        <div class="onde-campo">
+          <span class="chip" data-chip hidden><span data-chip-texto></span><button type="button" aria-label="Tirar o lugar" data-chip-tirar>✕</button></span>
+          <input type="search" data-onde-input role="combobox" aria-labelledby={`${id}-onde-rotulo`} aria-expanded="false" aria-controls={`${id}-onde-lista`} aria-autocomplete="list" placeholder="Digite uma cidade ou um estado" autocomplete="off" />
+        </div>
+        <div class="onde-lista" id={`${id}-onde-lista`} role="listbox" data-onde-lista hidden></div>
+      </div>
+    </div>
+    <div class="porta">
+      <h3><span>2</span> Um deputado ou senador</h3>
+      <p>Para onde cada um mandou a sua cota, e para quê. Também bancadas e comissões.</p>
+      <div class="onde" data-quem data-nomes={JSON.stringify(nomes)} data-ano={ANO}>
+        <span id={`${id}-quem-rotulo`} class="visually-hidden">Deputado, senador, bancada ou comissão</span>
+        <div class="onde-campo">
+          <span class="chip" data-chip hidden><span data-chip-texto></span><button type="button" aria-label="Tirar o nome" data-chip-tirar>✕</button></span>
+          <input type="search" data-onde-input role="combobox" aria-labelledby={`${id}-quem-rotulo`} aria-expanded="false" aria-controls={`${id}-quem-lista`} aria-autocomplete="list" placeholder="Digite o nome" autocomplete="off" />
+        </div>
+        <div class="onde-lista" id={`${id}-quem-lista`} role="listbox" data-onde-lista hidden></div>
+      </div>
+    </div>
+    <form class="porta" action="/emendas/buscar" method="get">
+      <h3><span>3</span> Um assunto</h3>
+      <p>O que prefeituras e entidades disseram que fariam com o dinheiro.</p>
+      <div class="linha">
+        <input name="q" type="search" placeholder="Ex.: ambulância" aria-label="Assunto" />
+        <button type="submit">Procurar</button>
+      </div>
+      <p class="sugestoes">{ASSUNTOS.map((a) => <a href={`/emendas/buscar?q=${encodeURIComponent(a)}`}>{a}</a>)}</p>
+    </form>
+  </div>
+</section>
+
+<style>
+  .explorar :global([hidden]) { display: none !important; }
+  .explorar { border-top: 2px solid var(--tinta); padding: 28px 0 32px; display: flex; flex-direction: column; gap: 14px; scroll-margin-top: 12px; }
+  .explorar h2 { font-size: 34px; line-height: 1.1; }
+  .sub { margin: 0; font-size: 17px; line-height: 1.5; color: var(--texto-2); max-width: 760px; }
+  .portas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  .porta { display: flex; flex-direction: column; gap: 8px; padding: 16px; background: #fff; border: 1px solid var(--tinta); }
+  .porta h3 { font-size: 20px; display: flex; align-items: center; gap: 8px; }
+  .porta h3 span { width: 26px; height: 26px; border-radius: 50%; background: var(--tinta); color: var(--papel); font-size: 14px; display: grid; place-items: center; }
+  .porta > p { margin: 0; font-size: 14.5px; line-height: 1.45; color: var(--texto-3); }
+  .linha { display: flex; gap: 6px; }
+  /* o campo do assunto no mesmo desenho do campo "Onde" (styles/onde.css) */
+  .linha input { flex: 1; min-width: 0; min-height: 40px; font: inherit; font-size: 15px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); }
+  .linha input:focus { outline: 2px solid var(--verde); outline-offset: 1px; }
+  .linha button { font: inherit; font-size: 15px; font-weight: 600; padding: 9px 16px; background: var(--tinta); color: var(--papel); border: 0; cursor: pointer; }
+  .porta .onde { min-width: 0; flex: none; }
+  .sugestoes { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .sugestoes a { font-size: 13px; padding: 3px 9px; border: 1px solid var(--regra); color: var(--tinta); text-decoration: none; background: var(--papel); }
+  .sugestoes a:hover { border-color: var(--tinta); }
+  @media (max-width: 900px) {
+    .explorar h2 { font-size: 26px; }
+    .sub { font-size: 15.5px; }
+    .portas { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+
+<script is:inline type="module">
+  // Escolher um lugar ou um nome já abre as emendas dele.
+  const { ligarOnde, fonteDeNomes } = await import("/explorador/onde.js");
+  document.querySelectorAll("[data-explorar] [data-onde]").forEach((raiz) => {
+    const ano = raiz.closest("[data-explorar]").querySelector("[data-quem]")?.dataset.ano;
+    ligarOnde(raiz, (l) => { if (l) location.href = `/emendas/buscar?ente=${l.codigo}${ano ? `&ano=${ano}` : ""}`; }, { prefixo: `${raiz.closest("[data-explorar]").id}-onde` });
+  });
+  document.querySelectorAll("[data-explorar] [data-quem]").forEach((raiz) => {
+    const fonte = fonteDeNomes(JSON.parse(raiz.dataset.nomes),
+      [["parl", "Deputados e senadores", 8], ["banc", "Bancadas", 3], ["com", "Comissões", 3]], "Nenhum deputado, senador, bancada ou comissão com");
+    ligarOnde(raiz, (l) => { if (l) location.href = `/emendas/buscar?autor=${encodeURIComponent(l.codigo)}&ano=${raiz.dataset.ano}`; },
+      { fonte, prefixo: `${raiz.closest("[data-explorar]").id}-quem` });
+  });
+</script>

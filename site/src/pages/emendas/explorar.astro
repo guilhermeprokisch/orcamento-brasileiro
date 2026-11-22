@@ -1,0 +1,28 @@
+---
+/**
+ * O explorador das emendas (/emendas/explorar), no desenho do explorador de gastos, com as listas inteiras.
+ * A história fica em /emendas e a busca emenda por emenda em /emendas/buscar.
+ */
+import Base from "../../layouts/Base.astro";
+import EmendasAbas from "../../components/emendas/EmendasAbas.astro";
+import ExplorerEmendas from "../../components/emendas/ExplorerEmendas";
+import Explorar from "../../components/emendas/Explorar.astro";
+import { ANO, resumo } from "../../lib/emendas-panorama";
+---
+
+<Base title="Explorar as emendas · Orçamento Brasileiro" description="Todas as emendas parlamentares pagas, por quem mandou, estado, cidade, quem recebeu e área.">
+  <div class="wrap">
+    <EmendasAbas ativa="explorar" />
+    {resumo ? <ExplorerEmendas client:only="solid-js" parquet={resumo.pagamentos} ano={ANO} anos={resumo.anos.filter((a) => a >= 2017)} />
+      : <p>Os dados das emendas ainda não foram gerados.</p>}
+    <p class="no-orcamento">
+      As emendas dentro do orçamento federal, por ministério, programa e ação, ao lado do resto do gasto:{" "}
+      <a href="/explorer?f=tipo:eme&por=orgao">abrir no explorador do orçamento →</a>
+    </p>
+    <Explorar id="explore-direto" titulo="Ou vá direto" />
+  </div>
+</Base>
+
+<style>
+  .no-orcamento { margin: 18px 0 32px; font-size: 14px; color: var(--texto-3); }
+</style>

@@ -25,6 +25,8 @@ import csv
 import io
 import json
 import re
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -39,10 +41,19 @@ SAIDA = c.RAIZ / "site" / "public" / "data" / "indicadores" / "capag.json"
 CODIGO_UF = {sigla: str(codigo) for codigo, sigla in c.SIGLAS.items()}
 
 
-def _baixar(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=300, context=CONTEXTO_TLS) as resp:
-        return resp.read()
+def _baixar(url: str, tentativas: int = 4) -> bytes:
+    """Baixa com algumas tentativas: o servidor às vezes derruba a conexão (Connection reset) quando a
+    publicação, que roda fora do Brasil e com várias consultas ao mesmo tempo, pede demais."""
+    for n in range(tentativas):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=300, context=CONTEXTO_TLS) as resp:
+                return resp.read()
+        except (OSError, urllib.error.URLError):
+            if n == tentativas - 1:
+                raise
+            time.sleep(5 * 3 ** n)   # 5, 15, 45 segundos
+    raise AssertionError
 
 
 def mais_recente(conjunto: str) -> tuple[str, Path]:

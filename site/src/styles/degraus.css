@@ -1,0 +1,78 @@
+/* Os degraus: o caminho até aqui nos exploradores, um degrau (caixa em forma de seta) por nível escolhido, com o tipo
+   do nível, o nome, o valor e quanto ele é do anterior. O atual fica em amarelo-claro; os anteriores são links que
+   voltam para aquele nível. No celular, os degraus viram uma lista que abre e fecha ("Caminho: N passos").
+   O mesmo HTML sai do componente Solid (components/explorer/Degraus.tsx, no Explorer e no explorador das emendas) e do
+   script das páginas de busca (public/explorador/trilha.js, em /contratos e /emendas/buscar). */
+.degraus { display: flex; flex-direction: column; gap: 10px; }
+.degraus[hidden] { display: none; }
+.degraus-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px 24px; flex-wrap: wrap; min-height: 32px; }
+.degraus-dica { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+.degraus-abrir { display: none; }
+
+.degraus-lista { display: flex; align-items: stretch; list-style: none; margin: 0; padding: 0; min-width: 0; }
+.degraus-lista > li { flex: 1 1 0; min-width: 0; max-width: 340px; margin: 0 0 0 -6px; padding: 0; }
+.degraus-lista > li:first-child { margin-left: 0; }
+.degrau {
+  height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 22px 12px 24px; background: var(--papel-escuro); color: var(--tinta); text-decoration: none;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%);
+}
+.degraus-lista > li:first-child .degrau { padding-left: 16px; clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%); }
+a.degrau:hover, a.degrau:focus-visible { background: var(--regra-leve); color: var(--tinta); }
+a.degrau:hover .degrau-nome, a.degrau:focus-visible .degrau-nome { text-decoration: underline; text-underline-offset: 3px; }
+a.degrau:focus-visible { outline: none; background: var(--areia-clara); }
+.degrau[aria-current] { background: var(--marca-texto-fundo); }
+.degrau-tipo { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.degrau-nome {
+  font-size: 15px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.degrau-valor { font-size: 13px; line-height: 1.35; }
+.degrau-valor strong { color: var(--verde); font-weight: 600; }
+.degrau-parte { color: var(--texto-3); }
+.degrau-barra { display: block; height: 4px; margin-top: auto; background: var(--regra); }
+.degrau-barra > i { display: block; height: 100%; background: var(--verde); }
+
+/* "← Voltar a …", logo acima do conteúdo. O seletor com .exp-abas vence o estilo das abas do explorador. */
+a.degraus-voltar, button.degraus-voltar, .exp-abas button.degraus-voltar {
+  display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box; max-width: 100%;
+  font: inherit; font-size: 14px; font-weight: 600; line-height: 1.3; text-align: left; text-decoration: none;
+  padding: 6px 12px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer;
+}
+a.degraus-voltar:hover, button.degraus-voltar:hover, .exp-abas button.degraus-voltar:hover { background: var(--papel-escuro); color: var(--tinta); }
+.degraus-voltar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Na tela larga, os degraus logo acima já levam de volta a cada nível: o botão repetiria o degrau anterior. Ele fica
+   só no celular, onde os degraus viram "Caminho: N passos", fechados. */
+@media (min-width: 721px) {
+  a.degraus-voltar, button.degraus-voltar, .exp-abas button.degraus-voltar { display: none; }
+}
+
+@media (max-width: 720px) {
+  .degraus-dica { display: none; }
+  /* o caminho primeiro, os controles depois */
+  .degraus-abrir { order: -2; }
+  .degraus-lista { order: -1; }
+  .degraus-cab:not(:has(> :not(.degraus-dica))) { display: none; }
+  .degraus-abrir {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 44px; box-sizing: border-box;
+    padding: 10px 14px; font: inherit; font-size: 14px; font-weight: 600; text-align: left;
+    color: var(--tinta); background: #fff; border: 1px solid var(--tinta); cursor: pointer;
+  }
+  .degraus-abrir span { color: var(--texto-3); font-weight: 400; }
+  .degraus .degraus-lista { display: none; }
+  .degraus.aberto .degraus-abrir { border-bottom: 0; }
+  .degraus.aberto .degraus-lista {
+    display: flex; flex-direction: column; gap: 2px; margin-top: -10px;
+    padding: 4px 8px 10px; background: #fff; border: 1px solid var(--tinta); border-top: 0;
+  }
+  .degraus-lista > li { max-width: none; margin: 0; }
+  .degraus-lista > li:first-child .degrau, .degrau {
+    clip-path: none; background: transparent; padding: 8px 8px; min-height: 44px; justify-content: center; gap: 1px;
+  }
+  .degrau[aria-current] { background: var(--marca-texto-fundo); }
+  a.degrau .degrau-nome { color: var(--verde); text-decoration: underline; text-underline-offset: 3px; }
+  .degrau-nome { -webkit-line-clamp: 3; }
+  .degrau-tipo { font-size: 10px; }
+  .degrau-parte, .degrau-barra { display: none; }
+  a.degraus-voltar, button.degraus-voltar, .exp-abas button.degraus-voltar { min-height: 44px; width: 100%; padding: 10px 14px; }
+}

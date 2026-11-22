@@ -15,13 +15,19 @@ const site = Astro.site ?? new URL("https://orcamentobrasileiro.com.br");
 const urlPagina = new URL(Astro.url.pathname, site).href;
 const imagemPrevia = new URL("/previa.png", site).href;
 const path = Astro.url.pathname;
-const ativo = (p: string) => (path.startsWith(p) ? "page" : undefined);
+// O item do menu desta página: o de endereço mais longo que começa o caminho (/emendas/explorar acende
+// "Explorar as emendas", não "Emendas").
+const todosHrefs = () => GRUPOS.flatMap((g) => g.itens.map((i) => i.href));
+const ativo = (p: string) => {
+  const melhor = todosHrefs().filter((h) => path.startsWith(h)).sort((a, b) => b.length - a.length)[0];
+  return p === melhor ? "page" : undefined;
+};
 
 // Menu principal: as páginas agrupadas pela pergunta de quem chega. Para incluir uma página,
 // acrescente um item ao grupo dela; o menu do computador e o do celular saem desta lista.
 const GRUPOS = [
   { nome: "Governo federal", itens: [
-    { href: "/explorer", nome: "Gastos", desc: "Para onde vai o dinheiro: por órgão, área, programa e ação." },
+    { href: "/explorer", nome: "Gastos", desc: "Para onde vai o dinheiro: por órgão, área, programa e ação, em blocos ou em cascata." },
     { href: "/receitas", nome: "Receitas", desc: "De onde vem o dinheiro: impostos, contribuições, royalties e empréstimos." },
     { href: "/orgaos", nome: "Órgãos", desc: "Cada ministério e órgão: quanto pode gastar e com o quê." },
     { href: "/divida", nome: "Dívida", desc: "Quanto o governo federal deve, a quem, e quanto paga de juros." },
@@ -36,7 +42,8 @@ const GRUPOS = [
   ] },
   { nome: "Contratos e emendas", itens: [
     { href: "/contratos", nome: "Contratos", desc: "O que prefeituras e governos estaduais contrataram, e de quem." },
-    { href: "/emendas", nome: "Emendas", desc: "O dinheiro que deputados e senadores mandam: para onde e para quem." },
+    { href: "/emendas", nome: "Emendas", desc: "O que são as emendas parlamentares, quanto são e para onde vão." },
+    { href: "/emendas/explorar", nome: "Explorar as emendas", desc: "Todas as emendas pagas, por quem mandou, estado, cidade, quem recebeu e área." },
   ] },
   { nome: "Impostos", itens: [
     { href: "/impostos", nome: "Para quem vai o seu imposto", desc: "Quem cobra cada imposto, o que é repassado a estados e prefeituras e quem fica com o dinheiro." },
@@ -102,9 +109,15 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
             </details>
           ))}
           <Busca client:idle />
+          <a class="gh" href="https://github.com/guilhermeprokisch/orcamento-brasileiro" aria-label="O código do site no GitHub" title="O código é aberto: veja no GitHub">
+            <svg width="22" height="22" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" /></svg>
+          </a>
         </nav>
         <div class="nav-celular so-celular">
           <Busca client:idle compacto />
+          <a class="gh" href="https://github.com/guilhermeprokisch/orcamento-brasileiro" aria-label="O código do site no GitHub" title="O código é aberto: veja no GitHub">
+            <svg width="22" height="22" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" /></svg>
+          </a>
           <details class="menu">
             <summary aria-label="Menu">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
@@ -117,6 +130,7 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
                   {g.itens.map((i) => <a class="menu-item" href={i.href} aria-current={ativo(i.href)}>{i.nome}</a>)}
                 </>
               ))}
+              <a class="menu-codigo" href="https://github.com/guilhermeprokisch/orcamento-brasileiro">O código no GitHub</a>
             </nav>
           </details>
         </div>
@@ -137,7 +151,7 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
     <div class="wrap">
       <footer class="rodape">
         <span>Dados abertos do Tesouro, da CGU, da Receita, do IBGE, do DATASUS e de outras fontes oficiais. <a href="/dados">Baixe todos os dados</a>.</span>
-        <span>Projeto independente, sem vínculo com o Governo Federal.</span>
+        <span>Projeto independente, sem vínculo com o Governo Federal. O código é aberto: <a href="https://github.com/guilhermeprokisch/orcamento-brasileiro">veja no GitHub</a>.</span>
       </footer>
     </div>
     <script>
@@ -213,7 +227,7 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
     font-family: var(--serifa); font-size: 25px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap;
   }
   .marca-site:hover { color: var(--tinta); }
-  .nav { display: flex; align-items: center; gap: 24px; font-size: 15px; }
+  .nav { display: flex; align-items: center; gap: 18px; font-size: 15px; }
 
   /* Grupos do menu: o nome abre uma lista com uma frase por página. */
   .grupo { position: relative; }
@@ -254,6 +268,16 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => ativo(i.h
   .rodape a { color: var(--texto-3); }
 
   .nav-celular { display: flex; align-items: center; gap: 4px; }
+  /* O ícone do GitHub: o código do site é aberto. */
+  .gh { width: 40px; height: 40px; display: grid; place-items: center; color: var(--tinta); flex: none; }
+  .gh:hover, .gh:focus-visible { color: var(--verde); }
+  .nav .gh { width: 28px; }
+  /* No celular estreito não cabe ao lado da busca e do menu: vai para dentro do menu. */
+  .menu .menu-codigo { display: none; border-top: 1px solid var(--regra-leve); }
+  @media (max-width: 420px) {
+    .nav-celular .gh { display: none; }
+    .menu nav a.menu-codigo { display: block; }
+  }
   .menu { position: relative; }
   .menu summary {
     list-style: none; width: 44px; height: 44px; display: grid; place-items: center; cursor: pointer; color: var(--tinta);

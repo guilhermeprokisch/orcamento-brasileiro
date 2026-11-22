@@ -22,8 +22,9 @@ MUNICIPIOS_DCA = c.RAIZ / "site" / "public" / "data" / "cidades" / "municipios.j
 # prestadores do SUS, ajudas de custo): é dinheiro que vai para pessoas, não para um fornecedor. Os coletores
 # põem essas linhas no grupo de pessoal (folha).
 FOLHA_NOME = re.compile(r"^(FOPAG|FOLHA\s+(DE\s+)?PAGAMENTO)\b")
-# Um CPF inteiro ou um número de 11 dígitos no nome: nunca pode ir para o arquivo.
-CPF_NO_NOME = re.compile(r"(?<!\d)\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?!\d)")
+# Um CPF inteiro ou um número de 11 dígitos no nome, com ou sem pontos, traço e espaços ("028.633.156 - 09"):
+# nunca pode ir para o arquivo.
+CPF_NO_NOME = re.compile(r"(?<!\d)\d{3}\.?\s?\d{3}\.?\s?\d{3}\s*-?\s*\d{2}(?!\d)")
 
 
 def gravar(uf: str, fonte: str, ano: int, mun: dict, so: list[str] | None) -> None:

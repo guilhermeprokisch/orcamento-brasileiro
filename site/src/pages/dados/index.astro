@@ -5,7 +5,7 @@
  */
 import Base from "../../layouts/Base.astro";
 
-const BASE = "https://f005.backblazeb2.com/file/orcamento-brasileiro-dados";
+const BASE = "https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados";
 const REPO = "https://github.com/guilhermeprokisch/orcamento-brasileiro";
 
 const fontes: [string, string, string, string][] = [
@@ -91,8 +91,9 @@ const fontes: [string, string, string, string][] = [
     <section class="bloco">
       <h2>O código</h2>
       <p>
-        O programa que baixa, confere e trata os dados é aberto, sob a licença MIT: <a href={REPO}>{REPO.replace("https://", "")}</a>.
-        Cada fonte tem o seu arquivo na pasta <code>pipeline/</code>, com a explicação no começo.
+        Todo o código é aberto, sob a licença MIT: <a href={REPO}>{REPO.replace("https://", "")}</a>. Lá estão o site e o
+        programa que baixa, confere e trata os dados. Cada fonte tem o seu arquivo na pasta <code>pipeline/</code>, com a
+        explicação no começo; o site fica na pasta <code>site/</code>. Achou um erro? <a href={`${REPO}/issues`}>Conte para a gente</a>.
       </p>
     </section>
   </div>

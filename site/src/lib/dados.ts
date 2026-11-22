@@ -1,10 +1,11 @@
 /** Leitura e agrupamento dos JSONs gerados pelo pipeline (pipeline/…/transformar.py). */
 
-export type Dim = "orgao" | "uo" | "funcao" | "subfuncao" | "programa" | "acao" | "gnd";
+export type Dim = "orgao" | "uo" | "funcao" | "subfuncao" | "programa" | "acao" | "gnd" | "tipo";
 export type Metrica = "inicial" | "atualizado" | "empenhado" | "realizado";
 
 export const METRICAS: Metrica[] = ["inicial", "atualizado", "empenhado", "realizado"];
-export const DIMS: Dim[] = ["orgao", "funcao", "gnd", "uo", "subfuncao", "programa", "acao"];
+/** "tipo" (obrigatória, escolha do governo…) fica por último: só existe nos arquivos com o SIOP. */
+export const DIMS: Dim[] = ["orgao", "funcao", "gnd", "uo", "subfuncao", "programa", "acao", "tipo"];
 
 export const ROTULO_METRICA: Record<Metrica, string> = {
   inicial: "Dotação inicial",
@@ -21,6 +22,7 @@ export const ROTULO_DIM: Record<Dim, string> = {
   programa: "Programa",
   acao: "Ação",
   gnd: "Grupo de despesa",
+  tipo: "Tipo de despesa",
 };
 
 /** "um órgão", "uma função"… usado em "Você escolheu … Um órgão". */
@@ -32,6 +34,7 @@ export const ARTIGO_DIM: Record<Dim, string> = {
   programa: "Um programa",
   acao: "Uma ação",
   gnd: "Um grupo de despesa",
+  tipo: "Um tipo de despesa",
 };
 
 /** Próximo nível sugerido depois de escolher um item de cada dimensão. */
@@ -43,6 +46,7 @@ const SUGESTAO: Record<Dim, Dim[]> = {
   programa: ["acao"],
   acao: ["gnd", "uo"],
   gnd: ["orgao", "uo", "acao"],
+  tipo: ["orgao", "programa", "acao"],
 };
 
 export interface Filtro {
@@ -54,6 +58,21 @@ export function dimsDisponiveis(filtros: Filtro[]): Dim[] {
   const usadas = new Set(filtros.map((f) => f.dim));
   return DIMS.filter((d) => !usadas.has(d));
 }
+
+/**
+ * Tipo de despesa pelo identificador de resultado primário do SIOP (coluna "tipo", ver pipeline/…/transformar.py).
+ * Cores como em /contas: obrigatórias em verde, o que o governo escolhe em amarelo.
+ */
+export const TIPOS_DESPESA = [
+  { cod: "obr", nome: "Obrigatória", cor: "#1f7a47" },
+  { cod: "esc", nome: "Escolha do governo", cor: "#ffe14d" },
+  { cod: "eme", nome: "Emendas parlamentares", cor: "#d9822b" },
+  { cod: "fin", nome: "Financeira (dívida)", cor: "#c3bba7" },
+  { cod: "sem", nome: "Sem informação", cor: "#e9e4d8" },
+] as const;
+
+/** O arquivo do ano tem a coluna de tipo de despesa? (os gerados antes do SIOP não têm) */
+export const temTipo = (doc: DocAno | undefined | null) => !!doc?.colunas.includes("tipo");
 
 export function proximaSugerida(filtros: Filtro[]): Dim | null {
   const livres = dimsDisponiveis(filtros);
@@ -156,7 +175,7 @@ export function agrupar(doc: DocAno, filtros: Filtro[], por: Dim | null, semRefi
   const itens: Item[] = por
     ? [...grupos].map(([codigo, valores]) => ({
         codigo,
-        nome: doc.dims[por][codigo] ?? codigo,
+        nome: doc.dims[por]?.[codigo] ?? codigo,
         valores,
       }))
     : [];
@@ -191,6 +210,8 @@ export interface Rotulos {
   colTaxa: string;
   /** mostra o código ao lado do nome na lista (padrão: sim) */
   codigo?: boolean;
+  /** só há o valor realizado (emendas: o pago): sem a coluna de taxa na lista e sem o previsto no balão */
+  soRealizado?: boolean;
 }
 
 export const ROTULOS_DESPESA: Rotulos = {

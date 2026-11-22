@@ -12,6 +12,8 @@ interface Props {
   podeDescer: boolean;
   onEscolher: (item: Item) => void;
   rotulos?: Rotulos;
+  /** cor fixa de um bloco (ex.: tipo de despesa); sem ela, a cor vem da posição no ranking */
+  corDe?: (item: Item) => { fundo: string; escuro: boolean } | undefined;
 }
 
 type Dado = { item?: Item; children?: Dado[] };
@@ -43,6 +45,11 @@ export default function Treemap(props: Props) {
     return (raiz.leaves() as No[]).filter((n) => (n.value ?? 0) > 0 && n.x1 - n.x0 >= 1 && n.y1 - n.y0 >= 1);
   });
 
+  // Blocos com espaço para o nome: os grandes levam nome e valor; os médios, só o nome.
+  const temNome = (n: No) => n.x1 - n.x0 >= 72 && n.y1 - n.y0 >= 48;
+  // Os que ficaram sem nome no mapa aparecem embaixo, em texto, com a parcela.
+  const semNome = createMemo(() => folhas().filter((n) => !temNome(n)));
+
   // Cor pela posição no ranking, como no mock: 1º verde-escuro, 2º verde, depois mais claros.
   const cor = (rank: number) => ({ fundo: RAMPA[Math.min(rank, RAMPA.length - 1)], escuro: rank < 2 });
   const pctBloco = (p: number) => (p >= 0.01 ? `${Math.round(p * 100)}%` : pct(p));
@@ -64,6 +71,7 @@ export default function Treemap(props: Props) {
   };
 
   return (
+    <>
     <div class="tm" ref={caixa} style={{ height: `${altura()}px` }} onPointerLeave={() => setFoco(null)}>
       <Show when={largura() > 0 && folhas().length === 0}>
         <p class="tm-vazio">Nenhum valor positivo neste nível.</p>
@@ -74,7 +82,7 @@ export default function Treemap(props: Props) {
             const item = n.data.item!;
             const w = n.x1 - n.x0;
             const h = n.y1 - n.y0;
-            const c = cor(rank());
+            const c = props.corDe?.(item) ?? cor(rank());
             const parcela = (n.value ?? 0) / props.total;
             const area = w * h;
             const tamPct = Math.max(18, Math.min(64, Math.sqrt(area) / 5.5));
@@ -95,7 +103,11 @@ export default function Treemap(props: Props) {
                 <Show when={w >= 52 && h >= 34}>
                   <span class="tm-pct" style={{ "font-size": `${tamPct}px` }}>{pctBloco(parcela)}</span>
                 </Show>
-                <Show when={w >= 120 && h >= 90}>
+                <Show when={w >= 120 && h >= 90} fallback={
+                  <Show when={temNome(n)}>
+                    <span class="tm-rotulo tm-rotulo-curto"><strong>{item.nome}</strong></span>
+                  </Show>
+                }>
                   <span class="tm-rotulo">
                     <strong>{item.nome}</strong>
                     <span class="num">{moedaCurta(item.valores[props.metrica])}{taxa !== null ? ` · ${Math.round(taxa * 100)}% ${r().taxa}` : ""}</span>
@@ -115,7 +127,7 @@ export default function Treemap(props: Props) {
             <div class="tm-tip" style={posTip()} role="status">
               <strong>{item().nome}</strong>
               <dl class="num">
-                <dt>{r().atualizado}</dt><dd>{moedaCurta(item().valores.atualizado)}</dd>
+                <Show when={!r().soRealizado}><dt>{r().atualizado}</dt><dd>{moedaCurta(item().valores.atualizado)}</dd></Show>
                 <Show when={r().empenhado}><dt>{r().empenhado}</dt><dd>{moedaCurta(item().valores.empenhado)}</dd></Show>
                 <dt>{r().realizado}</dt><dd>{moedaCurta(item().valores.realizado)}{taxa() !== null ? ` (${pct(taxa())})` : ""}</dd>
                 <dt>Parcela</dt><dd>{pct((n().value ?? 0) / props.total)}</dd>
@@ -126,5 +138,25 @@ export default function Treemap(props: Props) {
         }}
       </Show>
     </div>
+    <Show when={semNome().length > 0}>
+      <p class="tm-legenda">
+        <span class="tm-legenda-titulo">Sem espaço no mapa:</span>{" "}
+        <For each={semNome().slice(0, 8)}>
+          {(n, i) => (
+            <>
+              {i() > 0 ? " · " : ""}
+              <button type="button" class="tm-legenda-item" disabled={!props.podeDescer}
+                onClick={() => props.podeDescer && props.onEscolher(n.data.item!)}>
+                {n.data.item!.nome} <span class="num">{pctBloco((n.value ?? 0) / props.total)}</span>
+              </button>
+            </>
+          )}
+        </For>
+        <Show when={semNome().length > 8}>
+          {` e mais ${semNome().length - 8}, que somam ${pct(semNome().slice(8).reduce((s, n) => s + (n.value ?? 0), 0) / props.total)}. A lista mostra todos.`}
+        </Show>
+      </p>
+    </Show>
+    </>
   );
 }

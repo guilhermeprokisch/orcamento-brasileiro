@@ -167,7 +167,7 @@ export function areasHtml(ctx: Contexto): string {
 function emendasHtml(ctx: Contexto, ano: number, receita: number): string {
   const [prefeitura, entidades] = ctx.emendas?.[String(ano)] ?? [0, 0];
   if (ctx.esfera !== "mun" || prefeitura + entidades <= 0) return "";
-  const link = `<a href="/emendas?ente=${ctx.ibge}&amp;ano=${ano}">Quem mandou e para quê</a>.`;
+  const link = `<a href="/emendas/buscar?ente=${ctx.ibge}&amp;ano=${ano}">Quem mandou e para quê</a>.`;
   // Valores pequenos para entidades (abaixo de R$ 100 mil) só atrapalham a frase.
   const fora = entidades >= 1e5 ? `${moedaCurta(entidades)} foram direto para entidades e empresas da cidade (hospitais filantrópicos, associações), sem passar pelo caixa da prefeitura` : "";
   if (prefeitura <= 0) return `<p class="menor">Em ${termoHtml("emenda-parlamentar", "emendas parlamentares")}, nada foi pago à prefeitura em ${ano}; ${fora}. ${link}</p>`;

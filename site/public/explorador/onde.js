@@ -1,6 +1,7 @@
 // O campo "Onde" dos exploradores (/contratos, /emendas): digita-se o nome de uma cidade ou de um
 // estado e aparecem sugestões, separadas em Estados e Cidades, como na busca do topo do site. A escolha
 // vira uma etiqueta com ✕. Quem usa recebe { tipo: "uf" | "mun", codigo, nome, sigla, rotulo } ou null.
+// O mesmo campo serve para outras listas (opcoes.fonte): em /emendas, os deputados, senadores, bancadas e comissões.
 
 const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -30,7 +31,28 @@ function marcar(nome, termo) {
  * `opcoes.aceita(lugar)` esconde das sugestões o que não serve (em /comparar: cidade só com cidade);
  * `opcoes.prefixo` muda o id das sugestões, para dar para ter dois campos na mesma página.
  */
+/** A fonte padrão das sugestões: estados e cidades. */
+const LUGARES = {
+  carregar: carregarLugares,
+  grupos: [["uf", "Estados", 4], ["mun", "Cidades", 8]],
+  dica: (l) => (l.tipo === "uf" ? "estado" : l.sigla),
+  vazio: "Nenhuma cidade ou estado com",
+};
+
+/**
+ * Uma lista de nomes como fonte do campo: itens { tipo, codigo, nome, rotulo, dica }, separados nos grupos
+ * [[tipo, título, quantos mostrar], …]. `vazio` é o começo da frase quando nada casa com o que foi digitado.
+ */
+export function fonteDeNomes(itens, grupos, vazio) {
+  const lista = itens.map((i) => ({ ...i, chave: sem(i.nome) }));
+  const pronto = { lista, porCodigo: new Map(lista.map((l) => [l.codigo, l])) };
+  return { carregar: async () => pronto, grupos, dica: (l) => l.dica ?? "", vazio };
+}
+
 export function ligarOnde(raiz, aoMudar, opcoes = {}) {
+  const fonte = opcoes.fonte ?? LUGARES;
+  let dados = null;
+  const carregar = async () => (dados ??= await fonte.carregar());
   const aceita = opcoes.aceita ?? (() => true);
   const pre = opcoes.prefixo ?? "onde";
   const campo = raiz.querySelector("[data-onde-input]");
@@ -41,19 +63,18 @@ export function ligarOnde(raiz, aoMudar, opcoes = {}) {
   const fechar = () => { lista.hidden = true; campo.setAttribute("aria-expanded", "false"); ativo = -1; };
   const desenhar = () => {
     const termos = sem(campo.value).trim().split(/\s+/).filter(Boolean);
-    if (!termos.length || !lugares) { fechar(); return; }
+    if (!termos.length || !dados) { fechar(); return; }
     const casa = (l) => aceita(l) && termos.every((t) => l.chave.includes(t));
     const ordem = (a, b) => Number(!a.chave.startsWith(termos[0])) - Number(!b.chave.startsWith(termos[0])) || a.nome.localeCompare(b.nome, "pt-BR");
-    const estados = lugares.lista.filter((l) => l.tipo === "uf" && casa(l)).sort(ordem).slice(0, 4);
-    const cidades = lugares.lista.filter((l) => l.tipo === "mun" && casa(l)).sort(ordem).slice(0, 8);
-    achados = [...estados, ...cidades];
+    const blocos = fonte.grupos.map(([tipo, titulo, max]) => ({ titulo, itens: dados.lista.filter((l) => l.tipo === tipo && casa(l)).sort(ordem).slice(0, max) }));
+    achados = blocos.flatMap((b) => b.itens);
     ativo = achados.length ? 0 : -1;
     const item = (l, i) => `<button type="button" role="option" id="${pre}-${i}" class="${i === ativo ? "ativo" : ""}" data-i="${i}" aria-selected="${i === ativo}">
-      <span>${marcar(l.nome, termos[0])}</span><small>${l.tipo === "uf" ? "estado" : l.sigla}</small></button>`;
+      <span>${marcar(l.nome, termos[0])}</span><small>${esc(fonte.dica(l))}</small></button>`;
+    let n = 0;
     lista.innerHTML = achados.length
-      ? `${estados.length ? `<div class="onde-grupo">Estados</div>${estados.map((l, i) => item(l, i)).join("")}` : ""}
-         ${cidades.length ? `<div class="onde-grupo">Cidades</div>${cidades.map((l, i) => item(l, i + estados.length)).join("")}` : ""}`
-      : `<p class="onde-msg">Nenhuma cidade ou estado com “${esc(campo.value.trim())}”.</p>`;
+      ? blocos.filter((b) => b.itens.length).map((b) => `<div class="onde-grupo">${esc(b.titulo)}</div>${b.itens.map((l) => item(l, n++)).join("")}`).join("")
+      : `<p class="onde-msg">${esc(fonte.vazio)} “${esc(campo.value.trim())}”.</p>`;
     lista.hidden = false;
     campo.setAttribute("aria-expanded", "true");
     campo.setAttribute("aria-activedescendant", ativo >= 0 ? `${pre}-${ativo}` : "");
@@ -74,8 +95,8 @@ export function ligarOnde(raiz, aoMudar, opcoes = {}) {
     aoMudar(l);
   };
 
-  campo.addEventListener("focus", () => carregarLugares().then(desenhar), { once: true });
-  campo.addEventListener("input", async () => { await carregarLugares(); desenhar(); });
+  campo.addEventListener("focus", () => carregar().then(desenhar), { once: true });
+  campo.addEventListener("input", async () => { await carregar(); desenhar(); });
   campo.addEventListener("keydown", (ev) => {
     if (ev.key === "ArrowDown") { ev.preventDefault(); if (lista.hidden) desenhar(); else mover(1); }
     else if (ev.key === "ArrowUp") { ev.preventDefault(); mover(-1); }
@@ -90,7 +111,7 @@ export function ligarOnde(raiz, aoMudar, opcoes = {}) {
   return {
     /** Mostra um lugar já escolhido (vindo do endereço), sem avisar. */
     async definir(codigo) {
-      const l = (await carregarLugares()).porCodigo.get(codigo);
+      const l = (await carregar()).porCodigo.get(codigo);
       if (!l) return;
       escolhido = l; chip.hidden = false; raiz.querySelector("[data-chip-texto]").textContent = l.rotulo; campo.hidden = true;
       return l;

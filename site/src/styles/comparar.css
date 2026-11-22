@@ -71,7 +71,8 @@
 .cp-linha-esp .cp-rotulo { text-align: center; font-size: 14px; }
 .cp-esp { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .cp-esp.cp-a { flex-direction: row-reverse; }
-.cp-esp strong { font-family: var(--serifa); font-size: 19px; font-weight: 700; color: var(--tinta); white-space: nowrap; min-width: 84px; }
+/* o número tem a mesma largura em todas as linhas do bloco (--cp-num, em lib/comparar.ts), para os trilhos ficarem iguais */
+.cp-esp strong { font-family: var(--serifa); font-size: 19px; font-weight: 700; color: var(--tinta); white-space: nowrap; flex: none; min-width: var(--cp-num, 0); font-variant-numeric: tabular-nums; }
 .cp-esp.cp-a strong { text-align: left; }
 .cp-esp.cp-b strong { text-align: right; }
 .cp-trilho { flex: 1; display: flex; min-width: 0; }
@@ -98,5 +99,5 @@
   .cp-cabeca-esp h2 { font-size: 19px; }
   .cp-linha-esp { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .cp-linha-esp .cp-rotulo { grid-column: 1 / -1; grid-row: 1; }
-  .cp-esp strong { font-size: 16px; min-width: 0; }
+  .cp-esp strong { font-size: 16px; }
 }

@@ -1,0 +1,8 @@
+/* O que o explorador das emendas tem a mais que o de gastos: procurar dentro de uma lista longa e o aviso de que
+   uma consulta está a caminho (o DuckDB leva um instante a cada clique). */
+.exp-filtrar { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 12px; max-width: 520px; font-size: 13px; color: var(--texto-3); }
+.exp-filtrar input { font: inherit; font-size: 16px; padding: 9px 12px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); }
+.exp-resultado { transition: opacity .15s; }
+.exp-ocupado { opacity: .45; pointer-events: none; }
+.exp-aviso { margin: 0 0 8px; font-size: 14px; color: var(--texto-3); }
+.exp-aviso .link { font: inherit; color: var(--verde); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
