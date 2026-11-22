@@ -1,0 +1,231 @@
+name: Acima do teto (Executivo dos estados)
+
+# Uma vez por mês, baixa a folha do Executivo de cada estado (`uv run supersalarios-estados --uf XX`), um job por
+# estado, e abre um pull request em rascunho com a cópia de referência (pipeline/referencia/supersalarios-estados.json),
+# para conferir os números antes de irem ao ar. A publicação diária só copia essa cópia (dados.sh, --sem-baixar).
+#
+# Cada estado é um job da matriz, com a lista tirada do próprio pipeline (ESTADOS): um portal fora do ar ou lento não
+# derruba os outros, e o comando, quando um estado falha, fica com o que há no cache. O job final junta os caches e
+# monta o arquivo (--so-cache).
+#
+# O cache data/raw/supersalarios-estados/{uf}/ (somas por órgão e mês, nenhum dado de pessoa) fica no release
+# "dados-supersalarios-estados", um arquivo por estado, entre uma execução e outra: assim só se baixam os meses novos.
+# Sem ele, a primeira execução baixa 12 meses de cada estado; o RN (a API limita os pedidos) não cabe nas 5 horas do job
+# e completa nos meses seguintes.
+#
+# Quando roda: dia 25 de cada mês, depois que os estados publicam a folha do mês anterior.
+on:
+  schedule:
+    - cron: "0 9 25 * *"
+  workflow_dispatch:
+    inputs:
+      uf:
+        description: "Só estes estados, separados por vírgula (vazio: todos)"
+        required: false
+        default: ""
+
+concurrency:
+  group: supersalarios-estados
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # o cache no release e o branch do pull request
+  pull-requests: write   # abrir o pull request
+
+env:
+  RELEASE: dados-supersalarios-estados
+  RAMO: dados/supersalarios-estados
+  # Só a main grava no release e abre o pull request; em outro branch (teste), o resultado fica como artefato.
+  NA_MAIN: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+jobs:
+  preparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      estados: ${{ steps.lista.outputs.estados }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Lista dos estados
+        id: lista
+        env:
+          PEDIDOS: ${{ inputs.uf }}
+        run: |
+          uv run --project pipeline python - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os
+          from orcamento_pipeline.supersalarios_estados import ESTADOS
+          pedidos = {u.strip().upper() for u in os.environ.get("PEDIDOS", "").split(",") if u.strip()}
+          print("estados=" + json.dumps([u for u in ESTADOS if not pedidos or u in pedidos]))
+          EOF
+          cat "$GITHUB_OUTPUT"
+      # Criado aqui, uma vez, para os jobs da matriz não tentarem criar o mesmo release ao mesmo tempo.
+      - name: Release do cache
+        if: env.NA_MAIN == 'true'
+        run: |
+          gh release view "$RELEASE" >/dev/null 2>&1 || gh release create "$RELEASE" --latest=false --title "Acima do teto, estados (cache)" --notes \
+            "Cache do workflow supersalarios-estados.yml: as somas de cada órgão do Executivo de cada estado por mês (data/raw/supersalarios-estados/{uf}/{ano}-{mês}.json.gz), um arquivo por estado. Nenhum dado de pessoa. Não é uma versão do código."
+
+  estado:
+    needs: preparar
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        uf: ${{ fromJSON(needs.preparar.outputs.estados) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      UF: ${{ matrix.uf }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Cache já publicado
+        run: |
+          uf=$(echo "$UF" | tr 'A-Z' 'a-z')
+          mkdir -p data/raw/supersalarios-estados
+          if gh release download "$RELEASE" --pattern "estados-$uf.tar" --dir "$RUNNER_TEMP" 2>/dev/null; then
+            tar -xf "$RUNNER_TEMP/estados-$uf.tar" -C data/raw/supersalarios-estados
+            echo "cache: $(find "data/raw/supersalarios-estados/$uf" -name '*.json.gz' | wc -l) meses"
+          else
+            echo "::notice::Sem cache de $UF no release: baixa os 12 meses."
+          fi
+          find "data/raw/supersalarios-estados/$uf" -name '*.json.gz' 2>/dev/null | sort | xargs -r sha256sum > "$RUNNER_TEMP/antes.sha256"
+
+      # O limite fica no passo, não só no job: se um portal travar, os passos seguintes ainda guardam o que veio.
+      - name: Baixar e somar
+        timeout-minutes: 300
+        run: uv run --project pipeline supersalarios-estados --uf "$UF" 2>&1 | tee "$RUNNER_TEMP/saida-$UF.log"
+
+      - name: Guardar o cache
+        if: always()
+        run: |
+          uf=$(echo "$UF" | tr 'A-Z' 'a-z')
+          mkdir -p "data/raw/supersalarios-estados/$uf"
+          tar -cf "$RUNNER_TEMP/estados-$uf.tar" -C data/raw/supersalarios-estados "$uf"
+          find "data/raw/supersalarios-estados/$uf" -name '*.json.gz' | sort | xargs -r sha256sum > "$RUNNER_TEMP/depois.sha256"
+          if cmp -s "$RUNNER_TEMP/antes.sha256" "$RUNNER_TEMP/depois.sha256"; then
+            echo "::notice::$UF: nenhum mês novo."
+          elif [ "$NA_MAIN" = true ]; then
+            gh release upload "$RELEASE" "$RUNNER_TEMP/estados-$uf.tar" --clobber
+          else
+            echo "::notice::Branch de teste: o cache de $UF não vai para o release."
+          fi
+
+      # O job final monta o arquivo com o cache de todos os estados, novo ou não.
+      - name: Passar o cache ao job final
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-${{ matrix.uf }}
+          path: |
+            ${{ runner.temp }}/estados-*.tar
+            ${{ runner.temp }}/saida-*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  montar:
+    needs: [preparar, estado]
+    if: always() && needs.preparar.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cache-*
+          path: ${{ runner.temp }}/caches
+          merge-multiple: true
+
+      # Estado que não rodou nesta execução (fora do filtro "uf", ou cujo job nem começou): o cache do release.
+      - name: Juntar os caches
+        run: |
+          mkdir -p data/raw/supersalarios-estados
+          for uf in $(uv run --project pipeline python -c "from orcamento_pipeline.supersalarios_estados import ESTADOS; print(' '.join(u.lower() for u in ESTADOS))"); do
+            arq="$RUNNER_TEMP/caches/estados-$uf.tar"
+            if [ ! -f "$arq" ]; then
+              gh release download "$RELEASE" --pattern "estados-$uf.tar" --dir "$RUNNER_TEMP/caches" 2>/dev/null || true
+            fi
+            if [ -f "$arq" ]; then
+              tar -xf "$arq" -C data/raw/supersalarios-estados
+              echo "$uf: $(find "data/raw/supersalarios-estados/$uf" -name '*.json.gz' | wc -l) meses"
+            else
+              echo "::warning::$uf: sem cache; fica fora até ter 6 meses."
+            fi
+          done
+
+      - name: Montar
+        run: uv run --project pipeline supersalarios-estados --so-cache 2>&1 | tee "$RUNNER_TEMP/saida.log"
+
+      - name: Ver se a cópia de referência mudou
+        id: mudou
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, subprocess
+          novo = json.load(open("pipeline/referencia/supersalarios-estados.json", encoding="utf-8"))
+          velho = subprocess.run(["git", "show", "HEAD:pipeline/referencia/supersalarios-estados.json"], capture_output=True, text=True).stdout
+          velho = json.loads(velho) if velho else {}
+          for d in (novo, velho):
+              d.pop("gerado", None)   # a data de geração muda sempre
+          ate = max((e.get("ate") or "" for e in novo.get("estados", {}).values()), default="")
+          print(f"mudou={'sim' if novo != velho else 'nao'}")
+          print(f"ultimo={ate}")
+          EOF
+          cat "$GITHUB_OUTPUT"
+
+      - name: Artefato do teste
+        if: always() && env.NA_MAIN != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: supersalarios-estados
+          path: |
+            pipeline/referencia/supersalarios-estados.json
+            ${{ runner.temp }}/saida.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Um branch fixo, refeito a partir da main a cada mês: se o pull request do mês anterior não entrou, o deste mês o
+      # substitui. Precisa de "Allow GitHub Actions to create and approve pull requests" (Settings → Actions → General);
+      # sem isso, o branch sobe e o aviso traz o link para abrir à mão.
+      - name: Pull request com a cópia de referência
+        if: steps.mudou.outputs.mudou == 'sim' && env.NA_MAIN == 'true'
+        env:
+          ULTIMO: ${{ steps.mudou.outputs.ultimo }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$RAMO"
+          git add pipeline/referencia/supersalarios-estados.json
+          git commit -q -m "Acima do teto: Executivo dos estados até $ULTIMO"
+          git push -f origin "$RAMO"
+          {
+            echo "Atualização mensal automática (workflow \`supersalarios-estados.yml\`) da cópia de referência do Executivo dos estados na página /supersalarios, com a folha até **$ULTIMO**."
+            echo
+            echo "Confira os números antes de marcar como pronto e fazer o merge. Resumo da execução:"
+            echo
+            echo '```'
+            grep -E "^[A-Z]{2} 20|falhou|fica fora" "$RUNNER_TEMP/saida.log" || true
+            echo '```'
+            echo
+            echo "Estados com falha ou sem mês novo aparecem no log de cada job da matriz."
+            echo
+            echo "Execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$RUNNER_TEMP/corpo.md"
+          if [ "$(gh pr view "$RAMO" --json state -q .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit "$RAMO" --body-file "$RUNNER_TEMP/corpo.md"
+            echo "::notice::Pull request atualizado: $(gh pr view "$RAMO" --json url -q .url)"
+          elif ! gh pr create --draft --base "${{ github.event.repository.default_branch }}" --head "$RAMO" \
+                 --title "Acima do teto: Executivo dos estados até $ULTIMO" --body-file "$RUNNER_TEMP/corpo.md"; then
+            echo "::warning::O Actions não pôde abrir o pull request (ative 'Allow GitHub Actions to create and approve pull requests' em Settings → Actions → General). Abra à mão: ${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.repository.default_branch }}...$RAMO?expand=1"
+          fi
