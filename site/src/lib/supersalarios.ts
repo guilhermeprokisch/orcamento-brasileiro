@@ -306,6 +306,7 @@ const codOrcamento = (() => {
 const MINUSCULAS = new Set(["de", "da", "do", "das", "dos", "e", "em"]);
 /** "MINISTERIO DA FAZENDA" -> o nome do órgão no orçamento, se casar; senão, "Ministerio da Fazenda". */
 function nomeLegivel(nome: string, orcamento: string | null): string {
+  if (nome === nome.toLowerCase()) return nome.charAt(0).toUpperCase() + nome.slice(1);   // GO: tudo em minúsculas
   if (nome !== nome.toUpperCase()) return nome;
   const doOrcamento = orcamento && docBase?.dims.orgao[orcamento];
   if (doOrcamento) return doOrcamento;
@@ -467,7 +468,7 @@ export function fpmDeCidadesPequenas(valor: number) {
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Executivo dos estados (por enquanto, o Paraná), de pipeline/…/supersalarios_estados.py.
+// Executivo dos estados que publicam a folha com as partes do salário, de pipeline/…/supersalarios_estados.py.
 
 export interface OrgaoEstadual {
   nome: string;
@@ -487,6 +488,13 @@ export interface OrgaoEstadual {
   previdencia: number;
 }
 interface ExecutivoUf {
+  nome: string;
+  /** O que cada família de pagamento reúne neste estado; família ausente: o arquivo não separa. */
+  grupos: Record<string, string>;
+  /** false quando o arquivo não traz o imposto de renda (GO). */
+  com_ir: boolean;
+  /** Empresas estatais deixadas de fora (o teto só vale para as que dependem do Tesouro, e o arquivo não diz quais). */
+  estatais_fora: string[];
   fonte: string;
   url: string;
   de: string;
@@ -496,13 +504,15 @@ interface ExecutivoUf {
   /** mês -> [vínculos, acima do teto, quanto passou] */
   serie: Record<string, [number, number, number]>;
 }
-interface DocEstadosTeto { gerado: string; grupos: [string, string][]; faixas: number[]; estados: Record<string, ExecutivoUf> }
+interface DocEstadosTeto { gerado: string; grupos: string[]; faixas: number[]; estados: Record<string, ExecutivoUf> }
 const arquivosEstadosTeto = import.meta.glob<DocEstadosTeto>("../../public/data/indicadores/supersalarios-estados.json", { eager: true, import: "default" });
 export const docEstadosTeto: DocEstadosTeto | null = Object.values(arquivosEstadosTeto)[0] ?? null;
 
-export const NOMES_ESTADUAL: Record<string, string> = {
-  base: "Vencimento e gratificação", outros: "\"Outros\" (sem detalhe)", retroativos: "Pagamentos atrasados", auxilios: "Auxílio-transporte e alimentação",
-};
+/** Os estados com a folha do Executivo, do que mais passou do teto ao que menos. */
+export function estadosComExecutivo() {
+  return Object.keys(docEstadosTeto?.estados ?? {}).map((uf) => ({ uf, e: executivoDoEstado(uf)! }))
+    .filter((x) => x.e).sort((a, b) => b.e.excesso - a.e.excesso);
+}
 
 /** O Executivo de um estado: os órgãos (do que mais passou do teto ao que menos) e as somas. */
 export function executivoDoEstado(uf: string) {
@@ -515,17 +525,17 @@ export function executivoDoEstado(uf: string) {
   }))
     .sort((a, b) => (b.excesso ?? -1) - (a.excesso ?? -1) || b.vinculos - a.vinculos);
   const vinculos = orgaos.reduce((t, o) => t + o.vinculos, 0);
-  const camadas = docEstadosTeto.grupos.map(([g], i) => ({
+  const camadas = docEstadosTeto.grupos.map((g, i) => ({
     grupo: g, acima: orgaos.reduce((t, o) => t + o.camadas[i][0], 0), excesso: orgaos.reduce((t, o) => t + o.camadas[i][1], 0),
   }));
   const ultima = camadas.at(-1)!;
-  const grupos = Object.fromEntries(docEstadosTeto.grupos.map(([g]) => [g, orgaos.reduce((t, o) => t + o.grupos[g], 0)]));
+  const grupos = Object.fromEntries(docEstadosTeto.grupos.map((g) => [g, orgaos.reduce((t, o) => t + o.grupos[g], 0)]));
   const ir = orgaos.reduce((t, o) => t + o.ir, 0), irSalario = orgaos.reduce((t, o) => t + o.ir_salario, 0);
   const periodo = e.de.slice(0, 4) === e.ate.slice(0, 4)
     ? `de ${mesExtenso(e.de).replace(/ de \d{4}$/, "")} a ${mesExtenso(e.ate)}`
     : `de ${mesExtenso(e.de)} a ${mesExtenso(e.ate)}`;
   return {
     ...e, periodo, orgaos, vinculos, acima: ultima.acima, parte: ultima.acima / vinculos, excesso: ultima.excesso,
-    camadas, grupos, ir, irSalario, irPerdido: Math.max(0, irSalario - ir),
+    camadas, grupos, nomesGrupos: e.grupos, ir, irSalario, irPerdido: e.com_ir ? Math.max(0, irSalario - ir) : 0,
   };
 }

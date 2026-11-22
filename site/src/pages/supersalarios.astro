@@ -8,7 +8,7 @@ import Base from "../layouts/Base.astro";
 import Termo from "../components/Termo.astro";
 import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
 import {
-  MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, compararEstados, executivoDoEstado, fpmDeCidadesPequenas, imposto,
+  MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, compararEstados, estadosComExecutivo, fpmDeCidadesPequenas, imposto,
   CORES_FEDERAL, CORES_GRUPOS, NOMES_CURTOS, NOMES_FEDERAL, ORDEM_TIPOS, docFederal, docSuper as d, linhas, linhasFederal, mesCurto,
   mesExtenso, nosDois, periodoFederal, serie, tetoAtual, total, totalFederal, MOSTRA_NOME, EXTRA_EVENTUAL, type Linha, type Tipo,
 } from "../lib/supersalarios";
@@ -86,7 +86,8 @@ function calcularCusto() {
 const c = calcularCusto();
 
 /** O Executivo dos estados com folha detalhada (por enquanto, o Paraná). */
-const estadosExe = (["PR"] as const).map((uf) => ({ uf, e: executivoDoEstado(uf) })).filter((x) => x.e && x.e.acima >= 5);
+const estadosExe = estadosComExecutivo().filter((x) => x.e.acima >= 5);
+const lista = new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" });
 const descricao = x
   ? `Em ${x.pA.rotulo}, ${pct0(x.tA.parte)} dos juízes e promotores receberam acima do teto num mês típico; passou do teto ${moedaExtenso(x.tA.excesso)} no ano.`
   : "Juízes e promotores que recebem acima do teto, órgão por órgão.";
@@ -505,44 +506,38 @@ const larguraGrupos = (l: Linha) => {
             <div class="texto">
               <h2>Nos governos estaduais</h2>
               <p>
-                Poucos estados publicam a folha com as partes do salário separadas, em arquivos que dá para somar. O primeiro aqui é o Paraná.
-                {estadosExe.map(({ e }) => (
-                  <> Nas secretarias, autarquias, empresas e universidades do estado, <strong>{nf0.format(e!.acima)} dos{" "}
-                  {nf0.format(e!.vinculos)} vínculos</strong> ({pct(e!.parte)}) passaram do teto num mês típico, {e!.periodo}, e o que passou somou{" "}
-                  <strong>{moedaExtenso(e!.excesso)}</strong> em {e!.meses} meses.</>
-                ))}
+                Poucos estados publicam a folha do Executivo com as partes do salário em arquivos que dá para somar. Nos{" "}
+                {estadosExe.length} que publicam ({lista.format(estadosExe.map((x) => x.e.nome))}), nas secretarias, autarquias, fundações e
+                universidades, <strong>{nf0.format(estadosExe.reduce((t, x) => t + x.e.acima, 0))} dos{" "}
+                {nf0.format(estadosExe.reduce((t, x) => t + x.e.vinculos, 0))} vínculos</strong> passaram do teto num mês típico, e o que passou
+                somou <strong>{moedaExtenso(estadosExe.reduce((t, x) => t + x.e.excesso, 0))}</strong> em um ano.
               </p>
               <p class="menor">
-                Por vínculo (quem tem dois cargos conta duas vezes), sem aposentados, 13º e férias, com o teto nacional; no governo estadual o
-                limite é o salário do governador, mais baixo. Os juízes e promotores do estado estão nas partes de cima desta página.
+                Por vínculo (quem tem dois cargos conta duas vezes), só quem está na ativa, sem 13º e férias, com o teto nacional; no governo
+                estadual o limite é o salário do governador, mais baixo. Ficam de fora as empresas estatais (como a Caesb e o BRB, no DF, e a
+                Cagepa, na Paraíba): o teto só vale para as que recebem dinheiro do Tesouro para pagar pessoal, e os arquivos não dizem quais.
+                Cada estado separa as partes do salário de um jeito: a página de cada um diz o que entra. Os juízes e promotores dos estados
+                estão nas partes de cima desta página.
               </p>
             </div>
             <div class="grafico">
-              {estadosExe.map(({ uf, e }) => (
-                <>
-                  <h3><a href={`/estados/${uf.toLowerCase()}#teto`}>Paraná</a>: os órgãos com mais dinheiro acima do teto, em {e!.meses} meses</h3>
-                  <ol class="linhas federal" aria-label="Órgãos do governo do Paraná com mais dinheiro acima do teto">
-                    {e!.orgaos.filter(MOSTRA_NOME).slice(0, 8).map((o, _i, arr) => (
-                      <li>
-                        <span class="rotulo">{o.nome}</span>
-                        <span class="trilho"><span class="barra" style={`width:${((o.excesso ?? 0) / (arr[0].excesso ?? 1)) * 100}%`}></span></span>
-                        <span class="num valor"><strong>{moedaCurta(o.excesso ?? 0)}</strong> <span>{nf0.format(o.acima!)} de {nf0.format(o.vinculos)}{(o.atrasadosParte ?? 0) >= EXTRA_EVENTUAL && <em class="eventual"> · atrasados</em>}</span></span>
-                      </li>
-                    ))}
-                  </ol>
-                  {(() => {
-                    const nomeados = e!.orgaos.filter(MOSTRA_NOME).slice(0, 8);
-                    const outros = e!.orgaos.filter((o) => o.excesso !== null && !nomeados.includes(o));
-                    const atrasados = nomeados.some((o) => (o.atrasadosParte ?? 0) >= EXTRA_EVENTUAL);
-                    return (
-                      <p class="menor-grafico">
-                        {outros.length > 0 && <>Os outros {outros.length} órgãos com alguém acima do teto somam {moedaCurta(outros.reduce((t, o) => t + (o.excesso ?? 0), 0))}; só aparece pelo nome o órgão com pelo menos 5 vínculos acima do teto num mês típico. </>}
-                        {atrasados && <><em class="eventual">Atrasados</em>: mais da metade do que passou do teto veio de pagamentos atrasados (retroativos).</>}
-                      </p>
-                    );
-                  })()}
-                </>
-              ))}
+              <ol class="linhas federal" aria-label="O que passou do teto no Executivo de cada estado, em um ano">
+                {estadosExe.map(({ uf, e }) => {
+                  const maior = e.orgaos.find(MOSTRA_NOME);
+                  return (
+                    <li title={maior ? `Maior: ${maior.nome}, ${nf0.format(maior.acima!)} de ${nf0.format(maior.vinculos)} vínculos acima do teto num mês típico` : undefined}>
+                      <span class="rotulo"><a href={`/estados/${uf.toLowerCase()}#teto`}>{e.nome}</a>{maior && <small class="maior"> · {maior.nome}</small>}</span>
+                      <span class="trilho"><span class="barra" style={`width:${(e.excesso / estadosExe[0].e.excesso) * 100}%`}></span></span>
+                      <span class="num valor"><strong>{moedaCurta(e.excesso)}</strong> <span>{nf0.format(e.acima)} de {nf0.format(e.vinculos)}</span></span>
+                    </li>
+                  );
+                })}
+              </ol>
+              <p class="menor-grafico">
+                O que passou do teto em {estadosExe[0].e.meses} meses e, embaixo, quantos vínculos passam do teto num mês típico, de quantos. Ao lado
+                do nome, o órgão com mais dinheiro acima do teto. Faltam os outros 20 estados: alguns publicam só o salário bruto, outros só uma
+                consulta servidor por servidor (o levantamento está nos <a href="https://github.com/guilhermeprokisch/orcamento-brasileiro/blob/main/docs/levantamento-supersalarios.md">documentos do projeto</a>).
+              </p>
             </div>
           </section>
         )}
@@ -556,8 +551,8 @@ const larguraGrupos = (l: Linha) => {
               "Acima do teto" quer dizer só que a pessoa recebeu mais que R$ {nf0.format(TETO)} no mês.
             </li>
             <li>
-              <strong>Juízes, promotores, o Executivo federal e o do Paraná.</strong> Os servidores dos tribunais e dos Ministérios Públicos não
-              entram, nem defensores, o Legislativo, os militares, os outros governos estaduais e as prefeituras. Os tribunais eleitorais, o CNJ e o CJF ficam de fora
+              <strong>Juízes, promotores, o Executivo federal e o de alguns estados.</strong> Os servidores dos tribunais e dos Ministérios
+              Públicos não entram, nem o Legislativo, os militares, os outros governos estaduais e as prefeituras. Os tribunais eleitorais, o CNJ e o CJF ficam de fora
               porque pagam só uma gratificação a quem recebe o salário em outro tribunal; os tribunais superiores (STF, STJ, TST e STM), porque os
               arquivos deles misturam ministros na ativa, aposentados, pensionistas e juízes convocados de outros tribunais. Só conta quem recebeu
               subsídio do órgão no mês.
@@ -692,6 +687,7 @@ const larguraGrupos = (l: Linha) => {
   .celula-barra .num { text-align: right; white-space: nowrap; }
   .poucos { color: var(--texto-3); font-size: 13px; }
   .eventual { font-style: normal; color: #a3401a; }
+  .maior { color: var(--texto-3); font-size: 12px; }
 
   .fontes { border-top: 2px solid var(--tinta); padding: 32px 0 0; display: flex; flex-direction: column; gap: 12px; max-width: 880px; scroll-margin-top: 12px; }
   .fontes h2 { font-size: 26px; }

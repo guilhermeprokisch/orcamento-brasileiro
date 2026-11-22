@@ -6,7 +6,7 @@
  */
 import Termo from "../Termo.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
-import { MINIMO_EDUCACAO, MINIMO_SAUDE, NOMES_ESTADUAL, comparar, docSuper, doEstado, executivoDoEstado, sigla, tetoAtual } from "../../lib/supersalarios";
+import { MINIMO_EDUCACAO, MINIMO_SAUDE, comparar, docSuper, doEstado, executivoDoEstado, sigla, tetoAtual } from "../../lib/supersalarios";
 import type { Cidade } from "../../lib/cidades";
 
 interface Props { uf: string; ente?: Cidade }
@@ -29,6 +29,7 @@ const irPerdido = comIr.reduce((t, x) => t + Math.max(0, x.a!.ir_salario! - x.a!
 // A régua é tudo o que o governo estadual gastou (empenhado) no ano mais recente das contas.
 const gastoTotal = ente?.total?.[0] ?? null;
 const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cmp = ente && excessoJuntos > 0 ? comparar(excessoJuntos, ente, "uf") : null;
 
 // O Executivo do estado, onde há a folha com as partes do salário (por enquanto, o Paraná).
@@ -86,10 +87,10 @@ const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "
         <div class="orgao executivo">
           <h3>No governo do estado</h3>
           <p>
-            Fora do Judiciário e do Ministério Público, nas secretarias, autarquias, empresas e universidades do estado,{" "}
-            <strong>{nf0.format(exe.acima)} dos {nf0.format(exe.vinculos)} vínculos</strong> ({nf1.format(exe.parte * 100)}%) passaram do teto num mês
+            Fora do Judiciário e do Ministério Público, nas secretarias, autarquias, fundações e universidades do estado,{" "}
+            <strong>{nf0.format(exe.acima)} dos {nf0.format(exe.vinculos)} vínculos</strong> ({(exe.parte < 0.001 ? nf2 : nf1).format(exe.parte * 100)}%) passaram do teto num mês
             típico, {exe.periodo}. O que passou do teto somou <strong>{moedaExtenso(exe.excesso)}</strong> em {exe.meses} meses
-            {exeMaiorGrupo && exeMaiorGrupo[1] > 0 && <>, e a maior parte do que se paga além do salário está em {NOMES_ESTADUAL[exeMaiorGrupo[0]].toLowerCase()}</>}.
+            {exeMaiorGrupo && exeMaiorGrupo[1] > 0 && <>, e a maior parte do que se paga além do salário está em {(exe.nomesGrupos[exeMaiorGrupo[0]] ?? exeMaiorGrupo[0]).toLowerCase()}</>}.
           </p>
           {exeMaiores.length > 0 && (
             <p>
@@ -101,7 +102,9 @@ const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "
           )}
           <p class="menor">
             A conta é por vínculo (quem tem dois cargos conta duas vezes) e usa o teto nacional; no governo estadual o limite é o salário do
-            governador, mais baixo. Fonte: <a href={exe.url}>{exe.fonte}</a>.
+            governador, mais baixo.
+            {exe.estatais_fora.length > 0 && <>{" "}Ficam de fora as empresas estatais ({exe.estatais_fora.length}, como {exe.estatais_fora.slice(0, 2).join(" e ")}): o teto só vale para as que recebem dinheiro do Tesouro para pagar pessoal, e o arquivo não diz quais.</>}
+            {" "}Fonte: <a href={exe.url}>{exe.fonte}</a>.
           </p>
         </div>
       )}
