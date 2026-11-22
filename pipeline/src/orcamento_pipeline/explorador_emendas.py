@@ -2,6 +2,7 @@
 
     uv run explorador-emendas            # a partir do zip da CGU já baixado por emendas.py
     uv run explorador-emendas --sem-baixar   # só copia o resumo versionado (publicação automática)
+    uv run explorador-emendas --so-copias    # refaz as cópias ordenadas das fichas (depois, uv run espelho)
 
 Lê o arquivo "Emendas Parlamentares" da CGU (data/raw/cgu/emendas/EmendasParlamentares.zip):
 - PorFavorecido: cada pagamento de uma emenda, com o autor, o tipo, o mês, quem recebeu e onde. Vira
@@ -136,6 +137,30 @@ TIPOS = ("Individual", "Pix", "Bancada", "Comissão", "Relator")
 AREAS_NO_CRUZADO = 7
 
 
+# Cópias ordenadas para as fichas da busca (/emendas/buscar): cada uma em ordem de uma chave e em blocos
+# pequenos, para o navegador baixar só os blocos daquela emenda, parlamentar, entidade ou lugar (menos de
+# 1 MB por ficha, em vez de 3 a 16 MB). Os arquivos principais continuam para a busca por texto e o explorador.
+COPIAS = {   # chave no resumo: (arquivo de origem, filtro, ordem, arquivo da cópia)
+    "emenda": ("emendas-pagamentos", "", "emenda, ano", "emendas-pagamentos-por-emenda"),
+    "autor": ("emendas-pagamentos", "", "autor, ano, valor DESC", "emendas-pagamentos-por-autor"),
+    "codigo": ("emendas-pagamentos", "WHERE codigo <> ''", "codigo, ano", "emendas-pagamentos-por-cnpj"),
+    "lugar": ("emendas-pagamentos", "", "uf, ibge, ano, valor DESC", "emendas-pagamentos-por-lugar"),
+    "textosEmenda": ("emendas-textos", "", "emenda", "emendas-textos-por-emenda"),
+    "textosAutor": ("emendas-textos", "", "autor, fonte, ano", "emendas-textos-por-autor"),
+    "textosCodigo": ("emendas-textos", "WHERE codigo <> ''", "codigo", "emendas-textos-por-cnpj"),
+}
+
+
+def gravar_copias() -> dict[str, str]:
+    """Grava as cópias ordenadas em data/publico e devolve o endereço de cada uma no espelho."""
+    urls = {}
+    for chave, (base, onde, ordem, nome) in COPIAS.items():
+        duckdb.sql(f"COPY (SELECT * FROM read_parquet('{PASTA / base}.parquet') {onde} ORDER BY {ordem}) "
+                   f"TO '{PASTA / nome}.parquet' (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 10000)")
+        urls[chave] = f"{URL}/{nome}.parquet"
+    return urls
+
+
 def panorama(parquet: Path, ano: int) -> dict:
     """A visão geral da página /emendas, a partir dos pagamentos: a série por tipo, para onde (áreas, quem recebe)
     e o cruzamento tipo → quem recebe → área do ano fechado, e os maiores autores coletivos."""
@@ -168,7 +193,18 @@ def main() -> None:
     p = argparse.ArgumentParser(prog="explorador-emendas", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--sem-baixar", action="store_true")
     p.add_argument("--so-panorama", action="store_true", help="refaz só a visão geral do resumo, a partir do Parquet já gravado")
+    p.add_argument("--so-copias", action="store_true", help="refaz só as cópias ordenadas das fichas, a partir dos Parquets já gravados")
     args = p.parse_args()
+    if args.so_copias:
+        resumo = json.loads(REFERENCIA_RESUMO.read_text(encoding="utf-8"))
+        resumo["copias"] = gravar_copias()
+        for alvo in (SAIDA_RESUMO, REFERENCIA_RESUMO):
+            alvo.parent.mkdir(parents=True, exist_ok=True)
+            alvo.write_text(json.dumps(resumo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        for u in resumo["copias"].values():
+            f = PASTA / u.rsplit("/", 1)[1]
+            print(f"saída: data/publico/{f.name} ({f.stat().st_size / 1e6:.0f} MB)")
+        return
     if args.so_panorama:
         resumo = json.loads(REFERENCIA_RESUMO.read_text(encoding="utf-8"))
         resumo["panorama"] = panorama(PASTA / "emendas-pagamentos.parquet", resumo["ano"])
@@ -247,10 +283,13 @@ def main() -> None:
            {"fonte": "VARCHAR", "emenda": "VARCHAR", "ano": "INTEGER", "autor": "VARCHAR", "beneficiario": "VARCHAR", "codigo": "VARCHAR",
             "uf": "VARCHAR", "municipio": "VARCHAR", "objeto": "VARCHAR", "valor": "DOUBLE"}, "fonte, ano, valor DESC")
 
+    copias = gravar_copias()
+
     anos = sorted({r["ano"] for r in pagamentos})
     resumo = {
         "fonte": FONTE, "ano": ano_fechado, "anos": anos,
         "pagamentos": f"{URL}/emendas-pagamentos.parquet", "textos": f"{URL}/emendas-textos.parquet",
+        "copias": copias,
         "total": round(sum(por_tipo.values())),
         "tipos": {k: round(v) for k, v in sorted(por_tipo.items(), key=lambda x: -x[1])},
         "autores": [[a, round(v)] for a, v in sorted(por_autor.items(), key=lambda x: -x[1])[:10]],
