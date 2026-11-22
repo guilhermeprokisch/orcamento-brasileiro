@@ -122,7 +122,8 @@ fila_independente() {
   # em mais de uma rodada). Aqui só a cópia de referência.
   pipe pode-falhar "Acima do teto: Executivo federal" supersalarios-federal --sem-baixar
   # Acima do teto no Executivo dos estados: o supersalarios-estados.yml baixa os meses novos de cada estado todo dia
-  # 25 (um job por estado) e abre um pull request com a cópia de referência; aqui só essa cópia.
+  # 25 (um job por estado) e abre um pull request com a cópia de referência; aqui só essa cópia. CE, AL e PI recusam os
+  # servidores do GitHub e seguem à mão (uv run supersalarios-estados --uf CE,AL,PI).
   pipe pode-falhar "Acima do teto: Executivo dos estados" supersalarios-estados --sem-baixar
 }
 

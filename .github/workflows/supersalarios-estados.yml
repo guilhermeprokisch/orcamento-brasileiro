@@ -13,12 +13,14 @@ name: Acima do teto (Executivo dos estados)
 # Sem ele, a primeira execução baixa 12 meses de cada estado; o RN (a API limita os pedidos) não cabe nas 5 horas do job
 # e completa nos meses seguintes.
 #
+# Três portais recusam os servidores do GitHub (testado em 22/11/2026): o CE responde HTTP 403 ao CSV, e AL e PI não
+# aceitam a conexão (tempo esgotado). Nesses, o job registra "falhou" e o estado fica com o cache; a carga deles
+# continua à mão (`uv run --project pipeline supersalarios-estados --uf CE,AL,PI`, e commit da cópia de referência).
+#
 # Quando roda: dia 25 de cada mês, depois que os estados publicam a folha do mês anterior.
 on:
   schedule:
     - cron: "0 9 25 * *"
-  push:   # TEMPORÁRIO: teste no branch
-    branches: [claude/workflow-estados]
   workflow_dispatch:
     inputs:
       uf:
@@ -103,7 +105,7 @@ jobs:
       # O limite fica no passo, não só no job: se um portal travar, os passos seguintes ainda guardam o que veio.
       - name: Baixar e somar
         timeout-minutes: 300
-        run: uv run --project pipeline supersalarios-estados --uf "$UF" --meses 1 2>&1 | tee "$RUNNER_TEMP/saida-$UF.log"   # TEMPORÁRIO: --meses 1
+        run: uv run --project pipeline supersalarios-estados --uf "$UF" 2>&1 | tee "$RUNNER_TEMP/saida-$UF.log"
 
       - name: Guardar o cache
         if: always()
