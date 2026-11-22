@@ -518,9 +518,19 @@ def mes_ce(ano: int, mes: int, ctx: dict) -> dict | None:
     am = f"{ano}{mes:02d}"
     url = f"https://cearatransparente.ce.gov.br/files/downloads/integration/servers/server_salaries/{am}/servidores_{am}.csv"
     arq = PASTA / "tmp" / f"ce-{am}.csv"
+    arq.parent.mkdir(parents=True, exist_ok=True)
     try:
-        if not _baixar(url, arq):
-            return None
+        try:
+            arq.write_bytes(_get(url, timeout=900))
+        except urllib.error.HTTPError as erro:
+            if erro.code == 404:
+                return None   # mês ainda não publicado
+            raise RuntimeError(f"HTTP {erro.code} no CSV de {am}: o portal recusou o download") from erro
+        with arq.open("rb") as f:
+            if f.read(200).lstrip().startswith(b"<"):
+                # O portal tem um desafio anti-robô nas páginas; nos servidores do GitHub, ele aparece também no
+                # lugar do CSV. Não se contorna: o estado fica com o que há no cache.
+                raise RuntimeError(f"o portal devolveu uma página em vez do CSV de {am} (bloqueio para este endereço)")
         s = Somador(ano, mes, com_ir=False)   # imposto e previdência vêm somados aos consignados
         with arq.open(encoding="utf-8", errors="replace", newline="") as f:
             for i, r in enumerate(csv.reader(f)):
@@ -911,11 +921,14 @@ def carregar(uf: str, so_cache: bool) -> dict[str, dict]:
 
 
 def main() -> None:
+    global MESES
     p = argparse.ArgumentParser(prog="supersalarios-estados", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--sem-baixar", action="store_true", help="só copia a versão guardada em pipeline/referencia")
     p.add_argument("--so-cache", action="store_true", help="monta a saída com o que já está em data/raw, sem baixar")
     p.add_argument("--uf", help="só estes estados, separados por vírgula (os outros vêm do cache)")
+    p.add_argument("--meses", type=int, default=MESES, help=f"quantos meses guardar por estado (padrão {MESES}; menos, para testar)")
     args = p.parse_args()
+    MESES = args.meses
     if args.sem_baixar:
         if not REFERENCIA.exists():
             raise SystemExit(f"falta {REFERENCIA}")
