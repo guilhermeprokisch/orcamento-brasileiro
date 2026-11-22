@@ -13,6 +13,9 @@ Estados e fontes (levantamento em docs/levantamento-supersalarios.md, "A folha d
   por órgão (o id do órgão muda a cada mês).
 - GO: dadosabertos.go.gov.br (CKAN), um CSV por mês.
 - DF: transparencia.df.gov.br, um zip por ano com a folha de cada mês e o detalhamento por rubrica.
+- CE: cearatransparente.ce.gov.br, um CSV por mês com bruto, abatimento pelo teto e líquido de cada vínculo.
+- AL: transparencia.al.gov.br, as APIs que a página de pessoal chama: a lista do mês (só o líquido) e o histórico de
+  cada servidor (as partes do bruto), buscado só para quem tem líquido alto (ver AL_LIMIAR).
 Os arquivos trazem o nome do servidor (e, em alguns, o CPF mascarado); aqui só se leem órgão e valores, linha a
 linha, e os arquivos são apagados depois de somados. O cache em data/raw/supersalarios-estados/{uf}/{AAAA-MM}.json.gz
 guarda só as somas de cada órgão no mês.
@@ -24,7 +27,7 @@ passa do maior limite possível. Ficam fora o 13º e as férias.
 As famílias de pagamento ("escada"), na ordem: base (o salário, menos o corte pelo teto); outros; atrasados; auxílios.
 O que cada uma reúne depende do que o arquivo de cada estado separa (NOMES_UF); quando o arquivo não separa, a
 família fica vazia. Como no Judiciário, o imposto de renda descontado e o que seria descontado se tudo fosse salário,
-só dos vínculos acima do teto (todos na faixa de 27,5%); GO não publica o imposto e fica sem essa conta.
+só dos vínculos acima do teto (todos na faixa de 27,5%); GO e CE não separam o imposto e ficam sem essa conta.
 
 Saída em site/public/data/indicadores/supersalarios-estados.json, com cópia em pipeline/referencia/.
 """
@@ -56,7 +59,8 @@ REFERENCIA = RAIZ / "pipeline" / "referencia" / "supersalarios-estados.json"
 MESES = 12
 MINIMO_MESES = 6   # um estado com menos meses que isso (carga pela metade) não entra no site
 GRUPOS = ["base", "outros", "retroativos", "auxilios"]
-ESTADOS = ["PR", "ES", "PE", "PB", "RN", "GO", "DF"]
+ESTADOS = ["PR", "ES", "PE", "PB", "RN", "GO", "DF", "CE", "AL"]
+SEM_IR = {"GO", "CE"}   # o arquivo não separa o imposto descontado
 
 FONTES = {
     "PR": ("Portal da Transparência do Paraná (remuneração dos servidores)", "https://www.transparencia.pr.gov.br/pte/assunto/8/129"),
@@ -66,6 +70,8 @@ FONTES = {
     "RN": ("Portal da Remuneração do Rio Grande do Norte", "https://remuneracao.rn.gov.br/"),
     "GO": ("Portal de Dados Abertos de Goiás (folha de pagamento)", "https://dadosabertos.go.gov.br/dataset/folha-de-pagamento"),
     "DF": ("Portal da Transparência do Distrito Federal (remuneração dos servidores)", "https://www.transparencia.df.gov.br/"),
+    "CE": ("Ceará Transparente (servidores)", "https://cearatransparente.ce.gov.br/portal-da-transparencia/servidores"),
+    "AL": ("Portal da Transparência de Alagoas (pessoal)", "https://transparencia.al.gov.br/pessoal/"),
 }
 # O que cada família reúne em cada estado (o site usa estes nomes). Família ausente: o arquivo não separa.
 NOMES_UF = {
@@ -81,16 +87,24 @@ NOMES_UF = {
     "DF": {"base": "Remuneração básica e função, menos o teto redutor",
            "outros": "Verbas eventuais, hora extra, licença-prêmio e outros recebimentos (como honorários)",
            "retroativos": "Verbas judiciais", "auxilios": "Benefícios (auxílios)"},
+    "CE": {"base": "Salário bruto, menos o abatimento pelo teto (o arquivo não separa as partes, nem as férias)"},
+    "AL": {"base": "Remuneração base, menos o redutor do teto", "outros": "Comissão e horas extras",
+           "retroativos": "Decisões judiciais", "auxilios": "Benefícios"},
 }
 NOMES_LEGIVEIS = {"PR": "Paraná", "ES": "Espírito Santo", "PE": "Pernambuco", "PB": "Paraíba", "RN": "Rio Grande do Norte",
-                  "GO": "Goiás", "DF": "Distrito Federal"}
+                  "GO": "Goiás", "DF": "Distrito Federal", "CE": "Ceará", "AL": "Alagoas"}
+# Um cuidado próprio do arquivo do estado, que o site mostra junto da fonte.
+NOTAS_UF = {
+    "CE": "Novembro fica de fora: o 13º vem somado ao salário, sem coluna própria. O arquivo também não separa as férias.",
+    "AL": "Ficam de fora as verbas eventuais, onde aparece o terço de férias. Na Polícia Militar e nos Bombeiros, o arquivo junta ativos e inativos na contagem dos vínculos.",
+}
 FORA_PR = {"TJ", "MP", "AL"}   # no arquivo do PR só em parte
 # Empresas estatais: o teto só vale para a que recebe dinheiro do Tesouro para pagar pessoal (Constituição, art. 37,
 # § 9º), e os arquivos não dizem quais recebem. Ficam fora da conta, para não chamar de "acima do teto" quem pode não
 # estar sujeito a ele.
 ESTATAL = re.compile(r"\bCOMPANHIA\b|\bCIA\b|\bS\.?\s?/?A\b|\bBANCO\b|\bEMPRESA\b|\bCAESB\b|\bCAGEPA\b|\bCELEPAR\b|"
                      r"\bCOHAPAR\b|\bAPPA\b|PORTOS DE PARANAGU|\bTERRACAP\b|\bBRB\b|\bCOMPESA\b|\bCAERN\b|\bCESAN\b|"
-                     r"\bSANEAGO\b|\bCELG\b|\bDATANORTE\b|\bPOTIGAS\b|\bCEASA\b|\bLOTEPAR\b|\bTECPAR\b|\bINVEST\b", re.I)
+                     r"\bSANEAGO\b|\bCELG\b|\bDATANORTE\b|\bPOTIGAS\b|\bCEASA\b|\bLOTEPAR\b|\bTECPAR\b|\bINVEST\b|\bETICE\b|\bMETROFOR\b|\bCASAL\b|\bDESENVOLVE\b", re.I)
 INATIVOS = re.compile(r"aposent|pension|inativ|reform|reserva|benefici|instituidor", re.I)
 
 
@@ -443,7 +457,120 @@ def meses_df(ano: int, faltam: list[int]) -> dict[int, dict]:
         arq.unlink(missing_ok=True)
 
 
-LEITORES = {"PR": mes_pr, "ES": mes_es, "PE": mes_pe, "PB": mes_pb, "RN": mes_rn, "GO": mes_go}
+# ---------------------------------------------------------------------------------------------------- CE
+# O CSV do Ceará Transparente não tem cabeçalho. Colunas (conferidas com a página de um servidor, que mostra as mesmas
+# contas com nome): nome, sigla do órgão, cargo, situação, total de descontos, abatimento pelo teto, outros descontos
+# (previdência, imposto, consignados, juntos), salário bruto, salário líquido, diárias.
+CE_NOMES = {
+    "SEFAZ": "Secretaria da Fazenda", "PGE": "Procuradoria-Geral do Estado", "PC": "Polícia Civil",
+    "SEPLAG": "Secretaria do Planejamento e Gestão", "CGE": "Controladoria e Ouvidoria-Geral do Estado",
+    "FUNECE": "Universidade Estadual do Ceará (Funece)", "SESA": "Secretaria da Saúde", "SESA-ACS": "Secretaria da Saúde (agentes comunitários)",
+    "UVA": "Universidade Estadual Vale do Acaraú", "URCA": "Universidade Regional do Cariri", "IPECE": "Instituto de Pesquisa e Estratégia Econômica (Ipece)",
+    "DETRAN": "Departamento Estadual de Trânsito", "ARCE": "Agência Reguladora do Estado (Arce)", "SEDUC": "Secretaria da Educação",
+    "SEDUC-CPTD": "Secretaria da Educação (contratos temporários)", "PMCE": "Polícia Militar", "CBMCE": "Corpo de Bombeiros Militar",
+    "PEFOCE": "Perícia Forense", "SSPDS": "Secretaria da Segurança Pública", "SAP": "Secretaria da Administração Penitenciária",
+    "CC": "Casa Civil", "SPS": "Secretaria da Proteção Social", "CEARAPREV": "Ceará Previdência", "SUPSEC": "Supsec (previdência dos servidores)",
+    "ETICE": "Empresa de Tecnologia da Informação do Ceará (Etice)", "METROFOR": "Companhia Cearense de Transportes Metropolitanos (Metrofor)",
+    "EMATERCE": "Empresa de Assistência Técnica e Extensão Rural (Ematerce)", "VICEGOV": "Vice-Governadoria", "SEINFRA": "Secretaria da Infraestrutura",
+    "SOP": "Superintendência de Obras Públicas", "SEMA": "Secretaria do Meio Ambiente", "SECULT": "Secretaria da Cultura",
+}
+
+
+CE_MINIMO = 50_000   # vínculos ativos: o arquivo do mês corrente aparece antes de completo (outubro de 2026 tinha 689)
+
+
+def mes_ce(ano: int, mes: int, ctx: dict) -> dict | None:
+    if mes == 11:
+        # O 13º sai na folha de novembro, dentro do bruto, sem coluna própria (em 2025, 3.171 vínculos acima do teto,
+        # contra uns 1.300 nos outros meses). Os outros estados tiram o 13º; aqui o jeito é deixar o mês de fora.
+        return None
+    am = f"{ano}{mes:02d}"
+    url = f"https://cearatransparente.ce.gov.br/files/downloads/integration/servers/server_salaries/{am}/servidores_{am}.csv"
+    arq = PASTA / "tmp" / f"ce-{am}.csv"
+    try:
+        if not _baixar(url, arq):
+            return None
+        s = Somador(ano, mes, com_ir=False)   # imposto e previdência vêm somados aos consignados
+        with arq.open(encoding="utf-8", errors="replace", newline="") as f:
+            for i, r in enumerate(csv.reader(f)):
+                if len(r) < 10 or r[3].strip() != "Ativo":
+                    continue
+                sigla = r[1].strip()
+                s.add(i, sigla, CE_NOMES.get(sigla, sigla), base=_num(r[7]) - abs(_num(r[5])))
+        if len(s.v) < CE_MINIMO:
+            return None
+        return s.resultado()
+    finally:
+        arq.unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------------------------------- AL
+# A página transparencia.al.gov.br/pessoal chama duas APIs: a lista do mês (uma linha por vínculo, só com o líquido) e
+# o histórico de cada servidor, com as partes do bruto mês a mês. Como o líquido é o bruto menos imposto e previdência,
+# quem recebe menos de AL_LIMIAR líquido não chega ao teto bruto (numa amostra de 60 vínculos entre R$ 18 mil e
+# R$ 25 mil líquidos, o maior bruto foi R$ 36,5 mil): esses entram só na contagem, com o líquido no lugar do bruto. Dos
+# outros se busca o histórico, uma vez por servidor (serve para todos os meses).
+AL_API = "https://transparencia.al.gov.br/pessoal"
+# A API manda os nomes em maiúsculas e sem acento; estes são os que o site mostra por extenso.
+AL_NOMES = {
+    "PC": "Polícia Civil", "PGE": "Procuradoria-Geral do Estado", "SEFAZ": "Secretaria da Fazenda",
+    "CARHP": "Companhia Alagoana de Recursos Humanos e Patrimoniais", "LIFAL": "Laboratório Industrial Farmacêutico de Alagoas (Lifal) S.A.",
+    "SERVEAL": "Serviços de Engenharia do Estado de Alagoas (Serveal) S.A.",
+}
+AL_LIMIAR = 25_000.0
+
+
+def _al_perfil(ctx: dict, fid) -> dict[str, list[dict]]:
+    perfis = ctx.setdefault("perfis", {})
+    if fid not in perfis:
+        d = json.loads(_get_paciente(f"{AL_API}/json-perfil-servidor/{fid}/?limit=60&offset=0&sort=ano_mes&order=desc", timeout=120))
+        por_mes: dict[str, list[dict]] = defaultdict(list)
+        for r in d.get("rows") or []:
+            por_mes[r.get("ano_mes", "")].append(r)
+        perfis[fid] = dict(por_mes)
+        time.sleep(0.3)
+    return perfis[fid]
+
+
+def mes_al(ano: int, mes: int, ctx: dict) -> dict | None:
+    linhas: list[dict] = []
+    while True:
+        d = json.loads(_get_paciente(f"{AL_API}/json-servidores/?ano={ano}&mes={mes}&limit=5000&offset={len(linhas)}"
+                                     f"&sort=total&order=desc", timeout=300))
+        pagina = d.get("rows") or []
+        linhas += pagina
+        if not pagina or len(linhas) >= int(d.get("total") or 0):
+            break
+    if not linhas:
+        return None   # mês sem folha publicada (setembro de 2026 veio vazio)
+    s = Somador(ano, mes)
+    por_pessoa: dict = defaultdict(list)
+    for r in linhas:
+        por_pessoa[r.get("funcionario_id")].append(r)
+    for fid, rs in por_pessoa.items():
+        rs.sort(key=lambda r: -_num(r.get("total")))
+        sigla = (rs[0].get("codigo_orgao") or "").strip()
+        nome = AL_NOMES.get(sigla) or (rs[0].get("descricao_orgao") or sigla).strip()
+        do_mes = _al_perfil(ctx, fid).get(f"{ano}/{mes:02d}") if fid and _num(rs[0].get("total")) >= AL_LIMIAR else None
+        if not do_mes:
+            for r in rs:
+                sg = (r.get("codigo_orgao") or "").strip()
+                s.add(r.get("id"), sg, AL_NOMES.get(sg) or (r.get("descricao_orgao") or "").strip(), base=_num(r.get("total")))
+            continue
+        if any(INATIVOS.search(f"{x.get('cargo') or ''} {x.get('funcao') or ''}") for x in do_mes):
+            continue
+        soma = lambda k: sum(_num(x.get(k)) for x in do_mes)
+        # "Eventuais" ficam fora, como o 13º e as férias nos outros estados: é onde aparece o terço de férias.
+        base, outros = soma("remuneracao_base"), soma("comissao") + soma("horas_extras")
+        redutor = abs(soma("teto_redutor"))
+        corte = min(redutor, base)
+        s.add(fid, sigla, nome, base=base - corte, outros=max(0.0, outros - (redutor - corte)),
+              retroativos=soma("judiciais"), auxilios=soma("beneficios"),
+              ir=abs(soma("irrf")), prev=abs(soma("contribuicao_previdenciaria")))
+    return s.resultado()
+
+
+LEITORES = {"PR": mes_pr, "ES": mes_es, "PE": mes_pe, "PB": mes_pb, "RN": mes_rn, "GO": mes_go, "CE": mes_ce, "AL": mes_al}
 
 
 # ---------------------------------------------------------------------------------------------------- montagem
@@ -480,6 +607,11 @@ def montar_uf(uf: str, meses: dict[str, dict]) -> dict:
     ordem = sorted(meses)
     siglas = sorted({s for m in ordem for s in meses[m]["orgaos"]})
     nome = {s: meses[m]["orgaos"][s]["nome"] for m in ordem for s in meses[m]["orgaos"]}
+    if uf == "AL":
+        nome.update({s: n for s, n in AL_NOMES.items() if s in nome})
+        for m in ordem:
+            for s, o in meses[m]["orgaos"].items():
+                o["nome"] = nome[s]
     estatais = sorted({nome[s] for s in siglas if ESTATAL.search(f"{s} {nome[s]}")})
     siglas = [s for s in siglas if not ESTATAL.search(f"{s} {nome[s]}")]
     orgaos = {s: r for s in siglas if (r := resumir([meses[m]["orgaos"][s] for m in ordem if s in meses[m]["orgaos"]]))}
@@ -487,8 +619,9 @@ def montar_uf(uf: str, meses: dict[str, dict]) -> dict:
                  sum(o["acima"] for s, o in meses[m]["orgaos"].items() if s in orgaos),
                  round(sum(o["excesso"] for s, o in meses[m]["orgaos"].items() if s in orgaos))] for m in ordem}
     fonte, url = FONTES[uf]
-    return {"nome": NOMES_LEGIVEIS[uf], "fonte": fonte, "url": url, "grupos": NOMES_UF[uf], "com_ir": uf != "GO",
-            "de": ordem[0], "ate": ordem[-1], "meses": len(ordem), "orgaos": orgaos, "serie": serie, "estatais_fora": estatais}
+    return {"nome": NOMES_LEGIVEIS[uf], "fonte": fonte, "url": url, "grupos": NOMES_UF[uf], "com_ir": uf not in SEM_IR,
+            "de": ordem[0], "ate": ordem[-1], "meses": len(ordem), "orgaos": orgaos, "serie": serie, "estatais_fora": estatais,
+            **({"nota": NOTAS_UF[uf]} if uf in NOTAS_UF else {})}
 
 
 def candidatos(hoje: date) -> list[tuple[int, int]]:
@@ -514,7 +647,7 @@ def carregar(uf: str, so_cache: bool) -> dict[str, dict]:
     def guardar(a: int, m: int, x: dict | None) -> None:
         chave = f"{a}-{m:02d}"
         if x is None:
-            print(f"  {uf} {chave}: ainda não publicado", flush=True)
+            print(f"  {uf} {chave}: nada a somar (ainda não publicado, ou mês deixado de fora)", flush=True)
             return
         (pasta / f"{chave}.json.gz").write_bytes(gzip.compress(json.dumps(x, ensure_ascii=False, separators=(",", ":")).encode()))
         os_ = x["orgaos"].values()

@@ -390,8 +390,8 @@ arquivo limpo · **5** = só consulta nome a nome ou bloqueado.
 | **MS** | CKAN, CSV mensal | Sim | Base e "outras verbas" | Não | 2018-01 a 2026-10 | 1 |
 | **MA** | DKAN, CSV mensal | Sim | Total, 13º, férias | Não | 2019 a 2026-10 | 1–2 |
 | **SC** | API interna, CSV mensal | Sim | **Não** (só o bruto) | Não | 2016– | 2 |
-| **AL** | Zip anual até 2023 (2024–2026 dão 404) + JSON interno | Até 2023 | Sim | Sim (`TETO_REDUTOR`) | 2012 a 2026-10 | 2 / 3 |
-| **CE** | CSV mensal estático, sem cabeçalho | Sim | Só no detalhe por servidor | Provável (a coluna 6, a confirmar) | 2013-02 a 2026-09 | 2 |
+| **AL** | API interna: lista do mês (só o líquido) + histórico de cada servidor (as partes do bruto) | Sim | Sim | Sim (`teto_redutor`) | 2012 a 2026-10 (set/2026 vazio) | 2 (**no site**) |
+| **CE** | CSV mensal estático, sem cabeçalho | Sim | Só no detalhe por servidor (que tem desafio anti-robô) | Sim (a 6ª coluna, conferida na página do servidor) | 2013-02 a 2026-09 | 2 (**no site**) |
 | **PI** | API OpenAPI, 100 por página; CSV de até 50 mil linhas | Sim, com filtros | Básica, variável, eventual | Não | 2022 a 2026-10 | 2 |
 | **RO** | CSV mensal por POST, com token do próprio formulário | Sim | Só no detalhe | Não visto | 2016 a 2026-09 | 2 |
 | **SP** | CSV corrente + histórico em RAR | Sim | Em parte (indenizações junto com o abono) | Sim (`REDUTOR SALARIAL`) | 2012 a 2026-03 (parado desde maio) | 2 |
@@ -411,7 +411,7 @@ arquivo limpo · **5** = só consulta nome a nome ou bloqueado.
 O que isso quer dizer:
 
 - **Prontos para entrar como o Paraná (arquivo em lote com o corte pelo teto):** ES (o melhor caso, todas as
-  rubricas), PE, DF, PB, RN e GO. Depois, AL até 2023 e CE, quando a coluna do teto for confirmada.
+  rubricas), PE, DF, PB, RN e GO. Depois, AL e CE (feitos; ver abaixo).
 - **Em lote, mas só com o bruto:** SC, MS, MA, PI, RO. Dá para contar quem passa do teto, não de onde vem o extra.
   Em AC, PA, RR e SE dá para baixar a lista do mês e pedir o detalhe só de quem passa do teto (umas poucas
   centenas de chamadas por mês), que é o que a própria página faz ao abrir cada servidor.
@@ -444,4 +444,29 @@ Resultado (12 meses, órgãos sem as estatais): Pernambuco R$ 101 mi (Secretaria
 do teto num mês típico), Goiás R$ 68 mi em 10 meses (a fiscalização da Receita e a Defensoria), Paraná R$ 65 mi, DF
 R$ 38 mi (a Procuradoria-Geral, 197 de 682), Paraíba R$ 20 mi e Espírito Santo R$ 4,5 mi (18 vínculos num mês típico:
 o abate-teto do ES corta de verdade).
+
+### Feito em 22/11/2026: CE e AL
+
+**Ceará.** O CSV mensal não tem cabeçalho; as colunas foram conferidas com a página de um servidor, que mostra as
+mesmas contas com nome: descontos totais, **abatimento pelo teto**, outros descontos (previdência, imposto e
+consignados juntos), bruto, líquido e diárias. A conta é bruto menos o abatimento. O arquivo não separa as partes,
+nem as férias, nem o imposto (fica sem a conta do imposto, como Goiás). Dois cuidados:
+- **novembro fica de fora**: o 13º sai na folha de novembro, dentro do bruto (em 2025, 3.171 vínculos acima do teto,
+  contra uns 1.300 nos outros meses; a página de um professor mostra "DECIMO TERCEIRO SALARIO" naquele mês);
+- o arquivo do mês corrente aparece antes de completo (outubro de 2026 tinha 689 vínculos): mês com menos de 50 mil
+  vínculos ativos não entra.
+Abril de 2026 também salta (R$ 42 mi acima do teto, contra uns R$ 9 mi), espalhado por vários órgãos: parece
+pagamento atrasado ou bônus, e fica, como os atrasados dos outros estados. Resultado (set/2025 a set/2026, sem
+novembro): R$ 130 mi acima do teto; a **Secretaria da Fazenda tem 972 de 1.066 vínculos acima do teto** num mês
+típico, depois de o estado aplicar o próprio abatimento (o "prêmio por desempenho fiscal" e o adicional de férias
+passam por fora do corte). De setembro a outubro de 2025 eram uns 660 vínculos acima do teto; a partir de dezembro,
+uns 1.300.
+
+**Alagoas.** Os zips anuais param em 2023. A página de pessoal chama duas APIs: a lista do mês (uma linha por
+vínculo, só com o líquido, ordenável) e o histórico de cada servidor, com remuneração base, comissão, benefícios,
+eventuais, horas extras, judiciais, teto redutor, imposto e previdência mês a mês. O líquido é o bruto menos imposto e
+previdência; numa amostra de 60 vínculos entre R$ 18 mil e R$ 25 mil líquidos, o maior bruto foi R$ 36,5 mil. Então
+só se busca o histórico de quem tem líquido de R$ 25 mil ou mais (uma vez por servidor, serve para todos os meses);
+os outros entram só na contagem. "Eventuais" ficam fora (é onde aparece o terço de férias), o mês 13 (o 13º) também.
+Setembro de 2026 veio vazio na API.
 
