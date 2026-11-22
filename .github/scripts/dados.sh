@@ -59,9 +59,11 @@ fila_siconfi() {
   pipe pode-falhar "Ano em andamento (RREO)" rreo --max-chamadas 200
   # Dívida dos governos estaduais (RGF, Anexo 2): o cache em data/raw guarda os anos já baixados.
   pipe pode-falhar "Dívida dos estados" divida
-  # Dívida das prefeituras: feita à mão (uv run divida --prefeituras); aqui só a cópia de referência.
+  # Dívida das prefeituras (RGF, Anexo 2): baixada pelo rgf-prefeituras.yml, que guarda o cache no release
+  # "dados-siconfi" (rgf-a02-mun.tar, trazido pelo semente aplicar acima). Sem consultas: monta a saída com a
+  # cópia de referência mais o que o cache tiver.
   pipe pode-falhar "Dívida das prefeituras" divida --prefeituras --max-chamadas 0
-  # Gasto com pessoal (RGF, Anexo 1): estados pela API; prefeituras feitas à mão, só a cópia.
+  # Gasto com pessoal (RGF, Anexo 1): estados pela API; prefeituras como a dívida (rgf-a01-mun.tar).
   pipe pode-falhar "Gasto com pessoal dos estados" pessoal
   pipe pode-falhar "Gasto com pessoal das prefeituras" pessoal --prefeituras --max-chamadas 0
   # Dívida pública federal (/divida): Tesouro, Banco Central e o RGF dos 27 estados. Se o download
@@ -104,8 +106,8 @@ fila_independente() {
   # feita à mão (uv run divida-ativa; ~1,5 GB da PGFN e ~6,7 GB da Receita, lidos e apagados), uma vez por
   # trimestre. Aqui só a cópia de referência.
   pipe pode-falhar "Dívida ativa da União" divida-ativa --sem-baixar
-  # Juízes e promotores acima do teto (DadosJusBr): carga feita à mão uma vez por mês (uv run supersalarios; ~2.000
-  # pacotes pequenos, lidos e somados por órgão, o cache em data/raw só com as somas). Aqui só a cópia de referência.
+  # Juízes e promotores acima do teto (DadosJusBr): o supersalarios.yml baixa os meses novos todo dia 20 e abre um
+  # pull request com a cópia de referência; aqui só essa cópia.
   pipe pode-falhar "Acima do teto (DadosJusBr)" supersalarios --sem-baixar
   # Acima do teto no Executivo federal (Portal da Transparência, servidores civis, honorários e jetons): carga à mão
   # (uv run supersalarios-federal; o Portal pede captcha depois de alguns downloads, e o comando completa os 12 meses
@@ -131,6 +133,8 @@ fila_cidades() {
   # do Brasil, e este robô roda fora do país): cargas feitas à mão (uv run pagamentos [--uf AC|SC|PE]); aqui
   # só as cópias (pipeline/referencia/pagamentos*.json, todas de uma vez).
   # CE (API do TCE-CE) e ES (arquivos do TCE-ES) também: uv run pagamentos --uf CE|ES, à mão; aqui só as cópias.
+  # Os contratos (PNCP) vêm do contratos.yml, que baixa os dias novos de janeiro a abril e abre um pull request
+  # com pipeline/referencia/contratos.json e contratos-resumo.json; aqui só essas cópias.
   pipe pode-falhar "Contratos das prefeituras" contratos --sem-baixar
   pipe pode-falhar "Pagamentos das prefeituras" pagamentos --sem-baixar
   # (O passo acima copia também AM e TO, pagamentos-am.json e -to.json: uv run pagamentos --uf AM|TO, à mão,
@@ -143,6 +147,7 @@ fila_mapa() {
   pipe_ref "Emendas parlamentares (CGU)" pipeline/referencia/emendas.json site/public/data/indicadores/emendas.json emendas
   pipe pode-falhar "Mortalidade infantil" saude
   pipe pode-falhar "Homicídios" seguranca
+  # Os Parquet do explorador vão para o bucket pelo contratos.yml; aqui só o resumo (cópia de referência).
   pipe pode-falhar "Explorador de contratos" explorador-contratos --sem-baixar
   # Camadas do mapa: arrecadação federal por município, imposto de renda por residência, dinheiro
   # federal (o Portal da Transparência às vezes responde com CAPTCHA) e INSS.
