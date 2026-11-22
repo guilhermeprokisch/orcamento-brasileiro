@@ -62,7 +62,7 @@ const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "
             {a!.parte === null ? (
               <>
                 Em {pA.rotulo}, menos de 5 dos {nf0.format(a!.membros)} {quem(o.tipo)} passaram do teto num mês típico.
-                {a!.excesso !== null && <> Em {a!.meses_acima} {a!.meses_acima === 1 ? "mês" : "meses"}, foram mais, e o que passou do teto somou {moedaExtenso(a!.excesso)}.</>}
+
               </>
             ) : (
               <>
@@ -94,7 +94,7 @@ const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "
           {exeMaiores.length > 0 && (
             <p>
               Onde mais: {exeMaiores.map((o, i) => (
-                <>{i > 0 && (i === exeMaiores.length - 1 ? " e " : ", ")}{o.nome} ({nf0.format(o.acima!)} de {nf0.format(o.vinculos)}, {moedaCurta(o.excesso ?? 0)})</>
+                <>{i > 0 && (i === exeMaiores.length - 1 ? " e " : ", ")}{o.nome} ({nf0.format(o.acima!)} de {nf0.format(o.vinculos)}, {moedaCurta(o.excesso ?? 0)}{(o.atrasadosParte ?? 0) >= 0.5 && <>, a maior parte em atrasados</>})</>
               ))}.
               {exe.irPerdido > 0 && <> Se o que esses vínculos acima do teto receberam fosse todo tributado como salário, o estado teria descontado até {moedaExtenso(exe.irPerdido)} a mais de imposto de renda.</>}
             </p>
