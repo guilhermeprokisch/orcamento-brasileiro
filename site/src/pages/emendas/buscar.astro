@@ -127,7 +127,7 @@ const TIPOS: [string, string, string][] = [
   const form = document.querySelector("[data-form]");
   for (const [k, v] of params) { const campo = form?.elements.namedItem(k); if (campo) campo.value = v; }
   const saida = document.querySelector("[data-resultado]");
-  const pergunta = ["q", "autor", "entidade", "ente", "uf", "fonte"].some((k) => params.get(k));
+  const pergunta = ["q", "autor", "entidade", "emenda", "ente", "uf", "fonte"].some((k) => params.get(k));
   // Os degraus (public/explorador/trilha.js): por onde a pessoa veio, um degrau por passo, com o valor de cada um.
   const { ligarTrilha } = await import("/explorador/trilha.js");
   const trilha = ligarTrilha(document.querySelector("[data-voltar]"), {
@@ -136,7 +136,7 @@ const TIPOS: [string, string, string][] = [
       v: Number(raiz?.dataset.total), base: "pagamentos", ano: raiz?.dataset.ano, de: "do Brasil", volta: "todas as emendas" },
   });
   // O tipo do passo e como o seguinte se refere a ele ("40% do que mandou").
-  const [tipoPasso, dePasso] = params.get("autor") ? ["Quem mandou", "do que mandou"] : params.get("entidade") ? ["Quem recebeu", "do que recebeu"]
+  const [tipoPasso, dePasso] = params.get("emenda") ? ["Emenda", "da emenda"] : params.get("autor") ? ["Quem mandou", "do que mandou"] : params.get("entidade") ? ["Quem recebeu", "do que recebeu"]
     : params.get("q") ? ["O que você procurou", "da busca"] : params.get("ente") ? ["Onde", params.get("ente").length === 2 ? "do estado" : "da cidade"]
     : ["Busca", "da busca"];
   trilha.passo({ tipo: tipoPasso, de: dePasso, titulo: params.get("q") ? `“${params.get("q")}”` : "Resultado" });
@@ -149,7 +149,7 @@ const TIPOS: [string, string, string][] = [
   form?.addEventListener("submit", (ev) => {
     ev.preventDefault();
     const q = new URLSearchParams();
-    for (const [k, v] of new FormData(form)) if (v && !["autor", "entidade", "ente", "uf"].includes(k)) q.set(k, v);
+    for (const [k, v] of new FormData(form)) if (v && !["autor", "entidade", "emenda", "ente", "uf"].includes(k)) q.set(k, v);
     if (campoOnde.escolhido) q.set("ente", campoOnde.escolhido.codigo);
     trilha.novaBusca();
     location.href = `/emendas/buscar${q.size ? `?${q}` : ""}`;
@@ -173,6 +173,11 @@ const TIPOS: [string, string, string][] = [
   const pequenas = new Set(["de", "da", "do", "das", "dos", "e", "o", "a", "os", "as", "em", "no", "na", "para", "com"]);
   const titulo = (s) => (s && s === s.toUpperCase() ? s.toLowerCase().split(/\s+/).map((p, i) => (i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ") : s || "");
   const frase = (s) => { const t = s && s === s.toUpperCase() && /[A-ZÀ-Ú]{4}/.test(s) ? s.toLowerCase() : s || ""; return t.charAt(0).toUpperCase() + t.slice(1); };
+  /** O código de uma emenda vira link para a ficha dela (?emenda=); "Sem informação" fica como texto. */
+  const temCodigo = (e) => e && /\d{6,}/.test(e);
+  const linkEmenda = (e, rotulo) => (temCodigo(e) ? `<a href="/emendas/buscar?emenda=${encodeURIComponent(e)}">${esc(rotulo || `emenda ${e}`)}</a>` : esc(rotulo || ""));
+  // A ficha da emenda no Portal da Transparência (o ano é o da emenda: os 4 primeiros dígitos do código).
+  const portal = (e, ano) => `https://portaldatransparencia.gov.br/emendas/detalhe?codigoEmenda=${encodeURIComponent(e)}&ano=${/^(20\d\d)/.exec(e)?.[1] || ano || ""}`;
   const linkAutor = (a, ano) => `<a href="/emendas/buscar?autor=${encodeURIComponent(a)}${ano ? `&ano=${ano}` : ""}">${esc(a)}</a>`;
 
   let conn;
@@ -208,7 +213,8 @@ const TIPOS: [string, string, string][] = [
     form.inert = true;
     form.classList.add("travado");
     const ente = params.get("ente");
-    if (params.get("autor")) topo(params.get("autor"), "Carregando as emendas…", "Parlamentar");
+    if (params.get("emenda")) topo(`Emenda ${params.get("emenda")}`, "Carregando…", "Emenda parlamentar");
+    else if (params.get("autor")) topo(params.get("autor"), "Carregando as emendas…", "Parlamentar");
     else if (params.get("entidade")) topo("Carregando…", "", "Quem recebeu");
     else if (ente) {
       topo("Carregando…", "", "Emendas");
@@ -216,7 +222,8 @@ const TIPOS: [string, string, string][] = [
     }
     try {
       await conectar();
-      if (params.get("autor")) await autor();
+      if (params.get("emenda")) await emenda();
+      else if (params.get("autor")) await autor();
       else if (params.get("entidade")) await entidade();
       else if (params.get("ente") && !params.get("q")) await lugar();
       else await busca();
@@ -232,6 +239,38 @@ const TIPOS: [string, string, string][] = [
   const botoesAno = (anos, atual, base) => `<div class="agrupar">${anos.map((a) => `<a class="botao" aria-current="${a === atual}" href="${base}&ano=${a}">${a}${a > Number(raiz.dataset.ano) ? " (até agora)" : ""}</a>`).join("")}</div>`;
   const lugarRot = (x) => (x.ibge ? `<a href="/emendas/buscar?ente=${esc(x.ibge)}&ano=${x.ano ?? ""}">${esc(x.municipio)} (${esc(x.uf)})</a>` : `${esc(x.municipio || x.uf || "Sem lugar")}${x.municipio && x.uf ? ` (${esc(x.uf)})` : ""}`);
 
+  /** A ficha de uma emenda: quem mandou, para quem foi pago, para quê, e o que disseram que fariam. */
+  async function emenda() {
+    const e = params.get("emenda");
+    etapa(2, "Procurando a emenda…");
+    await consulta(`CREATE OR REPLACE TEMP TABLE x AS SELECT * FROM p WHERE emenda = ?`, [e]);
+    const [s] = await consulta(`SELECT any_value(autor) AS autor, any_value(tipo) AS tipo, min(ano) AS de, max(ano) AS ate, coalesce(sum(valor), 0) AS valor, count(DISTINCT coalesce(nullif(codigo, ''), favorecido))::INTEGER AS quem FROM x`);
+    const textos = await consulta(`SELECT fonte, ano, autor, beneficiario, codigo, uf, municipio, objeto, valor FROM t WHERE emenda = ? ORDER BY valor DESC LIMIT 20`, [e]);
+    if (!s.valor && !textos.length) { saida.innerHTML = `<p>Não achamos a emenda ${esc(e)} nos dados.</p>`; return; }
+    etapa(3, "Organizando o resultado…");
+    const quem = await consulta(`SELECT favorecido, codigo, grupo, municipio, uf, ibge, sum(valor) AS valor FROM x GROUP BY ALL ORDER BY valor DESC LIMIT 15`);
+    const area = await consulta(`SELECT coalesce(nullif(area, ''), 'Sem área') AS area, sum(valor) AS valor FROM x GROUP BY 1 ORDER BY valor DESC LIMIT 6`);
+    const anos = await consulta(`SELECT ano, sum(valor) AS valor FROM x GROUP BY ano ORDER BY ano`);
+    const autor_ = s.autor || textos[0]?.autor;
+    const quando = s.de ? (s.de === s.ate ? `em ${s.de}` : `de ${s.de} a ${s.ate}`) : "";
+    trilha.passo({ valor: s.valor ? curto(s.valor) : "", v: s.valor, base: "pagamentos", ano: "todos" });
+    topo(`Emenda ${e}`,
+      `${autor_ ? `De ${linkAutor(autor_)}` : "Emenda parlamentar"}${s.tipo ? ` (${esc(s.tipo.toLowerCase())})` : ""}. `
+        + (s.valor ? `Foram pagos <strong>${curto(s.valor)}</strong> ${quando} a ${nf0.format(s.quem)} ${s.quem === 1 ? "favorecido" : "favorecidos"}.` : "Ainda sem pagamento nos dados.")
+        + ` <a href="${portal(e, s.de)}" rel="noopener">Ver esta emenda no Portal da Transparência ↗</a>`,
+      "Emenda parlamentar");
+    saida.innerHTML = `
+      ${quem.length ? `<section><h3>Para quem foi pago</h3>${barras(quem, (x) => `${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.favorecido))}</a>` : esc(titulo(x.favorecido))}<small>${esc(x.grupo)}${x.municipio ? ` · ${lugarRot(x)}` : ""}</small>`)}</section>` : ""}
+      ${textos.length ? `<section><h3>Para fazer o quê</h3><p class="menor">O que está no convênio, na parceria ou no plano declarado da emenda Pix. É o que se disse que seria feito, não o que foi feito.</p>
+        <div class="tabela t3" role="table"><div class="linha cab" role="row"><span role="columnheader">Quem recebeu</span><span role="columnheader">Objeto</span><span role="columnheader" class="d">Valor</span></div>
+        ${textos.map((x) => `<div class="linha" role="row"><span role="cell">${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.beneficiario))}</a>` : esc(titulo(x.beneficiario))}<small>${esc(x.municipio && x.municipio !== "Sem Informação" ? `${x.municipio} · ` : "")}${esc(x.fonte)}</small></span><span role="cell">${esc(frase(x.objeto)) || "Sem descrição"}</span><strong role="cell" class="d">${curto(x.valor)}</strong></div>`).join("")}</div></section>` : ""}
+      ${area.length || anos.length > 1 ? `<div class="duas">
+        ${area.length ? `<section><h3>Área</h3>${barras(area, (x) => esc(x.area), "azul")}</section>` : ""}
+        ${anos.length > 1 ? `<section><h3>Pago ano a ano</h3>${barras(anos, (x) => String(x.ano))}</section>` : ""}
+      </div>` : ""}
+      <p class="menor">Os valores pagos vêm do Portal da Transparência (CGU). A ficha completa da emenda, com os empenhos e os documentos, está no <a href="${portal(e, s.de)}" rel="noopener">Portal da Transparência ↗</a>.</p>`;
+  }
+
   async function autor() {
     const a = params.get("autor");
     etapa(2, "Procurando as emendas…");
@@ -246,6 +285,7 @@ const TIPOS: [string, string, string][] = [
     const area = await consulta(`SELECT coalesce(nullif(area, ''), 'Sem área') AS area, sum(valor) AS valor FROM x GROUP BY 1 ORDER BY valor DESC LIMIT 6`);
     const ent = await consulta(`SELECT favorecido, codigo, sum(valor) AS valor FROM x WHERE grupo IN ('Entidade sem fins lucrativos', 'Empresa') GROUP BY ALL ORDER BY valor DESC LIMIT 8`);
     const pix = await consulta(`SELECT beneficiario, objeto, valor FROM t WHERE autor = ? AND fonte = 'Plano de emenda Pix' AND ano = ? ORDER BY valor DESC LIMIT 10`, [a, ano]);
+    const emendas = await consulta(`SELECT emenda, any_value(tipo) AS tipo, mode(favorecido) AS favorecido, count(DISTINCT favorecido)::INTEGER AS n, sum(valor) AS valor FROM x WHERE emenda <> 'Sem informação' GROUP BY emenda ORDER BY valor DESC LIMIT 10`);
     const coletivo = /^(Bancada|Comissão|Relator)/.test(a);
     trilha.passo({ valor: `${curto(s.valor)} · ${s.emendas === 1 ? "1 emenda" : `${nf0.format(s.emendas)} emendas`}`, v: s.valor, base: "pagamentos", ano: String(ano) });
     topo(a, `Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> em ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, para <strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong>${s.pix > 0 ? `, ${curto(s.pix)} deles por emenda Pix` : ""}.`,
@@ -257,6 +297,7 @@ const TIPOS: [string, string, string][] = [
         <section><h3>Para quem</h3>${barras(quem, (x) => esc(x.grupo))}</section>
         <section><h3>Para quê</h3>${barras(area, (x) => esc(x.area), "azul")}</section>
       </div>
+      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: para quem foi pago e o que disseram que fariam.</p><ol class="lista" data-emendas-lista>${emendas.map((x, i) => `<li${i >= LIMITE ? " hidden" : ""}><span>${linkEmenda(x.emenda)}<small>${esc(titulo(x.favorecido))}${x.n > 1 ? ` e mais ${x.n - 1}` : ""}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}
       ${ent.length ? `<section><h3>Entidades e empresas que receberam</h3><ol class="lista">${ent.map((x) => `<li><span>${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.favorecido))}</a>` : esc(titulo(x.favorecido))}</span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}
       ${pix.length ? `<section><h3>O que disseram que fariam com as emendas Pix de ${ano}</h3><p class="menor">É o plano declarado por quem recebeu, não o que foi feito.</p>
         <div class="tabela t3" role="table"><div class="linha cab" role="row"><span role="columnheader">Quem recebeu</span><span role="columnheader">O plano declarado</span><span role="columnheader" class="d">Valor</span></div>
@@ -274,7 +315,13 @@ const TIPOS: [string, string, string][] = [
     const anos = await consulta(`SELECT ano, sum(valor) AS valor FROM x GROUP BY ano ORDER BY ano`);
     trilha.passo({ valor: `${curto(s.valor)} em todos os anos`, v: s.valor, base: "pagamentos", ano: "todos" });
     const autores = await consulta(`SELECT autor, sum(valor) AS valor FROM x GROUP BY autor ORDER BY valor DESC LIMIT 10`);
-    const textos = await consulta(`SELECT fonte, ano, autor, objeto, valor FROM t WHERE codigo = ? ORDER BY valor DESC LIMIT 15`, [cod]);
+    const textos = await consulta(`SELECT fonte, ano, autor, objeto, valor, emenda FROM t WHERE codigo = ? ORDER BY valor DESC LIMIT 15`, [cod]);
+    // Cada emenda que pagou a esta entidade, das maiores para as menores; as 20 primeiras à vista, o resto num botão.
+    const LIMITE = 20;
+    const emendas = await consulta(`SELECT emenda, any_value(autor) AS autor, any_value(tipo) AS tipo, min(ano)::INTEGER AS de, max(ano)::INTEGER AS ate, mode(coalesce(nullif(area, ''), '')) AS area, sum(valor) AS valor
+      FROM x WHERE emenda <> 'Sem informação' GROUP BY emenda ORDER BY valor DESC`);
+    const [sem] = await consulta(`SELECT sum(valor) AS valor FROM x WHERE emenda = 'Sem informação'`);
+    const nEmendas = s.emendas - (sem.valor ? 1 : 0);
     topo(titulo(s.nome), `${esc(s.municipio)}${s.uf ? ` (${esc(s.uf)})` : ""}. Recebeu <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, somando todos os anos.`,
       `Quem recebeu · CNPJ ${cod}`);
     saida.innerHTML = `
@@ -282,8 +329,16 @@ const TIPOS: [string, string, string][] = [
         <section><h3>Ano a ano</h3>${barras(anos, (x) => String(x.ano))}</section>
         <section><h3>Quem mandou</h3>${barras(autores, (x) => linkAutor(x.autor))}</section>
       </div>
+      ${emendas.length ? `<section><h3>${nEmendas === 1 ? "A emenda que pagou" : `As ${nf0.format(nEmendas)} emendas que pagaram`}</h3><p class="menor">Clique numa emenda para ver a ficha dela: quem mandou, para quem mais foi pago e o que disseram que fariam.</p>
+        <ol class="lista" data-emendas-lista>${emendas.map((x, i) => `<li${i >= LIMITE ? " hidden" : ""}><span>${linkEmenda(x.emenda)}<small>${esc(x.autor)}${x.tipo ? ` · ${esc(x.tipo.toLowerCase())}` : ""}${x.area ? ` · ${esc(x.area)}` : ""} · ${x.de === x.ate ? `paga em ${x.de}` : `paga de ${x.de} a ${x.ate}`}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol>
+        ${emendas.length > LIMITE ? `<p><button type="button" class="botao-mais" data-mais-emendas>Ver as outras ${nf0.format(emendas.length - LIMITE)} emendas</button></p>` : ""}
+        ${sem.valor ? `<p class="menor">Mais ${curto(sem.valor)} foram pagos sem o número da emenda no Portal.</p>` : ""}</section>` : ""}
       ${textos.length ? `<section><h3>Para fazer o quê</h3><div class="tabela t4" role="table"><div class="linha cab" role="row"><span role="columnheader">Quem mandou</span><span role="columnheader">Objeto</span><span role="columnheader">Tipo</span><span role="columnheader" class="d">Valor</span></div>
-        ${textos.map((x) => `<div class="linha" role="row"><span role="cell">${linkAutor(x.autor)}<small>${x.ano || ""}</small></span><span role="cell">${esc(frase(x.objeto))}</span><span role="cell">${esc(x.fonte)}</span><strong role="cell" class="d">${curto(x.valor)}</strong></div>`).join("")}</div></section>` : ""}`;
+        ${textos.map((x) => `<div class="linha" role="row"><span role="cell">${linkAutor(x.autor)}<small>${temCodigo(x.emenda) ? linkEmenda(x.emenda) : x.ano || ""}</small></span><span role="cell">${esc(frase(x.objeto))}</span><span role="cell">${esc(x.fonte)}</span><strong role="cell" class="d">${curto(x.valor)}</strong></div>`).join("")}</div></section>` : ""}`;
+    saida.querySelector("[data-mais-emendas]")?.addEventListener("click", (ev) => {
+      saida.querySelectorAll("[data-emendas-lista] > li[hidden]").forEach((li) => { li.hidden = false; });
+      ev.currentTarget.closest("p").remove();
+    });
   }
 
   async function lugar() {
@@ -302,6 +357,7 @@ const TIPOS: [string, string, string][] = [
     const autores = await consulta(`SELECT autor, sum(valor) AS valor FROM x GROUP BY autor ORDER BY valor DESC LIMIT 10`);
     const quem = await consulta(`SELECT favorecido, codigo, grupo, sum(valor) AS valor FROM x GROUP BY ALL ORDER BY valor DESC LIMIT 10`);
     const area = await consulta(`SELECT coalesce(nullif(area, ''), 'Sem área') AS area, sum(valor) AS valor FROM x GROUP BY 1 ORDER BY valor DESC LIMIT 6`);
+    const emendas = await consulta(`SELECT emenda, any_value(autor) AS autor, mode(favorecido) AS favorecido, sum(valor) AS valor FROM x WHERE emenda <> 'Sem informação' GROUP BY emenda ORDER BY valor DESC LIMIT 10`);
     topo(estado ? (await carregarLugares()).porCodigo.get(ente).nome : `${s.municipio} (${s.uf})`,
       estado
         ? `Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> de ${nf0.format(s.emendas)} emendas a quem fica no estado: prefeituras, o governo estadual, entidades e empresas.`
@@ -313,7 +369,8 @@ const TIPOS: [string, string, string][] = [
         <section><h3>Quem mandou</h3>${barras(autores, (x) => linkAutor(x.autor, ano))}</section>
         <section><h3>Quem recebeu</h3>${barras(quem, (x) => `${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.favorecido))}</a>` : esc(titulo(x.favorecido))}<small>${esc(x.grupo)}</small>`)}</section>
         <section><h3>Para quê</h3>${barras(area, (x) => esc(x.area), "azul")}</section>
-      </div>`;
+      </div>
+      ${emendas.length ? `<section><h3>As maiores emendas de ${ano}</h3><p class="menor">Clique numa emenda para ver a ficha dela: quem mandou, para quem foi pago e o que disseram que fariam.</p><ol class="lista" data-emendas-lista>${emendas.map((x, i) => `<li${i >= LIMITE ? " hidden" : ""}><span>${linkEmenda(x.emenda)}<small>${esc(x.autor)} · ${esc(titulo(x.favorecido))}</small></span><span>${curto(x.valor)}</span></li>`).join("")}</ol></section>` : ""}`;
   }
 
   async function busca() {
@@ -350,9 +407,9 @@ const TIPOS: [string, string, string][] = [
     const desenhar = async () => {
       let corpo;
       if (por === "texto") {
-        const l = await consulta(`SELECT fonte, ano, autor, beneficiario, codigo, uf, objeto, valor FROM r ORDER BY valor DESC LIMIT 50 OFFSET ${pagina * 50}`);
+        const l = await consulta(`SELECT fonte, ano, autor, beneficiario, codigo, uf, objeto, valor, emenda FROM r ORDER BY valor DESC LIMIT 50 OFFSET ${pagina * 50}`);
         corpo = `<div class="tabela t4" role="table"><div class="linha cab" role="row"><span role="columnheader">Quem mandou</span><span role="columnheader">Quem recebeu</span><span role="columnheader">O que foi pedido ou declarado</span><span role="columnheader" class="d">Valor</span></div>
-          ${l.map((x) => `<div class="linha" role="row"><span role="cell">${x.autor ? linkAutor(x.autor) : "—"}<small>${x.ano ? `emenda de ${x.ano}` : ""}</small></span><span role="cell">${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.beneficiario))}</a>` : esc(titulo(x.beneficiario))}<small>${esc(x.uf)}</small></span><span role="cell">${esc(frase(x.objeto)) || "Sem descrição"}<small>${esc(x.fonte)}</small></span><strong role="cell" class="d">${curto(x.valor)}</strong></div>`).join("")}</div>
+          ${l.map((x) => `<div class="linha" role="row"><span role="cell">${x.autor ? linkAutor(x.autor) : "—"}<small>${temCodigo(x.emenda) ? linkEmenda(x.emenda, `emenda de ${x.ano || ""} ›`) : x.ano ? `emenda de ${x.ano}` : ""}</small></span><span role="cell">${x.codigo ? `<a href="/emendas/buscar?entidade=${esc(x.codigo)}">${esc(titulo(x.beneficiario))}</a>` : esc(titulo(x.beneficiario))}<small>${esc(x.uf)}</small></span><span role="cell">${esc(frase(x.objeto)) || "Sem descrição"}<small>${esc(x.fonte)}${temCodigo(x.emenda) ? ` · ${linkEmenda(x.emenda, "ver a emenda")}` : ""}</small></span><strong role="cell" class="d">${curto(x.valor)}</strong></div>`).join("")}</div>
           <div class="pe"><span>Mostrando ${nf0.format(Math.min(s.n, (pagina + 1) * 50))} de ${nf0.format(s.n)}, do maior para o menor valor.</span>${(pagina + 1) * 50 < s.n ? `<button type="button" data-mais>Mostrar mais</button>` : ""}</div>`;
       } else {
         const col = por === "autor" ? "autor" : "beneficiario";
@@ -460,7 +517,7 @@ const TIPOS: [string, string, string][] = [
     .tabela .cab { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--texto-3); border-bottom-color: var(--tinta); }
     .d { text-align: right; }
     .pe { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; color: var(--texto-3); }
-    .pe button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
+    .pe button, .botao-mais { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
 
     @media (max-width: 900px) {
       .topo h1 { font-size: 38px; }
