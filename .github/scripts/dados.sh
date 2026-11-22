@@ -121,8 +121,9 @@ fila_independente() {
   # (uv run supersalarios-federal; o Portal pede captcha depois de alguns downloads, e o comando completa os 12 meses
   # em mais de uma rodada). Aqui só a cópia de referência.
   pipe pode-falhar "Acima do teto: Executivo federal" supersalarios-federal --sem-baixar
-  # Acima do teto no Executivo dos estados (PR, ES, PE, PB, GO, DF; o RN quando a carga completar): carga à mão
-  # (uv run supersalarios-estados; o servidor do PR trava por minutos e o do RN limita os pedidos). Só a cópia aqui.
+  # Acima do teto no Executivo dos estados: o supersalarios-estados.yml baixa os meses novos de cada estado todo dia
+  # 25 (um job por estado) e abre um pull request com a cópia de referência; aqui só essa cópia. CE, AL e PI recusam os
+  # servidores do GitHub e seguem à mão (uv run supersalarios-estados --uf CE,AL,PI).
   pipe pode-falhar "Acima do teto: Executivo dos estados" supersalarios-estados --sem-baixar
   # Acima do teto no Legislativo federal (Câmara, Senado e TCU): o supersalarios-legislativo.yml baixa os meses novos
   # todo dia 22 e abre um pull request com a cópia de referência; aqui só essa cópia.

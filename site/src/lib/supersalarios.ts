@@ -497,6 +497,8 @@ interface ExecutivoUf {
   estatais_fora: string[];
   /** Um cuidado próprio do arquivo deste estado (um mês deixado de fora, uma parte que não se separa). */
   nota?: string;
+  /** true quando o arquivo não mostra o corte pelo teto: a conta é sobre o bruto (MS, MA, PI, RO, SC). */
+  sem_corte?: boolean;
   fonte: string;
   url: string;
   de: string;
