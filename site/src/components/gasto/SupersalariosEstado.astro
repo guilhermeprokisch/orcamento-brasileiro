@@ -1,0 +1,155 @@
+---
+/**
+ * Na página do estado: os juízes do tribunal de justiça e os promotores do Ministério Público do estado que
+ * recebem acima do teto, em 2025 e depois da decisão do STF (pagamentos desde maio de 2026). Só somas por órgão
+ * (lib/supersalarios.ts); some quando não há dado.
+ */
+import Termo from "../Termo.astro";
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { MINIMO_EDUCACAO, MINIMO_SAUDE, NOMES_ESTADUAL, comparar, docSuper, doEstado, executivoDoEstado, sigla, tetoAtual } from "../../lib/supersalarios";
+import type { Cidade } from "../../lib/cidades";
+
+interface Props { uf: string; ente?: Cidade }
+const { uf, ente } = Astro.props;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
+const mil = (v: number) => `R$\u00a0${nf0.format(Math.round(v / 1000))}\u00a0mil`;
+const [pA, pB] = docSuper?.periodos ?? [];
+const orgaos = doEstado(uf)
+  .map(({ id, o }) => ({ id, o, a: pA ? o.periodos[pA.id] : null, b: pB ? o.periodos[pB.id] : null }))
+  .filter((x) => x.a);
+const quem = (tipo: string) => (tipo === "tj" ? "juízes e desembargadores" : "promotores e procuradores");
+const porMes = (p: { excesso: number | null; meses: string[] } | null) => (p && p.excesso !== null ? p.excesso / p.meses.length : null);
+
+// Juntos, o tribunal e o MP do estado: o que passou do teto frente ao gasto do governo estadual numa área, e o
+// imposto de renda que deixou de entrar (que é do próprio estado).
+const excessoJuntos = orgaos.reduce((t, x) => t + (x.a?.excesso ?? 0), 0);
+const comIr = orgaos.filter((x) => x.a?.ir != null && x.a?.ir_salario != null);
+const irPerdido = comIr.reduce((t, x) => t + Math.max(0, x.a!.ir_salario! - x.a!.ir!), 0);
+// A régua é tudo o que o governo estadual gastou (empenhado) no ano mais recente das contas.
+const gastoTotal = ente?.total?.[0] ?? null;
+const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const cmp = ente && excessoJuntos > 0 ? comparar(excessoJuntos, ente, "uf") : null;
+
+// O Executivo do estado, onde há a folha com as partes do salário (por enquanto, o Paraná).
+const exe = executivoDoEstado(uf);
+const exeMaiores = exe ? exe.orgaos.filter((o) => o.acima !== null).slice(0, 4) : [];
+const exeMaiorGrupo = exe
+  ? Object.entries(exe.grupos).filter(([g]) => g !== "base").sort((a, b) => b[1] - a[1])[0]
+  : null;
+/** 12.345 -> "12 mil"; 1.234.567 -> "1,2 milhão" */
+const quantos = (n: number) => (n >= 1e6 ? `${nf1.format(n / 1e6)} ${n < 2e6 ? "milhão" : "milhões"} de` : n >= 1e4 ? `${nf0.format(Math.round(n / 1000))} mil` : nf0.format(Math.round(n / 10) * 10));
+---
+
+{orgaos.length > 0 && (
+  <section class="teto">
+    <div class="texto">
+      <h2>Acima do teto</h2>
+      <p>
+        Ninguém no serviço público pode ganhar mais que um ministro do Supremo, R$ {nf0.format(tetoAtual())} por mês (o{" "}
+        <Termo id="teto-constitucional">teto constitucional</Termo>). No Judiciário e no Ministério Público do estado, que têm orçamento próprio,
+        muitos passam dele com pagamentos que a lei chama de <Termo id="verba-indenizatoria">indenização</Termo> e deixa fora do teto.
+      </p>
+      <p class="menor">
+        Só juízes e promotores, não os servidores; sem 13º, férias e diárias; fonte: DadosJusBr. <a href="/supersalarios">Todos os tribunais e Ministérios Públicos do país →</a>
+      </p>
+    </div>
+    <div class="dados">
+      {orgaos.map(({ id, o, a, b }) => (
+        <div class="orgao">
+          <h3><abbr title={o.nome}>{sigla(id)}</abbr> <span>{o.nome}</span></h3>
+          <p>
+            {a!.parte === null ? (
+              <>
+                Em {pA.rotulo}, menos de 5 dos {nf0.format(a!.membros)} {quem(o.tipo)} passaram do teto num mês típico.
+                {a!.excesso !== null && <> Em {a!.meses_acima} {a!.meses_acima === 1 ? "mês" : "meses"}, foram mais, e o que passou do teto somou {moedaExtenso(a!.excesso)}.</>}
+              </>
+            ) : (
+              <>
+                Em {pA.rotulo}, <strong>{pct0(a!.parte)}</strong> dos {nf0.format(a!.membros)} {quem(o.tipo)} receberam acima do teto num mês típico, e o
+                que passou do teto somou <strong>{moedaExtenso(a!.excesso!)}</strong>{a!.meses.length < 12 && <> em {a!.meses.length} meses com dados</>}.
+                Metade recebeu mais de {mil(a!.mediana)} no mês.
+              </>
+            )}
+          </p>
+          {b && porMes(a) !== null && porMes(b) !== null && (
+            <p>
+              {pB.rotulo[0].toUpperCase() + pB.rotulo.slice(1)}, com o limite do STF, passa do teto {moedaCurta(porMes(b)!)} por mês
+              {b.parte !== null && <> ({pct0(b.parte)} acima do teto num mês típico)</>}, contra {moedaCurta(porMes(a)!)} por mês em {pA.rotulo}.
+              {porMes(b)! > porMes(a)! * 1.1 && <> Aqui, o que passa do teto aumentou depois da decisão: {o.tipo === "tj" ? "o tribunal" : "o Ministério Público"} passou a pagar mais perto do novo limite.</>}
+            </p>
+          )}
+          {!b && <p class="menor">Ainda sem dados {pB.rotulo}.</p>}
+        </div>
+      ))}
+      {exe && exe.acima >= 5 && (
+        <div class="orgao executivo">
+          <h3>No governo do estado</h3>
+          <p>
+            Fora do Judiciário e do Ministério Público, nas secretarias, autarquias, empresas e universidades do estado,{" "}
+            <strong>{nf0.format(exe.acima)} dos {nf0.format(exe.vinculos)} vínculos</strong> ({nf1.format(exe.parte * 100)}%) passaram do teto num mês
+            típico, {exe.periodo}. O que passou do teto somou <strong>{moedaExtenso(exe.excesso)}</strong> em {exe.meses} meses
+            {exeMaiorGrupo && exeMaiorGrupo[1] > 0 && <>, e a maior parte do que se paga além do salário está em {NOMES_ESTADUAL[exeMaiorGrupo[0]].toLowerCase()}</>}.
+          </p>
+          {exeMaiores.length > 0 && (
+            <p>
+              Onde mais: {exeMaiores.map((o, i) => (
+                <>{i > 0 && (i === exeMaiores.length - 1 ? " e " : ", ")}{o.nome} ({nf0.format(o.acima!)} de {nf0.format(o.vinculos)}, {moedaCurta(o.excesso ?? 0)})</>
+              ))}.
+              {exe.irPerdido > 0 && <> Se o que esses vínculos acima do teto receberam fosse todo tributado como salário, o estado teria descontado até {moedaExtenso(exe.irPerdido)} a mais de imposto de renda.</>}
+            </p>
+          )}
+          <p class="menor">
+            A conta é por vínculo (quem tem dois cargos conta duas vezes) e usa o teto nacional; no governo estadual o limite é o salário do
+            governador, mais baixo. Fonte: <a href={exe.url}>{exe.fonte}</a>.
+          </p>
+        </div>
+      )}
+      {orgaos.length > 0 && excessoJuntos > 0 && (
+        <div class="orgao juntos">
+          <h3>O que isso custa ao estado</h3>
+          <p>
+            Em {pA.rotulo}, o que passou do teto {orgaos.length > 1 ? "nos dois somou" : "somou"} <strong>{moedaExtenso(excessoJuntos)}</strong>
+            {ente?.pop && <>, ou R$&nbsp;{nf0.format(excessoJuntos / ente.pop)} por morador</>}
+            {gastoTotal && ente?.ano && <>, o equivalente a {nf1.format((excessoJuntos / gastoTotal) * 100)}% de tudo o que o governo do estado gastou em {ente.ano}</>}.
+          </p>
+          {cmp && (cmp.alunos || cmp.diasSaude) && (
+            <p>
+              Com o mesmo dinheiro, o governo do estado pagaria
+              {cmp.alunos && cmp.porAluno && <> <strong>um ano de escola para {quantos(cmp.alunos)} alunos</strong> da rede estadual (gastou R$&nbsp;{nf0.format(cmp.porAluno)} por aluno em {cmp.anoContas})</>}
+              {cmp.alunos && cmp.diasSaude && <>, ou</>}
+              {cmp.diasSaude && <> <strong>{nf0.format(cmp.diasSaude)} dias de todo o seu gasto com saúde</strong></>}.
+            </p>
+          )}
+          {irPerdido > 0 && (
+            <p>
+              Como a maior parte do extra se chama indenização, não paga imposto de renda. Se tudo fosse tributado como salário, o estado teria
+              descontado até <strong>{moedaExtenso(irPerdido)}</strong> a mais em {pA.rotulo}{comIr.length < orgaos.length && <> (só no {sigla(comIr[0].id)}, que mostra o desconto)</>}.
+              Esse imposto seria do próprio estado, e pelo menos {moedaExtenso(irPerdido * (MINIMO_EDUCACAO + MINIMO_SAUDE))} teriam de ir para educação e saúde.
+            </p>
+          )}
+          <p class="menor">"Até" porque a conta trata como salário também o que é indenização de verdade, como o reembolso do plano de saúde.</p>
+        </div>
+      )}
+    </div>
+  </section>
+)}
+
+<style>
+  .teto { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 40px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p, .orgao p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto .menor, .orgao .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 20px; }
+  .orgao { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--regra); padding-top: 12px; }
+  .orgao:first-child { border-top: 0; padding-top: 0; }
+  .orgao h3 { font-size: 20px; }
+  .orgao h3 abbr { text-decoration: none; }
+  .orgao h3 span { font-family: var(--sans, inherit); font-size: 14px; font-weight: 400; color: var(--texto-3); }
+  .orgao strong { color: var(--tinta); }
+  @media (max-width: 900px) {
+    .teto { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; }
+  }
+</style>

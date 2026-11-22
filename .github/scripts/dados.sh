@@ -104,6 +104,16 @@ fila_independente() {
   # feita à mão (uv run divida-ativa; ~1,5 GB da PGFN e ~6,7 GB da Receita, lidos e apagados), uma vez por
   # trimestre. Aqui só a cópia de referência.
   pipe pode-falhar "Dívida ativa da União" divida-ativa --sem-baixar
+  # Juízes e promotores acima do teto (DadosJusBr): carga feita à mão uma vez por mês (uv run supersalarios; ~2.000
+  # pacotes pequenos, lidos e somados por órgão, o cache em data/raw só com as somas). Aqui só a cópia de referência.
+  pipe pode-falhar "Acima do teto (DadosJusBr)" supersalarios --sem-baixar
+  # Acima do teto no Executivo federal (Portal da Transparência, servidores civis, honorários e jetons): carga à mão
+  # (uv run supersalarios-federal; o Portal pede captcha depois de alguns downloads, e o comando completa os 12 meses
+  # em mais de uma rodada). Aqui só a cópia de referência.
+  pipe pode-falhar "Acima do teto: Executivo federal" supersalarios-federal --sem-baixar
+  # Acima do teto no Executivo dos estados (por enquanto o Paraná, pela folha que estado_pr.py também lê): carga à mão
+  # (uv run supersalarios-estados; o servidor do PR trava por minutos depois de alguns downloads). Só a cópia aqui.
+  pipe pode-falhar "Acima do teto: Executivo dos estados" supersalarios-estados --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).

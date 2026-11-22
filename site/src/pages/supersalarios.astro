@@ -1,0 +1,712 @@
+---
+/**
+ * Juízes, desembargadores, procuradores e promotores que recebem acima do teto: quantos, quanto passa, de
+ * onde vem o dinheiro, órgão por órgão, antes e depois da decisão do STF de março de 2026. Só somas por
+ * órgão. Dados de pipeline/…/supersalarios.py (DadosJusBr).
+ */
+import Base from "../layouts/Base.astro";
+import Termo from "../components/Termo.astro";
+import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
+import {
+  MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, compararEstados, executivoDoEstado, fpmDeCidadesPequenas, imposto,
+  CORES_FEDERAL, CORES_GRUPOS, NOMES_CURTOS, NOMES_FEDERAL, ORDEM_TIPOS, docFederal, docSuper as d, linhas, linhasFederal, mesCurto,
+  mesExtenso, nosDois, periodoFederal, serie, tetoAtual, total, totalFederal, type Linha, type Tipo,
+} from "../lib/supersalarios";
+
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const nf1d = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+/** 1.234.000 -> "1,2 milhão"; 3.400.000 -> "3,4 milhões"; 850.000 -> "850 mil" */
+const milhoesDe = (n: number) => (n >= 1e6 ? `${nf1d.format(n / 1e6)} ${n < 2e6 ? "milhão" : "milhões"}` : `${nf0.format(Math.round(n / 1000))} mil`);
+const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
+const reais = (v: number) => `R$ ${nf0.format(v)}`;
+/** "R$ 52 mil" para valores por pessoa */
+const milReais = (v: number) => (v >= 1000 ? `R$ ${nf0.format(Math.round(v / 1000))} mil` : reais(v));
+const TETO = tetoAtual();
+/** Quantos meses tem um período ("2025-01" a "2025-12" = 12). */
+const nMeses = (p: { de: string; ate: string }) =>
+  (Number(p.ate.slice(0, 4)) - Number(p.de.slice(0, 4))) * 12 + Number(p.ate.slice(5, 7)) - Number(p.de.slice(5, 7)) + 1;
+
+function calcular() {
+  if (!d) return null;
+  const [pA, pB] = d.periodos;
+  const tA = total(linhas(pA.id))!;
+  const tB = total(linhas(pB.id));
+  // Antes e depois nos mesmos órgãos.
+  const [ca, cb] = nosDois(pA.id, pB.id);
+  const comA = total(ca), comB = total(cb);
+  const s = serie();
+  const maxSerie = Math.max(...s.map((x) => x.porMembro));
+  const grupos = d.grupos.map(([g]) => g);
+  const extra = (t: typeof tA) => grupos.filter((g) => g !== "subsidio").reduce((x, g) => x + t.grupos[g], 0);
+  // Os gráficos mostram proporções (parte dos membros, parte do que é pago), que a cobertura menor de 2026
+  // não distorce: 2025 com todos os órgãos, 2026 com os que já têm dados.
+  const gA = tA, gB = tB;
+  return { doc: d, pA, pB, tA, tB, ca, comA, comB, gA, gB, s, maxSerie, grupos, extra };
+}
+const x = calcular();
+
+/** O Executivo federal (Portal da Transparência). */
+function calcularFederal() {
+  if (!docFederal) return null;
+  const ls = linhasFederal();
+  const t = totalFederal(ls);
+  if (!t) return null;
+  const comAcima = ls.filter((l) => l.excesso !== null);
+  const maiores = comAcima.slice(0, 12);
+  const resto = comAcima.slice(12);
+  const maxExc = Math.max(1, ...maiores.map((l) => l.excesso ?? 0));
+  // Quem passa do teto só por causa dos honorários: a diferença entre o 3º e o 2º degrau.
+  const [c1, c2, c3, c4] = t.camadas;
+  // O total sai da última camada, que soma também os órgãos com menos de 5 acima do teto (não mostrados um a um).
+  const periodo = periodoFederal();
+  return { doc: docFederal, ls, t, maiores, resto, maxExc, c1, c2, c3, c4, periodo, excesso: c4.excessoMes * t.meses };
+}
+const f = calcularFederal();
+
+/** Quanto isso custa: o que passou do teto por pagador e o imposto de renda que deixou de entrar. */
+function calcularCusto() {
+  if (!d || !x) return null;
+  const a = imposto(x.pA.id);
+  if (!a.estado.orgaos && !a.uniao.orgaos) return null;
+  const b = x.tB ? imposto(x.pB.id) : null;
+  const mesesB = b ? Math.max(1, ...linhas(x.pB.id).map((l) => l.meses.length)) : 1;
+  const maxIr = Math.max(a.estado.irSalario, a.uniao.irSalario);
+  const diferenca = a.estado.diferenca + a.uniao.diferenca;
+  return {
+    a, b, mesesB, maxIr, diferenca,
+    educacaoSaude: a.estado.diferenca * (MINIMO_EDUCACAO + MINIMO_SAUDE),
+    fpm: a.uniao.diferenca * PARTE_FPM, fpe: a.uniao.diferenca * PARTE_FPE,
+    porMesB: b ? (b.estado.diferenca + b.uniao.diferenca) / mesesB : null,
+    // Para comparar: o que o mesmo dinheiro pagaria.
+    nosEstados: compararEstados(a.estado.excesso),
+    naUniao: fpmDeCidadesPequenas(a.uniao.excesso),
+  };
+}
+const c = calcularCusto();
+
+/** O Executivo dos estados com folha detalhada (por enquanto, o Paraná). */
+const estadosExe = (["PR"] as const).map((uf) => ({ uf, e: executivoDoEstado(uf) })).filter((x) => x.e && x.e.acima >= 5);
+const descricao = x
+  ? `Em ${x.pA.rotulo}, ${pct0(x.tA.parte)} dos juízes e promotores receberam acima do teto num mês típico; passou do teto ${moedaExtenso(x.tA.excesso)} no ano.`
+  : "Juízes e promotores que recebem acima do teto, órgão por órgão.";
+
+/** Uma tabela de órgãos de um tipo, num período. */
+function tabela(periodo: string, tipo: Tipo) {
+  const ls = linhas(periodo, tipo);
+  const max = Math.max(1, ...ls.map((l) => l.porMembro ?? 0));
+  return { ls, max };
+}
+const larguraGrupos = (l: Linha) => {
+  const extra = (x?.grupos ?? []).filter((g) => g !== "subsidio").reduce((t, g) => t + Math.max(0, l.grupos[g] ?? 0), 0);
+  const tot = extra + Math.max(0, l.grupos.subsidio ?? 0);
+  return (x?.grupos ?? []).map((g) => ({ g, w: tot ? (Math.max(0, l.grupos[g] ?? 0) / tot) * 100 : 0 }));
+};
+---
+
+<Base title="Acima do teto · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap pagina-teto">
+    {!d || !x ? (
+      <section class="cabeca"><div><h1>Acima do teto</h1><p>Os dados ainda não foram carregados.</p></div></section>
+    ) : (
+      <>
+        <section class="cabeca">
+          <div>
+            <span class="sobretitulo">Judiciário e Ministério Público · dados até {mesExtenso(d.ultimo_mes)}</span>
+            <h1>Acima do teto</h1>
+            <p>
+              Ninguém no serviço público pode ganhar mais que um ministro do Supremo: R$ {nf0.format(TETO)} por mês, o{" "}
+              <Termo id="teto-constitucional">teto constitucional</Termo>. Em {x.pA.rotulo}, mesmo assim,{" "}
+              <strong class="marca">{pct0(x.tA.parte)} dos juízes e promotores</strong> receberam mais que isso num mês típico, e o que passou do
+              teto somou <strong>{moedaExtenso(x.tA.excesso)}</strong> no ano. Quase nada vem do salário: vem de pagamentos que a lei chama de{" "}
+              <Termo id="verba-indenizatoria">indenização</Termo> e deixa fora do teto.
+            </p>
+          </div>
+        </section>
+
+        <section class="numeros" aria-label="Os números principais">
+          <div><span>Acima do teto, num mês de {x.pA.rotulo}</span><strong class="num">{pct0(x.tA.parte)}</strong><small>{nf0.format(x.tA.acima)} de {nf0.format(x.tA.membros)} juízes e promotores</small></div>
+          <div><span>Passou do teto em {x.pA.rotulo}</span><strong class="num">{moedaCurta(x.tA.excesso)}</strong><small>em {x.tA.orgaos} tribunais e MPs</small></div>
+          <div><span>Metade recebeu mais de</span><strong class="num">{milReais(x.tA.mediana)}</strong><small>num mês de {x.pA.rotulo}, sem 13º e férias</small></div>
+          {x.comA && x.comB && <div><span>Passa do teto por mês, {x.pB.rotulo}</span><strong class="num">{moedaCurta(x.comB.excessoMes)}</strong><small>eram {moedaCurta(x.comA.excessoMes)} em {x.pA.rotulo}, nos mesmos {x.comB.orgaos} órgãos</small></div>}
+        </section>
+
+        <nav class="indice" aria-label="Nesta página">
+          <a href="#escada">Como se passa do teto</a>
+          <a href="#de-onde">De onde vem o dinheiro</a>
+          <a href="#depois">Depois da decisão do STF</a>
+          {c && <a href="#custo">Quanto isso custa</a>}
+          <a href="#orgaos">Órgão por órgão</a>
+          {f && <a href="#federal">No Executivo federal</a>}
+          {estadosExe.length > 0 && <a href="#estados">Nos governos estaduais</a>}
+          <a href="#cuidados">O que esta conta não diz</a>
+        </nav>
+
+        <!-- 1. A escada -->
+        <section class="bloco" id="escada">
+          <div class="texto">
+            <h2>Como se passa do teto</h2>
+            <p>
+              O salário de um juiz ou promotor é o <Termo id="subsidio">subsídio</Termo>, numa parcela só, e quase nenhum subsídio passa do teto:
+              quando passa, o contracheque corta a diferença. O que fura o teto é o que vem por cima. Cada degrau do gráfico soma uma família de
+              pagamentos ao subsídio e mostra quantos passam do teto com ela.
+            </p>
+            <p>
+              Em {x.pA.rotulo}, com o subsídio e o tempo de serviço, {pct0(x.gA.camadas[1].parte)} passavam do teto. Com o acúmulo de funções,
+              os plantões e a <Termo id="licenca-compensatoria">licença compensatória</Termo>, {pct0(x.gA.camadas[2].parte)}. Com tudo,{" "}
+              <strong>{pct0(x.gA.camadas.at(-1)!.parte)}</strong>.
+              {x.gB && <> Depois da decisão do STF, a parte de quem passa do teto ficou parecida; o que mudou foi quanto cada um passa: quase ninguém passa mais de R$ 100 mil.</>}
+            </p>
+            <p class="menor">
+              Fora da conta ficam o 13º e o terço de férias (pagos uma vez por ano a todos), as diárias de viagem e o que outro órgão paga a quem
+              foi cedido. A conta usa sempre o teto nacional, o do Supremo, mesmo para os estados.
+            </p>
+          </div>
+          <div class="grafico">
+            <ul class="legenda-curta" aria-hidden="true">
+              <li><span class="cor ante"></span>{x.pA.rotulo}</li>
+              {x.gB && <li><span class="cor depois"></span>{x.pB.rotulo}</li>}
+            </ul>
+            {x.gB && <p class="menor-grafico">Parte dos juízes e promotores acima do teto, num mês típico. {x.pB.rotulo[0].toUpperCase() + x.pB.rotulo.slice(1)}, nos {x.gB.orgaos} órgãos que já têm dados.</p>}
+            <ol class="degraus" aria-label="Parte dos juízes e promotores acima do teto, somando uma família de pagamentos por vez">
+              {x.gA.camadas.map((c, i) => (
+                <li>
+                  <span class="nome">{i === 0 ? "Só o subsídio" : `+ ${NOMES_CURTOS[c.grupo].toLowerCase()}`}</span>
+                  <span class="trilho duplo">
+                    <span class="barra ante" style={`width:${c.parte * 100}%`}></span>
+                    {x.gB && <span class="barra depois" style={`width:${x.gB.camadas[i].parte * 100}%`}></span>}
+                  </span>
+                  <span class="num valor"><strong>{pct0(c.parte)}</strong>{x.gB && <span> {pct0(x.gB.camadas[i].parte)}</span>}</span>
+                </li>
+              ))}
+            </ol>
+            <h3>Quanto cada um passa do teto, num mês típico</h3>
+            <ol class="linhas faixas" aria-label="Parte dos juízes e promotores em cada faixa do quanto passam do teto">
+              {x.gA.faixas.map((n, i) => {
+                const lim = x.doc.faixas;
+                const k = (v: number) => nf0.format(v / 1000);
+                const rot = i === 0 ? `até R$ ${k(lim[0])} mil` : i === lim.length ? `mais de R$ ${k(lim.at(-1)!)} mil` : `R$ ${k(lim[i - 1])} a ${k(lim[i])} mil`;
+                const pa = n / x.gA.membros, pb = x.gB ? x.gB.faixas[i] / x.gB.membros : 0;
+                const maxF = Math.max(...x.gA.faixas.map((f) => f / x.gA.membros), ...(x.gB ? x.gB.faixas.map((f) => f / x.gB!.membros) : []));
+                return (
+                  <li>
+                    <span class="rotulo">{rot}</span>
+                    <span class="trilho duplo">
+                      <span class="barra ante" style={`width:${(pa / maxF) * 100}%`}></span>
+                      {x.gB && <span class="barra depois" style={`width:${(pb / maxF) * 100}%`}></span>}
+                    </span>
+                    <span class="num valor"><strong>{pct0(pa)}</strong>{x.gB && <span> {pct0(pb)}</span>}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </section>
+
+        <!-- 2. De onde vem -->
+        <section class="bloco" id="de-onde">
+          <div class="texto">
+            <h2>De onde vem o dinheiro</h2>
+            <p>
+              Num mês típico de {x.pA.rotulo}, os {x.tA.orgaos} tribunais e Ministérios Públicos pagaram {moedaExtenso(x.tA.pago)} aos seus juízes
+              e promotores. Só <strong>{pct0(x.tA.grupos.subsidio / x.tA.pago)}</strong> foi o subsídio; para cada R$ 1 de subsídio, mais{" "}
+              <strong>R$ {(x.extra(x.tA) / x.tA.grupos.subsidio).toFixed(2).replace(".", ",")}</strong> vieram por cima.
+            </p>
+            <p>
+              A maior fatia do que vem por cima, {pct0(x.tA.grupos.retroativos / x.extra(x.tA))}, não se deixa ver: são pagamentos atrasados
+              ("retroativos") e rubricas que não dizem a que se referem, como "outras verbas remuneratórias, legais ou judiciais".
+              {x.tB && <> Depois da decisão do STF, essa fatia caiu para {pct0(x.tB.grupos.retroativos / x.extra(x.tB))}, e o tempo de serviço, que a decisão manteve, cresceu.</>}
+            </p>
+            <p class="menor">
+              A classificação das rubricas é do DadosJusBr, que padroniza os nomes que cada tribunal e Ministério Público usa. Diárias, 13º e
+              terço de férias não entram.
+            </p>
+          </div>
+          <div class="grafico">
+            <ul class="legenda">
+              {x.grupos.map((g) => (
+                <li>
+                  <span class="cor" style={`background:${CORES_GRUPOS[g]}`}></span>
+                  <span class="nome"><strong>{NOMES_CURTOS[g]}</strong></span>
+                  <span class="num">{pct0(x.gA.grupos[g] / x.gA.pago)}<small>{x.gB && ` · ${pct0(x.gB.grupos[g] / x.gB.pago)}`}</small></span>
+                </li>
+              ))}
+            </ul>
+            <p class="menor-grafico">Parte do que foi pago: {x.pA.rotulo}{x.gB && <> · {x.pB.rotulo}</>}.</p>
+            <ol class="pilhas" aria-label="O que foi pago num mês típico, por família de rubricas">
+              {[x.gA, x.gB].filter((t) => t).map((t, k) => (
+                <li>
+                  <span class="rotulo">{k === 0 ? x.pA.rotulo : "2026"}</span>
+                  <span class="pilha" title={x.grupos.map((g) => `${NOMES_CURTOS[g]}: ${moedaCurta(t!.grupos[g])}`).join(" · ")}>
+                    {x.grupos.map((g) => <span style={`width:${(Math.max(0, t!.grupos[g]) / t!.pago) * 100}%;background:${CORES_GRUPOS[g]}`}></span>)}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <!-- 3. Depois da decisão -->
+        <section class="bloco" id="depois">
+          <div class="texto">
+            <h2>Depois da decisão do STF</h2>
+            <p>
+              Em 25 de março de 2026, o Supremo decidiu que juízes e promotores só podem receber os auxílios que uma lei federal criar, e que o que
+              vem por cima do subsídio fica limitado a 70% do teto: 35% por tempo de serviço e 35% de indenizações (o auxílio-saúde fica fora do
+              limite). O corte apareceu nos pagamentos de maio de 2026.
+            </p>
+            {x.comA && x.comB && (
+              <p>
+                Nos {x.comB.orgaos} órgãos com dados nos dois períodos, o que passa do teto caiu de {moedaCurta(x.comA.excessoMes)} para{" "}
+                <strong>{moedaCurta(x.comB.excessoMes)} por mês</strong>. Mas a parte de quem passa do teto quase não mudou ({pct0(x.comA.parte)} antes,{" "}
+                {pct0(x.comB.parte)} depois): o limite de 70% virou o alvo, e quase todos ficaram perto dele, o teto mais 70%,{" "}
+                {milReais(TETO * 1.7)}.
+              </p>
+            )}
+            <p class="menor">
+              A coleta de 2026 tem buracos, sobretudo nos Ministérios Públicos: a comparação usa só os órgãos com dados nos dois períodos. Cada
+              barra ao lado é um mês, com os órgãos que tinham dado naquele mês.
+            </p>
+          </div>
+          <div class="grafico">
+            <h3>Quanto passa do teto, por juiz ou promotor, no mês</h3>
+            <ol class="linhas serie" aria-label="Quanto passou do teto, em média, por juiz ou promotor, em cada mês">
+              {x.s.map((m) => (
+                <li class:list={{ apos: m.mes >= x.pB.de }} title={`${mesExtenso(m.mes)}: ${m.orgaos} órgãos, ${nf0.format(m.membros)} juízes e promotores, ${pct0(m.parte)} acima do teto`}>
+                  <span class="rotulo">{mesCurto(m.mes)}</span>
+                  <span class="trilho"><span class="barra" style={`width:${(m.porMembro / x.maxSerie) * 100}%`}></span></span>
+                  <span class="num valor"><strong>{milReais(m.porMembro)}</strong> <span>{pct0(m.parte)}</span></span>
+                </li>
+              ))}
+            </ol>
+            <p class="menor-grafico">Ao lado do valor, a parte que passou do teto no mês.</p>
+          </div>
+        </section>
+
+        <!-- 3b. Quanto custa -->
+        {c && (
+          <section class="bloco" id="custo">
+            <div class="texto">
+              <h2>Quanto isso custa</h2>
+              <p>
+                O que passou do teto em {x.pA.rotulo}, {moedaExtenso(c.a.estado.excesso + c.a.uniao.excesso)}, saiu dos orçamentos públicos:{" "}
+                <strong>{moedaExtenso(c.a.estado.excesso)}</strong> dos estados, que pagam os tribunais de justiça e os Ministérios Públicos
+                estaduais, e <strong>{moedaExtenso(c.a.uniao.excesso)}</strong> da União, que paga a Justiça Federal, a do Trabalho, o Ministério
+                Público da União e a Justiça do Distrito Federal.
+              </p>
+              <p>
+                E há o imposto que não entra. Como boa parte do extra se chama <Termo id="verba-indenizatoria">indenização</Termo>, não paga
+                imposto de renda. Se tudo o que esses juízes e promotores receberam fosse tributado como salário, o imposto descontado seria{" "}
+                {moedaExtenso(c.a.estado.irSalario + c.a.uniao.irSalario)}; foi {moedaExtenso(c.a.estado.ir + c.a.uniao.ir)}. A diferença,{" "}
+                <strong>até {moedaExtenso(c.diferenca)}</strong>, deixou de entrar.
+              </p>
+              <p>
+                Quem perde é quem paga. O imposto de renda que um estado desconta dos seus servidores fica com o próprio estado: são até{" "}
+                {moedaExtenso(c.a.estado.diferenca)} a menos no caixa estadual, dos quais pelo menos {moedaExtenso(c.educacaoSaude)} teriam de ir
+                para educação e saúde (25% e 12% dos impostos). O da União é repartido: dos {moedaExtenso(c.a.uniao.diferenca)}, cerca de{" "}
+                {moedaCurta(c.fpm)} iriam para as prefeituras, pelo Fundo de Participação dos Municípios, e {moedaCurta(c.fpe)} para os estados, pelo
+                Fundo de Participação dos Estados.
+              </p>
+              {c.porMesB !== null && (
+                <p>
+                  {x.pB.rotulo[0].toUpperCase() + x.pB.rotulo.slice(1)}, com o limite do STF, a diferença caiu para cerca de{" "}
+                  {moedaCurta(c.porMesB)} por mês, contra {moedaCurta(c.diferenca / 12)} por mês em {x.pA.rotulo}.
+                </p>
+              )}
+              <p class="menor">
+                "Até" porque a conta trata como salário também o que é indenização de verdade, como o reembolso do plano de saúde. Fica fora o
+                imposto do 13º e das férias, cobrado à parte. Só entram os órgãos cujo arquivo traz o desconto do imposto de renda
+                ({c.a.estado.orgaos + c.a.uniao.orgaos} órgãos, com {pct0((c.a.estado.membros + c.a.uniao.membros) / (c.a.estado.membrosTodos + c.a.uniao.membrosTodos))} dos
+                juízes e promotores). As duas contas não se somam: se o teto fosse cumprido, o dinheiro nem seria pago.
+              </p>
+            </div>
+            <div class="grafico">
+              <h3>Imposto de renda em {x.pA.rotulo}: descontado e se fosse salário</h3>
+              <ul class="legenda-curta" aria-hidden="true">
+                <li><span class="cor ante"></span>Descontado</li>
+                <li><span class="cor depois"></span>Se tudo fosse salário</li>
+              </ul>
+              <ol class="degraus" aria-label="Imposto de renda descontado e o que seria descontado se tudo fosse salário, por quem paga">
+                {([["estado", "Tribunais e MPs dos estados"], ["uniao", "Justiça e MP da União"]] as const).map(([k, nome]) => (
+                  <li>
+                    <span class="nome">{nome}</span>
+                    <span class="trilho duplo">
+                      <span class="barra ante" style={`width:${(c.a[k].ir / c.maxIr) * 100}%`}></span>
+                      <span class="barra depois" style={`width:${(c.a[k].irSalario / c.maxIr) * 100}%`}></span>
+                    </span>
+                    <span class="num valor"><strong>{moedaCurta(c.a[k].ir)}</strong> <span>{moedaCurta(c.a[k].irSalario)}</span></span>
+                  </li>
+                ))}
+              </ol>
+              <h3>Quem deixa de receber</h3>
+              <ul class="legenda">
+                <li><span class="cor" style="background:#0a4a29"></span><span class="nome"><strong>Os governos estaduais</strong> <span>(imposto que fica com o estado)</span></span><span class="num">{moedaCurta(c.a.estado.diferenca)}</span></li>
+                <li><span class="cor" style="background:#1f7a47"></span><span class="nome"><strong>As prefeituras</strong> <span>(Fundo de Participação dos Municípios)</span></span><span class="num">{moedaCurta(c.fpm)}</span></li>
+                <li><span class="cor" style="background:#4fae73"></span><span class="nome"><strong>Os estados, pela União</strong> <span>(Fundo de Participação dos Estados)</span></span><span class="num">{moedaCurta(c.fpe)}</span></li>
+                <li><span class="cor" style="background:#b3dfc4"></span><span class="nome"><strong>A União e os fundos regionais</strong></span><span class="num">{moedaCurta(c.a.uniao.diferenca - c.fpm - c.fpe)}</span></li>
+              </ul>
+              <p class="menor-grafico">Imposto de renda que deixou de entrar em {x.pA.rotulo}, por quem ficaria com ele.</p>
+              {(c.nosEstados.alunos || c.naUniao) && (
+                <>
+                  <h3>O que o mesmo dinheiro pagaria</h3>
+                  <ul class="exemplos">
+                    {c.nosEstados.alunos && c.nosEstados.porAluno && (
+                      <li>
+                        <strong class="num">{milhoesDe(c.nosEstados.alunos)}</strong>
+                        <span>{c.nosEstados.alunos >= 1e6 ? "de alunos" : "alunos"} com um ano de escola na rede estadual. É o que os {moedaCurta(c.a.estado.excesso)} pagos acima do teto pelos estados
+                        cobririam, ao custo médio de {moedaCurta(c.nosEstados.porAluno)} por aluno.</span>
+                      </li>
+                    )}
+                    {c.nosEstados.diasSaude && (
+                      <li>
+                        <strong class="num">{nf0.format(c.nosEstados.diasSaude)} dias</strong>
+                        <span>de todo o gasto dos 27 governos estaduais com saúde, com o mesmo dinheiro.</span>
+                      </li>
+                    )}
+                    {c.naUniao && (
+                      <li>
+                        <strong class="num">{nf0.format(Math.round(c.naUniao.cidades / 10) * 10)} cidades</strong>
+                        <span>pequenas (até 10 mil moradores) com o FPM de um ano inteiro pago pelos {moedaCurta(c.a.uniao.excesso)} da União acima do
+                        teto. A cidade pequena típica recebeu {moedaCurta(c.naUniao.mediana)} de FPM em {c.naUniao.ano}.</span>
+                      </li>
+                    )}
+                  </ul>
+                  <p class="menor-grafico">Com os números do próprio site: gasto em educação básica por aluno das escolas estaduais e gasto com saúde no ano mais recente das contas de cada governo; FPM de {c.naUniao?.ano ?? "2025"}.</p>
+                </>
+              )}
+            </div>
+          </section>
+        )}
+
+        <!-- 4. Órgão por órgão -->
+        <section class="orgaos" id="orgaos">
+          <div class="texto-largo">
+            <h2>Órgão por órgão</h2>
+            <p>
+              Todos os tribunais e Ministérios Públicos pagam o mesmo subsídio; a diferença entre eles está no que vem por cima. A barra mostra
+              quanto passa do teto, em média, por juiz ou promotor num mês; a faixa colorida, de onde vem o que cada órgão paga.
+            </p>
+          </div>
+          <div class="escolha" role="radiogroup" aria-label="Período">
+            {d.periodos.map((p, k) => (
+              <label><input type="radio" name="periodo" value={p.id} checked={k === 0} /> {p.rotulo}</label>
+            ))}
+          </div>
+          {d.periodos.map((p, k) => (
+            <div class="periodo" data-periodo={p.id} hidden={k !== 0}>
+              {ORDEM_TIPOS.map((t) => {
+                const { ls, max } = tabela(p.id, t);
+                if (!ls.length) return null;
+                return (
+                  <div class="tipo">
+                    <h3>{x.doc.tipos[t]}</h3>
+                    <div class="rolagem"><table>
+                      <thead>
+                        <tr>
+                          <th scope="col">Órgão</th>
+                          <th scope="col" class="n membros">Membros</th>
+                          <th scope="col" class="n">Acima do teto</th>
+                          <th scope="col" class="barra-col">Passa do teto, por membro, no mês</th>
+                          <th scope="col" class="n so-largo">No período</th>
+                          <th scope="col" class="so-largo">De onde vem o que é pago</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ls.map((l) => (
+                          <tr>
+                            <th scope="row"><abbr title={l.nome}>{l.sigla}</abbr>{l.meses.length < nMeses(p) && <small> {l.meses.length} {l.meses.length === 1 ? "mês" : "meses"}</small>}</th>
+                            <td class="n membros">{nf0.format(l.membros)}</td>
+                            <td class="n">{l.parte !== null ? pct0(l.parte) : l.excesso !== null
+                              ? <span class="poucos" title="Num mês típico, menos de 5 passam do teto">só em {l.meses_acima} {l.meses_acima === 1 ? "mês" : "meses"}</span>
+                              : <span class="poucos">menos de 5</span>}</td>
+                            <td class="barra-col">
+                              {l.porMembro !== null && (
+                                <span class="celula-barra"><span class="trilho"><span class="barra" style={`width:${(l.porMembro / max) * 100}%`}></span></span><span class="num">{milReais(l.porMembro)}</span></span>
+                              )}
+                            </td>
+                            <td class="n so-largo">{l.excesso === null ? "—" : moedaCurta(l.excesso)}</td>
+                            <td class="so-largo">
+                              <span class="pilha mini" title={x.grupos.map((g) => `${NOMES_CURTOS[g]}: ${moedaCurta((l.grupos[g] ?? 0) / l.meses.length)} por mês`).join(" · ")}>
+                                {larguraGrupos(l).map(({ g, w }) => <span style={`width:${w}%;background:${CORES_GRUPOS[g]}`}></span>)}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table></div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          <ul class="legenda-curta" aria-hidden="true">
+            {x.grupos.map((g) => <li><span class="cor" style={`background:${CORES_GRUPOS[g]}`}></span>{NOMES_CURTOS[g]}</li>)}
+          </ul>
+        </section>
+
+        <!-- 5. Executivo federal -->
+        {f && (
+          <section class="bloco" id="federal">
+            <div class="texto">
+              <h2>No Executivo federal</h2>
+              <p>
+                Nos ministérios, autarquias e universidades federais, o salário quase nunca passa do teto: quando passa, o contracheque corta
+                a diferença (o abate-teto). Somando tudo o que receberam, porém, <strong>{nf0.format(f.c4.acima)} dos {nf0.format(f.t.servidores)}{" "}
+                servidores civis</strong> ({pct(f.c4.acima / f.t.servidores)}) passaram do teto num mês típico, {f.periodo}, e o que passou somou{" "}
+                <strong>{moedaExtenso(f.excesso)}</strong> em {f.t.meses} meses.
+              </p>
+              <p>
+                A maior parte vem dos <strong>honorários de sucumbência</strong>: o dinheiro que quem perde um processo contra a União paga, dividido
+                entre os advogados públicos federais (Advocacia-Geral da União e Procuradoria da Fazenda Nacional). Com o salário e os pagamentos
+                eventuais, {nf0.format(f.c2.acima)} servidores passam do teto num mês; com os honorários, {nf0.format(f.c3.acima)}. Os auxílios
+                levam o número a {nf0.format(f.c4.acima)}, quase sempre por pouco.
+              </p>
+              <p class="menor">
+                Em 2020, o Supremo decidiu que o salário somado aos honorários tem de respeitar o teto (ADI 6053). O arquivo publicado pelo
+                Portal da Transparência mostra os honorários sem nenhum corte; pode haver um limite aplicado fora dele, que o Portal não mostra.
+                A conta é de servidores civis na ativa, sem militares, aposentados, 13º e férias.
+              </p>
+            </div>
+            <div class="grafico">
+              <ol class="degraus" aria-label="Servidores civis do Executivo federal acima do teto, somando uma parte do que recebem por vez">
+                {f.t.camadas.map((c, i) => (
+                  <li>
+                    <span class="nome">{i === 0 ? "Só o salário" : `+ ${NOMES_FEDERAL[c.grupo].toLowerCase()}`}</span>
+                    <span class="trilho"><span class="barra ante" style={`width:${(c.acima / f.c4.acima) * 100}%;background:${CORES_FEDERAL[c.grupo] === "#ddd5c3" ? "var(--tinta)" : CORES_FEDERAL[c.grupo]}`}></span></span>
+                    <span class="num valor"><strong>{nf0.format(c.acima)}</strong> <span>{moedaCurta(c.excessoMes)}/mês</span></span>
+                  </li>
+                ))}
+              </ol>
+              <p class="menor-grafico">Servidores acima do teto num mês típico e quanto passa do teto por mês, somando uma parte por vez.</p>
+              <h3>Os órgãos com mais dinheiro acima do teto, em {f.t.meses} meses</h3>
+              <ol class="linhas federal" aria-label="Órgãos do Executivo federal com mais dinheiro acima do teto">
+                {f.maiores.map((l) => (
+                  <li title={l.acima !== null ? `${l.nome}: ${nf0.format(l.acima)} de ${nf0.format(l.servidores)} servidores acima do teto num mês típico` : `${l.nome}: 5 ou mais acima do teto em ${l.meses_acima} dos ${l.meses} meses`}>
+                    <span class="rotulo">{l.orcamento ? <a href={`/orgaos/${l.orcamento}`}>{l.nome}</a> : l.nome}</span>
+                    <span class="trilho"><span class="barra" style={`width:${((l.excesso ?? 0) / f.maxExc) * 100}%`}></span></span>
+                    <span class="num valor"><strong>{moedaCurta(l.excesso ?? 0)}</strong> <span>{l.acima !== null ? `${nf0.format(l.acima)} de ${nf0.format(l.servidores)}` : `só em ${l.meses_acima} ${l.meses_acima === 1 ? "mês" : "meses"}`}</span></span>
+                  </li>
+                ))}
+              </ol>
+              {f.resto.length > 0 && (
+                <p class="menor-grafico">
+                  Outros {f.resto.length} órgãos com pelo menos 5 servidores acima do teto somam {moedaCurta(f.resto.reduce((t, l) => t + (l.excesso ?? 0), 0))}.
+                  Ao lado do valor, quantos servidores passam do teto num mês típico, de quantos; "só em N meses" quando o extra veio
+                  de uma vez, em poucos meses (pagamentos atrasados, em geral).
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
+        <!-- 5b. Executivo dos estados -->
+        {estadosExe.length > 0 && (
+          <section class="bloco" id="estados">
+            <div class="texto">
+              <h2>Nos governos estaduais</h2>
+              <p>
+                Poucos estados publicam a folha com as partes do salário separadas, em arquivos que dá para somar. O primeiro aqui é o Paraná.
+                {estadosExe.map(({ e }) => (
+                  <> Nas secretarias, autarquias, empresas e universidades do estado, <strong>{nf0.format(e!.acima)} dos{" "}
+                  {nf0.format(e!.vinculos)} vínculos</strong> ({pct(e!.parte)}) passaram do teto num mês típico, {e!.periodo}, e o que passou somou{" "}
+                  <strong>{moedaExtenso(e!.excesso)}</strong> em {e!.meses} meses.</>
+                ))}
+              </p>
+              <p class="menor">
+                Por vínculo (quem tem dois cargos conta duas vezes), sem aposentados, 13º e férias, com o teto nacional; no governo estadual o
+                limite é o salário do governador, mais baixo. Os juízes e promotores do estado estão nas partes de cima desta página.
+              </p>
+            </div>
+            <div class="grafico">
+              {estadosExe.map(({ uf, e }) => (
+                <>
+                  <h3><a href={`/estados/${uf.toLowerCase()}#teto`}>Paraná</a>: os órgãos com mais dinheiro acima do teto, em {e!.meses} meses</h3>
+                  <ol class="linhas federal" aria-label="Órgãos do governo do Paraná com mais dinheiro acima do teto">
+                    {e!.orgaos.filter((o) => o.excesso !== null).slice(0, 8).map((o, _i, arr) => (
+                      <li>
+                        <span class="rotulo">{o.nome}</span>
+                        <span class="trilho"><span class="barra" style={`width:${((o.excesso ?? 0) / (arr[0].excesso ?? 1)) * 100}%`}></span></span>
+                        <span class="num valor"><strong>{moedaCurta(o.excesso ?? 0)}</strong> <span>{o.acima !== null ? `${nf0.format(o.acima)} de ${nf0.format(o.vinculos)}` : `só em ${o.meses_acima} ${o.meses_acima === 1 ? "mês" : "meses"}`}</span></span>
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <!-- 6. Cuidados -->
+        <section class="fontes" id="cuidados">
+          <h2>O que esta conta não diz</h2>
+          <ul>
+            <li>
+              <strong>Não diz que é ilegal.</strong> Quase tudo o que passa do teto tem uma lei, uma resolução ou uma decisão que o tira da conta.
+              "Acima do teto" quer dizer só que a pessoa recebeu mais que R$ {nf0.format(TETO)} no mês.
+            </li>
+            <li>
+              <strong>Juízes, promotores, o Executivo federal e o do Paraná.</strong> Os servidores dos tribunais e dos Ministérios Públicos não
+              entram, nem defensores, o Legislativo, os militares, os outros governos estaduais e as prefeituras. Os tribunais eleitorais, o CNJ e o CJF ficam de fora
+              porque pagam só uma gratificação a quem recebe o salário em outro tribunal; os tribunais superiores (STF, STJ, TST e STM), porque os
+              arquivos deles misturam ministros na ativa, aposentados, pensionistas e juízes convocados de outros tribunais. Só conta quem recebeu
+              subsídio do órgão no mês.
+            </li>
+            <li>
+              <strong>A conta é por contracheque, e erra para menos.</strong> Sem o CPF, não dá para somar o que a mesma pessoa recebe em dois
+              lugares (o tribunal e o TRE, por exemplo). E pagamentos de uma vez só, como atrasados, pesam no mês em que caem: por isso a conta
+              principal é o ano.
+            </li>
+            <li>
+              <strong>Nem todo órgão tem todos os meses.</strong> Quando um órgão não publicou ou o DadosJusBr não conseguiu coletar um mês, a soma
+              do período fica menor; a tabela diz quantos meses entraram. Em 2026, a maior parte dos Ministérios Públicos ainda não tem dados.
+            </li>
+            <li>
+              <strong>Nenhuma pessoa aparece.</strong> O site lê os contracheques, soma por órgão e apaga o resto. Uma conta com menos de 5 pessoas
+              não é mostrada.
+            </li>
+          </ul>
+          <p class="menor">
+            Fonte: <a href={d.url}>DadosJusBr</a>, que coleta todo mês os contracheques que os tribunais enviam ao Conselho Nacional de Justiça e os
+            que os Ministérios Públicos publicam, e padroniza as rubricas (licença CC-BY 4.0).
+            {f && <> Executivo federal: <a href={f.doc.url}>Portal da Transparência</a> (CGU), remuneração dos servidores civis (SIAPE), honorários advocatícios e jetons. <a href="/data/indicadores/supersalarios-federal.json">Dados</a> (JSON).</>} Atualizado em {d.gerado.split("-").reverse().join("/")}.{" "}
+            <a href="/data/indicadores/supersalarios.json">Baixe os dados desta página</a> (JSON).
+          </p>
+        </section>
+      </>
+    )}
+  </div>
+</Base>
+
+<script>
+  // Troca o período da tabela de órgãos.
+  for (const r of document.querySelectorAll<HTMLInputElement>('.escolha input[name="periodo"]')) {
+    r.addEventListener("change", () => {
+      for (const p of document.querySelectorAll<HTMLElement>(".periodo")) p.hidden = p.dataset.periodo !== r.value;
+    });
+  }
+</script>
+
+<style>
+  .cabeca { padding: 40px 0 32px; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 880px; }
+  .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .cabeca p strong { color: var(--tinta); }
+
+  .numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 32px; font-weight: 700; white-space: nowrap; }
+  .numeros small { font-size: 14px; color: var(--texto-3); }
+
+  .indice { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 16px 0; font-size: 15px; border-bottom: 1px solid var(--regra); }
+
+  .bloco { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 40px; scroll-margin-top: 12px; }
+  .indice + .bloco { border-top: 0; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2, .texto-largo h2 { font-size: 34px; }
+  .texto p, .texto-largo p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .grafico { grid-column: span 7; display: flex; flex-direction: column; gap: 18px; }
+  .grafico h3 { font-size: 18px; }
+
+  .legenda-curta { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--texto-3); }
+  .legenda-curta li { display: flex; align-items: center; gap: 6px; }
+  .legenda-curta .cor { width: 14px; height: 14px; display: inline-block; border: 1px solid rgba(0, 0, 0, 0.15); }
+  .barra.ante, .legenda-curta .ante { background: var(--tinta); }
+  .barra.depois, .legenda-curta .depois { background: var(--verde); }
+
+  .trilho { position: relative; display: block; height: 14px; }
+  .barra { display: block; height: 100%; background: var(--verde); }
+  .trilho.duplo { height: 20px; display: flex; flex-direction: column; justify-content: space-between; }
+  .trilho.duplo .barra { height: 9px; }
+
+  .degraus, .linhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .degraus li { display: grid; grid-template-columns: 220px minmax(0, 1fr) 90px; gap: 12px; align-items: center; font-size: 14px; }
+  .degraus .nome { color: var(--texto-2); line-height: 1.3; }
+  .valor { text-align: right; white-space: nowrap; }
+  .valor span { color: var(--texto-3); font-size: 13px; }
+  .linhas li { display: grid; grid-template-columns: 130px minmax(0, 1fr) 110px; gap: 12px; align-items: center; font-size: 14px; }
+  .linhas .rotulo { color: var(--texto-3); }
+  .linhas.federal li { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 170px; }
+  #custo .degraus li, #federal .degraus li { grid-template-columns: 190px minmax(0, 1fr) 170px; }
+  .linhas.federal .rotulo { color: var(--texto-2); line-height: 1.3; }
+  .linhas.serie { gap: 4px; }
+  .linhas.serie li { grid-template-columns: 56px minmax(0, 1fr) 110px; }
+  .linhas.serie .barra { background: var(--tinta); }
+  .linhas.serie .apos .barra { background: var(--verde); }
+  .linhas.serie .apos .rotulo { color: var(--tinta); }
+  .menor-grafico { margin: 0; font-size: 14px; color: var(--texto-3); }
+
+  .legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--regra); }
+  .legenda li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--regra-leve); font-size: 14px; }
+  .legenda .cor { width: 14px; height: 14px; align-self: center; border: 1px solid rgba(0, 0, 0, 0.15); }
+  .legenda .num { text-align: right; font-family: var(--serifa); font-size: 18px; font-weight: 700; white-space: nowrap; }
+  .exemplos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--regra); }
+  .exemplos li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 14px; color: var(--texto-2); line-height: 1.45; }
+  .exemplos strong { font-family: var(--serifa); font-size: 22px; font-weight: 700; color: var(--tinta); white-space: nowrap; }
+  .legenda .num small { font-family: var(--sans, inherit); font-size: 14px; font-weight: 400; color: var(--texto-3); }
+  .pilhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .pilhas li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: center; font-size: 14px; }
+  .pilhas .rotulo { color: var(--texto-3); }
+  .pilha { display: flex; height: 22px; }
+  .pilha span { display: block; height: 100%; }
+  .pilha.mini { height: 12px; min-width: 120px; }
+
+  .orgaos { border-top: 2px solid var(--tinta); padding: 32px 0; display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 12px; }
+  .texto-largo { max-width: 760px; display: flex; flex-direction: column; gap: 12px; }
+  .escolha { display: flex; gap: 8px; flex-wrap: wrap; }
+  .escolha label { border: 1px solid var(--tinta); padding: 6px 14px; font-size: 15px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+  .escolha label:has(input:checked) { background: var(--tinta); color: var(--papel); }
+  .escolha input { accent-color: var(--verde); }
+  .periodo { display: flex; flex-direction: column; gap: 28px; }
+  .periodo[hidden] { display: none; }
+  .tipo h3 { font-size: 20px; margin-bottom: 8px; }
+  .rolagem { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead th { text-align: left; font-weight: 400; color: var(--texto-3); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--tinta); vertical-align: bottom; }
+  tbody th, tbody td { padding: 6px 8px; border-bottom: 1px solid var(--regra-leve); vertical-align: middle; }
+  tbody th { text-align: left; font-weight: 600; white-space: nowrap; }
+  tbody th abbr { text-decoration: none; }
+  tbody th small { font-weight: 400; color: var(--texto-3); }
+  th:first-child, td:first-child { padding-left: 0; }
+  .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  thead .n { text-align: right; }
+  .barra-col { width: 34%; }
+  .celula-barra { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 8px; align-items: center; }
+  .celula-barra .num { text-align: right; white-space: nowrap; }
+  .poucos { color: var(--texto-3); font-size: 13px; }
+
+  .fontes { border-top: 2px solid var(--tinta); padding: 32px 0 0; display: flex; flex-direction: column; gap: 12px; max-width: 880px; scroll-margin-top: 12px; }
+  .fontes h2 { font-size: 26px; }
+  .fontes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
+  .fontes .menor { margin: 0; font-size: 14px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .cabeca { padding: 28px 0 24px; }
+    .cabeca h1 { font-size: 40px; }
+    .cabeca p { font-size: 17px; }
+    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(2n) { border-right: 0; }
+    .numeros div:nth-child(2n + 1) { padding-left: 0; }
+    .numeros strong { font-size: 26px; }
+    .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2, .texto-largo h2 { font-size: 28px; }
+    .degraus li { grid-template-columns: minmax(0, 1fr) 80px; }
+    .degraus .trilho { grid-column: 1 / -1; grid-row: 2; }
+    .linhas li { grid-template-columns: 100px minmax(0, 1fr) 96px; gap: 8px; }
+    .linhas.serie li { grid-template-columns: 48px minmax(0, 1fr) 100px; }
+    .linhas.federal li { grid-template-columns: minmax(0, 1fr) auto; }
+    .linhas.federal .trilho { grid-column: 1 / -1; grid-row: 2; }
+    #federal .degraus li, #custo .degraus li { grid-template-columns: minmax(0, 1fr) auto; }
+    .exemplos li { grid-template-columns: 1fr; gap: 2px; }
+    #federal .valor span, #custo .valor span, #estados .valor span { display: block; }
+    .so-largo, .membros { display: none; }
+    .barra-col { width: auto; }
+    .celula-barra { grid-template-columns: minmax(40px, 1fr) auto; }
+    thead th, tbody th, tbody td { padding: 6px 4px; }
+  }
+</style>
