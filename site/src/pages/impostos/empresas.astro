@@ -39,6 +39,7 @@ const descricao = r
 <Base title="Quem deixa de pagar imposto · Orçamento Brasileiro" description={descricao}>
   <div class="wrap beneficios" data-beneficios data-ano={r?.ano} data-empresas={arquivoEmpresas} data-detalhe={arquivoDetalhe}
     data-tipos={JSON.stringify(tipoDoGrupo)} data-contratos-ano={r?.contratosAno ?? ""} data-pgfn={posicaoPgfn}
+    data-grupos={JSON.stringify((r?.grupos ?? []).map((g) => [g.id, g.nome]))} data-ufs={JSON.stringify((r?.uf ?? []).map((u) => u[0]).filter((u) => u.length === 2).sort())}
     data-parciais={JSON.stringify(Object.fromEntries((r?.anos ?? []).filter((a) => a.meses < 12).map((a) => [a.ano, a.ultimoMes])))}>
     {!r || !c ? (
       <section class="abre"><h1>Quem deixa de pagar imposto</h1><p>Os dados dos benefícios fiscais ainda não foram carregados.</p></section>
@@ -132,6 +133,7 @@ const descricao = r
                         <li><a href={m.raiz ? `?empresa=${m.raiz}` : undefined}>{nomeExibido(m)}</a><strong>{moedaCurta(m.valor)}</strong></li>
                       ))}
                     </ol>
+                    <a class="ver-todas" href={`?lista=1&grupo=${g.id}`}>Ver todas as empresas deste grupo</a>
                   </div>
                 </details>
               ))}
@@ -170,7 +172,10 @@ const descricao = r
                 </tbody>
               </table>
             </div>
-            <button type="button" class="mais" data-mais>Mostrar as {r.maiores.length} maiores</button>
+            <div class="acoes">
+              <button type="button" class="mais" data-mais>Mostrar as {r.maiores.length} maiores</button>
+              <a class="mais todas" href="?lista=1">Ver todas as {nf0.format(r.empresas - r.ocultas[0])} empresas, com filtros</a>
+            </div>
             <p class="menor">
               "Deve à União" é a <Termo id="divida-ativa">dívida ativa</Termo> em cobrança na Procuradoria da Fazenda ({posicaoPgfn}), sem a parte
               parcelada, garantida ou suspensa na Justiça. Dívida em cobrança não é condenação. Na ficha de cada empresa estão também os contratos
@@ -242,6 +247,7 @@ const descricao = r
   const inicio = document.querySelector("[data-inicio]");
   const q = (params.get("q") || "").trim();
   const empresa = (params.get("empresa") || "").trim();
+  const lista = params.has("lista");
   if (q) document.querySelector("#busca-beneficios").value = q;
 
   const ANO = Number(raiz?.dataset.ano);
@@ -258,7 +264,7 @@ const descricao = r
   const titulo = (s) => {
     if (!s || s !== s.toUpperCase()) return s || "";
     const l = s.replace(/\s+(LTDA\.?|S\/A\.?|S\.A\.?|SA|EIRELI|ME|EPP)\s*$/i, "");
-    return l.toLowerCase().split(/\s+/).map((p, i) => (/^(s\/?a|me|epp|eireli)$/.test(p) ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
+    return l.toLowerCase().split(/\s+/).map((p, i) => (/^(s\/?a|me|epp|eireli)$/.test(p) || (p.length <= 4 && !/[aeiouáéíóúâêôãõ]/.test(p)) ? p.toUpperCase() : i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
   };
   const nomeDe = (e) => (e.raiz ? titulo(e.nome) : String(e.nome).replace(/restri[çc][ãa]o judicial/i, "Restrição judicial"));
   const cnpj8 = (r) => r.replace(/^(\d{2})(\d{3})(\d{3})$/, "$1.$2.$3");
@@ -293,6 +299,7 @@ const descricao = r
     try {
       await conectar();
       if (empresa) await ficha(empresa);
+      else if (lista) await listar();
       else await busca(q);
       saida.scrollIntoView({ block: "start" });
     } catch (erro) {
@@ -374,8 +381,81 @@ const descricao = r
       </section>`;
   }
 
-  // Por último: a busca e a ficha usam as funções acima.
-  if (raiz && saida && (q || empresa)) iniciar();
+
+  /** Todas as empresas, do maior para o menor valor, com filtros (grupo de benefício, estado da matriz, tipo) e páginas de 50. */
+  async function listar() {
+    carregando("Juntando a lista das empresas…");
+    const GRUPOS = JSON.parse(raiz.dataset.grupos || "[]");
+    const UFS = JSON.parse(raiz.dataset.ufs || "[]");
+    const grupo = GRUPOS.some((g) => g[0] === params.get("grupo")) ? params.get("grupo") : "";
+    const uf = UFS.includes(params.get("uf")) ? params.get("uf") : "";
+    const tipo = ["empresa", "produto", "setor"].includes(params.get("tipo")) ? params.get("tipo") : "";
+    const EMP = abs(raiz.dataset.empresas), DET = abs(raiz.dataset.detalhe);
+    // A posição é contada antes do filtro de estado e de tipo: a 3ª do país continua 3ª filtrando por SP.
+    if (grupo) {
+      await consulta(`CREATE OR REPLACE TEMP TABLE l AS WITH g AS (SELECT chave, sum(valor) AS valor FROM read_parquet('${DET}') WHERE ano = ? AND grupo = ? GROUP BY chave)
+        SELECT e.raiz, e.chave, e.nome, e.uf, e.setor, e.beneficio, e.grupo, e.cobranca, g.valor, row_number() OVER (ORDER BY g.valor DESC)::INTEGER AS pos
+        FROM g JOIN read_parquet('${EMP}') e USING (chave)`, [ANO, grupo]);
+    } else {
+      await consulta(`CREATE OR REPLACE TEMP TABLE l AS SELECT raiz, chave, nome, uf, setor, beneficio, grupo, cobranca, v${ANO} AS valor,
+        row_number() OVER (ORDER BY v${ANO} DESC)::INTEGER AS pos FROM read_parquet('${EMP}') WHERE v${ANO} > 0`);
+    }
+    const onde = [], v = [];
+    if (uf) { onde.push("uf = ?"); v.push(uf); }
+    if (tipo) { const gs = Object.keys(TIPOS).filter((k) => TIPOS[k] === tipo); onde.push(`grupo IN (${gs.map(() => "?").join(",") || "NULL"})`); v.push(...gs); }
+    const where = onde.length ? `WHERE ${onde.join(" AND ")}` : "";
+    const [s] = await consulta(`SELECT count(*)::INTEGER AS n, sum(valor) AS valor FROM l ${where}`, v);
+    const nomeGrupo = GRUPOS.find((g) => g[0] === grupo)?.[1];
+    const opcoes = (lista, atual, todos) => `<option value="">${todos}</option>` + lista.map(([val, txt]) => `<option value="${esc(val)}"${val === atual ? " selected" : ""}>${esc(txt)}</option>`).join("");
+    saida.innerHTML = `<p class="voltar"><a href="/impostos/empresas">← Página inicial</a></p>
+      <h2>${nomeGrupo ? `${esc(nomeGrupo)}: todas as empresas` : "Todas as empresas"}</h2>
+      <p class="texto"><strong>${nf0.format(s.n)} ${s.n === 1 ? "empresa" : "empresas"}</strong> que deixaram de pagar ${curto(num(s.valor))} em ${ANO}${nomeGrupo ? ` neste grupo` : ""}${uf ? `, com sede em ${esc(uf)}` : ""}.
+        O número ao lado do nome é a posição ${nomeGrupo ? "dentro do grupo" : "no país todo"}. Empresário individual e MEI não aparecem pelo nome.</p>
+      <form class="filtros-lista" data-filtros-lista>
+        <input type="hidden" name="lista" value="1" />
+        <label><span>Benefício</span><select name="grupo">${opcoes(GRUPOS, grupo, "Todos os benefícios")}</select></label>
+        <label><span>Estado da matriz</span><select name="uf">${opcoes(UFS.map((u) => [u, u]), uf, "Todos os estados")}</select></label>
+        <label><span>Tipo de benefício</span><select name="tipo">${opcoes([["empresa", "Da empresa"], ["produto", "Do produto"], ["setor", "Do setor (folha)"]], tipo, "Todos os tipos")}</select></label>
+        <button type="button" data-csv>Baixar a lista (CSV)</button>
+      </form>
+      <div class="rolagem-lista"><table class="lista-toda">
+        <thead><tr><th>#</th><th>Empresa</th><th>UF</th><th>Benefício maior</th><th class="d">${nomeGrupo ? "No grupo" : "Em " + ANO}</th><th>Dívida em cobrança</th></tr></thead>
+        <tbody data-linhas></tbody></table></div>
+      <button type="button" class="mais-lista" data-mais-lista hidden>Mostrar mais 50</button>`;
+    saida.querySelector("[data-filtros-lista]").addEventListener("change", (ev) => {
+      const f = new URLSearchParams(new FormData(ev.currentTarget));
+      for (const k of [...f.keys()]) if (!f.get(k)) f.delete(k);
+      location.search = f.toString();
+    });
+    const corpo = saida.querySelector("[data-linhas]"), mais = saida.querySelector("[data-mais-lista]");
+    const linha = (e) => `<tr><td class="pos">${nf0.format(e.pos)}</td>
+      <td class="empresa">${e.raiz ? `<a href="?empresa=${encodeURIComponent(e.chave)}">${esc(nomeDe(e))}</a>` : `<span>${esc(nomeDe(e))}</span>`}<small>${esc(frase(e.setor || ""))}</small></td>
+      <td>${esc(e.uf)}</td><td><span class="ponto" style="background:${COR[TIPOS[e.grupo] || "produto"]}" aria-hidden="true"></span>${esc(e.beneficio || "")}</td>
+      <td class="d valor">${curto(num(e.valor))}</td><td>${num(e.cobranca) >= 1e5 ? `<span class="deve">${curto(num(e.cobranca))}</span>` : ""}</td></tr>`;
+    let pagina = 0;
+    const carregar = async () => {
+      const l = await consulta(`SELECT * FROM l ${where} ORDER BY pos LIMIT 50 OFFSET ?`, [...v, pagina * 50]);
+      corpo.insertAdjacentHTML("beforeend", l.map(linha).join(""));
+      pagina += 1;
+      mais.hidden = pagina * 50 >= s.n;
+    };
+    mais.addEventListener("click", async () => { mais.disabled = true; await carregar(); mais.disabled = false; });
+    saida.querySelector("[data-csv]").addEventListener("click", async (ev) => {
+      ev.currentTarget.disabled = true;
+      const l = await consulta(`SELECT pos, raiz, nome, uf, setor, beneficio, valor, cobranca FROM l ${where} ORDER BY pos`, v);
+      const cel = (x) => { const t = String(x ?? ""); return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+      const cab = ["posicao", "raiz_cnpj", "empresa", "uf_matriz", "setor", "beneficio_maior", `valor_${ANO}`, "divida_em_cobranca"];
+      const csv = "﻿" + [cab.join(";"), ...l.map((x) => [x.pos, x.raiz, x.nome, x.uf, x.setor, x.beneficio, Math.round(num(x.valor)), Math.round(num(x.cobranca))].map(cel).join(";"))].join("\n");
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), download: `beneficios-fiscais-${ANO}${grupo ? "-" + grupo : ""}${uf ? "-" + uf : ""}.csv` });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      ev.currentTarget.disabled = false;
+    });
+    await carregar();
+  }
+
+  // Por último: a busca, a lista e a ficha usam as funções acima.
+  if (raiz && saida && (q || empresa || lista)) iniciar();
 </script>
 
 <style>
@@ -436,7 +516,10 @@ const descricao = r
   .filtros { display: flex; flex-wrap: wrap; gap: 8px; }
   .filtros button, .mais { min-height: 44px; padding: 0 16px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
   .filtros button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
-  .mais { align-self: flex-start; }
+  .acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .mais.todas { display: inline-flex; align-items: center; text-decoration: none; background: var(--tinta); color: var(--papel); }
+  .mais.todas:hover { background: var(--verde-escuro); color: #fff; }
+  .ver-todas { display: inline-block; margin-top: 12px; font-size: 15px; font-weight: 600; }
   .rolagem { overflow-x: auto; }
   .maiores { width: 100%; min-width: 860px; border-collapse: collapse; font-size: 15px; }
   .maiores th { text-align: left; font-weight: 400; font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 16px 8px 0; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--tinta); }
@@ -547,6 +630,36 @@ const descricao = r
   .beneficios .tres strong { font-family: var(--serifa); font-size: 30px; color: var(--tinta); }
   .beneficios .tres a { font-size: 14px; font-weight: 600; }
   .beneficios .tres mark { background: var(--marca-texto-fundo); padding: 0 4px; }
+  .beneficios .filtros-lista { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .beneficios .filtros-lista label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--texto-3); }
+  .beneficios .filtros-lista select { font: inherit; font-size: 14px; min-height: 44px; padding: 0 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 180px; }
+  .beneficios .filtros-lista button, .beneficios .mais-lista { min-height: 44px; padding: 0 16px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .beneficios .mais-lista { align-self: flex-start; }
+  .beneficios .rolagem-lista { overflow-x: auto; }
+  .beneficios .lista-toda { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 15px; }
+  .beneficios .lista-toda th { text-align: left; font-weight: 400; font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 16px 8px 0; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--tinta); }
+  .beneficios .lista-toda td { padding: 10px 16px 10px 0; border-bottom: 1px solid var(--regra-leve); vertical-align: middle; }
+  .beneficios .lista-toda .d { text-align: right; }
+  .beneficios .lista-toda .pos { color: var(--texto-3); font-variant-numeric: tabular-nums; width: 56px; }
+  .beneficios .lista-toda .empresa a, .beneficios .lista-toda .empresa span { font-weight: 600; color: var(--tinta); }
+  .beneficios .lista-toda small { display: block; font-size: 12px; color: var(--texto-3); }
+  .beneficios .lista-toda .valor { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .beneficios .lista-toda .ponto { display: inline-block; width: 10px; height: 10px; margin-right: 8px; }
+  .beneficios .lista-toda .deve { font-size: 12px; padding: 2px 8px; background: var(--marca-texto-fundo); white-space: nowrap; }
+  @media (max-width: 640px) {
+    .beneficios .filtros-lista label, .beneficios .filtros-lista select { width: 100%; }
+    .beneficios .lista-toda { min-width: 0; border-top: 1px solid var(--tinta); }
+    .beneficios .lista-toda thead { display: none; }
+    .beneficios .lista-toda tr { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; column-gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); }
+    .beneficios .lista-toda td { padding: 0; border: 0; }
+    .beneficios .lista-toda td:nth-child(1) { grid-row: 1; grid-column: 1; }
+    .beneficios .lista-toda td:nth-child(2) { grid-row: 1; grid-column: 2; }
+    .beneficios .lista-toda td:nth-child(5) { grid-row: 1; grid-column: 3; }
+    .beneficios .lista-toda td:nth-child(3) { grid-row: 2; grid-column: 3; text-align: right; font-size: 13px; color: var(--texto-3); }
+    .beneficios .lista-toda td:nth-child(4) { grid-row: 2; grid-column: 2; font-size: 13px; color: var(--texto-2); padding-top: 4px; }
+    .beneficios .lista-toda td:nth-child(6) { grid-row: 3; grid-column: 2 / -1; }
+    .beneficios .lista-toda td:nth-child(6):empty { display: none; }
+  }
   @media (max-width: 900px) {
     .beneficios .resultado h2.grande { font-size: 32px; }
     .beneficios .ficha-bloco { grid-template-columns: minmax(0, 1fr); gap: 20px; }

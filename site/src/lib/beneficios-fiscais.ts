@@ -79,7 +79,7 @@ export function nomeEmpresa(s: string): string {
   if (!s || s !== s.toUpperCase()) return s;
   const limpo = s.replace(/\s+(LTDA\.?|S\/A\.?|S\.A\.?|SA|EIRELI|ME|EPP)\s*$/i, "").replace(/\s+-\s+EM RECUPERACAO JUDICIAL$/i, "");
   return limpo.toLowerCase().split(/\s+/).map((p, i) => {
-    if (SIGLAS.test(p) && !/^ltda/i.test(p)) return p.toUpperCase();
+    if ((SIGLAS.test(p) && !/^ltda/i.test(p)) || (p.length <= 4 && !/[aeiouáéíóúâêôãõ]/.test(p))) return p.toUpperCase();
     if (i > 0 && pequenas.has(p)) return p;
     return p.charAt(0).toUpperCase() + p.slice(1);
   }).join(" ");
