@@ -8,6 +8,7 @@ import PrevidenciaServidores from "../../../components/gasto/PrevidenciaServidor
 import GastoEstadualAqui from "../../../components/gasto/GastoEstadualAqui.astro";
 import GastoFederalAqui from "../../../components/gasto/GastoFederalAqui.astro";
 import DividaAtivaCidade from "../../../components/gasto/DividaAtivaCidade.astro";
+import SupersalariosCidade from "../../../components/gasto/SupersalariosCidade.astro";
 import EducacaoResultado from "../../../components/gasto/EducacaoResultado.astro";
 import SaudeResultado from "../../../components/gasto/SaudeResultado.astro";
 import SaneamentoResultado from "../../../components/gasto/SaneamentoResultado.astro";
@@ -62,7 +63,7 @@ const base: BaseDaPagina | null = ctx
 const SUMARIO: GrupoDaPagina[] = [
   { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["contratos", "Os contratos"], ["pagamentos", "Para quem pagou"]] },
   { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida da prefeitura"], ["pessoal", "O gasto com pessoal"], ["previdencia", "A aposentadoria dos servidores"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
-  { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["estado-aqui", "O que o governo do estado gastou aqui"], ["federal-aqui", "O que o governo federal gastou aqui"], ["divida-ativa", "O que se deve ao governo federal"]] },
+  { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["estado-aqui", "O que o governo do estado gastou aqui"], ["federal-aqui", "O que o governo federal gastou aqui"], ["divida-ativa", "O que se deve ao governo federal"], ["teto-fpm", "Salários acima do teto e o FPM"]] },
   { id: "como-esta", n: 4, titulo: "Como está a cidade", itens: [["educacao", "Educação: gasto por aluno e nota das escolas"], ["escolas", "As escolas da prefeitura"], ["saude", "Saúde: mortalidade infantil"], ["postos", "Os postos e hospitais"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
 ];
 const descricao = temDados
@@ -125,6 +126,7 @@ const descricao = temDados
     {!ehDF && <div id="estado-aqui" data-so-padrao="o gasto do governo do estado aqui"><GastoEstadualAqui cidade={c} /></div>}
     <div id="federal-aqui" data-so-padrao="o gasto do governo federal aqui"><GastoFederalAqui cidade={c} /></div>
     <div id="divida-ativa" data-so-padrao="a dívida ativa da União"><DividaAtivaCidade cidade={c} /></div>
+    {!ehDF && <div id="teto-fpm" data-so-padrao="os salários acima do teto e o FPM"><SupersalariosCidade cidade={c} /></div>}
 
     {temDados && !ehDF && <p class="grupo-pagina" id="como-esta" data-grupo="como-esta">4 · Como está a cidade</p>}
     {temDados && !ehDF && <div id="educacao" data-so-padrao="a nota das escolas (Ideb)"><EducacaoResultado cidade={c} faixa={faixa} /></div>}

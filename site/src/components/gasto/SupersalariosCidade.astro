@@ -1,0 +1,52 @@
+---
+/**
+ * Na página da cidade: o FPM que a prefeitura deixou de receber porque a União não desconta imposto de renda do
+ * que paga acima do teto, como indenização, aos juízes e promotores federais (lib/supersalarios.ts). A parte da
+ * cidade segue a divisão do FPM que ela recebeu no mesmo ano. Some sem os dados.
+ */
+import Termo from "../Termo.astro";
+import { moedaExtenso } from "../../lib/formato";
+import { fpmPerdido } from "../../lib/supersalarios";
+import type { Cidade } from "../../lib/cidades";
+
+interface Props { cidade: Cidade }
+const { cidade } = Astro.props;
+const f = fpmPerdido(cidade.ibge);
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+/** "R$ 23 mil", "R$ 1,2 milhão" */
+const valor = (v: number) => (v >= 1e6 ? moedaExtenso(v) : `R$ ${nf0.format(Math.round(v / 1000))} mil`);
+---
+
+{f && f.perdido >= 1000 && (
+  <section class="bloco-teto">
+    <div class="texto">
+      <h2>Salários acima do teto e o FPM</h2>
+      <p>
+        Juízes e promotores pagos pela União (Justiça Federal, do Trabalho e o Ministério Público da União) recebem, acima do{" "}
+        <Termo id="teto-constitucional">teto</Termo>, pagamentos chamados de <Termo id="verba-indenizatoria">indenização</Termo>, que não pagam
+        imposto de renda. Se tudo fosse tributado como salário, a União teria descontado até {moedaExtenso(f.irUniao)} a mais em {f.ano}, e
+        25,5% disso iria para as prefeituras, pelo <Termo id="fpm">FPM</Termo>: até {moedaExtenso(f.fpmPais)} no país.
+      </p>
+      <p>
+        Pela mesma divisão do FPM que a prefeitura de {cidade.nome} recebeu em {f.anoFpm} ({moedaExtenso(f.recebido)}), a parte dela seria de{" "}
+        <strong>até {valor(f.perdido)}</strong>, {nf2.format((f.perdido / f.recebido) * 100)}% do que recebeu.
+      </p>
+      <p class="menor">
+        "Até" porque a conta trata como salário também o que é indenização de verdade. O imposto que os estados deixam de descontar dos seus
+        próprios juízes e promotores não entra aqui: ele seria do estado, não é repartido com as prefeituras.{" "}
+        <a href="/supersalarios#custo">Quanto isso custa no país →</a>
+      </p>
+    </div>
+  </section>
+)}
+
+<style>
+  .bloco-teto { border-top: 2px solid var(--tinta); padding: 32px 0; }
+  .texto { max-width: 760px; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  @media (max-width: 900px) { .bloco-teto { padding: 28px 0; } .texto h2 { font-size: 28px; } }
+</style>

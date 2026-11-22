@@ -356,3 +356,47 @@ export function periodoFederal(): string {
 
 /** Os órgãos do SIAPE que casam com um órgão do orçamento. */
 export const federalDoOrgao = (cod: string) => linhasFederal().filter((l) => l.orcamento === cod);
+
+// ---------------------------------------------------------------------------------------------------
+// O FPM que cada prefeitura deixou de receber: a parte do imposto de renda que a União não descontou dos juízes
+// e promotores que ela paga, dividida como o FPM que a cidade recebeu no mesmo ano (mapa/federal-{ano}.json,
+// pipeline/…/federal.py; a primeira coluna de cada município é o FPM).
+
+interface DocRepasses { ano: number; colunas: string[]; mun: Record<string, number[]> }
+const arquivosRepasses = import.meta.glob<DocRepasses>("../../public/data/mapa/federal-[0-9]*.json", { eager: true, import: "default" });
+
+/** O FPM de cada cidade no ano do período (ou no mais recente), e o total do país. */
+function fpmDoAno(ano: number) {
+  const docs = Object.values(arquivosRepasses).sort((a, b) => b.ano - a.ano);
+  const doc = docs.find((x) => x.ano === ano) ?? docs[0];
+  if (!doc) return null;
+  const i = doc.colunas.indexOf("fpm");
+  if (i < 0) return null;
+  const total = Object.values(doc.mun).reduce((t, v) => t + (v[i] ?? 0), 0);
+  return { ano: doc.ano, total, de: (ibge: number) => doc.mun[String(ibge)]?.[i] ?? null };
+}
+
+export interface FpmPerdido {
+  ano: string;
+  /** O FPM que a prefeitura recebeu no ano. */
+  recebido: number;
+  anoFpm: number;
+  /** O imposto que a União deixou de descontar e a parte dele que iria para o FPM, no país. */
+  irUniao: number;
+  fpmPais: number;
+  /** A parte desta cidade. */
+  perdido: number;
+}
+
+/** Quanto do FPM desta cidade deixou de existir porque a União não descontou o IR do extra acima do teto. */
+export function fpmPerdido(ibge: number): FpmPerdido | null {
+  if (!docSuper) return null;
+  const p = docSuper.periodos[0];
+  const uniao = imposto(p.id).uniao;
+  if (!uniao.orgaos || uniao.diferenca <= 0) return null;
+  const fpm = fpmDoAno(Number(p.id));
+  const recebido = fpm?.de(ibge) ?? null;
+  if (!fpm || !recebido || !fpm.total) return null;
+  const fpmPais = uniao.diferenca * PARTE_FPM;
+  return { ano: p.rotulo, recebido, anoFpm: fpm.ano, irUniao: uniao.diferenca, fpmPais, perdido: fpmPais * (recebido / fpm.total) };
+}
