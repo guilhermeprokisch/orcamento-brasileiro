@@ -16,21 +16,23 @@ import certifi
 CONTEXTO_TLS = ssl.create_default_context(cafile=certifi.where())
 
 
-def contexto_tls_com_intermediario(url_do_certificado: str) -> ssl.SSLContext:
+def contexto_tls_com_intermediario(*urls_dos_certificados: str) -> ssl.SSLContext:
     """Contexto TLS para um servidor que não envia a cadeia de certificados completa.
 
     Alguns sites do governo (o de downloads do INEP, por exemplo) entregam só o próprio
     certificado, sem o da autoridade intermediária, e a verificação falha. Em vez de
     desligar a verificação, este contexto recebe o intermediário que a própria autoridade
     publica. Ele só é aceito se fechar a cadeia até uma raiz confiável: por isso a opção de
-    "cadeia parcial" fica desligada, e não importa que o download dele seja por HTTP.
+    "cadeia parcial" fica desligada, e não importa que o download dele seja por HTTP. Quando a
+    cadeia tem mais de um elo faltando (uma raiz nova, com assinatura cruzada de uma antiga),
+    passam-se todos.
     """
-    with urllib.request.urlopen(url_do_certificado, timeout=60) as resp:
-        pem = ssl.DER_cert_to_PEM_cert(resp.read())
     ctx = ssl.create_default_context(cafile=certifi.where())
     if hasattr(ssl, "VERIFY_X509_PARTIAL_CHAIN"):
         ctx.verify_flags &= ~ssl.VERIFY_X509_PARTIAL_CHAIN
-    ctx.load_verify_locations(cadata=pem)
+    for url in urls_dos_certificados:
+        with urllib.request.urlopen(url, timeout=60) as resp:
+            ctx.load_verify_locations(cadata=ssl.DER_cert_to_PEM_cert(resp.read()))
     return ctx
 
 # Orçamento da despesa: um zip por exercício (2014 em diante), com um CSV

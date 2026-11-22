@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
+import http.cookiejar
 import io
 import json
 import re
@@ -44,6 +45,8 @@ import shutil
 import statistics
 import time
 import urllib.error
+import urllib.parse
+import urllib.request
 import zipfile
 from collections import defaultdict
 from datetime import date
@@ -51,6 +54,7 @@ from pathlib import Path
 
 from . import estado_pr as pr
 from .cidades import RAIZ
+from .fontes import CONTEXTO_TLS, USER_AGENT, contexto_tls_com_intermediario
 from .supersalarios import ALIQUOTA_IR, DEGRAU, DEGRAUS, FAIXAS, MINIMO, _get, parcela_ir, teto
 
 PASTA = RAIZ / "data" / "raw" / "supersalarios-estados"
@@ -59,8 +63,9 @@ REFERENCIA = RAIZ / "pipeline" / "referencia" / "supersalarios-estados.json"
 MESES = 12
 MINIMO_MESES = 6   # um estado com menos meses que isso (carga pela metade) não entra no site
 GRUPOS = ["base", "outros", "retroativos", "auxilios"]
-ESTADOS = ["PR", "ES", "PE", "PB", "RN", "GO", "DF", "CE", "AL"]
-SEM_IR = {"GO", "CE"}   # o arquivo não separa o imposto descontado
+ESTADOS = ["PR", "ES", "PE", "PB", "RN", "GO", "DF", "CE", "AL", "MS", "MA", "PI", "RO", "SC"]
+SEM_IR = {"GO", "CE", "MS", "MA", "PI", "RO", "SC"}   # o arquivo não separa o imposto descontado
+SEM_CORTE = {"MS", "MA", "PI", "RO", "SC"}   # o arquivo não mostra o corte pelo teto: a conta é sobre o bruto
 
 FONTES = {
     "PR": ("Portal da Transparência do Paraná (remuneração dos servidores)", "https://www.transparencia.pr.gov.br/pte/assunto/8/129"),
@@ -72,6 +77,11 @@ FONTES = {
     "DF": ("Portal da Transparência do Distrito Federal (remuneração dos servidores)", "https://www.transparencia.df.gov.br/"),
     "CE": ("Ceará Transparente (servidores)", "https://cearatransparente.ce.gov.br/portal-da-transparencia/servidores"),
     "AL": ("Portal da Transparência de Alagoas (pessoal)", "https://transparencia.al.gov.br/pessoal/"),
+    "MS": ("Portal de Dados Abertos de Mato Grosso do Sul (folha de pagamento)", "https://www.dados.ms.gov.br/dataset/folha-de-pagamento"),
+    "MA": ("Portal de Dados Abertos do Maranhão (folha de pagamento)", "https://dados.ma.gov.br/"),
+    "PI": ("API do Portal da Transparência do Piauí (servidores)", "https://api.transparencia.pi.gov.br/docs/"),
+    "RO": ("Portal da Transparência de Rondônia (pessoal)", "https://transparencia.ro.gov.br/pessoal/index"),
+    "SC": ("Portal da Transparência de Santa Catarina (remuneração dos servidores)", "https://www.transparencia.sc.gov.br/remuneracao-servidores"),
 }
 # O que cada família reúne em cada estado (o site usa estes nomes). Família ausente: o arquivo não separa.
 NOMES_UF = {
@@ -90,12 +100,22 @@ NOMES_UF = {
     "CE": {"base": "Salário bruto, menos o abatimento pelo teto (o arquivo não separa as partes, nem as férias)"},
     "AL": {"base": "Remuneração base, menos o redutor do teto", "outros": "Comissão e horas extras",
            "retroativos": "Decisões judiciais", "auxilios": "Benefícios"},
+    "MS": {"base": "Remuneração base (bruta)", "outros": "Outras verbas (o arquivo junta tudo, sem separar 13º e férias)"},
+    "MA": {"base": "Total de vantagens, sem as férias (bruto)"},
+    "PI": {"base": "Remuneração básica (bruta)", "outros": "Remuneração variável"},
+    "RO": {"base": "Salário bruto (o arquivo não separa as partes)"},
+    "SC": {"base": "Remuneração básica, gratificações e outros proventos (brutos)", "retroativos": "Atrasados",
+           "auxilios": "Verbas indenizatórias"},
 }
 NOMES_LEGIVEIS = {"PR": "Paraná", "ES": "Espírito Santo", "PE": "Pernambuco", "PB": "Paraíba", "RN": "Rio Grande do Norte",
-                  "GO": "Goiás", "DF": "Distrito Federal", "CE": "Ceará", "AL": "Alagoas"}
+                  "GO": "Goiás", "DF": "Distrito Federal", "CE": "Ceará", "AL": "Alagoas",
+                  "MS": "Mato Grosso do Sul", "MA": "Maranhão", "PI": "Piauí", "RO": "Rondônia", "SC": "Santa Catarina"}
 # Um cuidado próprio do arquivo do estado, que o site mostra junto da fonte.
 NOTAS_UF = {
     "CE": "Novembro fica de fora: o 13º vem somado ao salário, sem coluna própria. O arquivo também não separa as férias.",
+    "MA": "Dezembro fica de fora: o 13º vem somado ao total, sem coluna própria.",
+    "RO": "Junho e dezembro ficam de fora: o 13º vem somado ao bruto. O arquivo também não separa as férias.",
+    "MS": "O arquivo junta em \"outras verbas\" tudo o que não é a remuneração base, e não separa 13º e férias.",
     "AL": "Ficam de fora as verbas eventuais, onde aparece o terço de férias. Na Polícia Militar e nos Bombeiros, o arquivo junta ativos e inativos na contagem dos vínculos.",
 }
 FORA_PR = {"TJ", "MP", "AL"}   # no arquivo do PR só em parte
@@ -126,6 +146,12 @@ class Somador:
     def __init__(self, ano: int, mes: int, com_ir: bool = True) -> None:
         self.t, self.parcela, self.com_ir = teto(ano, mes), parcela_ir(ano, mes), com_ir
         self.v: dict = {}
+        self.sem_valor: dict[str, list] = {}   # sigla -> [nome, vínculos abaixo do teto contados sem o valor (SC)]
+
+    def contar(self, sigla: str, nome: str, n: int) -> None:
+        """Vínculos que se sabe estarem abaixo do teto, sem o valor de cada um: entram só na contagem."""
+        if n > 0:
+            self.sem_valor.setdefault(sigla, [nome, 0])[1] += n
 
     def add(self, chave, sigla: str, nome: str, base: float = 0.0, outros: float = 0.0, retroativos: float = 0.0,
             auxilios: float = 0.0, ir: float = 0.0, prev: float = 0.0) -> None:
@@ -162,10 +188,15 @@ class Somador:
                 o["acima"] += 1
                 o["excesso"] += total - t
                 o["hist"][min(DEGRAUS, int((total - t - 0.005) // DEGRAU))] += 1
+        for sigla, (nome, n) in self.sem_valor.items():
+            o = por.setdefault(sigla, {"nome": nome, "vinculos": 0, "acima": 0, "excesso": 0.0, "totais": [],
+                                       "grupos": {g: 0.0 for g in GRUPOS}, "camadas": [[0, 0.0] for _ in GRUPOS],
+                                       "hist": [0] * (DEGRAUS + 1), "ir": 0.0, "previdencia": 0.0, "ir_salario": 0.0})
+            o["vinculos"] += n
         if not por:
             return None   # o arquivo do mês corrente às vezes sai antes, vazio
         for o in por.values():
-            totais = o.pop("totais")
+            totais = o.pop("totais") or [0.0]
             o["mediana"] = round(statistics.median(totais), 2)
             o["pago"] = round(sum(totais), 2)
             for k in ("excesso", "ir", "previdencia", "ir_salario"):
@@ -580,7 +611,208 @@ def mes_al(ano: int, mes: int, ctx: dict) -> dict | None:
     return s.resultado()
 
 
-LEITORES = {"PR": mes_pr, "ES": mes_es, "PE": mes_pe, "PB": mes_pb, "RN": mes_rn, "GO": mes_go, "CE": mes_ce, "AL": mes_al}
+# ---------------------------------------------------------------------------------------------------- só o bruto
+# MS, MA, PI, RO e SC publicam a folha em lote, mas sem o corte pelo teto: o valor é o bruto, e parte do que passa do
+# teto pode ter sido descontada depois (em MS, os descontos obrigatórios dos auditores passam muito do imposto e da
+# previdência). O site diz isso (SEM_CORTE).
+
+def mes_ms(ano: int, mes: int, ctx: dict) -> dict | None:
+    if "recursos" not in ctx:
+        ctx["recursos"] = _ckan_por_nome("https://www.dados.ms.gov.br", "folha-de-pagamento")
+    url = ctx["recursos"].get(f"folha de pagamento - {mes:02d}/{ano}")
+    if not url:
+        return None
+    arq = PASTA / "tmp" / f"ms-{ano}-{mes:02d}.csv"
+    try:
+        if not _baixar(url, arq):
+            return None
+        s = Somador(ano, mes, com_ir=False)
+        for i, r in enumerate(_csv(arq)):
+            if (r.get("Situação") or "").strip().upper() != "ATIVO":
+                continue
+            sigla = (r.get("Órgão") or "").strip()
+            s.add(i, sigla, MS_NOMES.get(sigla, sigla), base=_num(r.get("Rem. Base")), outros=_num(r.get("Outras Verbas")))
+        return s.resultado()
+    finally:
+        arq.unlink(missing_ok=True)
+
+
+MS_NOMES = {
+    "SEFAZ": "Secretaria de Fazenda", "DGPC": "Polícia Civil", "PMMS": "Polícia Militar", "CBMMS": "Corpo de Bombeiros Militar",
+    "FUNSAU": "Fundação Serviços de Saúde (Funsau)", "SES": "Secretaria de Saúde", "CGE": "Controladoria-Geral do Estado",
+    "AGEPEN": "Agência do Sistema Penitenciário (Agepen)", "PGE": "Procuradoria-Geral do Estado", "SED": "Secretaria de Educação",
+}
+
+
+def mes_ma(ano: int, mes: int, ctx: dict) -> dict | None:
+    if mes == 12:
+        # Em dezembro o 13º vem dentro do total de vantagens, com a coluna do 13º zerada (o total dos ativos quase
+        # dobra: R$ 982 mi em dez/2025, contra uns R$ 530 mi). Em junho a primeira parcela vem só na coluna própria,
+        # fora do total, e não precisa ser tirada. As férias vêm dentro do total e são tiradas.
+        return None
+    # O site de dados do MA entrega o certificado sem o intermediário (Let's Encrypt YE1, que encadeia na raiz nova
+    # "Root YE", assinada pela ISRG Root X2): o contexto recebe os dois da própria autoridade, sem desligar a verificação.
+    if "tls" not in ctx:
+        ctx["tls"] = contexto_tls_com_intermediario("http://ye1.i.lencr.org/", "http://ye.i.lencr.org/")
+    arq = PASTA / "tmp" / f"ma-{ano}-{mes:02d}.csv"
+    arq.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        req = urllib.request.Request(f"https://dados.ma.gov.br/sites/default/files/FOLHA_{ano}_{mes:02d}.csv", headers={"User-Agent": USER_AGENT})
+        try:
+            with urllib.request.urlopen(req, timeout=600, context=ctx["tls"]) as resp:
+                arq.write_bytes(resp.read())
+        except urllib.error.HTTPError as erro:
+            if erro.code in (403, 404):
+                return None
+            raise
+        s = Somador(ano, mes, com_ir=False)   # o imposto vem, mas sobre tudo, inclusive 13º e férias
+        for i, r in enumerate(_csv(arq)):
+            if (r.get("situacaofuncional") or "").strip().upper() != "ATIVO":
+                continue
+            sigla = (r.get("orgao") or "").strip()
+            base = _num(r.get("total_vantagens")) - _num(r.get("ferias"))
+            s.add(i, sigla, MA_NOMES.get(sigla, sigla), base=base)
+        return s.resultado()
+    finally:
+        arq.unlink(missing_ok=True)
+
+
+MA_NOMES = {
+    "SEFAZ": "Secretaria da Fazenda", "PGE": "Procuradoria-Geral do Estado", "SSP": "Secretaria de Segurança Pública",
+    "STC": "Secretaria da Transparência e Controle", "UEMA": "Universidade Estadual do Maranhão", "PMMA": "Polícia Militar",
+    "CBMMA": "Corpo de Bombeiros Militar", "SEDUC": "Secretaria da Educação", "SES": "Secretaria da Saúde",
+}
+
+PI_API = "https://api.transparencia.pi.gov.br/api/v2/servidores"
+
+
+def _pi_csv(ano: int, mes: int, lo: float, hi: float | None) -> list[dict]:
+    """O CSV do mês numa faixa de bruto; a API recusa (HTTP 422) mais de 50 mil linhas, e aí a faixa se divide."""
+    url = f"{PI_API}/{ano}/{mes}/download/?filetype=csv&remuneracao_bruta__gte={lo:.2f}"
+    if hi is not None:
+        url += f"&remuneracao_bruta__lte={hi:.2f}"
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=600, context=CONTEXTO_TLS) as resp:
+            texto = resp.read().decode("utf-8-sig", errors="replace")
+    except urllib.error.HTTPError as erro:
+        if erro.code in (400, 404):
+            return []   # mês ainda não publicado
+        if erro.code != 422 or hi is None:
+            raise
+        meio = round((lo + hi) / 2, 2)
+        return _pi_csv(ano, mes, lo, meio) + _pi_csv(ano, mes, meio + 0.01, hi)
+    return list(csv.DictReader(io.StringIO(texto), delimiter=";"))
+
+
+def mes_pi(ano: int, mes: int, ctx: dict) -> dict | None:
+    linhas = []
+    for lo, hi in [(0.0, 1600.0), (1600.01, 2300.0), (2300.01, 3000.0), (3000.01, 6000.0), (6000.01, None)]:
+        linhas += _pi_csv(ano, mes, lo, hi)
+        time.sleep(1)
+    if not linhas:
+        return None
+    s = Somador(ano, mes, com_ir=False)   # as deduções legais vêm somadas
+    for i, r in enumerate(linhas):
+        if INATIVOS.search(r.get("Categoria") or "") or (r.get("Data de Exoneração/Inativação") or "").strip():
+            continue
+        nome = (r.get("Órgão") or "").strip()
+        # "Eventual" fica fora: é onde vêm 13º, férias e outros pagamentos de uma vez.
+        s.add(i, nome, nome, base=_num(r.get("Remuneração Básica (R$)")), outros=_num(r.get("Remuneração Variável (R$)")))
+    return s.resultado()
+
+
+RO_NOMES = {
+    "SEFIN": "Secretaria de Finanças", "PGE": "Procuradoria-Geral do Estado", "SESAU": "Secretaria da Saúde", "PM": "Polícia Militar",
+    "PC": "Polícia Civil", "CBM": "Corpo de Bombeiros Militar", "POLITEC": "Polícia Técnico-Científica (Politec)",
+    "IDARON": "Agência de Defesa Sanitária Agrosilvopastoril (Idaron)", "DETRAN": "Departamento Estadual de Trânsito", "SEDUC": "Secretaria da Educação",
+    "SEJUS": "Secretaria da Justiça", "SUGESP": "Superintendência de Gestão de Pessoas (Sugesp)", "DER": "Departamento de Estradas de Rodagem",
+}
+
+
+def mes_ro(ano: int, mes: int, ctx: dict) -> dict | None:
+    if mes in (6, 12):
+        # O CSV só tem o bruto, e as duas parcelas do 13º saem em junho e dezembro (os dois meses com mais gente acima
+        # do teto: 587 e 627, contra uns 450). Ficam de fora.
+        return None
+    # O botão "Baixar CSV" da página: um POST com o token antifalsificação do próprio formulário (e o cookie dela).
+    cj = http.cookiejar.CookieJar()
+    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj), urllib.request.HTTPSHandler(context=CONTEXTO_TLS))
+    pagina = op.open(urllib.request.Request("https://transparencia.ro.gov.br/pessoal/index", headers={"User-Agent": USER_AGENT}), timeout=120).read()
+    m = re.search(rb'name="__RequestVerificationToken"[^>]*value="([^"]+)"', pagina)
+    if not m:
+        raise RuntimeError("RO: a página não trouxe o token do formulário")
+    dados = urllib.parse.urlencode({"__RequestVerificationToken": m.group(1).decode(), "AnoAvancado": ano, "MesInicialAvancado": mes,
+                                    "CodigoLotacao": "", "Cargo": "", "SituacaoFuncionalCod": "", "Nome": "", "ContentTypeFile": "CSV"}).encode()
+    texto = op.open(urllib.request.Request("https://transparencia.ro.gov.br/Pessoal/GerarArquivo", data=dados,
+                                           headers={"User-Agent": USER_AGENT}), timeout=900).read().decode("utf-8-sig", errors="replace")
+    s = Somador(ano, mes, com_ir=False)
+    nomes: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    linhas = []
+    for i, r in enumerate(csv.DictReader(io.StringIO(texto))):
+        lotacao = (r.get("SecretariaOrgao") or "").strip()
+        if (r.get("DataInativo") or "").strip() or (r.get("DataDesligamentoOuExoneracao") or "").strip() or INATIVOS.search(lotacao):
+            continue
+        sigla, _, resto = lotacao.partition(" - ")
+        nomes[sigla][resto or sigla] += 1
+        linhas.append((i, sigla, _num(re.sub(r"[^\d,.-]", "", r.get("SalarioBruto") or ""))))
+    for i, sigla, bruto in linhas:
+        s.add(i, sigla, RO_NOMES.get(sigla) or max(nomes[sigla], key=nomes[sigla].get), base=bruto)
+    return s.resultado()
+
+
+SC_API = "https://api-portal-transparencia.apps.sm.okd4.ciasc.sc.gov.br/api"
+
+
+def _sc(caminho: str) -> dict | list:
+    return json.loads(_get_paciente(f"{SC_API}/{caminho}", timeout=120))
+
+
+def mes_sc(ano: int, mes: int, ctx: dict) -> dict | None:
+    # As chamadas que a página de remuneração do portal faz: a lista dos ativos ordenada pelo bruto (20 por página),
+    # o contracheque de cada um (com atrasados, verbas indenizatórias, 13º e férias separados) e o total por órgão.
+    q = lambda o: urllib.parse.quote(json.dumps(o))
+    ordem = q({"field": "ServidorTotalProventos", "dir": "desc"})
+    orgaos = _sc(f"remuneracao-servidores/combo-orgao/{mes}/{ano}")
+    if not orgaos:
+        return None
+    s = Somador(ano, mes, com_ir=False)   # imposto e previdência vêm somados
+    acima_por_orgao: dict[str, int] = defaultdict(int)
+    pagina = 1
+    while True:
+        d = _sc(f"remuneracao-servidores/analise-detalhada?ano={ano}&mes={mes}&page={pagina}&sort={ordem}"
+                f"&filtro={q({'SITUACAO': 1, 'TIPOCONSULTA': 'SERVIDORES'})}")
+        linhas = d.get("data") or []
+        for r in linhas:
+            if float(r.get("ServidorTotalProventos") or 0) <= SC_LIMIAR:
+                continue
+            c = (_sc(f"remuneracao-servidores-detalhe/{r['id']}").get("contracheque") or [{}])[0]
+            nome = (c.get("ServidorDescOrgaoLotacao") or r.get("ServidorEfDescOrgaoLotacao") or "").strip()
+            v = lambda k: _num(c.get(k))
+            s.add(r["id"], nome, nome, base=v("ServidorRemuneracaoBasica") + v("ServidorGratificacaoEventos") + v("ServidorOutrosProventosVL"),
+                  retroativos=v("ServidorAtrasado"), auxilios=v("ServidorVerbaIndenizatoria"))
+            acima_por_orgao[nome] += 1
+            time.sleep(0.2)
+        if not linhas or float(linhas[-1].get("ServidorTotalProventos") or 0) <= SC_LIMIAR:
+            break
+        pagina += 1
+    for o in orgaos:
+        nome = (o.get("descricao") or "").strip()
+        if INATIVOS.search(nome):
+            continue
+        total = _sc(f"remuneracao-servidores/analise-detalhada?ano={ano}&mes={mes}&page=1&sort={ordem}"
+                    f"&filtro={q({'SITUACAO': 1, 'ORGAO': o['id'], 'TIPOCONSULTA': 'SERVIDORES'})}").get("total") or 0
+        s.contar(nome, nome, int(total) - acima_por_orgao.get(nome, 0))
+        time.sleep(0.2)
+    return s.resultado()
+
+
+# Quem tem bruto abaixo disso não passa do teto depois de tirar 13º e férias; abaixo, só se conta (SC).
+SC_LIMIAR = 46_366.19
+
+
+LEITORES = {"PR": mes_pr, "ES": mes_es, "PE": mes_pe, "PB": mes_pb, "RN": mes_rn, "GO": mes_go, "CE": mes_ce, "AL": mes_al,
+            "MS": mes_ms, "MA": mes_ma, "PI": mes_pi, "RO": mes_ro, "SC": mes_sc}
 
 
 # ---------------------------------------------------------------------------------------------------- montagem
@@ -631,7 +863,7 @@ def montar_uf(uf: str, meses: dict[str, dict]) -> dict:
     fonte, url = FONTES[uf]
     return {"nome": NOMES_LEGIVEIS[uf], "fonte": fonte, "url": url, "grupos": NOMES_UF[uf], "com_ir": uf not in SEM_IR,
             "de": ordem[0], "ate": ordem[-1], "meses": len(ordem), "orgaos": orgaos, "serie": serie, "estatais_fora": estatais,
-            **({"nota": NOTAS_UF[uf]} if uf in NOTAS_UF else {})}
+            "sem_corte": uf in SEM_CORTE, **({"nota": NOTAS_UF[uf]} if uf in NOTAS_UF else {})}
 
 
 def candidatos(hoje: date) -> list[tuple[int, int]]:
