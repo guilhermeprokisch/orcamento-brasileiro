@@ -80,6 +80,7 @@ export const GLOSSARIO: Termo[] = [
   { id: "setor-publico-consolidado", termo: "Setor público consolidado", definicao: "A conta do Banco Central que junta o governo federal, os estados, as prefeituras e as estatais (menos Petrobras, Eletrobras e os bancos públicos), sem contar duas vezes o dinheiro que passa de um para outro." },
   { id: "governo-central", termo: "Governo central", definicao: "O governo federal (Tesouro Nacional e INSS) junto com o Banco Central. É a parte do setor público que segue a meta de resultado primário do arcabouço fiscal." },
   { id: "balanco-patrimonial", termo: "Balanço patrimonial", definicao: "O retrato das contas no último dia do ano: o que o governo tem (dinheiro, aplicações, imóveis) e o que deve (fornecedores, empréstimos, aposentadorias futuras)." },
+  { id: "divida-ativa", termo: "Dívida ativa", definicao: "O que empresas e pessoas devem ao governo e não pagaram no prazo, depois de esgotada a cobrança comum. Na União, a Procuradoria-Geral da Fazenda Nacional inscreve a dívida numa lista e passa a cobrá-la, inclusive na Justiça. Boa parte é de empresas que já fecharam e nunca vai ser paga." },
 ];
 
 /** Termo do dia, escolhido pela data (o site é gerado de novo todo dia). */
