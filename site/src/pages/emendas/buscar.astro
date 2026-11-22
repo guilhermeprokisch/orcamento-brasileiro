@@ -207,8 +207,7 @@ const TIPOS: [string, string, string][] = [
     const db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), new Worker(url));
     await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
     URL.revokeObjectURL(url);
-    conn = await db.connect();
-    await conn.query(`CREATE VIEW p AS SELECT * FROM read_parquet('${PAG}'); CREATE VIEW t AS SELECT * FROM read_parquet('${TXT}')`);
+    conn = await db.connect();   // as tabelas p e t vêm de usar(), com a cópia certa para cada página
   }
   const consulta = async (sql, valores = []) => {
     const stmt = await conn.prepare(sql);
@@ -234,7 +233,7 @@ const TIPOS: [string, string, string][] = [
       else if (params.get("autor")) { await usar("autor", "textosAutor"); await autor(); }
       else if (params.get("entidade")) { await usar("codigo", "textosCodigo"); await entidade(); }
       else if (params.get("ente") && !params.get("q")) { await usar("lugar", "textosEmenda"); await lugar(); }
-      else await busca();
+      else { await usar(); await busca(); }
     };
     try {
       await conectar();
