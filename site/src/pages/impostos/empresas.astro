@@ -327,6 +327,10 @@ const descricao = r
       <p class="menor">O valor é o de ${ANO}; uma empresa sem valor em ${ANO} declarou benefício em outro ano.</p>`;
   }
 
+  // Os empréstimos do BNDES de cada empresa (site/public/data/bndes/empresas.json, de pipeline/…/bndes.py).
+  let bndesCache = null;
+  const empresasBndes = () => (bndesCache ??= fetch("/data/bndes/empresas.json").then((r) => (r.ok ? r.json() : null)).catch(() => null));
+
   async function ficha(chave) {
     carregando("Procurando a empresa…");
     const [e] = await consulta(`SELECT * FROM read_parquet('${abs(raiz.dataset.empresas)}') WHERE chave = ?`, [chave]);
@@ -350,6 +354,8 @@ const descricao = r
     const porAno = anos.map((a) => { const v = det.filter((x) => x.ano === a).reduce((t, x) => t + num(x.valor), 0);
       return `<li><span>${a}${PARCIAIS[a] ? ` (até ${MES[PARCIAIS[a] - 1]})` : ""}</span><strong>${curto(v)}</strong></li>`; }).join("");
     const contratosAno = raiz.dataset.contratosAno;
+    const bndes = await empresasBndes();
+    const emp = bndes && e.raiz ? bndes.empresas[e.raiz] : null;
     const outro = [
       contratosAno ? `<div><span>contratos com governos em ${contratosAno}</span><strong>${num(e.contratos) ? curto(num(e.contratos)) : "nenhum"}</strong>
         <span>${num(e.n_contratos) ? `${nf0.format(num(e.n_contratos))} ${num(e.n_contratos) === 1 ? "contrato" : "contratos"} no PNCP` : "no PNCP"}</span>
@@ -357,6 +363,9 @@ const descricao = r
       `<div><span>pago com emendas, desde 2024</span><strong>${num(e.emendas) ? curto(num(e.emendas)) : "nada"}</strong><span>como favorecida direta</span></div>`,
       `<div><span>dívida ativa com a União</span><strong>${num(e.divida) ? curto(num(e.divida)) : "nenhuma"}</strong>
         <span>${num(e.divida) ? `<mark>${curto(num(e.cobranca))} em cobrança</mark>; o resto parcelado, garantido ou na Justiça` : `na PGFN, em ${esc(raiz.dataset.pgfn)}`}</span></div>`,
+      bndes ? `<div><span>empréstimos do BNDES desde ${bndes.desde}</span><strong>${emp ? curto(emp[2]) : "nenhum"}</strong>
+        <span>${emp ? (emp[3] > 0 ? `<mark>${curto(emp[3])} com juro abaixo do de mercado</mark>; o resto pela TLP ou a juro de mercado` : "nenhum com juro abaixo do de mercado") : "contratado com o BNDES"}</span>
+        ${emp ? `<a href="/bndes">Ver o BNDES</a>` : ""}</div>` : "",
     ].join("");
     saida.innerHTML = `${voltar}
       <div class="ficha-topo">
@@ -622,7 +631,7 @@ const descricao = r
   .beneficios .lb-trilho i { display: block; height: 100%; min-width: 2px; }
   .beneficios .ficha-outro { border-top: 2px solid var(--tinta); padding-top: 20px; display: flex; flex-direction: column; gap: 16px; }
   .beneficios .ficha-outro h3 { font-size: 22px; }
-  .beneficios .tres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--regra); border-bottom: 1px solid var(--regra); }
+  .beneficios .tres { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); border-top: 1px solid var(--regra); border-bottom: 1px solid var(--regra); }
   .beneficios .tres div { padding: 16px 20px; border-right: 1px solid var(--regra); display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--texto-2); }
   .beneficios .tres div:first-child { padding-left: 0; }
   .beneficios .tres div:last-child { border-right: 0; padding-right: 0; }
