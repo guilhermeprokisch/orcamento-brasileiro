@@ -8,7 +8,7 @@ import Termo from "../Termo.astro";
 import SerieAnos from "./SerieAnos.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import { NOMES_UF, porPessoa, type Cidade } from "../../lib/cidades";
-import { docEmendasEstaduais, emendasEstaduaisDe, estadosComEmendas } from "../../lib/emendas-estaduais";
+import { anoDaConta, docEmendasEstaduais, emendasEstaduaisDe, estadosComEmendas } from "../../lib/emendas-estaduais";
 
 interface Props { cidade: Cidade }
 const { cidade: c } = Astro.props;
@@ -42,8 +42,8 @@ const temGrupo = e?.autores.some((a) => a.coletiva);
       <h2>Emendas dos {deputados}</h2>
       <p>
         {e.pago
-          ? <>Em {e.ano}, o governo {deUf} pagou <strong>{moedaExtenso(e.item.v)}</strong> em <Termo id="emenda-estadual">emendas</Termo> dos {deputados}{paraOnde}{!df && <>, ou <strong>{porPessoa(e.porHab)} por morador</strong></>}. O valor indicado foi {moedaCurta(e.item.i)}.</>
-          : <>Em {e.ano}, {deputados} indicaram <strong>{moedaExtenso(e.item.v)}</strong> em <Termo id="emenda-estadual">emendas</Termo> do orçamento {deUf}{paraOnde}{!df && <>, ou <strong>{porPessoa(e.porHab)} por morador</strong></>}. O governo do estado não publica quanto já pagou.</>}
+          ? <>Em {e.ano}{e.andamento && ", até agora"}, o governo {deUf} pagou <strong>{moedaExtenso(e.item.v)}</strong> em <Termo id="emenda-estadual">emendas</Termo> dos {deputados}{paraOnde}{!df && <>, ou <strong>{porPessoa(e.porHab)} por morador</strong></>}. O valor indicado foi {moedaCurta(e.item.i)}.</>
+          : <>Em {e.ano}{e.andamento && ", até agora"}, {deputados} indicaram <strong>{moedaExtenso(e.item.v)}</strong> em <Termo id="emenda-estadual">emendas</Termo> do orçamento {deUf}{paraOnde}{!df && <>, ou <strong>{porPessoa(e.porHab)} por morador</strong></>}. {e.estado.pago ? "Os dados do estado não trazem o pago completo desse ano." : "O governo do estado não publica quanto já pagou."}</>}
         {e.mediana !== null && <> A mediana das cidades {deUf} do mesmo tamanho é {porPessoa(e.mediana)} por morador{frente !== null && Math.abs(frente) >= 0.1 && <> ({nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"})</>}.</>}
       </p>
       {partes.length > 0 && <p>Foram {juntar(partes)}.</p>}
@@ -56,7 +56,7 @@ const temGrupo = e?.autores.some((a) => a.coletiva);
       <p class="menor">
         A emenda é uma indicação: o deputado diz para onde quer que vá uma parte do orçamento {df ? "do Distrito Federal" : "do estado"}, e
         o governo é quem paga. {e.pago ? `Aqui entra o que já foi pago das emendas de ${e.ano}` : "Aqui entra o valor indicado"}, pelo lugar
-        de quem recebeu.{e.estado.nota && <> {e.estado.nota}</>}
+        de quem recebeu.{e.andamento && <> O ano ainda está em andamento: o número vai mudar até dezembro.</>}{e.estado.nota && <> {e.estado.nota}</>}
       </p>
     </div>
     <div class="lado">
@@ -77,7 +77,7 @@ const temGrupo = e?.autores.some((a) => a.coletiva);
           </ol>
         </div>
       )}
-      {e.serie.length > 1 && <SerieAnos titulo="Ano a ano, em R$ milhões" serie={e.serie} casas={1} notaPreliminar={e.pago ? "Ano em andamento: o que foi pago até agora." : "Ano em andamento: o que foi indicado até agora."} />}
+      {e.serie.length > 1 && <SerieAnos titulo="Ano a ano, em R$ milhões" serie={e.serie} casas={1} notaPreliminar={e.estado.pago ? "Ano em andamento: o que foi pago até agora." : "Ano em andamento: o que foi indicado até agora."} notaMarca="Valor indicado: o estado não publica o pago completo desse ano." />}
     </div>
     <div class="nao-diz">
       <h3>O que esta conta não diz</h3>
@@ -96,7 +96,7 @@ const temGrupo = e?.autores.some((a) => a.coletiva);
     <h2>Emendas dos {deputados}</h2>
     <p>
       {estado
-        ? <>Nas emendas {deUf} {estado.pago ? "pagas" : "indicadas"} de {estado.anos.filter((a) => a < new Date().getFullYear()).at(-1)}, nenhuma tem {c.nome} como destino.</>
+        ? <>Nas emendas {deUf} {estado.pago ? "pagas" : "indicadas"} de {anoDaConta(estado)}{(anoDaConta(estado) ?? 0) >= new Date().getFullYear() && " até agora"}, nenhuma tem {c.nome} como destino.</>
         : <>Ainda não temos as emendas dos deputados estaduais {deUf}. Cada estado publica de um jeito, e por enquanto a conta tem {listaCobertos}.</>}
     </p>
   </section>

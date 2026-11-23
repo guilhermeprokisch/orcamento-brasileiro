@@ -86,7 +86,7 @@ Dificuldade: **1** = arquivo ou API limpos · **5** = só tela, com bloqueio.
 
 1. **Primeira leva (arquivo aberto, com deputado, cidade e pago):** MG, ES, AC, PA, RJ, DF, e MS (só indicado).
 2. **Segunda leva (painel Power BI ou só 2026):** SC e SP (painéis, feitos em 23/11/2026 pela API pública do Power
-   BI: `pipeline/src/orcamento_pipeline/powerbi.py`), PE, AL, MA e SE (2026 com cidade).
+   BI: `pipeline/src/orcamento_pipeline/powerbi.py`), PE, AL, MA e SE (2026 com cidade; feitos em 23/11/2026).
 3. **Terceira leva (cidade só no texto ou no credor):** PI, PB, GO, AM, RO, RR, TO, AP, MT, BA.
 4. **Difíceis:** RS e RN (Power BI com token ou pago vazio), PR (cobertura pequena), CE (bloqueio; pedir por LAI ou
    exportar no navegador).

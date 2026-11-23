@@ -131,6 +131,17 @@ class Montagem(unittest.TestCase):
         self.assertEqual((ms["v"], ms["p"]), (100000, None))
         self.assertFalse(doc["estados"]["MS"]["pago"])
 
+    def test_pago_parcial_vira_indicado(self):
+        ls = [Linha("SE", 2025, "Fulano", False, 2803005, 0, "Saúde", False, 100, 100 if i == 0 else None) for i in range(3)]
+        meta = {"SE": {"nome": "Sergipe", "fonte": "x", "url": "x", "pago": True, "pix": True}}
+        doc = e.montar(ls, {}, meta)
+        c = doc["mun"]["2803005"]["2025"]
+        self.assertEqual((c["v"], c["p"]), (300, None))
+
+    def test_csv_com_quebra_de_linha(self):
+        b = "a;b;c\n1;texto que\ncontinua;3\n4;5;6\n".encode()
+        self.assertEqual(e.ler_csv_remendado(b, ";"), [{"a": "1", "b": "texto que continua", "c": "3"}, {"a": "4", "b": "5", "c": "6"}])
+
     def test_nao_guarda_quem_recebeu(self):
         doc = e.montar(self.linhas(), {}, self.META)
         texto = json.dumps(doc, ensure_ascii=False)

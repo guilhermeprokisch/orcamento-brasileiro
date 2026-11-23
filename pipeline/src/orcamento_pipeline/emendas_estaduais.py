@@ -14,6 +14,10 @@ deputado e a cidade:
 - DF: a API do portal da transparência do DF (o DF é uma cidade só);
 - MS: CSV por ano (dados.ms.gov.br), com o município pelo nome e só o valor indicado.
 - SC: o painel Power BI da Secretaria da Fazenda (2023 em diante), com o código IBGE, o tipo de quem recebe e o pago;
+- PE: as tabelas de 2026 dos dados abertos (dados.pe.gov.br), por forma de execução; antes de 2026 não há o autor;
+- AL: o JSON que a página de emendas do portal chama, só 2026;
+- MA: a exportação CSV do portal, só 2026;
+- SE: a API do portal (2022 a 2025) e o painel de monitoramento que o portal indica (2026 em diante);
 - SP: os painéis Power BI do portal da transparência (um por ano, 2023 a 2025), com o município pelo nome e o estágio
   de cada emenda (o pago é o valor das que estão como "Pagas").
 
@@ -84,6 +88,14 @@ ESTADOS = {
            "url": "https://www.sef.sc.gov.br/transparencias/emendas-parlamentares-estaduais", "pago": True, "pix": True},
     "SP": {"nome": "São Paulo", "fonte": "Portal da Transparência de São Paulo, painéis de emendas impositivas",
            "url": "https://www.transparencia.sp.gov.br/home/emendasparlamentares", "pago": True, "pix": False},
+    "PE": {"nome": "Pernambuco", "fonte": "Governo de Pernambuco, dados abertos: emendas parlamentares estaduais",
+           "url": "https://dados.pe.gov.br/dataset/emendasparlamentaresestaduais", "pago": True, "pix": True},
+    "AL": {"nome": "Alagoas", "fonte": "Portal da Transparência de Alagoas: emendas parlamentares estaduais",
+           "url": "https://transparencia.al.gov.br/despesa/emendas-parlamentares-estaduais/", "pago": True, "pix": True},
+    "MA": {"nome": "Maranhão", "fonte": "Portal da Transparência do Maranhão: emendas estaduais",
+           "url": "https://www.transparencia.ma.gov.br/app/v2/emendasestaduais", "pago": True, "pix": False},
+    "SE": {"nome": "Sergipe", "fonte": "Portal da Transparência de Sergipe e Painel de Monitoramento das Emendas Parlamentares Estaduais",
+           "url": "https://www.transparencia.se.gov.br/EmendasParlamentares/EmendasEstaduais", "pago": True, "pix": True},
     "MS": {"nome": "Mato Grosso do Sul", "fonte": "Governo de Mato Grosso do Sul, dados abertos: emendas parlamentares",
            "url": "https://www.dados.ms.gov.br/dataset/emendas-parlamentares", "pago": False, "pix": False},
 }
@@ -94,6 +106,10 @@ NOTAS = {
     "DF": "O pago inclui o que foi pago no ano de emendas de anos anteriores.",
     "SP": ("São Paulo publica o estágio de cada emenda, não o valor pago: conta como pago o valor das emendas que estão como "
            "pagas. O painel de 2026 ainda não existe. A lei paulista prevê a transferência especial, mas o painel não a separa."),
+    "PE": "Pernambuco só publica as emendas com o deputado a partir de 2026.",
+    "AL": "Alagoas só publica as emendas a partir de 2026.",
+    "MA": "O Maranhão só publica as emendas a partir de 2026. A transferência especial existe na lei, mas os dados não a separam.",
+    "SE": "Em 2025, o portal de Sergipe só traz o pago de parte das emendas; para esse ano, o valor é o indicado.",
     "MS": "Mato Grosso do Sul publica só o valor indicado de cada emenda, não quanto já foi pago.",
 }
 
@@ -179,6 +195,21 @@ def ler_csv(b: bytes, sep: str | None = None) -> list[dict]:
         primeira = t.split("\n", 1)[0]
         sep = ";" if primeira.count(";") >= primeira.count(",") else ","
     return [{(k or "").strip(): (v or "").strip() for k, v in r.items()} for r in csv.DictReader(io.StringIO(t), delimiter=sep)]
+
+
+def ler_csv_remendado(b: bytes, sep: str) -> list[dict]:
+    """CSV com quebra de linha dentro de campos sem aspas (PE): junta as linhas físicas até ter todas as colunas."""
+    linhas = texto(b).splitlines()
+    cab = next(csv.reader([linhas[0]], delimiter=sep))
+    saida, buf = [], ""
+    for l in linhas[1:]:
+        buf = f"{buf} {l}" if buf else l
+        cols = next(csv.reader([buf], delimiter=sep), [])
+        if len(cols) < len(cab):
+            continue
+        saida.append({k.strip(): (v or "").strip() for k, v in zip(cab, cols)})
+        buf = ""
+    return saida
 
 
 def area(s: str) -> str:
@@ -521,6 +552,123 @@ def ler_sp(forcar: bool, ibge_de) -> list[Linha]:
     return saida
 
 
+def ler_pe(forcar: bool, ibge_de) -> list[Linha]:
+    """2026: uma linha por empenho (ou por emenda sem empenho); o orçamento da emenda se repete em cada linha dela."""
+    base = "https://dados.pe.gov.br/dataset/7c721673-6f32-467b-853f-297ec1399705/resource/"
+    tabelas = {"pix": "2ad1df94-50cb-4612-ba1b-51c7e11377a2/download/tabela_completa_pix.csv",
+               "direta": "fbadd887-5110-406c-887a-2427c3cac8b1/download/tabela_completa_direta.csv",
+               "gtv": "8a102499-016e-4b02-8714-fcb2757cfe2f/download/tabela_completa_gtv.csv"}
+    saida = []
+    for nome, caminho in tabelas.items():
+        vistas = set()
+        linhas = []
+        for r in ler_csv_remendado(baixar(base + caminho, PASTA / "PE" / f"{nome}.csv", True), ";"):
+            chave = tuple(r.values())
+            if chave in vistas:              # a mesma linha repetida no arquivo
+                continue
+            vistas.add(chave)
+            linhas.append(r)
+        por_emenda = Counter((r["autor"], r["codigo_alepe"]) for r in linhas)
+        for r in linhas:
+            mun = r.get("municipio", "")
+            ibge = ibge_de(mun, "PE") if mun and not mun.upper().startswith(("ESTADO", "PERNAMBUCO", "DIVERSOS")) else None
+            g = 0 if nome == "pix" else 2 if nome == "direta" else grupo_pelo_nome(r.get("beneficiario", ""))
+            saida.append(Linha("PE", int(r["ano"]), r["autor"], False, ibge, g,
+                               "Transferência especial" if nome == "pix" else area(r.get("tematica", "")), nome == "pix",
+                               numero(r.get("orcamento_atual")) / por_emenda[(r["autor"], r["codigo_alepe"])], numero(r.get("valor_pago"))))
+    return saida
+
+
+AREAS_AL = {"FES": "Saúde", "SEADES": "Assistência social", "SELAJ": "Esporte e lazer", "SECTI": "Ciência e tecnologia",
+            "SECULT": "Cultura", "SEDUC": "Educação", "SETEQ": "Trabalho", "SEDICS": "Direitos da cidadania"}
+
+
+def ler_al(forcar: bool, ibge_de) -> list[Linha]:
+    url = "https://transparencia.al.gov.br/despesa/json-emendas-parlamentares/?limit=1000&offset={}"
+    rows, offset = [], 0
+    while True:
+        d = json.loads(baixar(url.format(offset), PASTA / "AL" / f"{offset}.json", True))
+        rows += d["rows"]
+        offset += 1000
+        if offset >= d["total"] or not d["rows"]:
+            break
+    saida = []
+    for r in rows:
+        forma = r.get("forma_repasse") or ""
+        pix = forma.lower().startswith("transfer")
+        mun = r.get("municipio") or ""
+        orgao = (r.get("orgao_entidade_executora") or "").split(" - ")[-1].strip()
+        ar = "Transferência especial" if pix else "Saúde" if "SESAU" in forma else AREAS_AL.get(orgao, "Não informado")
+        benef = r.get("beneficiario") or ""
+        g = 0 if pix else grupo_pelo_nome(benef) if benef else None
+        saida.append(Linha("AL", int(r.get("ano") or 0), r.get("parlamentar") or "", False, ibge_de(mun, "AL") if mun else None, g, ar, pix,
+                           numero(r.get("valor_dotacao_atualizado")), numero(r.get("valor_pago"))))
+    return saida
+
+
+def ler_ma(forcar: bool, ibge_de) -> list[Linha]:
+    url = "https://www.transparencia.ma.gov.br/app/v2/emendasestaduais/export?ano={}&formato=csv"
+    saida = []
+    ano = dt.date.today().year
+    linhas = ler_csv(baixar(url.format(ano), PASTA / "MA" / f"{ano}.csv", True), ",")
+    for r in linhas:
+        mod = r.get("Modalidade", "")
+        g = 0 if mod.startswith(("40", "41")) else 1 if mod.startswith("50") else 2
+        mun = r.get("Localizador de Gasto", "")
+        ibge = ibge_de(mun, "MA") if mun and not mun.upper().startswith(("ESTADO", "MARANH", "DIVERSOS")) else None
+        saida.append(Linha("MA", int(r.get("Exercício") or ano), r.get("Parlamentar", ""), False, ibge, g, area(r.get("Função", "")), False,
+                           numero(r.get("Valor Solicitado")), numero(r.get("Valor Pago"))))
+    # O portal devolve 2026 para qualquer ano pedido: só fica o ano que o arquivo diz.
+    return saida
+
+
+# SE (2022 a 2025) só dá a sigla do órgão que processa a emenda; as que não temos certeza ficam em "Outros".
+AREAS_SE = {"SAÚDE": "Saúde", "SES": "Saúde", "FES": "Saúde", "SEASIC": "Assistência social", "SEASC": "Assistência social",
+            "FUNCAP": "Cultura", "SEAGRI": "Agricultura", "EMDAGRO": "Agricultura", "CODERSE": "Agricultura",
+            "SEEL": "Esporte e lazer", "SEED": "Educação", "SEDUC": "Educação", "SEDURBI": "Urbanismo", "PM": "Segurança pública",
+            "SSP": "Segurança pública", "CBM": "Segurança pública", "SEJUC": "Segurança pública", "SEMAC": "Meio ambiente",
+            "SETUR": "Turismo", "SPM": "Direitos da cidadania"}
+
+
+def ler_se(forcar: bool, ibge_de) -> list[Linha]:
+    api = "https://api.transparencia.se.gov.br/api/emendas-estaduais"
+    hoje = dt.date.today().year
+    saida = []
+    for ano in sorted(a for a in json.loads(baixar(api + "/anos", PASTA / "SE" / "anos.json", True)) if a >= PRIMEIRO_ANO):
+        pagina, rows = 1, []
+        while True:
+            d = json.loads(baixar(f"{api}?ano={ano}&page={pagina}&limit=100", PASTA / "SE" / f"{ano}-{pagina}.json", forcar or ano >= hoje - 1))
+            rows += d["data"]
+            if pagina >= d.get("totalPages", 1):
+                break
+            pagina += 1
+        for r in rows:
+            mun = (r.get("localidade") or "").strip()
+            ibge = ibge_de(mun, "SE") if mun and not mun.upper().startswith(("ESTADO", "SERGIPE", "DIVERSOS")) else None
+            ex = r.get("executor") or ""
+            pago = (r.get("valorPago") or "").strip()
+            orgao = re.sub(r"^\d+\s*-\s*", "", (r.get("orgaoProcessador") or "")).strip().upper()
+            saida.append(Linha("SE", int(r.get("exercicio") or ano), r.get("parlamentar") or "", False, ibge,
+                               grupo_pelo_nome(ex) if ex else None, AREAS_SE.get(orgao, "Outros"), False,
+                               numero(r.get("valorIndicado")), numero(pago) if pago else None))
+    # 2026 em diante: o painel de monitoramento (a plataforma que o portal indica), com a exportação completa.
+    d = json.loads(baixar("https://sergipeemendasparlamentares.plataformatarget.com.br/api/emendas/export?", PASTA / "SE" / "painel.json", True))
+    for r in (d["data"] if isinstance(d, dict) else d):
+        n = r.get("n_emenda") or ""
+        m = re.search(r"\.(20\d\d)-", n)
+        ano = int(m.group(1)) if m else hoje
+        inst = (r.get("tipo_instrumento") or "").upper()
+        pix = inst.startswith("TRANSFER")
+        mun = r.get("municipio") or ""
+        ibge = ibge_de(mun, "SE") if mun and "indispon" not in mun.lower() and not mun.upper().startswith(("ESTADO", "SERGIPE")) else None
+        benef = r.get("beneficiario") or ""
+        g = 0 if pix or "FUNDO A FUNDO" in inst else 2 if "DIRETA" in inst else grupo_pelo_nome(benef) if benef else None
+        saida.append(Linha("SE", ano, r.get("autor") or "", False, ibge, g,
+                           "Transferência especial" if pix else area(r.get("area") or r.get("cd_funcao") or ""), pix,
+                           float(r.get("valor") or 0), float(r.get("pagamento") or 0) + float(r.get("restoapagar_pago") or 0)))
+    return saida
+
+
 # ---------------------------------------------------------------- montagem
 
 def eleitos() -> list[dict]:
@@ -536,6 +684,16 @@ APELIDOS = {
     ("MG", "celinho-sinttrocel"): "Celinho Sintrocel",
     ("MG", "grego-fundacao"): "Grego",
     ("PA", "flavio-igor-pantoja"): "Flavio Higor Pantoja",
+    ("MA", "ariston"): "Ariston Gonçalo",
+    ("MA", "andreia-m-rezende"): "Andreia Martins Rezende",
+    ("SE", "garibalde-mendonca"): "Garibalde",
+    ("SE", "carminha-paiva"): "Carminha",
+    ("SE", "luizao-donatrampi"): "Luizao Dona Trampi",
+    ("SE", "dr-samuel"): "Dr. Samuel Carvalho",
+    ("SE", "paulo-junior"): "Paulo Jr",
+    ("SE", "lidiane-lucena"): "Dra Lidiane Lucena",
+    ("SE", "george-passos"): "Georgeo Passos",
+    ("SE", "ibrain-monteiro"): "Ibrain de Valmir",
     ("SP", "teonilio-barba"): "Barba",
     ("SP", "fabiana-bolsonaro"): "Fabiana B.",
 }
@@ -585,8 +743,13 @@ def montar(linhas: list[Linha], ligacao: dict, meta: dict[str, dict]) -> dict:
     tem_pago = {uf: m["pago"] for uf, m in meta.items()}
 
     # Num ano em que o estado não publica o pago (RJ em 2024), o valor é o indicado.
-    sem_pago_no_ano = {(uf, ano) for uf, ano in {(l.uf, l.ano) for l in linhas}
-                       if not any(x.pago is not None for x in linhas if x.uf == uf and x.ano == ano)}
+    # Também quando menos da metade das linhas do ano tem o pago (SE em 2025): o pago parcial daria a impressão de que
+    # quase nada foi pago.
+    com_pago, total = Counter(), Counter()
+    for l in linhas:
+        total[(l.uf, l.ano)] += 1
+        com_pago[(l.uf, l.ano)] += l.pago is not None
+    sem_pago_no_ano = {k for k, n in total.items() if com_pago[k] < n / 2}
 
     def valor(l: Linha) -> float:
         return (l.pago or 0.0) if tem_pago[l.uf] and (l.uf, l.ano) not in sem_pago_no_ano else l.indicado
@@ -634,8 +797,9 @@ def montar(linhas: list[Linha], ligacao: dict, meta: dict[str, dict]) -> dict:
     def r(x: float) -> int:
         return round(x)
 
-    def fechar(a: dict, uf: str) -> dict:
-        o = {"v": r(a["v"]), "i": r(a["i"]), "p": r(a["p"]) if tem_pago[uf] and a["temP"] else None, "n": a["n"]}
+    def fechar(a: dict, uf: str, ano: int) -> dict:
+        o = {"v": r(a["v"]), "i": r(a["i"]), "p": r(a["p"]) if tem_pago[uf] and a["temP"] and (uf, ano) not in sem_pago_no_ano else None,
+             "n": a["n"]}
         if a["pix"]:
             o["pix"] = r(a["pix"])
         if not a["gNulo"] and a["v"]:
@@ -652,20 +816,20 @@ def montar(linhas: list[Linha], ligacao: dict, meta: dict[str, dict]) -> dict:
         uf = uf_do_mun[ibge]
         saida_mun[str(ibge)] = {}
         for ano, a in sorted(anos.items()):
-            o = fechar(a, uf)
+            o = fechar(a, uf, ano)
             # [nome, valor, chave tse]: o nome como o estado escreve; a página troca pelo de /politicos quando há chave.
             # As emendas de bloco, bancada ou de mais de um deputado vêm juntas, com o nome "coletiva".
             o["aut"] = [["coletiva" if k[1] == "coletiva" else nomes_aut[k], r(v), k[1] if k[1].startswith("tse-") else None]
                         for k, v in sorted(a["aut"].items(), key=lambda kv: (-kv[1], str(kv[0])))[:MAX_AUTORES] if v > 0]
             o["nAut"] = sum(1 for (_, q), v in a["aut"].items() if v > 0 and q != "coletiva")
             saida_mun[str(ibge)][str(ano)] = o
-    saida_uf = {uf: {str(ano): dict(fechar(a, uf), semCidade=r(a["est"])) for ano, a in sorted(anos.items())} for uf, anos in ufs.items()}
+    saida_uf = {uf: {str(ano): dict(fechar(a, uf, ano), semCidade=r(a["est"])) for ano, a in sorted(anos.items())} for uf, anos in ufs.items()}
     saida_dep = {}
     for chave, anos in deps.items():
         uf = next(u for (u, q) in nomes_aut if q == chave)
         saida_dep[chave] = {}
         for ano, a in sorted(anos.items()):
-            o = fechar(a, uf)
+            o = fechar(a, uf, ano)
             o["est"] = r(a["est"])
             o["cid"] = [[ib, r(v)] for ib, v in em_ordem(a["cid"])[:MAX_CIDADES] if v > 0]
             o["nc"] = sum(1 for v in a["cid"].values() if v > 0)
@@ -733,7 +897,9 @@ def main() -> None:
 
     leitores = {"MG": lambda f: ler_mg(f), "ES": lambda f: ler_es(f, ibge6), "AC": lambda f: ler_ac(f, ibge_de),
                 "PA": lambda f: ler_pa(f, ibge_de), "RJ": lambda f: ler_rj(f, ibge_de), "DF": lambda f: ler_df(f),
-                "MS": lambda f: ler_ms(f, ibge_de), "SC": lambda f: ler_sc(f), "SP": lambda f: ler_sp(f, ibge_de)}
+                "MS": lambda f: ler_ms(f, ibge_de), "SC": lambda f: ler_sc(f), "SP": lambda f: ler_sp(f, ibge_de),
+                "PE": lambda f: ler_pe(f, ibge_de), "AL": lambda f: ler_al(f, ibge_de), "MA": lambda f: ler_ma(f, ibge_de),
+                "SE": lambda f: ler_se(f, ibge_de)}
     escolhidos = args.uf or sorted(ESTADOS)
     linhas: list[Linha] = []
     falhou = []

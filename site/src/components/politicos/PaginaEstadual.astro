@@ -8,7 +8,7 @@ import Termo from "../Termo.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import { anoPadrao, caminhoCidadeNome, docPoliticos, nomePartido, type Ano, type Politico } from "../../lib/politicos";
 import { caminhoCidade, caminhoEstado } from "../../lib/cidades";
-import { cidadeDoIbge, cotaDoEstado, emendasDoDeputado, estadosComEmendas } from "../../lib/emendas-estaduais";
+import { cidadeDoIbge, cotaDoEstado, docEmendasEstaduais, emendasDoDeputado, estadosComEmendas } from "../../lib/emendas-estaduais";
 
 interface Props { p: Politico }
 const { p } = Astro.props;
@@ -134,6 +134,7 @@ function verbaSemDado() {
 }
 // As emendas ao orçamento do estado (emendas_estaduais.py), onde o estado publica com o deputado e a cidade.
 const emEst = governo ? null : emendasDoDeputado(p.chave, p.uf);
+const estEmendas = docEmendasEstaduais?.estados[p.uf];
 const estadoTemEmendas = estadosComEmendas().includes(p.uf);
 const nomeCurto = p.nome;
 const listaEstados = (() => {
@@ -290,7 +291,9 @@ const fraseSaida = p.saida
             <h2>Para onde mandou emendas</h2>
             <p class="texto">
               {estadoTemEmendas
-                ? <>Nos dados de emendas {orcamento}, não há emendas em nome {dela} em {ano}.</>
+                ? (estEmendas && Number(ano) < estEmendas.anos[0]
+                    ? <>{mais(deEstado.replace(/^(de|do|da) /, (m) => ({ "de ": "", "do ": "o ", "da ": "a " } as Record<string, string>)[m]))} só publica as emendas com o nome do deputado a partir de {estEmendas.anos[0]}.</>
+                    : <>Nos dados de emendas {orcamento}, não há emendas em nome {dela} em {ano}.</>)
                 : <>Deputados {distrital ? "distritais" : "estaduais"} também indicam <Termo id="emenda-estadual">emendas</Termo>, ao orçamento {orcamento}. Ainda não temos as emendas {deEstado}: cada estado publica de um jeito, e por enquanto a conta tem {listaEstados}.</>}
             </p>
           </section>
@@ -306,7 +309,7 @@ const fraseSaida = p.saida
               {quando(ano)}, {nomeCurto} indicou <strong>{milhoes(em.i)}</strong> em <Termo id="emenda-estadual">emendas</Termo> ao orçamento {orcamento}.{" "}
               {em.p !== null
                 ? <>O governo {distrital ? "do Distrito Federal" : "do estado"} já pagou <strong>{milhoes(em.p)}</strong> dessas emendas{!distrital && em.nc > 0 && <>, para {em.nc} {em.nc === 1 ? "cidade" : "cidades"}</>}.</>
-                : <>O governo do estado não publica quanto já pagou.{!distrital && em.nc > 0 && <> As emendas foram para {em.nc} {em.nc === 1 ? "cidade" : "cidades"}.</>}</>}
+                : <>{emEst!.estado.pago ? "Os dados do estado não trazem o pago completo desse ano." : "O governo do estado não publica quanto já pagou."}{!distrital && em.nc > 0 && <> As emendas foram para {em.nc} {em.nc === 1 ? "cidade" : "cidades"}.</>}</>}
               {em.pix && em.pix > 0 && <> {mais(moedaCurta(em.pix))} foram por transferência especial, a <Termo id="emenda-pix">emenda Pix</Termo>, que cai direto no caixa da prefeitura.</>}
               {em.est > 0 && !distrital && <> {mais(moedaCurta(em.est))} foram para o estado inteiro, sem uma cidade.</>}
             </p>

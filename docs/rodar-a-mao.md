@@ -237,7 +237,7 @@ uv run --project pipeline emendas-estaduais
 uv run --project pipeline emendas-estaduais --uf MG ES   # só alguns; os outros ficam como estavam
 ```
 
-- **O que baixa:** as emendas de MG, ES, AC, PA, RJ, DF, MS, SC e SP, cada uma do portal do próprio estado
+- **O que baixa:** as emendas de MG, ES, AC, PA, RJ, DF, MS, SC, SP, PE, AL, MA e SE, cada uma do portal do próprio estado
   (docs/levantamento-emendas-estaduais.md). Guarda só os totais por cidade, por deputado e por área; nenhum nome de
   quem recebeu e nenhum CPF.
 - **Quando:** a cada 3 meses, e em janeiro, quando os estados fecham o ano anterior.
@@ -245,7 +245,9 @@ uv run --project pipeline emendas-estaduais --uf MG ES   # só alguns; os outros
   se um dos dois mudar, o estado falha e fica como estava na cópia de referência (o comando sai com erro, para avisar).
   O RJ troca o nome dos arquivos a cada publicação: o comando acha os links na página. SC e SP saem dos painéis Power BI
   (powerbi.py, a mesma API que a página usa); SP tem um painel por ano: quando sair o de 2026, a chave dele (o "k" do
-  link app.powerbi.com/view?r=…, em base64) entra em `PAINEIS_SP`. Depois de uma eleição, a
+  link app.powerbi.com/view?r=…, em base64) entra em `PAINEIS_SP`. PE, AL e MA só publicam o ano corrente: rodar em janeiro
+  guarda o ano que fechou (depois o portal passa a mostrar só o novo). O painel de 2026 de SE é de uma empresa
+  contratada (plataformatarget); o portal oficial indica o link. Depois de uma eleição, a
   ligação com /politicos precisa da base nova do TSE (`politicos --tse`) e de conferir os nomes sem ligação que o
   comando lista (a tabela APELIDOS, em `emendas_estaduais.py`).
 - **Depois:** commit de `pipeline/referencia/emendas-estaduais.json`.

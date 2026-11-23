@@ -78,6 +78,8 @@ export interface EmendasEstaduaisCidade {
   uf: string;
   estado: EstadoEmendas;
   ano: number;
+  /** O ano mostrado é o corrente, ainda em andamento (o estado não publica os anos fechados). */
+  andamento: boolean;
   item: ItemCidade;
   /** O valor mostrado é o pago (e não só o indicado). */
   pago: boolean;
@@ -97,7 +99,8 @@ export function emendasEstaduaisDe(c: Cidade): EmendasEstaduaisCidade | null {
   const estado = d?.estados[c.uf];
   if (!d || !estado || !c.pop) return null;
   const porAno = d.mun[String(c.ibge)];
-  const ano = estado.anos.filter((a) => a < anoAtual).at(-1);
+  // O último ano fechado; nos estados que só publicam o ano corrente (PE, AL e MA só têm 2026), o ano em andamento.
+  const ano = anoDaConta(estado);
   const item = ano ? porAno?.[String(ano)] : undefined;
   if (!ano || !item || item.v <= 0) return null;
   // Comparação: as cidades do mesmo estado e da mesma faixa de população (cada estado tem regras e cotas próprias),
@@ -105,15 +108,23 @@ export function emendasEstaduaisDe(c: Cidade): EmendasEstaduaisCidade | null {
   const parecidas = (docCidades?.cidades ?? []).filter((x) => x.uf === c.uf && x.pop && x.faixa === c.faixa);
   const valores = parecidas.map((x) => (d.mun[String(x.ibge)]?.[String(ano)]?.v ?? 0) / x.pop);
   return {
-    uf: c.uf, estado, ano, item, pago: item.p !== null, porHab: item.v / c.pop,
+    uf: c.uf, estado, ano, andamento: ano >= anoAtual, item, pago: item.p !== null, porHab: item.v / c.pop,
     mediana: c.ibge === 53 || valores.length < 5 ? null : mediana(valores),
     autores: item.aut.map(([nome, valor, chave]) => {
       const p = politicoDaChave(chave);
       return { nome: nome === "coletiva" ? "Emendas em grupo" : p?.nome ?? nomeLegivel(nome), href: p?.href ?? null, valor, coletiva: nome === "coletiva" };
     }),
-    serie: estado.anos.map((a) => ({ ano: a, valor: (porAno?.[String(a)]?.v ?? 0) / 1e6, preliminar: a >= anoAtual })),
+    // Onde o estado publica o pago, um ano sem o pago completo (SE em 2025) mostra o indicado: a barra leva a marca †.
+    serie: estado.anos.map((a) => {
+      const x = porAno?.[String(a)];
+      return { ano: a, valor: (x?.v ?? 0) / 1e6, preliminar: a >= anoAtual, marca: estado.pago && !!x && x.p === null };
+    }),
   };
 }
+
+/** O ano que a conta mostra: o último fechado ou, se o estado só publica o corrente, o corrente. */
+export const anoDaConta = (estado: EstadoEmendas): number | undefined =>
+  estado.anos.filter((a) => a < anoAtual).at(-1) ?? estado.anos.at(-1);
 
 /** Os estados que já estão na conta, para a frase "ainda não temos". */
 export const estadosComEmendas = (): string[] => Object.keys(docEmendasEstaduais?.estados ?? {});
