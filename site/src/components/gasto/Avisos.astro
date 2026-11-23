@@ -1,0 +1,233 @@
+---
+/**
+ * Os avisos de uma cidade ou de um estado, logo abaixo dos números principais. Cada aviso mostra o que o
+ * dado diz, a regra que o fez aparecer e a fonte. Sem aviso, o bloco não aparece. As regras estão em
+ * lib/avisos.ts; o levantamento, em docs/levantamento-avisos.md.
+ */
+import Termo from "../Termo.astro";
+import { moedaCurta } from "../../lib/formato";
+import {
+  ANOS_SEM_AVISO_EDUCACAO, avisosDe, DADO_DESDE, DADO_DIFERENCA, DADO_ESCALA, DEFICIT_ANOS, DEFICIT_CORTE, MINIMOS,
+  type AvisoDado, type AvisoDeficit, type AvisoMinimo, type Motivo,
+} from "../../lib/avisos";
+
+interface Props {
+  ibge: number;
+  esfera: "uf" | "mun";
+  /** "a prefeitura de Japeri", "o governo do Ceará" */
+  quem: string;
+}
+const { ibge, esfera, quem } = Astro.props;
+const avisos = avisosDe(ibge, esfera);
+const mun = esfera === "mun";
+const ehDF = ibge === 53;
+const Quem = quem[0].toUpperCase() + quem.slice(1);
+const desta = mun && !ehDF ? "desta prefeitura" : "deste governo";
+const aPropria = mun && !ehDF ? "a própria prefeitura" : "o próprio governo";
+
+const nf1 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct = (v: number) => `${nf1.format(v)}%`;
+const nf1fixo = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const NUMEROS = ["", "Um ponto", "Dois pontos", "Três pontos", "Quatro pontos"];
+const lista = (xs: (string | number)[]) => (xs.length < 2 ? String(xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} e ${xs.at(-1)}`);
+
+const minimos = avisos.filter((a): a is AvisoMinimo => a.tipo === "minimo");
+const deficit = avisos.find((a): a is AvisoDeficit => a.tipo === "deficit");
+const dado = avisos.find((a): a is AvisoDado => a.tipo === "dado");
+
+// --- déficit
+const escalaDeficit = deficit ? Math.max(...deficit.anos.map((a) => a.razao)) : 1;
+
+// --- dado
+const soFalta = dado?.anos.every((a) => a.motivos.every((m) => m.tipo === "falta")) ?? false;
+const anosDado = dado?.anos.map((a) => a.ano) ?? [];
+const tituloDado = !dado ? "" : soFalta
+  ? (anosDado.length === 1 ? `Falta a prestação de contas de ${anosDado[0]}` : `Faltam as prestações de contas de ${lista(anosDado)}`)
+  : anosDado.length === 1 ? `O número de ${anosDado[0]} pode estar errado na origem`
+  : anosDado.length <= 4 ? `Os números de ${lista(anosDado)} podem estar errados na origem`
+  : `Os números de ${anosDado.length} anos podem estar errados na origem`;
+const temIncomum = dado?.anos.some((a) => a.motivos.some((m) => m.tipo === "diferenca" || m.tipo === "escala")) ?? false;
+const temFalta = dado?.anos.some((a) => a.motivos.some((m) => m.tipo === "falta")) ?? false;
+const nomeValor = (q: "despesa" | "receita" | "as duas") => (q === "as duas" ? "a despesa e a receita" : `a ${q}`);
+function frase(ano: number, m: Motivo): string {
+  switch (m.tipo) {
+    case "falta":
+      return "falta a prestação de contas.";
+    case "repetido":
+      return `${nomeValor(m.qual)} ${m.qual === "as duas" ? "são idênticas" : "é idêntica"}, até o último real, ${m.qual === "as duas" ? "às" : "à"} de ${ano - 1}.`;
+    case "diferenca":
+      return m.razao > 0
+        ? `a despesa ficou ${nf0.format(m.razao * 100)}% acima da receita.`
+        : `a receita ficou ${nf0.format((-m.razao / (1 + m.razao)) * 100)}% acima da despesa.`;
+    case "escala":
+      return m.vezes >= 1
+        ? `${nomeValor(m.qual)} ${m.qual === "as duas" ? "ficam" : "fica"} cerca de ${nf0.format(m.vezes)} vezes o normal ${desta}.`
+        : `${nomeValor(m.qual)} ${m.qual === "as duas" ? "ficam" : "fica"} cerca de ${nf0.format(1 / m.vezes)} vezes menor que o normal ${desta}.`;
+  }
+}
+const comMaiuscula = (t: string) => t[0].toUpperCase() + t.slice(1);
+// Cada motivo é uma frase; a partir da segunda, com maiúscula ("Em 2023, a despesa é idêntica… A despesa fica…").
+const linhasDado = dado?.anos.map((a) => ({
+  ano: a.ano,
+  texto: a.motivos.map((m, i) => (i ? comMaiuscula(frase(a.ano, m)) : frase(a.ano, m))).join(" "),
+})) ?? [];
+---
+
+{avisos.length > 0 && (
+  <section class="avisos" id="avisos" aria-labelledby="titulo-avisos">
+    <div class="intro">
+      <h2 id="titulo-avisos">Avisos</h2>
+      <p>
+        {NUMEROS[avisos.length] ?? `${avisos.length} pontos`} nos números {desta} {avisos.length === 1 ? "chama" : "chamam"} atenção.
+        Cada aviso mostra a regra que o fez aparecer e de onde vem o número.
+      </p>
+      <p class="menor">
+        Um aviso não é uma acusação: diz o que o dado mostra. Se o número estiver errado na origem, quem pode corrigir
+        é {mun && !ehDF ? "a prefeitura" : "o governo"}, na declaração que entrega ao Tesouro.
+      </p>
+    </div>
+    <ol class="lista">
+      {minimos.map((a) => {
+        const saude = a.area === "saude";
+        const escala = Math.max(a.minimo * 1.25, a.aplicado);
+        return (
+          <li class="aviso">
+            <span class="rotulo forte">Mínimo da Constituição</span>
+            <h3>{saude ? "Saúde" : "Educação"} abaixo do mínimo em {a.ano}</h3>
+            <p>
+              {Quem} declarou ter aplicado <strong class="marca">{pct(a.aplicado)}</strong> da receita de impostos em {saude ? "saúde" : "educação"}.
+              {" "}{saude ? "A lei" : "A Constituição"} manda aplicar pelo menos <strong>{pct(a.minimo)}</strong>.
+              {a.outros.length > 0 && <> Também ficou abaixo em {lista(a.outros.map((o) => `${o.ano} (${pct(o.aplicado)})`))}.</>}
+            </p>
+            <div class="medida" role="img" aria-label={`${pct(a.aplicado)} aplicado; o mínimo é ${pct(a.minimo)}`}>
+              <span class="trilho">
+                <span class="barra" style={`width:${(a.aplicado / escala) * 100}%`}></span>
+                <span class="limite" style={`left:${(a.minimo / escala) * 100}%`}></span>
+              </span>
+              <span class="legenda">{pct(a.aplicado)} · mínimo {pct(a.minimo)}</span>
+            </div>
+            <dl>
+              <dt>Regra</dt>
+              <dd>
+                {saude ? (
+                  ehDF
+                    ? <>O Distrito Federal aplica em saúde no mínimo 12% da parte estadual da receita de impostos e 15% da parte municipal, o que dá o mínimo acima (Lei Complementar 141/2012).</>
+                    : <>Prefeituras aplicam em saúde no mínimo {MINIMOS.saude.mun}% da receita de impostos, somada às transferências que vêm de impostos; os estados, {MINIMOS.saude.uf}% (Lei Complementar 141/2012). É o <Termo id="minimo-constitucional">mínimo constitucional</Termo>.</>
+                ) : (
+                  <>Prefeituras e estados aplicam no mínimo {MINIMOS.educacao.mun}% da receita de impostos, somada às transferências que vêm de impostos, na manutenção e no desenvolvimento do ensino (Constituição, art. 212). É o <Termo id="minimo-constitucional">mínimo constitucional</Termo>. Em {lista(ANOS_SEM_AVISO_EDUCACAO)} não há aviso: a Emenda Constitucional 119 suspendeu a punição por causa da pandemia.</>
+                )}
+              </dd>
+              <dt>Fonte</dt>
+              <dd>
+                O percentual que {aPropria} apurou e entregou ao Tesouro Nacional: Relatório Resumido de Execução Orçamentária
+                (RREO), Anexo 14, 6º bimestre de {a.ano}. O número vem do {saude ? "SIOPS, do Ministério da Saúde" : "SIOPE, do FNDE"}.
+                O Tribunal de Contas pode chegar a outro número ao julgar as contas.
+              </dd>
+            </dl>
+          </li>
+        );
+      })}
+
+      {deficit && (
+        <li class="aviso">
+          <span class="rotulo forte">Contas no vermelho</span>
+          <h3>Gastou mais do que arrecadou por {deficit.anos.length} anos seguidos</h3>
+          <p>
+            De {deficit.anos[0].ano} a {deficit.anos.at(-1)!.ano}, a despesa passou a receita todos os anos.
+            {" "}Em {deficit.anos.at(-1)!.ano}, foram {moedaCurta(deficit.anos.at(-1)!.despesa - deficit.anos.at(-1)!.receita)} a mais.
+          </p>
+          <ol class="anos" aria-label="Quanto a despesa passou a receita, ano a ano">
+            {deficit.anos.map((a) => (
+              <li title={`${a.ano}: despesa de ${moedaCurta(a.despesa)}, receita de ${moedaCurta(a.receita)}`}>
+                <span class="num ano">{a.ano}</span>
+                <span class="trilho"><span class="barra" style={`width:${(a.razao / escalaDeficit) * 100}%`}></span></span>
+                <strong class="num">{nf1fixo.format(a.razao * 100)}%</strong>
+              </li>
+            ))}
+          </ol>
+          <p class="nota-barras">Quanto a despesa passou a receita, em % da receita.</p>
+          <dl>
+            <dt>Regra</dt>
+            <dd>
+              Aparece quando a despesa <Termo id="empenho">empenhada</Termo> passa a receita arrecadada em mais de {nf0.format(DEFICIT_CORTE * 100)}%
+              por pelo menos {DEFICIT_ANOS} anos seguidos, até o último ano entregue. Um ano só não basta: o governo pode usar dinheiro
+              que sobrou de anos anteriores. Parte da despesa também só é paga no ano seguinte, como <Termo id="restos-a-pagar">restos a pagar</Termo>.
+              Anos com aviso sobre o dado não contam.
+            </dd>
+            <dt>Fonte</dt>
+            <dd>Despesa empenhada e receita arrecadada da Declaração de Contas Anuais (DCA), entregue ao Tesouro Nacional pelo SICONFI.</dd>
+          </dl>
+        </li>
+      )}
+
+      {dado && (
+        <li class="aviso">
+          <span class="rotulo fraco">Sobre o dado</span>
+          <h3>{tituloDado}</h3>
+          {soFalta ? null : linhasDado.length === 1 ? (
+            <p>Em {linhasDado[0].ano}, {linhasDado[0].texto}</p>
+          ) : (
+            <ul class="anos-dado">
+              {linhasDado.map((l) => <li><strong class="num">{l.ano}</strong> {comMaiuscula(l.texto)}</li>)}
+            </ul>
+          )}
+          {temIncomum && <p>Pode ser erro na declaração ou um fato fora do comum, como um dinheiro extra recebido de uma vez.</p>}
+          {temFalta && <p>{mun && !ehDF ? "A prefeitura" : "O governo"} não entregou ao Tesouro as contas {anosDado.length > 1 && soFalta ? "desses anos" : "desse ano"}, ou elas ainda não chegaram.</p>}
+          <dl>
+            <dt>Regra</dt>
+            <dd>
+              Este aviso é sobre o dado, não sobre {mun && !ehDF ? "a prefeitura" : "o governo"}. Aparece, de {DADO_DESDE} em diante, quando falta um ano,
+              quando a despesa ou a receita se repete igual de um ano para o outro, quando receita e despesa diferem em mais de
+              {" "}{nf0.format(DADO_DIFERENCA * 100)}%, ou quando um valor fica {DADO_ESCALA} vezes acima ou abaixo do normal {desta}.
+            </dd>
+            <dt>Fonte</dt>
+            <dd>Declaração de Contas Anuais (DCA), entregue ao Tesouro Nacional pelo SICONFI, como veio. O site não corrige números.</dd>
+          </dl>
+        </li>
+      )}
+    </ol>
+  </section>
+)}
+
+<style>
+  .avisos { border-top: 2px solid var(--tinta); padding: 28px 0 32px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .intro { grid-column: span 4; display: flex; flex-direction: column; gap: 10px; }
+  .intro h2 { font-size: 34px; }
+  .intro p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .intro .menor { font-size: 14px; color: var(--texto-3); }
+  .lista { grid-column: span 8; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .aviso { display: flex; flex-direction: column; gap: 8px; padding: 22px 0; border-top: 1px solid var(--regra); }
+  .aviso:first-child { padding-top: 0; border-top: 0; }
+  .aviso:last-child { padding-bottom: 0; }
+  .rotulo { align-self: flex-start; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; padding: 3px 8px; }
+  .rotulo.forte { color: #fff; background: #a3401a; }
+  .rotulo.fraco { color: var(--texto-2); background: var(--papel-escuro); border: 1px dashed var(--texto-4); padding: 2px 7px; }
+  .aviso h3 { font-size: 24px; line-height: 1.25; }
+  .aviso p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .aviso p strong { color: var(--tinta); }
+  .medida { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; color: var(--texto-3); }
+  .trilho { position: relative; display: block; height: 12px; }
+  .medida .trilho { width: min(320px, 100%); background: var(--areia-clara); }
+  .barra { display: block; height: 100%; background: #a3401a; }
+  .limite { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--tinta); }
+  .anos { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-width: 520px; }
+  .anos li { display: grid; grid-template-columns: 44px minmax(0, 1fr) 56px; gap: 12px; align-items: center; font-size: 14px; }
+  .anos .ano { color: var(--texto-3); }
+  .anos strong { text-align: right; font-weight: 600; }
+  .nota-barras { font-size: 13px !important; color: var(--texto-3) !important; }
+  .anos-dado { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 16px; line-height: 1.5; color: var(--texto-2); }
+  .anos-dado strong { color: var(--tinta); margin-right: 6px; }
+  dl { margin: 4px 0 0; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 12px; font-size: 14px; line-height: 1.5; }
+  dt { font-weight: 600; color: var(--tinta); }
+  dd { margin: 0; color: var(--texto-2); }
+
+  @media (max-width: 900px) {
+    .avisos { display: flex; flex-direction: column; gap: 16px; padding: 24px 0 28px; }
+    .intro h2 { font-size: 28px; }
+    .aviso h3 { font-size: 21px; }
+    .aviso p { font-size: 15px; }
+    dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    dd + dt { margin-top: 8px; }
+  }
+</style>

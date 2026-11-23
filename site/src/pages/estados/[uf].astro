@@ -1,6 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import AnoEmAndamento from "../../components/gasto/AnoEmAndamento.astro";
+import Avisos from "../../components/gasto/Avisos.astro";
 import DividaEstado from "../../components/gasto/DividaEstado.astro";
 import PessoalResultado from "../../components/gasto/PessoalResultado.astro";
 import PrevidenciaServidores from "../../components/gasto/PrevidenciaServidores.astro";
@@ -115,6 +116,7 @@ const descricao = temDados
 
     {ctx && <div class="ficha" data-parte="numeros" set:html={numerosHtml(ctx)} />}
     {ctx && <p class="aviso-ano" id="aviso-ano" hidden></p>}
+    {ctx && <Avisos ibge={e.ibge} esfera="uf" quem={quem} />}
     {ctx && <NestaPagina grupos={SUMARIO} />}
 
     {ctx && <p class="grupo-pagina" id="em-que-gasta" data-grupo="em-que-gasta">1 · Em que gasta</p>}
