@@ -106,6 +106,9 @@ class Formulario:
     login: bool = False
     obs: str = ""
     pronto: str = ""   # um campo que só aparece quando o formulário terminou de carregar (alguns redirecionam antes)
+    # reCAPTCHA invisível: o site dá nota de "robô" ao navegador e recusa o navegador controlado pelo script. Aí o
+    # script não disfarça o navegador: abre o formulário no navegador normal da pessoa e copia o texto para colar.
+    colar: bool = False
 
 
 def _tce_se(p, pedido: Pedido, s: Pessoa) -> None:
@@ -245,7 +248,8 @@ FORMULARIOS: dict[str, Formulario] = {f.orgao: f for f in [
                obs="O protocolo chega por e-mail.", pronto='[name$="tbxNome"]'),
     Formulario("ALMG", "Assembleia Legislativa de Minas Gerais", "https://www.almg.gov.br/apps/fale-com/assembleia",
                _almg, lambda p: p.get_by_role("button", name=re.compile(r"^\s*Enviar\s*$")).click(),
-               DADOS_BASE + ["uf", "municipio"], pronto='[name="nomeCompleto"]'),
+               DADOS_BASE + ["uf", "municipio"], pronto='[name="nomeCompleto"]', colar=True,
+               obs="O reCAPTCHA invisível recusa o navegador do script (23/11/2026): o formulário abre no seu navegador e o texto vai para a área de transferência."),
     Formulario("ALERJ", "Assembleia Legislativa do Estado do Rio de Janeiro",
                "http://www2.alerj.rj.gov.br/leideacesso/formulario-2016.asp",
                _alerj, _clicar('input[type="submit"]'), DADOS_BASE + ["nascimento"], captcha=True, pronto='[name="nome"]'),

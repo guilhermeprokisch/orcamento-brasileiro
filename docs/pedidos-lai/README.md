@@ -52,7 +52,7 @@ texto viram os seus dados (para a assinatura).
 | Órgão | Observação |
 |---|---|
 | TCE-SE | O protocolo chega por e-mail. |
-| ALMG | O site usa o reCAPTCHA invisível; se ele pedir confirmação, faça na janela. |
+| ALMG | O reCAPTCHA invisível do site recusa o navegador do script. O comando abre o formulário no seu navegador normal e copia o texto para a área de transferência; você preenche os dados, cola e envia, e ele anota o protocolo. |
 | ALERJ | CAPTCHA. |
 | ALERR | O formulário recarrega partes ao escolher o assunto; o script espera e confere. |
 | TCE-RS | Pede a cópia do documento de identidade (`documento` no lai.toml) e tem CAPTCHA. O texto do pedido é publicado no site do tribunal, por isso vai sem a assinatura. |

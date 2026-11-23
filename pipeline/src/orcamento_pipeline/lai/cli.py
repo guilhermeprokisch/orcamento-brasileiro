@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import subprocess
 import tempfile
+import webbrowser
 from pathlib import Path
 
 from . import navegador, registro
@@ -62,6 +64,9 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
     print(f"{f.nome}: {f.url}")
     if f.obs:
         print(f"  {f.obs}")
+    if f.colar and not ensaio:
+        colar(f, pedido, pessoa)
+        return
     with navegador.abrir(visivel=janela) as p:
         p.goto(f.url, wait_until="domcontentloaded")
         navegador.assentar(p)
@@ -97,6 +102,20 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
     print(f"Anotado em {registro.ARQUIVO.name}: prazo {linha['prazo']} (com prorrogação, {linha['prazo_prorrogado']}).")
 
 
+def colar(f, pedido: Pedido, pessoa: Pessoa) -> None:
+    """Para os sites que recusam o navegador do script: abre o formulário no navegador normal e copia o texto."""
+    subprocess.run(["pbcopy"], input=pedido.com_assunto.encode("utf-8"), check=False)
+    webbrowser.open(f.url)
+    print("\nO formulário abriu no seu navegador e o texto do pedido (com o assunto) está na área de transferência.")
+    print("Preencha com os dados do lai.toml: " + ", ".join(f.campos) + ". Na mensagem, cole com Cmd+V e envie.")
+    protocolo = input("\nDepois de enviar, digite o protocolo (ou Enter, se não apareceu; 'n' se não enviou): ").strip()
+    if protocolo.lower() == "n":
+        print("Não anotado.")
+        return
+    linha = registro.anotar(f.orgao, pedido.assunto, f"formulário (no navegador): {f.url}", protocolo or None, obs=f.obs)
+    print(f"Anotado em {registro.ARQUIVO.name}: prazo {linha['prazo']} (com prorrogação, {linha['prazo_prorrogado']}).")
+
+
 def prazos() -> None:
     hoje = dt.date.today()
     for r in registro.ler():
@@ -128,7 +147,7 @@ def main() -> None:
         print(f"Preencha os seus dados em {criar_modelo()} (só este computador lê o arquivo).")
     elif a.cmd == "orgaos":
         for f in FORMULARIOS.values():
-            marcas = ", ".join(m for m, v in (("CAPTCHA", f.captcha), ("login", f.login), ("envio manual", f.enviar is None)) if v)
+            marcas = ", ".join(m for m, v in (("CAPTCHA", f.captcha), ("login", f.login), ("envio manual", f.enviar is None), ("no seu navegador", f.colar)) if v)
             print(f"{f.orgao:8} {f.nome}{f' ({marcas})' if marcas else ''}")
     elif a.cmd == "prazos":
         prazos()
