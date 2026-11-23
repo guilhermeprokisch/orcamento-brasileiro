@@ -1,0 +1,95 @@
+---
+/**
+ * A lista dos políticos com página (/politicos/<uf>/<nome>), por estado. Por ora, deputados federais e senadores.
+ * Um campo filtra a lista pelo nome, no navegador.
+ */
+import Base from "../../layouts/Base.astro";
+import Termo from "../../components/Termo.astro";
+import { moedaCurta } from "../../lib/formato";
+import { caminhoPolitico, docPoliticos, type Politico } from "../../lib/politicos";
+
+const doc = docPoliticos;
+const ano = String(new Date().getFullYear() - 1);
+const porUf = new Map<string, Politico[]>();
+for (const p of doc?.politicos ?? []) {
+  if (!porUf.has(p.uf)) porUf.set(p.uf, []);
+  porUf.get(p.uf)!.push(p);
+}
+const ufs = [...porUf.keys()].sort((a, b) => (doc!.ufs[a] ?? a).localeCompare(doc!.ufs[b] ?? b, "pt-BR"));
+const ordem = (p: Politico) => (p.casa === "senado" ? 0 : 1);
+const sem = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+const nSen = (doc?.politicos ?? []).filter((p) => p.casa === "senado").length;
+const nDep = (doc?.politicos ?? []).length - nSen;
+---
+
+<Base title="Políticos: quanto custam e para onde mandam dinheiro · Orçamento Brasileiro" description="Deputados federais e senadores: salário, cota parlamentar, assessores, emendas e eleição, um por um.">
+  <div class="wrap lista-politicos">
+    <p class="sobretitulo verde">Políticos</p>
+    <h1>Quanto custa cada político e para onde manda dinheiro</h1>
+    <p class="texto">
+      Uma página para cada deputado federal e senador desde 2023: o salário, a <Termo id="cota-parlamentar">cota parlamentar</Termo>, os assessores, as
+      emendas que mandou e como foi eleito. São {nDep} deputados e {nSen} senadores, contando os suplentes que assumiram. Deputados estaduais,
+      governadores, prefeitos e vereadores entram depois, conforme houver dado aberto.
+    </p>
+    <label class="busca">
+      <span>Procure pelo nome</span>
+      <input type="search" data-filtro placeholder="Ex.: Tabata, Romário" autocomplete="off" />
+    </label>
+    <nav class="estados" aria-label="Estados">
+      {ufs.map((uf) => <a href={`#${uf.toLowerCase()}`}>{uf}</a>)}
+    </nav>
+    {ufs.map((uf) => (
+      <section id={uf.toLowerCase()} data-uf>
+        <h2>{doc!.ufs[uf] ?? uf}</h2>
+        <ol class="lista">
+          {porUf.get(uf)!.sort((a, b) => ordem(a) - ordem(b) || a.nome.localeCompare(b.nome, "pt-BR")).map((p) => {
+            const c = p.anos[ano]?.cota;
+            return (
+              <li data-nome={sem(p.nome)}>
+                <span><a href={caminhoPolitico(p)}>{p.nome}</a><small>{p.cargo}{p.partido ? ` · ${p.partido.replace(/^S\/ ?Partido$/i, "sem partido")}` : ""}</small></span>
+                <span>{c ? `cota de ${ano}: ${moedaCurta(c.total)}` : ""}</span>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    ))}
+    <p class="vazio" data-vazio hidden>Ninguém com esse nome. Procure como o nome aparece na Câmara ou no Senado.</p>
+  </div>
+</Base>
+
+<script is:inline>
+  (() => {
+    const campo = document.querySelector("[data-filtro]");
+    const sem = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+    campo?.addEventListener("input", () => {
+      const q = sem(campo.value);
+      let algum = false;
+      document.querySelectorAll("[data-uf]").forEach((sec) => {
+        let n = 0;
+        sec.querySelectorAll("li[data-nome]").forEach((li) => { const ok = !q || li.dataset.nome.includes(q); li.hidden = !ok; if (ok) n++; });
+        sec.hidden = n === 0;
+        if (n) algum = true;
+      });
+      document.querySelector("[data-vazio]").hidden = algum;
+    });
+  })();
+</script>
+
+<style>
+  .lista-politicos { padding-top: 32px; padding-bottom: 72px; display: flex; flex-direction: column; gap: 18px; }
+  h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.1; max-width: 900px; }
+  .texto { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); max-width: 860px; }
+  .busca { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--texto-2); max-width: 420px; }
+  .busca input { min-height: 48px; padding: 0 14px; border: 1px solid var(--tinta); background: #fff; font: inherit; font-size: 16px; }
+  .estados { display: flex; flex-wrap: wrap; gap: 6px; }
+  .estados a { min-width: 44px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--regra); text-decoration: none; color: var(--tinta); font-size: 14px; }
+  section { margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
+  section h2 { font-size: 26px; border-top: 2px solid var(--tinta); padding-top: 14px; }
+  .lista { list-style: none; margin: 0; padding: 0; columns: 2 360px; column-gap: 40px; }
+  .lista li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; break-inside: avoid; }
+  .lista li[hidden] { display: none; }
+  .lista small { display: block; font-size: 12px; color: var(--texto-3); }
+  .lista li > span:last-child { white-space: nowrap; color: var(--texto-3); font-size: 13px; }
+  .vazio { color: var(--texto-3); }
+</style>
