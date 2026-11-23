@@ -9,8 +9,6 @@ name: Acima do teto (prefeituras da Paraíba)
 on:
   schedule:
     - cron: "0 8 23 * *"
-  push:   # TEMPORÁRIO: teste no branch
-    branches: [claude/teto-prefeituras-pb]
   workflow_dispatch:
 
 concurrency:
