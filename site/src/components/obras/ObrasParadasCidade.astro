@@ -7,7 +7,7 @@ import Termo from "../Termo.astro";
 import ListaObras from "./ListaObras.astro";
 import { moedaCompleta, moedaExtenso } from "../../lib/formato";
 import type { Cidade } from "../../lib/cidades";
-import { mesAno, obrasNaCidade } from "../../lib/obras-paradas";
+import { dataBr, mesAno, obrasNaCidade, somaConvenios } from "../../lib/obras-paradas";
 
 interface Props {
   cidade: Cidade;
@@ -20,6 +20,7 @@ const nf = new Intl.NumberFormat("pt-BR");
 const primeira = d?.datas[0] ?? "";
 const antigas = d ? d.obras.filter((o) => o.desde === primeira).length : 0;
 const umaSo = d?.n === 1;
+const conv = d ? somaConvenios(d.obras) : null;
 ---
 
 {d && (
@@ -36,6 +37,14 @@ const umaSo = d?.n === 1;
           {d.ativas > d.n && (
             <p>
               A lista tem {nf.format(d.ativas)} obras federais começadas e ainda não terminadas {em}; {umaSo ? "uma delas está parada" : `${nf.format(d.n)} delas estão paradas`}.
+            </p>
+          )}
+          {conv && conv.n > 0 && d.transferegov && (
+            <p>
+              {conv.n === 1 ? (umaSo ? "Ela é paga por" : "Uma delas é paga por") : `${nf.format(conv.n)} são pagas por`} <Termo id="convenio">convênio</Termo>:
+              a União já depositou {moedaExtenso(conv.depositado)} na conta {conv.n === 1 ? "da obra" : "dessas obras"}
+              {conv.naConta >= 1000 ? <>, e o <Termo id="saldo-em-conta">saldo parado na conta</Termo> é de <strong>{moedaExtenso(conv.naConta)}</strong></> : ""}.
+              São os números do Transferegov de {dataBr(d.transferegov.data)}.
             </p>
           )}
           {antigas > 0 && primeira !== d.dataBase && (
@@ -66,6 +75,7 @@ const umaSo = d?.n === 1;
           Fonte: <a href={d.url}>{d.fonte}</a>, data-base de {mesAno(d.dataBase)}. À direita, quanto a obra custaria (o valor
           previsto) e quanto o governo federal já liberou. "% feita" é a <Termo id="execucao-fisica">execução física</Termo>. "No órgão"
           é a situação que o próprio órgão informa, quando é diferente da do TCU. Total liberado: {moedaCompleta(d.liberado)}.
+          {conv && conv.n > 0 && d.transferegov && <> Convênios: <a href={d.transferegov.url}>Transferegov.br</a>, dados abertos de {dataBr(d.transferegov.data)}.</>}
         </p>
       </div>
     )}

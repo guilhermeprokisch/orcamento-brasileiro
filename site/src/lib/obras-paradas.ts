@@ -7,10 +7,15 @@ import { NOMES_UF, type Cidade } from "./cidades";
 
 /** [n.º de obras, valor previsto, valor liberado] */
 type Soma = [number, number, number];
+/** [número do convênio, ano da assinatura, fim do prazo (AAAA-MM-DD), situação do convênio, valor global,
+ *  desembolsado, saldo em conta] */
+type ConvenioBruto = [string, number | null, string | null, string | null, number, number, number];
 /** [nome, base, quem paga, instrumento, % feito, previsto, liberado, causa, situação no órgão, desde, setor,
- *  quis repactuar (0/1), (local, ibge)] */
+ *  quis repactuar (0/1), convênio do Transferegov ou null, (local, ibge)] */
 type ObraBruta = [string, string, string, string | null, number | null, number, number, string | null, string | null,
-  string, string, number, string?, (number | null)?];
+  string, string, number, ConvenioBruto | null, string?, (number | null)?];
+/** [obras com convênio, valor global, desembolsado, saldo em conta] */
+type SomaTg = [number, number, number, number];
 
 interface DocObras {
   data_base: string;
@@ -35,6 +40,7 @@ interface DocObras {
     uf: Record<string, [...Soma, number]>;
     historico: { data: string; paralisadas: number; em_execucao: number; previsto: number; liberado: number }[];
     destino: { de: string; total: number; situacoes: [string, number][] } | null;
+    transferegov?: { data: string | null; fonte: string; url: string; total: SomaTg; maiores_saldo: ObraBruta[] };
   };
   uf: Record<string, {
     total: Soma;
@@ -44,6 +50,7 @@ interface DocObras {
     quem_paga: [string, ...Soma][];
     maiores: ObraBruta[];
     sem_cidade: ObraBruta[];
+    transferegov?: SomaTg;
   }>;
   /** ibge → [n.º, previsto, liberado, obras ativas (em execução + paradas), obras] */
   mun: Record<string, [...Soma, number, ObraBruta[]]>;
@@ -62,6 +69,20 @@ export const mesAnoCurto = (d: string) => `${MESES[Number(d.slice(5, 7)) - 1].sl
 /** Situações do órgão que dizem a mesma coisa que o TCU: não vale repetir ao lado da obra. */
 const MESMA_SITUACAO = /^(paralisad[ao]|obra paralisada)$/i;
 
+/** O convênio da obra no Transferegov (Caixa, Funasa, parte do FNDE), com os valores do dia da carga. */
+export interface Convenio {
+  numero: string;
+  assinado: number | null;
+  /** Fim do prazo do convênio (AAAA-MM-DD). */
+  prazo: string | null;
+  situacao: string | null;
+  global: number;
+  /** O que a União já depositou na conta da obra. */
+  depositado: number;
+  /** O que está na conta agora (inclui contrapartida e rendimentos). */
+  naConta: number;
+}
+
 export interface Obra {
   nome: string;
   /** Quem acompanha a obra (a base de onde o TCU tirou a linha), já por extenso. */
@@ -77,6 +98,7 @@ export interface Obra {
   desde: string;
   setor: string;
   repactuar: boolean;
+  convenio: Convenio | null;
   local: string | null;
   ibge: number | null;
 }
@@ -94,9 +116,30 @@ const obra = (o: ObraBruta, bases: Record<string, string>): Obra => ({
   desde: o[9],
   setor: o[10],
   repactuar: o[11] === 1,
-  local: o[12] ?? null,
-  ibge: o[13] ?? null,
+  convenio: o[12]
+    ? { numero: o[12][0], assinado: o[12][1], prazo: o[12][2], situacao: o[12][3], global: o[12][4], depositado: o[12][5], naConta: o[12][6] }
+    : null,
+  local: o[13] ?? null,
+  ibge: o[14] ?? null,
 });
+
+/** Totais do Transferegov de uma lista de obras (cada convênio uma vez). */
+export function somaConvenios(obras: Obra[]): { n: number; depositado: number; naConta: number } {
+  const vistos = new Set<string>();
+  let depositado = 0, naConta = 0;
+  for (const o of obras) {
+    if (!o.convenio || vistos.has(o.convenio.numero)) continue;
+    vistos.add(o.convenio.numero);
+    depositado += o.convenio.depositado;
+    naConta += o.convenio.naConta;
+  }
+  return { n: vistos.size, depositado, naConta };
+}
+
+export interface InfoTransferegov { data: string | null; url: string; n: number; global: number; depositado: number; naConta: number }
+
+/** "2026-11-23" → "23/11/2026" */
+export const dataBr = (d: string | null) => (d ? d.split("-").reverse().join("/") : "");
 
 export interface Contagem { nome: string; n: number; previsto: number; liberado: number }
 const contagem = ([nome, n, previsto, liberado]: [string, ...Soma]): Contagem => ({ nome, n, previsto, liberado });
@@ -106,8 +149,16 @@ interface Comum {
   datas: string[];
   fonte: string;
   url: string;
+  /** Data dos arquivos do Transferegov e o total no Brasil; null se a carga não ligou ao Transferegov. */
+  transferegov: InfoTransferegov | null;
 }
-const comum = (d: DocObras): Comum => ({ dataBase: d.data_base, datas: d.datas, fonte: d.fonte, url: d.url });
+const comum = (d: DocObras): Comum => {
+  const t = d.brasil.transferegov;
+  return {
+    dataBase: d.data_base, datas: d.datas, fonte: d.fonte, url: d.url,
+    transferegov: t ? { data: t.data, url: t.url, n: t.total[0], global: t.total[1], depositado: t.total[2], naConta: t.total[3] } : null,
+  };
+};
 
 export interface ObrasCidade extends Comum {
   n: number;
@@ -138,13 +189,15 @@ export interface ObrasEstado extends Comum {
   quemPaga: Contagem[];
   maiores: Obra[];
   semCidade: Obra[];
+  /** Obras do estado ligadas a um convênio do Transferegov, e o que a União depositou e o que está na conta. */
+  convenios: { n: number; depositado: number; naConta: number } | null;
 }
 
 export async function obrasNoEstado(uf: string): Promise<ObrasEstado | null> {
   const d = await docObrasParadas();
   const e = d?.uf[uf];
   if (!d) return null;
-  if (!e) return { ...comum(d), n: 0, previsto: 0, liberado: 0, ativas: 0, cidadesComObra: 0, cidades: [], quemPaga: [], maiores: [], semCidade: [] };
+  if (!e) return { ...comum(d), n: 0, previsto: 0, liberado: 0, ativas: 0, cidadesComObra: 0, cidades: [], quemPaga: [], maiores: [], semCidade: [], convenios: null };
   return {
     ...comum(d),
     n: e.total[0],
@@ -156,6 +209,7 @@ export async function obrasNoEstado(uf: string): Promise<ObrasEstado | null> {
     quemPaga: e.quem_paga.map(contagem),
     maiores: e.maiores.map((o) => obra(o, d.bases)),
     semCidade: e.sem_cidade.map((o) => obra(o, d.bases)),
+    convenios: e.transferegov ? { n: e.transferegov[0], depositado: e.transferegov[2], naConta: e.transferegov[3] } : null,
   };
 }
 
@@ -177,6 +231,8 @@ export interface ObrasBrasil extends Comum {
   estados: { uf: string; nome: string; n: number; previsto: number; liberado: number; ativas: number }[];
   historico: DocObras["brasil"]["historico"];
   destino: DocObras["brasil"]["destino"];
+  /** As obras com mais dinheiro parado na conta do convênio. */
+  maioresSaldo: Obra[];
 }
 
 export async function obrasNoBrasil(): Promise<ObrasBrasil | null> {
@@ -204,5 +260,6 @@ export async function obrasNoBrasil(): Promise<ObrasBrasil | null> {
       .sort((a, b) => b.n - a.n),
     historico: b.historico,
     destino: b.destino,
+    maioresSaldo: (b.transferegov?.maiores_saldo ?? []).map((o) => obra(o, d.bases)),
   };
 }

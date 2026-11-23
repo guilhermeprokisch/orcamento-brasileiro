@@ -10,7 +10,7 @@ import ListaObras from "../components/obras/ListaObras.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso } from "../lib/formato";
 import { corDaRampa } from "../lib/cores";
 import { caminhoEstado } from "../lib/cidades";
-import { mesAno, mesAnoCurto, obrasNoBrasil } from "../lib/obras-paradas";
+import { dataBr, mesAno, mesAnoCurto, obrasNoBrasil } from "../lib/obras-paradas";
 
 const d = await obrasNoBrasil();
 const nf = new Intl.NumberFormat("pt-BR");
@@ -51,6 +51,7 @@ const destino = d?.destino
   : [];
 const discordam = d ? d.noOrgao.filter((o) => !/^(paralisad[ao]|obra paralisada)$/i.test(o.nome)) : [];
 const nDiscordam = discordam.reduce((s, o) => s + o.n, 0);
+const tg = d?.transferegov ?? null;
 const descricao = d
   ? `${nf.format(d.n)} obras feitas com dinheiro federal estão paradas, segundo o TCU (${mesAno(d.dataBase)}): custariam ${moedaExtenso(d.previsto)} e já receberam ${moedaExtenso(d.liberado)}. Onde estão, quem paga e há quanto tempo.`
   : "Obras com dinheiro federal paradas, segundo o TCU.";
@@ -87,6 +88,7 @@ const descricao = d
           <a href="#estados">Onde estão</a>
           <a href="#quem-paga">Quem paga</a>
           <a href="#maiores">As maiores</a>
+          {tg && tg.n > 0 && <a href="#na-conta">Dinheiro parado na conta</a>}
           <a href="#tempo">Há quanto tempo</a>
           {d.destino && <a href="#antes">O que aconteceu com as de {d.destino.de.slice(0, 4)}</a>}
           {nDiscordam > 0 && <a href="#orgao">O TCU e o órgão</a>}
@@ -166,6 +168,30 @@ const descricao = d
             <ListaObras obras={d.maiores} mostrar={10} comLocal={true} primeira={primeira} />
           </div>
         </section>
+
+        {tg && tg.n > 0 && (
+          <section class="bloco" id="na-conta">
+            <div class="texto">
+              <h2>Dinheiro parado na conta</h2>
+              <p>
+                Boa parte das obras paradas é paga por <Termo id="convenio">convênio</Termo>: a União deposita o dinheiro numa conta da obra,
+                e ele sai de lá conforme a obra anda. Nas <strong>{nf.format(tg.n)} obras</strong> paradas em que deu para achar o convênio no
+                Transferegov, a União já depositou <strong>{moedaExtenso(tg.depositado)}</strong>. Dessas contas, <strong class="marca">{moedaExtenso(tg.naConta)}</strong>
+                {" "}não saíram: é o <Termo id="saldo-em-conta">saldo parado na conta</Termo> de obras que não andam.
+              </p>
+              <p class="menor">
+                O saldo inclui a parte da prefeitura (a contrapartida) e os rendimentos da aplicação, por isso às vezes passa do que a União
+                depositou. Só entram obras da Caixa, da Funasa e do FNDE cujo número no TCU é um convênio do Transferegov, do mesmo estado:
+                os contratos mais antigos, de antes de 2008, ficam de fora. Os valores são os do Transferegov de {dataBr(tg.data)}, atualizados
+                a cada publicação do site.
+              </p>
+            </div>
+            <div class="grafico">
+              <h3>As obras paradas com mais dinheiro na conta</h3>
+              <ListaObras obras={d.maioresSaldo} mostrar={8} comLocal={true} primeira={primeira} />
+            </div>
+          </section>
+        )}
 
         <section class="bloco" id="tempo">
           <div class="texto">
@@ -294,6 +320,13 @@ const descricao = d
               {" "}obras paradas, a prefeitura ou o estado manifestou interesse em retomá-las pelo <Termo id="pacto-retomada">Pacto de retomada</Termo>.
               Parte do dinheiro pode ser devolvida.
             </li>
+            {tg && (
+              <li>
+                <strong>O convênio é casado pelo número.</strong> O número que o TCU mostra foi procurado no Transferegov e só vale se o convênio
+                for do mesmo estado da obra. Das obras da Caixa, da Funasa e do FNDE, {nf.format(tg.n)} acharam o convênio; as outras são
+                contratos antigos ou de outros sistemas.
+              </li>
+            )}
             <li>
               <strong>As datas não se comparam direto.</strong> O TCU mudou as bases e os critérios entre uma lista e outra.
             </li>
@@ -301,6 +334,7 @@ const descricao = d
           <p class="menor">
             Fonte: <a href={d.url}>{d.fonte}</a>, datas-base de {d.datas.map(mesAnoCurto).join(", ")}, exportadas do painel.
             O TCU junta os dados dos sistemas do governo e avisa que não os audita. A cidade vem pelo nome e foi casada com o código do IBGE.{" "}
+            {tg && <>Convênios: <a href={tg.url}>Transferegov.br</a>, dados abertos (siconv_convenio e siconv_proposta) de {dataBr(tg.data)}.{" "}</>}
             <a href="/data/obras-paradas/obras-paradas.json">Baixe os dados desta página</a> (JSON).
           </p>
         </section>
@@ -331,7 +365,7 @@ const descricao = d
   .texto p strong { color: var(--tinta); }
   .texto .menor { font-size: 14px; color: var(--texto-3); }
   .grafico { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-  .grafico h3 { margin: 8px 0 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .grafico h3 { margin: 8px 0 0; font-family: var(--sans, inherit); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
   .linhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .linhas li { display: grid; grid-template-columns: 150px minmax(0, 1fr) 130px; gap: 12px; align-items: center; font-size: 14px; }
   .linhas.largo li { grid-template-columns: 200px minmax(0, 1fr) 130px; }

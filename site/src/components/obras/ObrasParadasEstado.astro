@@ -9,7 +9,7 @@ import ListaObras from "./ListaObras.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso } from "../../lib/formato";
 import { corDaRampa } from "../../lib/cores";
 import { caminhoCidade, deUf, docCidades } from "../../lib/cidades";
-import { mesAno, obrasNoEstado } from "../../lib/obras-paradas";
+import { dataBr, mesAno, obrasNoEstado } from "../../lib/obras-paradas";
 
 interface Props {
   uf: string;
@@ -42,6 +42,13 @@ const primeira = d?.datas[0] ?? "";
           </p>
           {!ehDF && d.cidadesComObra > 0 && (
             <p>{d.cidadesComObra === 1 ? "Uma cidade tem" : `${nf.format(d.cidadesComObra)} cidades têm`} pelo menos uma obra parada{d.semCidade.length > 0 && <>; outras {nf.format(d.semCidade.length)} obras, como estradas e obras de universidades, aparecem na lista só com o estado</>}.</p>
+          )}
+          {d.convenios && d.convenios.n > 0 && d.transferegov && (
+            <p>
+              {d.convenios.n === 1 ? "Uma delas é paga" : `${nf.format(d.convenios.n)} são pagas`} por <Termo id="convenio">convênio</Termo>: a União já depositou
+              {" "}{moedaExtenso(d.convenios.depositado)} na conta dessas obras, e o <Termo id="saldo-em-conta">saldo parado na conta</Termo> é
+              {" "}de <strong>{moedaExtenso(d.convenios.naConta)}</strong> (Transferegov, {dataBr(d.transferegov.data)}).
+            </p>
           )}
           <p class="menor">
             A lista junta obras de algumas bases do governo federal, com a situação que cada órgão informou: pode haver obra parada fora

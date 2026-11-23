@@ -1,6 +1,7 @@
 """Obras paradas: as obras com dinheiro federal que o TCU considera paralisadas, por cidade e estado.
 
-    uv run obras-paradas                  # lê as tabelas em data/raw/tcu-obras/ e grava o JSON
+    uv run obras-paradas                  # lê as tabelas do TCU, liga ao Transferegov e grava o JSON
+    uv run obras-paradas --atualizar      # a cópia de referência com os valores do Transferegov de hoje
     uv run obras-paradas --sem-baixar     # só copia pipeline/referencia/obras-paradas.json
 
 Fonte: o Painel de Obras Paralisadas do TCU (https://paineis.tcu.gov.br/obrasparalisadas). O TCU junta nove
@@ -20,22 +21,39 @@ O que sai daqui:
 A cidade vem como texto ("Carnaubal/CE") e é casada pelo nome com o cadastro do SICONFI. Obras só com a UF
 (DNIT, Codevasf, parte das universidades) ficam no estado, sem cidade.
 
-Saída: site/public/data/obras-paradas/obras-paradas.json, com cópia em pipeline/referencia/. A carga é à mão
-(uma vez por semestre, quando o TCU publica uma data-base nova); a publicação usa --sem-baixar.
+Transferegov: as obras da Caixa, da Funasa e parte das do FNDE são convênios ou contratos de repasse, e o número
+que o TCU mostra ("Núm. Instrumento") é o número do convênio no Transferegov. Os arquivos abertos do
+Transferegov (siconv_convenio e siconv_proposta, atualizados todo dia, sem cadastro) dão, para cada convênio, o
+ano da assinatura, o fim do prazo, a situação do convênio e quanto a União já depositou na conta da obra
+(desembolsado) e quanto ainda está lá (saldo em conta). O mesmo número às vezes existe em outro sistema; por isso
+o convênio só vale se o estado de quem o assinou for o da obra. Obra sem cidade no TCU ganha a cidade da
+prefeitura que assinou.
+
+Saída: site/public/data/obras-paradas/obras-paradas.json, com cópia em pipeline/referencia/. A carga do TCU é à
+mão (uma vez por ano, quando o TCU publica uma data-base nova); a publicação usa --atualizar, que baixa só o
+siconv_convenio (~18 MB) e atualiza os valores dos convênios já ligados.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import re
 import shutil
 import sys
+import time
+import urllib.error
+import urllib.request
+import zipfile
 from collections import Counter, defaultdict
+from collections.abc import Iterator
 from pathlib import Path
 
 from .cidades import RAIZ, baixar_entes
 from .folha_estadual import chave
+from .fontes import CONTEXTO_TLS, USER_AGENT
 
 PASTA = RAIZ / "data" / "raw" / "tcu-obras"
 SAIDA = RAIZ / "site" / "public" / "data" / "obras-paradas" / "obras-paradas.json"
@@ -43,10 +61,24 @@ REFERENCIA = RAIZ / "pipeline" / "referencia" / "obras-paradas.json"
 FONTE = "TCU, Painel de Obras Paralisadas (paineis.tcu.gov.br/obrasparalisadas), tabela de dados"
 URL = "https://paineis.tcu.gov.br/obrasparalisadas"
 
+PASTA_TG = RAIZ / "data" / "raw" / "transferegov"
+URL_TG = "https://api-publica.transferegov.gestao.gov.br/downloads/dadosgov/"
+FONTE_TG = "Transferegov.br, dados abertos (siconv_convenio e siconv_proposta)"
+# Bases do TCU em que o número do instrumento pode ser um convênio do Transferegov.
+BASES_TG = {"CAIXA", "FUNASA", "SIMEC", "SIMEC-Outros"}
+MUNICIPAL = "Administração Pública Municipal"
+
 PARALISADA = "Paralisada"
 MAIORES_UF = 10
 MAIORES_BRASIL = 25
+MAIORES_SALDO = 20
 CIDADES_UF = 10
+# Código IBGE do estado (os dois primeiros dígitos do código da cidade).
+UF_CODIGO = {
+    "RO": 11, "AC": 12, "AM": 13, "RR": 14, "PA": 15, "AP": 16, "TO": 17, "MA": 21, "PI": 22, "CE": 23, "RN": 24,
+    "PB": 25, "PE": 26, "AL": 27, "SE": 28, "BA": 29, "MG": 31, "ES": 32, "RJ": 33, "SP": 35, "PR": 41, "SC": 42,
+    "RS": 43, "MS": 50, "MT": 51, "GO": 52, "DF": 53,
+}
 
 # Quem paga, como aparece no site (o nome que o TCU usa fica no arquivo para conferir).
 QUEM_PAGA = {
@@ -160,7 +192,165 @@ def _local(local: str | None, cidades: dict[tuple[str, str], int]) -> tuple[str 
     return uf, cidades.get((uf, k))
 
 
-def montar(pasta: Path) -> dict:
+# --- Transferegov -------------------------------------------------------------------------------------------
+
+def _baixar_tg(nome: str, forcar: bool = False) -> Path:
+    """Um zip dos dados abertos do Transferegov em data/raw/transferegov/ (baixa de novo com forcar)."""
+    destino = PASTA_TG / f"{nome}.zip"
+    if destino.exists() and not forcar:
+        return destino
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    parte = destino.with_name(destino.name + ".part")
+    req = urllib.request.Request(URL_TG + destino.name, headers={"User-Agent": USER_AGENT})
+    for tentativa in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=300, context=CONTEXTO_TLS) as r, parte.open("wb") as f:
+                shutil.copyfileobj(r, f, 8 << 20)
+            break
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            print(f"    {destino.name}: {e}; tentando de novo", flush=True)
+            time.sleep(10 * (tentativa + 1))
+    else:
+        raise RuntimeError(f"{destino.name}: não baixou")
+    if not zipfile.is_zipfile(parte):
+        raise RuntimeError(f"{destino.name}: a resposta não é um zip")
+    parte.replace(destino)
+    return destino
+
+
+def _linhas_tg(nome: str, forcar: bool = False) -> Iterator[dict]:
+    with zipfile.ZipFile(_baixar_tg(nome, forcar)) as z:
+        membro = next(n for n in z.namelist() if n.endswith(".csv"))
+        with z.open(membro) as f:
+            yield from csv.DictReader(io.TextIOWrapper(f, encoding="utf-8-sig", newline=""), delimiter=";")
+
+
+def _valor_tg(s: str | None) -> float:
+    """"265052,83" → 265052.83. A mesma coluna às vezes vem com ponto ("122310.72")."""
+    s = (s or "").strip()
+    if not s:
+        return 0.0
+    if "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
+def _iso(d: str | None) -> str | None:
+    """"20/06/2028" → "2028-06-20"."""
+    m = re.fullmatch(r"(\d{2})/(\d{2})/(\d{4})", (d or "").strip())
+    return f"{m.group(3)}-{m.group(2)}-{m.group(1)}" if m else None
+
+
+def _data_carga(forcar: bool = False) -> str | None:
+    for r in _linhas_tg("data_carga_siconv", forcar):
+        return _iso((r.get("data_carga") or "")[:10])
+    return None
+
+
+def _convenios(numeros: set[str], forcar: bool = False) -> dict[str, dict]:
+    return {r["NR_CONVENIO"]: r for r in _linhas_tg("siconv_convenio", forcar) if r["NR_CONVENIO"] in numeros}
+
+
+def _tg_de(c: dict) -> list:
+    """[número, ano da assinatura, fim do prazo, situação do convênio, valor global, desembolsado, saldo em conta]"""
+    assinatura = _iso(c.get("DIA_ASSIN_CONV"))
+    return [c["NR_CONVENIO"], int(assinatura[:4]) if assinatura else None, _iso(c.get("DIA_FIM_VIGENC_CONV")),
+            (c.get("SIT_CONVENIO") or "").strip() or None, round(_valor_tg(c.get("VL_GLOBAL_CONV")), 2),
+            round(_valor_tg(c.get("VL_DESEMBOLSADO_CONV")), 2), round(_valor_tg(c.get("VL_SALDO_CONTA")), 2)]
+
+
+def _ligar_transferegov(obras: list[dict], cidades: dict[tuple[str, str], int], forcar: bool = False) -> dict:
+    """Põe em cada obra da Caixa, Funasa ou FNDE o convênio do Transferegov com o mesmo número (o["tg"])."""
+    candidatas = [o for o in obras if o["base"] in BASES_TG and (o["instrumento"] or "").isdigit()]
+    print(f"Transferegov: {len(candidatas)} obras com número de convênio; lendo siconv_convenio…", flush=True)
+    conv = _convenios({o["instrumento"] for o in candidatas}, forcar)
+    ids = {c["ID_PROPOSTA"] for c in conv.values()}
+    print(f"  {len(conv)} convênios achados; lendo siconv_proposta…", flush=True)
+    props = {r["ID_PROPOSTA"]: (r["UF_PROPONENTE"], r["COD_MUNIC_IBGE"], r["NATUREZA_JURIDICA"])
+             for r in _linhas_tg("siconv_proposta", forcar) if r["ID_PROPOSTA"] in ids}
+    ibges = set(cidades.values())
+    ligadas = outro_estado = cidade_nova = 0
+    for o in candidatas:
+        c = conv.get(o["instrumento"])
+        p = props.get(c["ID_PROPOSTA"]) if c else None
+        if not p:
+            continue
+        uf, ibge, natureza = p
+        if o["uf"] and uf != o["uf"]:
+            outro_estado += 1  # o mesmo número em outro sistema: não é este convênio
+            continue
+        o["tg"] = _tg_de(c)
+        ligadas += 1
+        if not o["uf"]:
+            o["uf"] = uf
+        if not o["ibge"] and natureza == MUNICIPAL and ibge.isdigit() and int(ibge) in ibges:
+            o["ibge"] = int(ibge)
+            cidade_nova += 1
+    print(f"  {ligadas} obras ligadas a um convênio; {outro_estado} descartadas (convênio de outro estado); "
+          f"{cidade_nova} ganharam a cidade", flush=True)
+    return {"data": _data_carga(forcar), "fonte": FONTE_TG,
+            "url": "https://dados.gov.br/dados/conjuntos-dados/transferegov"}
+
+
+def _todas(doc: dict) -> Iterator[tuple[str, list]]:
+    """Cada obra paralisada uma vez só, com a UF: as das cidades e as que só têm o estado."""
+    sigla = {v: k for k, v in UF_CODIGO.items()}
+    for ibge, m in doc["mun"].items():
+        for t in m[4]:
+            yield sigla.get(int(ibge) // 100000, ""), t
+    for uf, u in doc["uf"].items():
+        for t in u["sem_cidade"]:
+            yield uf, t
+
+
+def _somar_tg(doc: dict) -> None:
+    """Os totais do Transferegov no Brasil e em cada estado, a partir das obras (depois de montar ou atualizar)."""
+    tg = doc["brasil"].get("transferegov")
+    if tg is None:
+        return
+    por_uf: dict[str, list[float]] = defaultdict(lambda: [0, 0.0, 0.0, 0.0])
+    total = [0, 0.0, 0.0, 0.0]
+    vistos = set()  # um convênio que paga duas obras conta uma vez só
+    for uf, t in _todas(doc):
+        if not t[12] or t[12][0] in vistos:
+            continue
+        vistos.add(t[12][0])
+        for soma in (total, por_uf[uf]):
+            soma[0] += 1
+            soma[1] += t[12][4]
+            soma[2] += t[12][5]
+            soma[3] += t[12][6]
+    # [n.º de obras ligadas, valor global, desembolsado, saldo em conta]
+    tg["total"] = [total[0], *(round(v, 2) for v in total[1:])]
+    for uf, u in doc["uf"].items():
+        s = por_uf.get(uf, [0, 0.0, 0.0, 0.0])
+        u["transferegov"] = [s[0], *(round(v, 2) for v in s[1:])]
+    tg["maiores_saldo"].sort(key=lambda t: -(t[12][6] if t[12] else 0))
+
+
+def atualizar_tg(doc: dict, conv: dict[str, dict], data: str | None) -> int:
+    """Troca os valores dos convênios já ligados pelos do siconv_convenio de hoje. Devolve quantos achou."""
+    listas = [m[4] for m in doc["mun"].values()]
+    for u in doc["uf"].values():
+        listas += [u["maiores"], u["sem_cidade"]]
+    listas += [doc["brasil"]["maiores"], doc["brasil"]["transferegov"]["maiores_saldo"]]
+    vistos = set()
+    for lista in listas:
+        for t in lista:
+            if t[12] and t[12][0] in conv:
+                t[12] = _tg_de(conv[t[12][0]])
+                vistos.add(t[12][0])
+    doc["brasil"]["transferegov"]["data"] = data
+    _somar_tg(doc)
+    return len(vistos)
+
+
+# --- TCU -----------------------------------------------------------------------------------------------------
+
+def montar(pasta: Path, transferegov: bool = True, forcar_tg: bool = False) -> dict:
     arquivos = sorted(pasta.glob("obras-*.xlsx"))
     if not arquivos:
         raise SystemExit(f"nenhuma tabela em {pasta} (ver o começo deste arquivo)")
@@ -223,13 +413,14 @@ def montar(pasta: Path) -> dict:
     if sem_casar:
         print(f"aviso: {sum(sem_casar.values())} obras com cidade que não casou com o SICONFI; ficam só no estado:",
               ", ".join(f"{k} ({n})" for k, n in sem_casar.most_common(15)), flush=True)
+    info_tg = _ligar_transferegov(obras, cidades, forcar_tg) if transferegov else None
     obras.sort(key=lambda o: -o["previsto"])
 
     def tupla(o: dict, com_local: bool) -> list:
         # [nome, base, quem paga, instrumento, % feito, previsto, liberado, causa, situação no órgão, desde,
-        #  setor, pacto, (local, ibge)]
+        #  setor, pacto, convênio do Transferegov (ver _tg_de) ou null, (local, ibge)]
         t = [o["nome"], o["base"], o["paga"], o["instrumento"], o["fisica"], o["previsto"], o["liberado"],
-             o["causa"], o["origem"], o["desde"], o["setor"], 1 if o["pacto"] else 0]
+             o["causa"], o["origem"], o["desde"], o["setor"], 1 if o["pacto"] else 0, o.get("tg")]
         if com_local:
             t += [o["local"], o["ibge"]]
         return t
@@ -305,7 +496,10 @@ def montar(pasta: Path) -> dict:
         "historico": historico,
         "destino": destino,
     }
-    return {
+    if info_tg:
+        com_saldo = sorted((o for o in obras if o.get("tg") and o["tg"][6] > 0), key=lambda o: -o["tg"][6])
+        brasil["transferegov"] = {**info_tg, "maiores_saldo": [tupla(o, True) for o in com_saldo[:MAIORES_SALDO]]}
+    doc = {
         "data_base": ultima,
         "datas": datas,
         "fonte": FONTE,
@@ -315,6 +509,8 @@ def montar(pasta: Path) -> dict:
         "uf": uf,
         "mun": mun,
     }
+    _somar_tg(doc)
+    return doc
 
 
 def _gravar(doc: dict, arq: Path) -> None:
@@ -329,22 +525,48 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--sem-baixar", action="store_true",
                    help="não lê as tabelas: copia a cópia de referência para o site")
+    p.add_argument("--atualizar", action="store_true",
+                   help="a cópia de referência com os valores do Transferegov de hoje (para a publicação)")
+    p.add_argument("--sem-transferegov", action="store_true", help="não liga as obras ao Transferegov")
+    p.add_argument("--forcar", action="store_true", help="baixa de novo os arquivos do Transferegov")
     p.add_argument("--pasta", type=Path, default=PASTA, help="onde estão as tabelas exportadas do painel")
     args = p.parse_args()
 
-    if args.sem_baixar:
+    if args.sem_baixar or args.atualizar:
         if not REFERENCIA.exists():
             sys.exit(f"sem cópia de referência em {REFERENCIA}")
         SAIDA.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REFERENCIA, SAIDA)
         print(f"copiado {REFERENCIA.relative_to(RAIZ)} → {SAIDA.relative_to(RAIZ)}")
+        if args.sem_baixar:
+            return
+        doc = json.loads(REFERENCIA.read_text(encoding="utf-8"))
+        if "transferegov" not in doc["brasil"]:
+            print("a cópia de referência não tem o Transferegov; fica como está")
+            return
+        numeros = {t[12][0] for _, t in _todas(doc) if t[12]}
+        try:
+            conv = _convenios(numeros, forcar=True)
+            data = _data_carga(forcar=True)
+        except Exception as e:  # sem o Transferegov, o site sai com os valores da cópia de referência
+            print(f"Transferegov indisponível ({e}); o site sai com a cópia de referência")
+            sys.exit(3)
+        n = atualizar_tg(doc, conv, data)
+        _gravar(doc, SAIDA)
+        t = doc["brasil"]["transferegov"]["total"]
+        print(f"Transferegov de {data}: {n} de {len(numeros)} convênios atualizados; desembolsado "
+              f"R$ {t[2] / 1e9:.2f} bi, saldo em conta R$ {t[3] / 1e6:.1f} mi")
         return
 
-    doc = montar(args.pasta)
+    doc = montar(args.pasta, transferegov=not args.sem_transferegov, forcar_tg=args.forcar)
     b = doc["brasil"]
     print(f"{b['total'][0]} obras paralisadas em {doc['data_base']}: R$ {b['total'][1] / 1e9:.1f} bi previstos, "
           f"R$ {b['total'][2] / 1e9:.1f} bi liberados; {b['cidades_com_obra']} cidades; "
           f"{b['sem_cidade'][0]} só com o estado", flush=True)
+    if "transferegov" in b:
+        t = b["transferegov"]["total"]
+        print(f"Transferegov ({b['transferegov']['data']}): {t[0]} obras com convênio; desembolsado R$ {t[2] / 1e9:.2f} bi, "
+              f"saldo em conta R$ {t[3] / 1e6:.1f} mi", flush=True)
     _gravar(doc, SAIDA)
     _gravar(doc, REFERENCIA)
     print(f"gravado {SAIDA.relative_to(RAIZ)} ({SAIDA.stat().st_size / 1e6:.1f} MB) e a cópia de referência")

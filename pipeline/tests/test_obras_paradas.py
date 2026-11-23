@@ -1,4 +1,5 @@
-"""Testes das obras paradas (obras_paradas.py), sem rede: a cidade pelo nome, o "desde quando" e o destino.
+"""Testes das obras paradas (obras_paradas.py), sem rede: a cidade pelo nome, o "desde quando", o destino e a
+ligação com os convênios do Transferegov.
 
     uv run python -m unittest discover -s tests
 """
@@ -72,7 +73,7 @@ class TestObrasParadas(unittest.TestCase):
             obra("E", "Em execução", "João Pessoa/PB"),
             obra("F", "Paralisada", "RS", base="DNIT", causa="Abandono da empresa"),
         ])
-        doc = op.montar(self.pasta)
+        doc = op.montar(self.pasta, transferegov=False)
 
         self.assertEqual(doc["data_base"], "2026-04")
         b = doc["brasil"]
@@ -97,7 +98,64 @@ class TestObrasParadas(unittest.TestCase):
     def test_ultima_so_com_paralisadas(self) -> None:
         gravar(self.pasta, "2026-04", [obra("A", "Paralisada", "Carnaubal/CE")])
         with self.assertRaises(SystemExit):
-            op.montar(self.pasta)
+            op.montar(self.pasta, transferegov=False)
+
+    def test_transferegov(self) -> None:
+        numeros = {"A": "900001", "B": "900002", "C": "900003"}
+        convenios = [
+            {"NR_CONVENIO": "900001", "ID_PROPOSTA": "1", "DIA_ASSIN_CONV": "18/11/2021", "DIA_FIM_VIGENC_CONV": "30/11/2027",
+             "SIT_CONVENIO": "Em execução", "VL_GLOBAL_CONV": "265052,83", "VL_DESEMBOLSADO_CONV": "238856",
+             "VL_SALDO_CONTA": "122310.72"},
+            {"NR_CONVENIO": "900002", "ID_PROPOSTA": "2", "DIA_ASSIN_CONV": "", "DIA_FIM_VIGENC_CONV": "",
+             "SIT_CONVENIO": "Em execução", "VL_GLOBAL_CONV": "1000", "VL_DESEMBOLSADO_CONV": "1000", "VL_SALDO_CONTA": "1000"},
+            {"NR_CONVENIO": "900003", "ID_PROPOSTA": "3", "DIA_ASSIN_CONV": "01/02/2015", "DIA_FIM_VIGENC_CONV": "01/02/2020",
+             "SIT_CONVENIO": "Prestação de Contas Concluída", "VL_GLOBAL_CONV": "100", "VL_DESEMBOLSADO_CONV": "80",
+             "VL_SALDO_CONTA": "0"},
+        ]
+        propostas = [
+            {"ID_PROPOSTA": "1", "UF_PROPONENTE": "CE", "COD_MUNIC_IBGE": "2303402", "NATUREZA_JURIDICA": op.MUNICIPAL},
+            {"ID_PROPOSTA": "2", "UF_PROPONENTE": "SE", "COD_MUNIC_IBGE": "2800100", "NATUREZA_JURIDICA": op.MUNICIPAL},
+            {"ID_PROPOSTA": "3", "UF_PROPONENTE": "CE", "COD_MUNIC_IBGE": "2303402", "NATUREZA_JURIDICA": op.MUNICIPAL},
+        ]
+        arquivos = {"siconv_convenio": convenios, "siconv_proposta": propostas,
+                    "data_carga_siconv": [{"data_carga": "23/11/2026 06:35:40"}]}
+
+        # O número do instrumento vem da coluna "Núm. Instrumento"; aqui, um por obra.
+        def com_numero(linhas):
+            for r in linhas:
+                if len(r) == len(CAB) and r[15] in numeros:
+                    r[3] = numeros[r[15]]
+            return linhas
+
+        gravar(self.pasta, "2026-04", com_numero([
+            obra("A", "Paralisada", "Carnaubal/CE", base="CAIXA", valor=300),
+            obra("B", "Paralisada", "João Pessoa/PB", base="CAIXA", valor=200),  # convênio de outro estado
+            obra("C", "Paralisada", "CE", base="FUNASA", valor=100),             # sem cidade no TCU
+            obra("D", "Em execução", "Carnaubal/CE"),
+        ]))
+        with mock.patch.object(op, "_linhas_tg", side_effect=lambda nome, forcar=False: iter(arquivos[nome])):
+            doc = op.montar(self.pasta)
+
+        tg = doc["brasil"]["transferegov"]
+        self.assertEqual(tg["data"], "2026-11-23")
+        # A e C ligadas; B descartada (o convênio é de Sergipe, a obra da Paraíba).
+        self.assertEqual(tg["total"][0], 2)
+        self.assertEqual(tg["total"][2], 238936.0)
+        carnaubal = {t[5]: t for t in doc["mun"]["2303402"][4]}
+        self.assertEqual(carnaubal[300.0][12], ["900001", 2021, "2027-11-30", "Em execução", 265052.83, 238856.0, 122310.72])
+        # C não tinha cidade no TCU e ganhou a da prefeitura que assinou.
+        self.assertIn(100.0, carnaubal)
+        self.assertIsNone({t[5]: t for t in doc["mun"]["2507507"][4]}[200.0][12])
+        self.assertEqual(doc["uf"]["CE"]["transferegov"][0], 2)
+        self.assertEqual(tg["maiores_saldo"][0][12][0], "900001")
+
+        # A atualização de cada publicação troca só os valores.
+        novo = dict(convenios[0], VL_DESEMBOLSADO_CONV="250000", VL_SALDO_CONTA="0")
+        n = op.atualizar_tg(doc, {"900001": novo, "900003": convenios[2]}, "2026-11-24")
+        self.assertEqual(n, 2)
+        self.assertEqual(tg["data"], "2026-11-24")
+        self.assertEqual(tg["total"][2:], [250080.0, 0.0])
+        self.assertEqual({t[5]: t for t in doc["mun"]["2303402"][4]}[300.0][12][5], 250000.0)
 
 
 if __name__ == "__main__":

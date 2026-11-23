@@ -283,5 +283,18 @@ situação nossa.
 **Páginas**: seção "Obras federais paradas" na página de cada cidade e de cada estado (grupo "O que chega e o
 que sai daqui") e a página `/obras-paradas`, no menu "Contratos e emendas".
 
-**Segunda etapa, não feita**: completar as obras da Caixa e da Funasa com o Transferegov (código IBGE e
-valor desembolsado atualizado), pelo número do convênio.
+**Transferegov** (feito na segunda etapa, no mesmo PR): o número que o TCU mostra para a Caixa, a Funasa e
+parte do FNDE é procurado em `siconv_convenio`; o convênio só vale se o estado de quem o assinou
+(`siconv_proposta`) for o da obra. Resultado em 23/11/2026:
+
+- 2.042 obras paradas têm número de convênio; 1.165 acharam um convênio com o mesmo número, e 91 foram
+  descartadas porque o convênio era de outro estado (o número existe em outro sistema). Ficaram **1.074 obras
+  ligadas**. As outras são contratos de antes de 2008 (anteriores ao SICONV, como os de João Pessoa) ou
+  termos de compromisso que não estão no Transferegov.
+- Nelas, a União já depositou **R$ 2,0 bilhões**, e **R$ 826,8 milhões** estão parados na conta das obras
+  (o saldo inclui a contrapartida e os rendimentos). O "desembolsado" do Transferegov não é o "desbloqueado"
+  do TCU: um é o que entrou na conta da obra, o outro o que saiu dela para pagar a obra.
+- A cidade do Transferegov bate com a do TCU em 94% dos casos; só uma obra sem cidade no TCU ganhou a cidade.
+- Cada obra ligada mostra o número do convênio, o ano da assinatura, o fim do prazo, quanto a União depositou
+  e o saldo em conta. A publicação roda `obras-paradas --atualizar`, que baixa o `siconv_convenio` do dia
+  (~18 MB) e troca só esses valores; o `siconv_proposta` (~200 MB) só é lido na carga à mão.

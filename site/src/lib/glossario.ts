@@ -88,6 +88,8 @@ export const GLOSSARIO: Termo[] = [
   { id: "valor-liberado", termo: "Valor liberado", definicao: "O dinheiro federal que já saiu para a obra (o TCU chama de valor desbloqueado). Parte dele pode ter virado obra que ainda dá para terminar; parte pode ser devolvida." },
   { id: "execucao-fisica", termo: "Execução física", definicao: "Quanto da obra já foi construído, em percentual, segundo a última medição informada por quem a acompanha. Não é o mesmo que o dinheiro já pago." },
   { id: "pacto-retomada", termo: "Pacto de retomada", definicao: "Lei de 2023 (Lei 14.719) que permite à prefeitura ou ao estado repactuar com o governo federal obras paradas de educação e saúde, com valores atualizados, para terminá-las." },
+  { id: "convenio", termo: "Convênio", definicao: "Acordo em que o governo federal passa dinheiro a uma prefeitura, um estado ou uma entidade para fazer uma obra ou um serviço. Quando é a Caixa que acompanha a obra, chama-se contrato de repasse. O dinheiro vai para uma conta da obra e sai dela conforme a obra anda." },
+  { id: "saldo-em-conta", termo: "Saldo em conta", definicao: "O dinheiro que está parado na conta bancária do convênio: o que a União depositou e ainda não foi gasto, mais a parte da prefeitura (a contrapartida) e os rendimentos. Numa obra parada, é dinheiro que não virou obra." },
   { id: "divida-ativa", termo: "Dívida ativa", definicao: "O que empresas e pessoas devem ao governo e não pagaram no prazo, depois de esgotada a cobrança comum. Na União, a Procuradoria-Geral da Fazenda Nacional inscreve a dívida numa lista e passa a cobrá-la, inclusive na Justiça. Boa parte é de empresas que já fecharam e nunca vai ser paga." },
 ];
 
