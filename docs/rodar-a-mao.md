@@ -27,7 +27,7 @@ Todos os comandos rodam da raiz do repositório.
 | [Caminho dos impostos](#caminho-dos-impostos) | uma vez por ano | `uv run --project pipeline caminho-impostos` |
 | [Políticos: a parte das eleições](#políticos-a-parte-das-eleições-pr-142) | depois de cada eleição | `uv run --project pipeline politicos --tse` |
 | [Histórico do FINBRA](#histórico-do-finbra) | raramente | `uv run --project pipeline finbra ~/Downloads/finbra` |
-| [Enviar ao bucket](#enviar-ao-bucket-espelho) | depois das cargas que gravam Parquet | `uv run --project pipeline espelho --sem-brutos` |
+| [Enviar ao bucket](#enviar-ao-bucket-espelho) | depois das cargas que gravam Parquet | `uv run --project pipeline espelho` |
 
 Quase toda carga termina igual: conferir os números, fazer commit da cópia em `pipeline/referencia/` e abrir um
 PR. A publicação seguinte põe no ar.
@@ -243,7 +243,7 @@ uv run --project pipeline semente publicar
 ## Enviar ao bucket (espelho)
 
 ```bash
-uv run --project pipeline espelho --sem-brutos
+uv run --project pipeline espelho
 ```
 
 - **O que faz:** envia ao bucket público do Backblaze B2 os Parquet de `data/publico/`, os JSONs do site e as cópias
@@ -254,8 +254,8 @@ uv run --project pipeline espelho --sem-brutos
 - **Cuidados:**
   - é publicar: um Claude pede o OK do Guilherme antes;
   - precisa da chave do B2 no computador (`b2 account authorize`);
-  - use `--sem-brutos` no seu computador. Sem ele, o comando envia **toda** a pasta `data/raw` local, que pode ter
-    arquivos baixados à mão que não deveriam ser públicos.
+  - no seu computador, o comando não envia a pasta `data/raw`: ela pode ter arquivos baixados à mão que não devem ser
+    públicos. Os brutos só vão para o bucket pela publicação no GitHub.
 - **Depois:** limpar o cache da Cloudflare. Os nomes dos Parquet são fixos e a borda guarda cada um por 30 dias; sem a
   limpeza, a busca pode ler pedaços do arquivo velho misturados com o novo. O jeito simples: rodar o workflow
   "Publicar" na `main` (botão "Run workflow"), que limpa o cache no fim. A limpeza só roda se os segredos
