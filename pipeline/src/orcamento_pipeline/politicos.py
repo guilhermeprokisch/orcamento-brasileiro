@@ -114,6 +114,10 @@ CATEGORIAS_SENADO = [
 ]
 
 EMPRESARIO_INDIVIDUAL = "2135"
+# Naturezas jurídicas que são uma pessoa só, com o nome dela: empresário individual e MEI (213-5), EIRELI (230-5 e
+# 231-3) e sociedade unipessoal de advocacia (232-1). Entram somadas, sem nome. A sociedade limitada de um sócio só
+# (206-2) não se distingue das outras limitadas sem o quadro de sócios: aparece com o nome, como empresa.
+EMPRESA_DE_UMA_PESSOA = {EMPRESARIO_INDIVIDUAL, "2305", "2313", "2321"}
 CPF_NO_NOME = re.compile(r"\d{3}\.?\d{3}\.?\d{3}-?\d{2}")
 MAX_FORNECEDORES = 8
 MAX_LUGARES = 5
@@ -165,7 +169,7 @@ def tipo_fornecedor(doc: str, nome: str, natureza: dict[str, str]) -> str:
         return "pessoa"
     if len(d) != 14:
         return "outro"
-    if natureza.get(d[:8]) == EMPRESARIO_INDIVIDUAL or CPF_NO_NOME.search(nome or "") or re.search(r"\d{11}", nome or ""):
+    if natureza.get(d[:8]) in EMPRESA_DE_UMA_PESSOA or CPF_NO_NOME.search(nome or "") or re.search(r"\d{11}", nome or ""):
         return "pessoa_empresa"
     return "empresa"
 

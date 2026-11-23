@@ -63,6 +63,7 @@ function frase(ano: string, a: Ano) {
 }
 const largura = (v: number, max: number) => `width:${max > 0 ? Math.max(0.5, (v / max) * 100).toFixed(1) : 0}%`;
 const t = p.tse;
+const cargoTse = (t?.cargo ?? "").toLowerCase().replace(/^deputado/, p.feminino ? "deputada" : "deputado").replace(/^senador$/, p.feminino ? "senadora" : "senador");
 const partidoHoje = p.partido && /^s\/ ?partido$/i.test(p.partido) ? "sem partido" : p.partido;
 const situacaoId: Record<string, string> = { "eleito por QP": "eleito-por-qp", "eleito por média": "eleito-por-media" };
 const tituloPagina = `${p.nome} (${p.uf}): quanto custa e para onde manda dinheiro`;
@@ -209,7 +210,7 @@ const tituloPagina = `${p.nome} (${p.uf}): quanto custa e para onde manda dinhei
               <h3>Quem mais recebeu</h3>
               <ol class="lista">
                 {cota.fornecedores.map(([nome, cnpj, cat, v]) => <li><span>{nome}<small>CNPJ {cnpj} · {cat.toLowerCase()}</small></span><span>{moedaCurta(v)}</span></li>)}
-                {cota.pessoaEmpresa[1] > 0 && <li class="soma"><span>Empresas em nome de uma pessoa ({cota.pessoaEmpresa[0]})<small>microempreendedor individual e empresário individual, somados, sem nome</small></span><span>{moedaCurta(cota.pessoaEmpresa[1])}</span></li>}
+                {cota.pessoaEmpresa[1] > 0 && <li class="soma"><span>Empresas em nome de uma pessoa ({cota.pessoaEmpresa[0]})<small>MEI, empresário individual e sociedade de uma pessoa só, somados, sem nome</small></span><span>{moedaCurta(cota.pessoaEmpresa[1])}</span></li>}
                 <li class="soma"><span>Pessoas físicas<small>somadas, sem nome e sem CPF{cota.pessoas[0] ? ` · ${cota.pessoas[0]} ${cota.pessoas[0] === 1 ? "nota" : "notas"}` : ""}</small></span><span>{moedaCurta(cota.pessoas[1])}</span></li>
               </ol>
               <p class="nota"><a href={linkOficial}>Ver as notas no site {p.casa === "camara" ? "da Câmara" : "do Senado"} ›</a></p>
@@ -256,8 +257,8 @@ const tituloPagina = `${p.nome} (${p.uf}): quanto custa e para onde manda dinhei
         <h2>A eleição de {t.eleicao}</h2>
         <p class="texto">
           {t.cargo.includes("suplente")
-            ? <>{Ela} foi {t.cargo} na chapa para o Senado {deEstado(t.uf)}, pelo {t.partido}, e assumiu a vaga.</>
-            : <>{Ela} se candidatou a {t.cargo.toLowerCase()} {deEstado(t.uf)} pelo {t.partido}{t.votos ? <>, teve <strong>{nf0.format(t.votos)} votos</strong></> : null} e foi{" "}
+            ? <>{Ela} foi {t.cargo.toLowerCase()} na chapa para o Senado {deEstado(t.uf)}, pelo {t.partido}, e assumiu a vaga.</>
+            : <>{Ela} se candidatou a {cargoTse} {deEstado(t.uf)} pelo {t.partido}{t.votos ? <>, teve <strong>{nf0.format(t.votos)} votos</strong></> : null} e foi{" "}
               {situacaoId[t.situacao] ? <Termo id={situacaoId[t.situacao]}>{t.situacao}</Termo> : t.situacao}{t.situacao === "suplente" ? " (assumiu depois a vaga)" : ""}.</>}
           {t.partido && partidoHoje && t.partido !== partidoHoje && <> Hoje está {partidoHoje === "sem partido" ? "sem partido" : `no ${partidoHoje}`}.</>}
         </p>
