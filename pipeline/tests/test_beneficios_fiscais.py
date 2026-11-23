@@ -30,6 +30,8 @@ def linhas(ano: int) -> list[str]:
         # Empresário individual pelo nome com CPF, e outro pela natureza jurídica: só nos totais.
         f'22.333.444/0001-90,{MEI},RECIFE,PE,4712100,3,{ano},79,Cofins,"7000,00"',
         f'33.444.555/0001-02,MARIA DA SILVA,RECIFE,PE,4712100,3,{ano},79,Cofins,"9000,00"',
+        # Produtor rural pessoa física com CNPJ (natureza 412-0): também é pessoa.
+        f'55.666.777/0001-60,ANTONIO LAVRADOR E OUTRO,RIO VERDE,GO,0115600,3,{ano},79,Cofins,"5000,00"',
         # Quem escondeu o nome na Justiça.
         f'**.***.***/****-**,Restrição Judicial (15),SAO PAULO,SP,2013402,5,{ano},22,Cofins,"800000,00"',
     ] + [f'11.222.333/0001-81,MERCADO BOM PRECO LTDA,CAMPINA GRANDE,PB,4711302,{m},{ano},79,Cofins,"1,00"' for m in range(1, 13)]
@@ -48,7 +50,7 @@ class Beneficios(unittest.TestCase):
         self.con.execute("CREATE TABLE ct (chave VARCHAR, n_contratos INTEGER, contratos DOUBLE)")
         self.con.execute("INSERT INTO ct VALUES ('04337168', 3, 1234.0)")
         self.con.execute("CREATE TABLE em (chave VARCHAR, emendas DOUBLE)")
-        nat = {"04337168": "2062", "11222333": "2062", "22333444": "2135", "33444555": "2135"}
+        nat = {"04337168": "2062", "11222333": "2062", "22333444": "2135", "33444555": "2135", "55666777": "4120"}
         div = {"11222333": [500000.0, 200000.0, 300000.0, 0.0, 0.0]}
         self.doc, self.ocultas, self.ano = bf.montar(self.con, nat, {"3091101": "Fabricação de motocicletas"}, div, "09/2026", 2025)
         self.d = d
@@ -59,8 +61,8 @@ class Beneficios(unittest.TestCase):
 
     def test_somas(self) -> None:
         self.assertEqual(self.ano, 2025)
-        self.assertEqual(self.doc["empresas"], 5)
-        self.assertEqual(self.doc["total"], round(1_750_000 + 300_012 + 7_000 + 9_000 + 800_000))
+        self.assertEqual(self.doc["empresas"], 6)
+        self.assertEqual(self.doc["total"], round(1_750_000 + 300_012 + 7_000 + 9_000 + 5_000 + 800_000))
         moto = next(m for m in self.doc["maiores"] if m["raiz"] == "04337168")
         self.assertEqual(moto["valor"], 1_750_000)
         self.assertEqual(moto["grupo"], "zfm")
@@ -69,11 +71,12 @@ class Beneficios(unittest.TestCase):
         self.assertEqual(moto["beneficio"], "Zona Franca: industrializados para território nacional")
 
     def test_privacidade(self) -> None:
-        self.assertEqual(self.ocultas, {"22333444", "33444555"})
+        self.assertEqual(self.ocultas, {"22333444", "33444555", "55666777"})
         nomes = {m["nome"] for m in self.doc["maiores"]} | {x["nome"] for g in self.doc["grupos"] for x in g["maiores"]}
         self.assertNotIn(MEI, nomes)
         self.assertNotIn("MARIA DA SILVA", nomes)
-        self.assertEqual(self.doc["ocultas"], [2, 16_000])
+        self.assertNotIn("ANTONIO LAVRADOR E OUTRO", nomes)
+        self.assertEqual(self.doc["ocultas"], [3, 21_000])
         with mock.patch.object(bf, "PUBLICO", self.d), mock.patch.object(bf, "SAIDA_EMPRESAS", self.d / "e.parquet"), \
                 mock.patch.object(bf, "SAIDA_DETALHE", self.d / "p.parquet"), mock.patch.object(bf, "RAIZ", self.d):
             bf.gravar_parquets(self.con, self.ocultas, {}, self.div, self.ano)
