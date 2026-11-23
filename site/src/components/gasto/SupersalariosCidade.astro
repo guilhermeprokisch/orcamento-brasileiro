@@ -6,7 +6,7 @@
  */
 import Termo from "../Termo.astro";
 import { moedaExtenso } from "../../lib/formato";
-import { comparar, fpmPerdido } from "../../lib/supersalarios";
+import { comparar, docMunicipios, fpmPerdido, mesExtenso, tetoDoMunicipio } from "../../lib/supersalarios";
 import type { Cidade } from "../../lib/cidades";
 
 interface Props { cidade: Cidade }
@@ -18,7 +18,40 @@ const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFr
 const nf1d = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 /** "R$ 23 mil", "R$ 1,2 milhão" */
 const valor = (v: number) => (v >= 1e6 ? moedaExtenso(v) : `R$ ${nf0.format(Math.round(v / 1000))} mil`);
+// Quem ganha mais que o prefeito (por enquanto, só as cidades da Paraíba).
+const m = tetoDoMunicipio(cidade.ibge);
+const dm = docMunicipios;
 ---
+
+{m && dm && (
+  <section class="bloco-teto">
+    <div class="texto">
+      <h2>Mais que o prefeito</h2>
+      <p>
+        Na prefeitura, o <Termo id="teto-constitucional">teto</Termo> é o salário do prefeito: ninguém da prefeitura, da câmara ou das autarquias
+        da cidade deveria ganhar mais que ele (os procuradores seguem o salário do desembargador, R$&nbsp;{nf0.format(dm.teto_procuradores)}). O
+        prefeito de {cidade.nome} recebe <strong>R$&nbsp;{nf0.format(m.prefeito)} por mês</strong>.
+      </p>
+      <p>
+        {m.acima !== null ? (
+          <>De {mesExtenso(dm.de)} a {mesExtenso(dm.ate)}, <strong>{nf0.format(m.acima)} dos {nf0.format(m.vinculos)} vínculos</strong> ganharam mais que ele num
+          mês típico{(m.procuradores ?? 0) > 0 && <> (contando {nf0.format(m.procuradores!)} {m.procuradores === 1 ? "procurador" : "procuradores"} acima do salário do desembargador)</>}, e o que passou
+          somou <strong>{valor(m.excesso ?? 0)}</strong> em {dm.meses} meses.</>
+        ) : m.algum ? (
+          <>De {mesExtenso(dm.de)} a {mesExtenso(dm.ate)}, menos de 5 dos {nf0.format(m.vinculos)} vínculos ganharam mais que ele num mês típico. Com tão
+          pouca gente, o número exato não aparece, para não apontar ninguém.</>
+        ) : (
+          <>De {mesExtenso(dm.de)} a {mesExtenso(dm.ate)}, ninguém entre os {nf0.format(m.vinculos)} vínculos ganhou mais que ele num mês típico.</>
+        )}
+      </p>
+      <p class="menor">
+        A folha do Tribunal de Contas traz um valor só por pessoa e mês, sem separar 13º, férias e indenizações: a conta usa o valor típico de
+        cada um (a mediana dos meses), sem os eleitos, os aposentados e os pensionistas. É um máximo, porque o valor típico pode trazer
+        indenizações que não entram no teto. <a href="/supersalarios#prefeituras">As prefeituras da Paraíba →</a>
+      </p>
+    </div>
+  </section>
+)}
 
 {f && f.perdido >= 1000 && (
   <section class="bloco-teto">
