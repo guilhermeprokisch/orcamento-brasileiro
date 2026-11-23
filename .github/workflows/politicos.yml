@@ -1,0 +1,130 @@
+name: Políticos (deputados federais e senadores)
+
+# Uma vez por mês, baixa a cota parlamentar da Câmara e do Senado, a verba de gabinete, os assessores de hoje e as
+# emendas pagas (`uv run politicos`) e abre um pull request em rascunho com a cópia de referência
+# (pipeline/referencia/politicos.json), para conferir os números antes de irem ao ar. A publicação diária só copia
+# essa cópia (dados.sh, --sem-baixar).
+#
+# A parte das eleições (TSE, uns 2 GB) não roda aqui: é feita à mão (`uv run politicos --tse`) e fica na cópia de
+# referência. A natureza jurídica dos fornecedores (para somar o MEI e o empresário individual sem nome) também: os
+# fornecedores novos que ainda não estão no cache só são marcados como pessoa quando o nome traz um CPF, até a
+# próxima carga à mão com `--natureza`.
+#
+# O cache data/raw/politicos/ (a verba de gabinete dos anos fechados, a parte do TSE já montada, sem CPF) e
+# data/raw/receita-federal/natureza-politicos.csv ficam no release "dados-politicos" entre uma execução e outra.
+# Nenhum nome de assessor nem CPF vai para o cache.
+#
+# Quando roda: dia 5 de cada mês, depois que a Câmara e o Senado fecham as notas do mês anterior.
+on:
+  schedule:
+    - cron: "0 7 5 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: politicos
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # o cache no release e o branch do pull request
+  pull-requests: write   # abrir o pull request
+
+env:
+  RELEASE: dados-politicos
+  RAMO: dados/politicos
+  NA_MAIN: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Cache já publicado
+        run: |
+          mkdir -p data/raw
+          if gh release download "$RELEASE" --pattern politicos.tar --dir "$RUNNER_TEMP" 2>/dev/null; then
+            tar -xf "$RUNNER_TEMP/politicos.tar" -C data/raw
+            echo "cache: $(find data/raw/politicos -type f | wc -l) arquivos"
+          else
+            echo "::notice::Sem o release $RELEASE: lê a verba de gabinete de todos os anos (uns 10 minutos)."
+          fi
+
+      - name: Baixar e montar
+        run: uv run --project pipeline politicos 2>&1 | tee "$RUNNER_TEMP/saida.log"
+
+      - name: Guardar o cache
+        if: always()
+        run: |
+          # Só o que não muda de um mês para o outro e não tem dado de pessoa: a verba de gabinete, a parte do TSE
+          # e a natureza jurídica dos fornecedores. A cota bruta (que traz o CPF do deputado) fica de fora.
+          tar -cf "$RUNNER_TEMP/politicos.tar" -C data/raw politicos/verba-gabinete $( [ -f data/raw/politicos/tse.json ] && echo politicos/tse.json ) \
+            $( [ -f data/raw/receita-federal/natureza-politicos.csv ] && echo receita-federal/natureza-politicos.csv )
+          echo "cache: $(du -h "$RUNNER_TEMP/politicos.tar" | cut -f1)"
+          if [ "$NA_MAIN" != true ]; then
+            echo "::notice::Branch de teste: o cache não vai para o release; fica como artefato da execução."
+            exit 0
+          fi
+          if ! gh release view "$RELEASE" >/dev/null 2>&1; then
+            gh release create "$RELEASE" --latest=false --title "Políticos (cache)" --notes \
+              "Cache do workflow politicos.yml: a verba de gabinete da Câmara por deputado e ano, a parte do TSE já montada (sem CPF) e a natureza jurídica dos fornecedores da cota. Não é uma versão do código."
+          fi
+          gh release upload "$RELEASE" "$RUNNER_TEMP/politicos.tar" --clobber
+
+      - name: Ver se a cópia de referência mudou
+        id: mudou
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, subprocess
+          novo = json.load(open("pipeline/referencia/politicos.json", encoding="utf-8"))
+          velho = subprocess.run(["git", "show", "HEAD:pipeline/referencia/politicos.json"], capture_output=True, text=True).stdout
+          velho = json.loads(velho) if velho else {}
+          for d in (novo, velho):
+              d.pop("gerado", None)
+          print(f"mudou={'sim' if novo != velho else 'nao'}")
+          EOF
+          cat "$GITHUB_OUTPUT"
+
+      - name: Artefato do teste
+        if: always() && env.NA_MAIN != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: politicos
+          path: |
+            pipeline/referencia/politicos.json
+            ${{ runner.temp }}/saida.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Pull request com a cópia de referência
+        if: steps.mudou.outputs.mudou == 'sim' && env.NA_MAIN == 'true'
+        run: |
+          MES=$(date -u +%Y-%m)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$RAMO"
+          git add pipeline/referencia/politicos.json
+          git commit -q -m "Políticos: cota, gabinete e emendas até $MES"
+          git push -f origin "$RAMO"
+          {
+            echo "Atualização mensal automática (workflow \`politicos.yml\`) da cópia de referência das páginas /politicos."
+            echo
+            echo "Confira os números antes de marcar como pronto e fazer o merge. Resumo da execução:"
+            echo
+            echo '```'
+            grep -E "^(cota|natureza|verba|assessores|emendas|gravado)" "$RUNNER_TEMP/saida.log" || true
+            echo '```'
+            echo
+            echo "Execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$RUNNER_TEMP/corpo.md"
+          if [ "$(gh pr view "$RAMO" --json state -q .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit "$RAMO" --body-file "$RUNNER_TEMP/corpo.md"
+          elif ! gh pr create --draft --base "${{ github.event.repository.default_branch }}" --head "$RAMO" \
+                 --title "Políticos: cota, gabinete e emendas até $MES" --body-file "$RUNNER_TEMP/corpo.md"; then
+            echo "::warning::O Actions não pôde abrir o pull request. Abra à mão: ${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.repository.default_branch }}...$RAMO?expand=1"
+          fi
