@@ -1,0 +1,10 @@
+[Unit]
+Description=Acima do teto: CE, AL e PI todo dia 24 (antes do workflow do GitHub, no dia 25)
+
+[Timer]
+OnCalendar=*-*-24 09:00
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

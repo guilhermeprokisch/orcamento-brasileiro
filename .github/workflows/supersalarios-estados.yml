@@ -14,8 +14,10 @@ name: Acima do teto (Executivo dos estados)
 # e completa nos meses seguintes.
 #
 # Três portais recusam os servidores do GitHub (testado em 22/11/2026): o CE responde HTTP 403 ao CSV, e AL e PI não
-# aceitam a conexão (tempo esgotado). Nesses, o job registra "falhou" e o estado fica com o cache; a carga deles
-# continua à mão (`uv run --project pipeline supersalarios-estados --uf CE,AL,PI`, e commit da cópia de referência).
+# aceitam a conexão (tempo esgotado). Nesses, o job registra "falhou" e o estado fica com o cache. A carga deles roda
+# no dia 24 numa máquina de casa que os portais aceitam, pela conexão normal, sem proxy
+# (.github/scripts/fora-do-github/supersalarios-ce-al-pi.sh, com um timer do systemd): ela sobe o cache dos três para
+# o release, e este workflow, no dia 25, monta o arquivo com eles.
 #
 # Quando roda: dia 25 de cada mês, depois que os estados publicam a folha do mês anterior.
 on:

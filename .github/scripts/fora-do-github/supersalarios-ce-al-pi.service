@@ -1,0 +1,11 @@
+[Unit]
+Description=Acima do teto: carga mensal de CE, AL e PI (orcamento-brasileiro)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=claude
+WorkingDirectory=/home/claude
+ExecStart=/home/claude/bin/supersalarios-ce-al-pi.sh
+TimeoutStartSec=3h
