@@ -1,0 +1,21 @@
+Assunto: Pedido de acesso à informação (Lei 12.527/2011): verba indenizatória, gabinetes e pagamentos dos deputados estaduais
+
+Prezados,
+
+Com base na Lei nº 12.527/2011 (Lei de Acesso à Informação), solicito à Assembleia Legislativa do Estado de Roraima as seguintes informações, de fevereiro de 2023 (início da legislatura) até o mês mais recente disponível, em formato aberto e legível por máquina (CSV, XLSX, ODS ou acesso por API), como prevê o art. 8º, § 3º, da Lei 12.527/2011:
+
+1. Verba indenizatória (ou cota, ou verba de gabinete) de cada deputado: cada despesa reembolsada ou paga, com o nome do deputado, a data, o tipo de despesa, o nome e o CNPJ ou CPF do fornecedor, o número do documento fiscal e o valor; e o teto mensal da verba, com a norma que o fixa.
+2. Pagamentos aos deputados: por deputado e mês, o subsídio e cada outro valor pago (auxílio-moradia, auxílio-saúde ou plano de saúde, auxílio-alimentação, verba de representação, ajuda de custo, 13º, diárias e passagens), com a norma que fixa cada um.
+3. O dicionário de dados (o que significa cada coluna e cada código).
+
+Não peço CPF de deputados nem de servidores: ele pode ser omitido ou mascarado. O nome, o cargo e a remuneração de agentes públicos são de divulgação obrigatória (art. 8º da Lei 12.527/2011 e STF, ARE 652.777, Tema 483).
+
+Hoje a verba aparece como total por item, sem o fornecedor. Envio por este formulário porque o e-mail da ouvidoria (ouvidoria@al.rr.leg.br) devolveu a mensagem por caixa cheia.
+
+Se já houver um endereço público para baixar esses dados, sem login nem captcha, peço que o informem. Caso alguma informação não exista na forma pedida, peço que seja enviada na forma mais próxima disponível, com a explicação de cada coluna. Caso alguma parte seja negada, peço a indicação do fundamento legal e da autoridade a quem cabe recurso.
+
+Os dados serão usados no site orcamentobrasileiro.com.br, um projeto independente que mostra de forma simples para onde vai o dinheiro público, sempre citando a fonte.
+
+Atenciosamente,
+{nome}
+{email}

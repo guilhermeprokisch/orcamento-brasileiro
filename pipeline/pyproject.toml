@@ -62,6 +62,12 @@ supersalarios-estados = "orcamento_pipeline.supersalarios_estados:main"
 supersalarios-legislativo = "orcamento_pipeline.supersalarios_legislativo:main"
 supersalarios-municipios = "orcamento_pipeline.supersalarios_municipios:main"
 politicos = "orcamento_pipeline.politicos:main"
+lai = "orcamento_pipeline.lai.cli:main"
+
+[project.optional-dependencies]
+lai = [
+    "playwright>=1.65.2",
+]
 
 [build-system]
 requires = ["hatchling"]
