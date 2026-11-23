@@ -43,7 +43,7 @@ e outras máquinas gerarem o site sem baixar tudo de novo.
 
 Um .tar por anexo: despesa por função (dca-ie), receitas (dca-ic), despesa por natureza \
 (dca-id), balanço patrimonial (dca-iab), relatórios bimestrais do ano em andamento (rreo-a01) e o Relatório \
-de Gestão Fiscal das prefeituras: pessoal (rgf-a01-mun) e dívida (rgf-a02-mun). Gerado por `uv run semente publicar` e lido por \
+de Gestão Fiscal das prefeituras: pessoal (rgf-a01-mun) e dívida (rgf-a02-mun), e o mínimo em saúde e educação (rreo-a14). Gerado por `uv run semente publicar` e lido por \
 `uv run semente aplicar`."""
 
 

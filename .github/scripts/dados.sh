@@ -66,6 +66,10 @@ fila_siconfi() {
   # Gasto com pessoal (RGF, Anexo 1): estados pela API; prefeituras como a dívida (rgf-a01-mun.tar).
   pipe pode-falhar "Gasto com pessoal dos estados" pessoal
   pipe pode-falhar "Gasto com pessoal das prefeituras" pessoal --prefeituras --max-chamadas 0
+  # Mínimo em saúde e em educação (RREO, Anexo 14, 6º bimestre), para os avisos das páginas: estados pela API;
+  # prefeituras como o pessoal (rreo-a14.tar do release e a cópia em pipeline/referencia/minimos-prefeituras.json).
+  pipe pode-falhar "Mínimos de saúde e educação dos estados" minimos
+  pipe pode-falhar "Mínimos de saúde e educação das prefeituras" minimos --prefeituras --max-chamadas 0
   # Dívida pública federal (/divida): Tesouro, Banco Central e o RGF dos 27 estados. Se o download
   # falhar, usa a cópia em pipeline/referencia/divida-federal.json.
   pipe pode-falhar "Dívida federal" divida-federal
