@@ -8,7 +8,7 @@ Este documento lista o que está em andamento e o que vem depois. A ordem dentro
 é a ordem sugerida. "Fonte" indica de onde o dado viria; onde está escrito **a confirmar**, o
 acesso ainda não foi testado.
 
-Atualizado em 21/11/2026.
+Atualizado em 23/11/2026.
 
 ## Em andamento
 
@@ -18,8 +18,12 @@ Atualizado em 21/11/2026.
 | 2 | Dívida oficial e limites fiscais (RGF do SICONFI) | Feito: dívida dos estados (#22) e das prefeituras (#42), gasto com pessoal frente ao limite (#71) |
 | 3 | Conciliar o dinheiro federal: Portal da Transparência x prefeituras | Feito ([conciliacao-federal.md](conciliacao-federal.md)) |
 | 4 | Bolsa Família e BPC de outros anos | Depende de download manual (o Portal pede captcha); hoje só 2025 |
-| 5 | Gasto do estado em cada cidade | Feito para a Paraíba e para Minas Gerais. Demais estados: ver o item H |
+| 5 | Gasto do estado em cada cidade | Feito para Paraíba, Minas Gerais, Paraná e Santa Catarina. Demais estados: ver o item H |
 | 6 | ICMS medido por cidade (hoje estimado pela cota-parte × 4) | Nenhum estado pesquisado publica em formato aberto e atualizado. Pedidos de LAI enviados a SP e MG em 19/11/2026 ([pedidos-lai/icms-por-municipio.md](pedidos-lai/icms-por-municipio.md)); resposta até 09/12/2026 |
+| 7 | Obras paradas com dinheiro federal (bloco 3) | Começou em 23/11/2026: levantamento das fontes (Obrasgov, painel do TCU, FNDE, Transferegov) e proposta antes de construir |
+| 8 | Preço pago comparado (bloco 3) | Começou em 23/11/2026: levantamento (Banco de Preços em Saúde, itens do PNCP, Painel de Preços) e proposta antes de construir |
+| 9 | Acima do teto: Executivo do Ceará e das prefeituras | CE, AL e PI rodam numa máquina de casa (#134), primeira carga automática em 24/11/2026. Pedido de LAI à AGU sobre os honorários ([pedidos-lai/honorarios-agu-teto.md](pedidos-lai/honorarios-agu-teto.md)); resposta até 14/12/2026 |
+| 10 | Espelho dos dados na Cloudflare | No ar por dados.orcamentobrasileiro.com.br (#97). Falta o `CF_ZONE_ID` e trocar o token, para limpar o cache a cada publicação |
 
 ## Feito em novembro de 2026
 
@@ -51,19 +55,43 @@ Atualizado em 21/11/2026.
 | Cópia pública dos dados (Backblaze B2) e a página "Os dados" | /dados | #46, #48 |
 | Menu em quatro grupos, balões nas palavras técnicas, trilha e botões para voltar nos exploradores | todo o site | #50, #60, #61, #68 |
 | Publicação em quatro filas: de cerca de 15 para 7 a 8 minutos | GitHub | #69, #74 |
-| O que o governo federal gasta ele mesmo em cada cidade | cidades | #80 |
 | "Quem publica onde gasta": os 27 estados em mapas, por faixa | página nova | #79, #81, #84 |
 | Folha estadual por cidade no Paraná e em Santa Catarina | cidades | #83 |
 | O que cada posto de saúde lançou no SISAB e a cobertura da atenção básica | cidades | #82 |
+| Postos de saúde: atividades em grupo e doses de vacina (SI-PNI) | cidades | #85 |
+| Para quem a prefeitura pagou: SP (com a capital), AM, TO, PE, CE, ES, MG, PR e RS | cidades | #87, #89, #90, #92, #93, #96 |
+| As contas fecham? (/contas): resultado sem e com os juros, quanto está amarrado, estados e prefeituras; dívida bruta em /divida | página nova | #88 |
+| Quando o dinheiro sai: empenhado, liquidado, pago e restos a pagar mês a mês | /contas | #125, #127 |
+| Para quem vai o seu imposto (/impostos): o caminho do imposto e o que deixa de entrar | página nova | #91 |
+| Quem deixa de pagar imposto: benefícios fiscais por empresa | /impostos/empresas | #126 |
+| Dívida ativa da União nas cidades e na /impostos | cidades, /impostos | #113 |
+| A aposentadoria dos servidores: o rombo do fundo próprio e a nota do Ministério (ISP-RPPS) | cidades, estados | #98 |
+| Emendas em /emendas (o que são, explorar, buscar), ficha de cada emenda e página do parlamentar | página nova | #101, #109, #110, #112, #114, #117 |
+| Explorer: obrigatório e escolha do governo, vista Cascata, degraus para voltar, links para as emendas | /explorer | #102, #103, #104, #105, #106, #107 |
+| Acima do teto (/supersalarios): Judiciário, Ministério Público, Executivo federal, Legislativo federal, 15 governos estaduais e as prefeituras da Paraíba | página nova | #116, #120, #123, #128, #131, #132, #133, #134, #135 |
+| Cidade: empresas com link para os contratos delas | cidades | #108 |
+| Comparar: barras na mesma escala | /comparar | #111 |
+| Contratos de 2026 (PNCP) e o governo federal nos textos | /contratos | #115, #130 |
+| Mapa: as escolhas viram uma frase, e o governo federal entra em "De qual governo" | mapa | #118, #119 |
+| Menu: grupo "Servidores" e submenu das emendas | todo o site | #121, #129 |
+| Cargas de dados no GitHub Actions (supersalários, RGF das prefeituras, contratos) e alarme quando um arquivo some ou encolhe | GitHub | #99, #100, #122, #124 |
+| Link e ícone do código no GitHub | todo o site | #94, #95 |
 
 ## Os próximos blocos
 
-Combinado em 21/11/2026. O site já responde quanto entra, de onde vem, para onde vai e quem
+Combinado em 21/11/2026. Situação em 23/11/2026: os blocos 1 e 2 e a previdência do bloco 3
+estão no ar; o preço pago e as obras paradas começaram; o bloco 4 está num protótipo local.
+
+O site já responde quanto entra, de onde vem, para onde vai e quem
 recebeu. O que falta é o que explica por que o gasto é assim e o que daria para mudar. Quatro
 blocos, cada um respondendo a uma pergunta, nesta ordem: 1, 2, a previdência do 3, o resto do 3
 e o 4.
 
 ### 1. As contas fecham?
+
+**Feito** (#88, #103, #125): /contas, com o resultado sem e com os juros, quanto está amarrado,
+quando o dinheiro sai (restos a pagar) e estados e prefeituras; a dívida bruta em /divida. O
+plano original:
 
 - **Dívida bruta do governo geral**, a conta do Banco Central que soma União, estados,
   prefeituras e os títulos que o Banco Central usa para os juros (perto de 78% do PIB). Já
@@ -82,6 +110,10 @@ e o 4.
 
 ### 2. O caminho dos impostos
 
+**Feito** (#91, #113, #126): /impostos, com o caminho do imposto, o que deixa de entrar (benefícios
+fiscais) e a dívida ativa; /impostos/empresas, com as empresas que recebem benefício. Falta o
+"saiu daqui, voltou" por cidade. O plano original:
+
 - Um diagrama de fluxos: o imposto pago → quem arrecada (a União fica com uns dois terços) → o
   que é repassado por obrigação (FPE, FPM, cota do ICMS, Fundeb) → quem gasta. Primeiro o Brasil
   inteiro; depois por cidade ("saiu daqui R$ X em impostos federais, voltou R$ Y"; o mapa já tem
@@ -97,22 +129,29 @@ e o 4.
 ### 3. Riscos e qualidade do gasto
 
 - **Previdência dos servidores**: o rombo do fundo de aposentadoria de cada cidade e estado e a
-  nota da situação dele (Ministério da Previdência). Ao lado da dívida e do gasto com pessoal. É o
-  mais fácil do bloco.
+  nota da situação dele (Ministério da Previdência). Ao lado da dívida e do gasto com pessoal.
+  **Feito** (#98).
 - **Preço pago comparado**: o mesmo item entre cidades, a começar pelos remédios (Banco de Preços
   em Saúde), e quantas empresas disputaram cada licitação. Usa os contratos que já temos. Cuidado
-  com o que é só diferença de porte ou ruído.
+  com o que é só diferença de porte ou ruído. **Em andamento** desde 23/11/2026.
 - **Obras paradas**: as obras com dinheiro federal paradas, com cidade e valor (painel do governo
-  federal e do TCU).
+  federal e do TCU). **Em andamento** desde 23/11/2026.
 
 ### 4. Quanto eu pago e como volta
 
 O simulador do item I: o caminho dos impostos aplicado ao salário da pessoa, e o que é amarrado.
-Por último, porque usa os blocos 1 e 2.
+Por último, porque usa os blocos 1 e 2. Há um protótipo local (`site/src/pages/prototipo-simulador.astro`),
+fora do git; os blocos 1 e 2 já estão no ar, então dá para começar.
 
 ### Depois dos blocos
 
-Estatais e crédito subsidiado (BNDES, Plano Safra); salários de servidores acima do teto.
+Estatais e crédito subsidiado (BNDES, Plano Safra).
+
+Salários acima do teto: **feito** (/supersalarios). Faltam os estados que não publicam a folha em
+formato aberto, mais prefeituras além da Paraíba e a resposta da AGU.
+
+Ideia de 21/11/2026: **os mapas como seção própria**, com várias visualizações (incluindo as
+emendas). Começa por um mock.
 
 ## Os outros itens, na ordem sugerida
 
@@ -217,11 +256,11 @@ Os maiores fornecedores de cada prefeitura. É o mais trabalhoso: depende dos po
 municipais, que são milhares e cada um num formato
 ([levantamento](levantamento-portais-municipais.md)). Começar pelos Tribunais de Contas que
 publicam os dados de todos os municípios do estado num formato só.
-O levantamento estado por estado está em [levantamento-pagamentos-tce.md](levantamento-pagamentos-tce.md);
-feitos: Paraíba (#66), Acre e Santa Catarina (#73, #75). Em andamento (21/11/2026, uma sessão
-cada): Pernambuco, Ceará e Espírito Santo, Amazonas e Tocantins, São Paulo (o TCE-SP e, para a
-capital, o TCM-SP). Depois: MG, PR e RS, que também publicam. Goiás (TCM-GO) depende de uma
-chave pedida com cadastro pessoal.
+O levantamento estado por estado está em [levantamento-pagamentos-tce.md](levantamento-pagamentos-tce.md).
+Feitos, 12 estados: PB (#66), AC e SC (#73, #75), SP com a capital (#87), AM e TO (#89), PE (#90),
+CE e ES (#92), MG (#93), PR e RS (#96). Próximos: RJ, RN, MA e PI, que publicam o CNPJ sem o nome
+(o nome viria dos contratos ou do cadastro de CNPJ). Goiás (TCM-GO) depende de uma chave pedida
+com cadastro pessoal; Bahia e Pará têm captcha.
 
 ### K. De onde vem o dinheiro do governo federal
 
@@ -291,7 +330,9 @@ Marcar na página, com a regra escrita ao lado:
   GitHub; os benefícios federais ainda dependem de download manual.
 - Atualização automática do relatório bimestral dos municípios: feita pelo workflow
   `bimestral.yml` (dias 1 e 31 e toda segunda-feira). Falta estender à comparação com o mesmo
-  período do ano anterior e ao relatório de dívida (RGF).
+  período do ano anterior. O RGF das prefeituras, os contratos e os supersalários já têm carga
+  própria no Actions (#122, #124, #131), e a publicação avisa quando um arquivo de dados some
+  ou encolhe demais (#100).
 - Testes automáticos do pipeline: hoje a conferência é feita à mão a cada mudança.
 - Valores digitados errado nos contratos: o corte de "metade do orçamento" não pega tudo nos
   estaduais (ex.: R$ 5,9 bi do Governo do Pará para reformar uma escola) nem nos federais abaixo
