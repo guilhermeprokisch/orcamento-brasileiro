@@ -64,6 +64,8 @@ Algumas cargas levam horas (a API do SICONFI aceita uma consulta por segundo; o 
 - **`.github/workflows/publicar.yml`**: a cada mudança na `main`, roda os pipelines (com o cache de `data/raw` e o release `dados-siconfi`), confere os tipos, gera o site, publica no Cloudflare Pages e atualiza a cópia pública dos dados no B2 (`uv run espelho`).
 - **`.github/workflows/bimestral.yml`**: baixa o relatório bimestral das prefeituras para o ano em andamento.
 
+Algumas cargas não rodam sozinhas (captcha, fontes que só respondem do Brasil, downloads grandes). O que rodar à mão, quando e o que fazer depois: [docs/rodar-a-mao.md](docs/rodar-a-mao.md).
+
 ## Estrutura
 
 ```
