@@ -37,9 +37,11 @@ Cache em `data/raw/siconfi/rreo-a14/{ano}.json.gz`.
 ### A lacuna do Anexo 14
 
 Em parte das prefeituras o Anexo 14 vem **sem as linhas de saúde e de educação**: o relatório
-existe, mas os dois percentuais não. Entre as 400 maiores cidades, em 2023, foram 72 (18%), entre
-elas Guarulhos, Campinas, Osasco, Ribeirão Preto, Jundiaí, São Gonçalo e Campos dos Goytacazes. O
-mesmo acontece em 2024 e 2025 para Guarulhos e Campinas. Sem a linha, não há aviso.
+existe, mas os dois percentuais não. Em 2025 foram 1.797 das 5.569 prefeituras (32%): 1.641 com menos
+de 50 mil moradores, 80 entre 50 e 100 mil e 76 acima de 100 mil, entre elas Guarulhos, Campinas,
+Teresina, Duque de Caxias, Uberlândia, Mogi das Cruzes, Jundiaí e Betim. Minas Gerais (496), São
+Paulo (210) e Paraná (179) concentram a falta. Entre as 400 maiores cidades, em 2023, foram 72 (18%).
+Sem a linha, não há aviso.
 
 As fontes originais, testadas em 23/11/2026 para cobrir essa lacuna:
 
@@ -67,17 +69,28 @@ Anexo 14 não traz a linha.
 - O percentual do RREO pode mudar depois, se o governo retificar o SIOPS ou o SIOPE, e o Tribunal de
   Contas pode chegar a outro número ao julgar as contas. O aviso diz isso.
 
-### Primeiros números
+### Os números
 
-Amostra de 2023, as 400 maiores prefeituras (a carga de 2025 está em andamento): 325 trazem o
-percentual de educação e 322 o de saúde. Ficam abaixo do mínimo:
+**2025, todas as prefeituras:** 3.761 trazem pelo menos um dos percentuais. Descontados os que vêm
+zerados, negativos ou acima de 100%, sobram 3.659 com o de saúde e 3.695 com o de educação. Ficam
+abaixo do mínimo:
 
-- educação: 16 (5%), por exemplo Betim (MG) 24,9%, Canoas (RS) 16,7%, Volta Redonda (RJ) 14,5%,
-  Botucatu (SP) 13,3%, Guarapari (ES) 10,0%;
-- saúde: 5 (1,6%), por exemplo Colombo (PR) 14,2%, Formosa (GO) 13,2%, Breves (PA) 11,0%,
-  Itaituba (PA) 7,4%.
+- educação: 180 (4,9%), por exemplo Macapá (AP) 19,6%, Volta Redonda (RJ) 17,0%, Viamão (RS) 24,2%,
+  Teresópolis (RJ) 24,8%, Botucatu (SP) 13,3%, Saquarema (RJ) 16,5%. A maior parte fica perto da
+  linha: 108 entre 20% e 25%;
+- saúde: 50 (1,4%), por exemplo Paranaguá (PR) 14,1%, Campo Largo (PR) 14,9%, Itaituba (PA) 8,3%,
+  Breves (PA) 8,2%, Tucuruí (PA) 7,4%, Saquarema (RJ) 3,8%. O Pará aparece muito.
 
-Itaituba e Paranaguá (PR) ficam abaixo nas duas áreas.
+Oito prefeituras declararam fração em vez de porcentagem; a página converte.
+
+Na página, o aviso usa o ano mais recente que o arquivo tem para a cidade (2025 e, onde 2025 não traz
+o número, 2023). Com isso, 236 avisos de mínimo: 184 em educação e 52 em saúde, em 211 prefeituras;
+25 delas ficam abaixo nas duas áreas.
+
+**2023, amostra das 400 maiores:** 325 trazem o percentual de educação e 322 o de saúde. Abaixo do
+mínimo: 16 em educação e 5 em saúde (Itaituba e Paranaguá nas duas).
+
+**Estados:** nenhum abaixo do mínimo em 2024 nem em 2025.
 
 ## 2. Vários anos seguidos gastando mais do que arrecada
 
