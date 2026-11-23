@@ -40,7 +40,8 @@ Em parte das prefeituras o Anexo 14 vem **sem as linhas de saúde e de educaçã
 existe, mas os dois percentuais não. Em 2025 foram 1.797 das 5.569 prefeituras (32%): 1.641 com menos
 de 50 mil moradores, 80 entre 50 e 100 mil e 76 acima de 100 mil, entre elas Guarulhos, Campinas,
 Teresina, Duque de Caxias, Uberlândia, Mogi das Cruzes, Jundiaí e Betim. Minas Gerais (496), São
-Paulo (210) e Paraná (179) concentram a falta. Entre as 400 maiores cidades, em 2023, foram 72 (18%).
+Paulo (210) e Paraná (179) concentram a falta. Em 2024 foram 1.586 (28%); entre as 400 maiores
+cidades, em 2023, 72 (18%).
 Sem a linha, não há aviso.
 
 As fontes originais, testadas em 23/11/2026 para cobrir essa lacuna:
@@ -83,9 +84,15 @@ abaixo do mínimo:
 
 Oito prefeituras declararam fração em vez de porcentagem; a página converte.
 
-Na página, o aviso usa o ano mais recente que o arquivo tem para a cidade (2025 e, onde 2025 não traz
-o número, 2023). Com isso, 236 avisos de mínimo: 184 em educação e 52 em saúde, em 211 prefeituras;
-25 delas ficam abaixo nas duas áreas.
+**2024, todas as prefeituras:** 3.963 trazem pelo menos um dos percentuais; 1.586 (28%) vêm sem as
+duas linhas. Abaixo do mínimo: 232 em educação (de 3.878) e 78 em saúde (de 3.843). Exemplos em
+educação: Cuiabá (MT) 19,2%, Macapá (AP) 14,7%, Altamira (PA) 19,7%, Cametá (PA) 17,0%; em saúde:
+Itaituba (PA) 5,9%, Acará (PA) 7,0%, Breves (PA) 8,3%, Morada Nova (CE) 11,3%.
+
+Na página, o aviso usa o ano mais recente que o arquivo tem para a cidade (2025; onde 2025 não traz o
+número, 2024; e, por último, 2023). Com isso, 291 avisos de mínimo: 229 em educação e 62 em saúde, em
+262 prefeituras; 29 delas ficam abaixo nas duas áreas. Em 58 dos avisos de educação e 12 dos de saúde,
+a prefeitura também ficou abaixo no ano anterior com dado, e a página mostra isso.
 
 **2023, amostra das 400 maiores:** 325 trazem o percentual de educação e 322 o de saúde. Abaixo do
 mínimo: 16 em educação e 5 em saúde (Itaituba e Paranaguá nas duas).
