@@ -1,0 +1,115 @@
+---
+/**
+ * Empréstimos do BNDES com quem tem projeto ou endereço na cidade, no último ano fechado: quantos contratos, quanto,
+ * com que juro e as maiores empresas. Pessoas, empresários individuais e MEIs só entram somados.
+ * Dados: lib/bndes.ts (pipeline/…/bndes.py). Sem contrato na cidade, a seção não aparece.
+ */
+import Termo from "../Termo.astro";
+import { moedaCompleta, moedaCurta, moedaExtenso } from "../../lib/formato";
+import { COR_FAIXA, NOME_FAIXA, bndesEm } from "../../lib/bndes";
+import type { Cidade } from "../../lib/cidades";
+
+interface Props {
+  cidade: Cidade;
+}
+const { cidade } = Astro.props;
+const d = await bndesEm(cidade);
+const ehDF = cidade.ibge === 53;
+const de = ehDF ? "do Distrito Federal" : `de ${cidade.nome}`;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct = (v: number) => `${nf0.format(Math.round(v * 100))}%`;
+const faixas = d?.faixas.filter((f) => f.valor > 0) ?? [];
+const abaixo = d?.faixas.find((f) => f.faixa === "abaixo")?.valor ?? 0;
+const doacao = d?.faixas.find((f) => f.faixa === "doacao")?.valor ?? 0;
+const todosPorBanco = d ? d.porBanco >= d.total * 0.999 : false;
+---
+
+{d && d.total > 0 && (
+  <section class="bndes-cidade">
+    <div class="texto">
+      <h2>Empréstimos do BNDES</h2>
+      <p>
+        Em {d.ano}, empresas e órgãos {de} fecharam <strong>{d.contratos === 1 ? "1 contrato" : `${nf0.format(d.contratos)} contratos`}</strong> de
+        empréstimo com o BNDES, somando <strong>{moedaExtenso(d.total)}</strong>.
+        {abaixo > 0 && <> <strong>{moedaExtenso(abaixo)}</strong> {abaixo >= 2e6 ? "foram" : "foi"} com juro abaixo do de mercado.</>}
+      </p>
+      <p>
+        {todosPorBanco ? <>Todos passaram por <Termo id="operacao-indireta">um banco</Termo></> : d.porBanco > 0 ? <>{pct(d.porBanco / d.total)} passou por <Termo id="operacao-indireta">um banco</Termo></> : <>Todos foram direto com o BNDES</>}
+        {d.maquinas >= d.total * 0.3 ? <>, e {pct(d.maquinas / d.total)} do dinheiro foi para comprar máquinas, ônibus e caminhões.</> : "."}
+        {" "}Não é dinheiro dado: volta com juros{doacao > 0 && <>, menos {moedaCurta(doacao)} de doação</>}.
+      </p>
+      <p class="menor">
+        Obras que passam por várias cidades, como rodovias, não aparecem aqui: o BNDES não diz em que cidade elas ficam. Pessoas só entram
+        somadas. <a href="/bndes">Ver o BNDES no país</a>
+      </p>
+    </div>
+    <div class="dados">
+      <div class="barra-juro" role="img" aria-label={faixas.map((f) => `${NOME_FAIXA[f.faixa]}: ${moedaCurta(f.valor)}`).join("; ")}>
+        {faixas.map((f) => <span style={`flex: ${f.valor} 1 0; background: ${COR_FAIXA[f.faixa]}`}></span>)}
+      </div>
+      <ul class="legenda">
+        {faixas.map((f) => (
+          <li>
+            <i style={`background: ${COR_FAIXA[f.faixa]}`} aria-hidden="true"></i>
+            {f.faixa === "tlp" ? <>Pela <Termo id="tlp">TLP</Termo></> : NOME_FAIXA[f.faixa]}
+            <strong title={moedaCompleta(f.valor)}>{moedaCurta(f.valor)}</strong>
+          </li>
+        ))}
+      </ul>
+      {d.maiores.length > 0 && (
+        <ol class="maiores">
+          <li class="cab"><span>Quem pegou</span><span>Para quê</span><span class="d">{d.ano}</span></li>
+          {d.maiores.map((m) => (
+            <li>
+              <strong>{m.nome}</strong>
+              <span class="para">{m.para}</span>
+              <span class="d num" title={moedaCompleta(m.valor)}>{moedaCurta(m.valor)}</span>
+            </li>
+          ))}
+          {d.outros[1] > 0 && (
+            <li class="outros">
+              <span>{d.outros[0] > 0 ? `Outros ${nf0.format(d.outros[0])} ${d.outros[0] === 1 ? "cliente" : "clientes"}, inclusive pessoas` : "Pessoas e outros clientes"}</span>
+              <span class="para"></span>
+              <span class="d num">{moedaCurta(d.outros[1])}</span>
+            </li>
+          )}
+        </ol>
+      )}
+      <p class="fonte">Fonte: BNDES, operações contratadas (dados abertos). Valor contratado no ano; o juro é o custo financeiro de cada contrato.</p>
+    </div>
+  </section>
+)}
+
+<style>
+  .bndes-cidade { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; min-width: 0; align-self: center; }
+  .barra-juro { display: flex; gap: 2px; height: 28px; }
+  .legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 14px; color: var(--texto-2); }
+  .legenda li { display: inline-flex; align-items: center; gap: 6px; }
+  .legenda i { display: inline-block; width: 10px; height: 10px; flex: none; }
+  .legenda strong { color: var(--tinta); font-weight: 600; white-space: nowrap; }
+  .maiores { list-style: none; margin: 6px 0 0; padding: 0; }
+  .maiores li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 100px; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; align-items: baseline; }
+  .maiores .cab { font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 0; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--tinta); }
+  .maiores strong { font-weight: 600; overflow-wrap: anywhere; }
+  .maiores .para { font-size: 14px; color: var(--texto-2); }
+  .maiores .d { text-align: right; }
+  .maiores .num { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .maiores .outros { color: var(--texto-2); }
+  .maiores .outros .num { font-weight: 400; }
+  .fonte { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .bndes-cidade { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; line-height: 1.1; }
+    .maiores li { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; }
+    .maiores li .para { grid-column: 1; grid-row: 2; font-size: 13px; color: var(--texto-3); }
+    .maiores li .d { grid-column: 2; grid-row: 1; }
+    .maiores .cab { display: none; }
+  }
+</style>

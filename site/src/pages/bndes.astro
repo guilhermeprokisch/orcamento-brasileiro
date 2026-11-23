@@ -1,0 +1,514 @@
+---
+/**
+ * BNDES e estatais: quem pega empréstimo do BNDES, com que juro, para quê; quanto custa o subsídio de crédito; e o que
+ * entra (dividendos) e sai (subvenção às dependentes) das estatais federais. Tudo sai pronto do build (resumo.json, de
+ * pipeline/…/bndes.py); a busca por empresa lê empresas.json no navegador. O que os dados sustentam e o que não
+ * sustentam: docs/levantamento-bndes-estatais.md.
+ */
+import Base from "../layouts/Base.astro";
+import Termo from "../components/Termo.astro";
+import { moedaCompleta, moedaCurta, moedaExtenso } from "../lib/formato";
+import { COR_FAIXA, FAIXAS, NOME_ESTATAL, NOME_FAIXA, doAno, docBndes, nomePrograma, type Faixa } from "../lib/bndes";
+
+const r = await docBndes();
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct = (v: number, t: number) => `${nf0.format(t > 0 ? (v / t) * 100 : 0)}%`;
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const mesDe = (iso: string) => `${MESES[Number(iso.slice(5, 7)) - 1]} de ${iso.slice(0, 4)}`;
+
+const ano = r?.ano ?? 0;
+const a = r ? doAno(r.serie, ano) : null;
+const desemb = r?.desembolso.find((d) => d[0] === ano);
+const serie = (r?.serie ?? []).filter((s) => s[0] >= 2012);
+const maxSerie = Math.max(1, ...serie.map((s) => s[1] + s[2]));
+const parcial = r && serie.length && serie[serie.length - 1][0] > ano ? serie[serie.length - 1][0] : null;
+const anoPico = serie.reduce((m, s) => (s[1] + s[2] > m[1] + m[2] ? s : m), serie[0] ?? [0, 0, 0, 0, 0, 0, 0]);
+const maxSetor = Math.max(1, ...(r?.setores ?? []).map((s) => s[2]));
+const maxPrograma = Math.max(1, ...(r?.programas_abaixo ?? []).map((p) => p[1]));
+
+// Custo: o Orçamento de Subsídios (estimado) e o Resultado do Tesouro (pago).
+const osu = r?.osu ?? null;
+const iOsu = osu ? osu.anos.length - 1 : -1;
+const anoOsu = osu?.anos[iOsu];
+const crediticios = osu ? osu.crediticios.filter((p) => (p[1 + iOsu] as number) > 0).slice(0, 8)
+  .map((p) => ({ nome: nomePrograma(String(p[0])), valor: p[1 + iOsu] as number, bndes: /BNDES|Amparo ao Trabalhador/i.test(String(p[0])) })) : [];
+const maxCred = Math.max(1, ...crediticios.map((c) => c.valor));
+const rtn = r?.rtn ?? null;
+const safra = rtn ? rtn.anos.map((x, i) => [x, Object.values(rtn.safra).reduce((s, v) => s + (v[i] ?? 0), 0)] as [number, number]) : [];
+const safraAno = safra.find((s) => s[0] === ano)?.[1] ?? 0;
+const safraAntes = safra.filter((s) => s[0] >= ano - 2 && s[0] < ano);
+
+// Estatais: dividendos (RTN) e subvenção às dependentes (SEST).
+const iRtn = rtn ? rtn.anos.indexOf(ano) : -1;
+const dividendos = rtn && iRtn >= 0 ? Object.entries(rtn.dividendos).filter(([k]) => k !== "total")
+  .map(([k, v]) => ({ nome: NOME_ESTATAL[k] ?? k, valor: v[iRtn] })).filter((d) => d.valor > 0)
+  .sort((x, y) => (x.nome === "Outras" ? 1 : y.nome === "Outras" ? -1 : y.valor - x.valor)) : [];
+const divTotal = rtn && iRtn >= 0 ? rtn.dividendos.total[iRtn] : 0;
+const divAntes = rtn && iRtn > 0 ? rtn.dividendos.total[iRtn - 1] : 0;
+const sest = r?.sest ?? null;
+const iSest = sest ? sest.anos.indexOf(ano) : -1;
+const deps = sest && iSest >= 0 ? sest.empresas.filter((e) => e[2] === true).map((e) => ({ sigla: String(e[0]), valor: e[3 + iSest] as number }))
+  .filter((d) => d.valor > 0).sort((x, y) => y.valor - x.valor) : [];
+const subvTotal = deps.reduce((s, d) => s + d.valor, 0);
+const depsVisiveis = deps.slice(0, 7).map((d) => ({ nome: NOME_ESTATAL[d.sigla] ?? d.sigla, valor: d.valor }));
+const depsOutras = deps.slice(7);
+if (depsOutras.length) depsVisiveis.push({ nome: `As outras ${depsOutras.length}`, valor: depsOutras.reduce((s, d) => s + d.valor, 0) });
+const maxEst = Math.max(1, ...dividendos.map((d) => d.valor), ...depsVisiveis.map((d) => d.valor));
+const ebserh = deps.find((d) => d.sigla === "EBSERH");
+const periodoSest = sest?.periodo[String(ano)];
+
+const VISIVEIS = 15;
+const cruz = r?.cruzamento ?? null;
+const pctSemCidade = r && r.diretas > 0 ? r.sem_cidade / r.diretas : 0;
+const descricao = a
+  ? `Em ${ano}, o BNDES fechou ${moedaExtenso(a.total)} em empréstimos, ${moedaExtenso(a.faixas.abaixo)} com juro abaixo do de mercado. Quem recebeu, para quê, quanto custa o subsídio e o que entra e sai das estatais.`
+  : "Quem pega empréstimo do BNDES, com que juro, quanto custa o subsídio e o que entra e sai das estatais federais.";
+---
+
+<Base title="BNDES e estatais · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap bndes">
+    {!r || !a ? (
+      <section class="abre"><h1>BNDES e estatais</h1><p>Os dados do BNDES ainda não foram carregados.</p></section>
+    ) : (
+      <>
+        <header class="abre">
+          <p class="caminho"><a href="/impostos">Impostos</a> › BNDES e estatais</p>
+          <span class="sobretitulo verde">Crédito público e empresas do governo · {ano}</span>
+          <h1>O dinheiro que o governo empresta, e o que ele põe nas empresas dele</h1>
+          <p>
+            Em {ano}, o BNDES fechou <strong class="marca">{moedaExtenso(a.total)}</strong> em empréstimos. Não é dinheiro dado: a empresa devolve
+            com juros. Mas parte saiu com juro mais baixo que o de um banco comum, e essa diferença alguém paga.
+          </p>
+        </header>
+
+        <section class="numeros" aria-label="Os números">
+          <div><span>o BNDES emprestou em {ano}</span><strong>{moedaCurta(a.total)}</strong><span>valor contratado no ano</span></div>
+          <div><span>com juro abaixo do de mercado</span><strong class="verde">{moedaCurta(a.faixas.abaixo)}</strong><span>{pct(a.faixas.abaixo, a.total)} do total</span></div>
+          {osu && anoOsu && <div><span>custo dos juros baixos, todo o governo</span><strong>{moedaCurta(osu.tipos.crediticios[iOsu])}</strong><span>estimado para {anoOsu}</span></div>}
+          {divTotal > 0 && <div><span>dividendos das estatais à União</span><strong>{moedaCurta(divTotal)}</strong><span>em {ano}</span></div>}
+        </section>
+
+        <section class="bloco duas" id="quanto">
+          <div class="lado">
+            <h2>Quanto o BNDES emprestou</h2>
+            <p class="texto">
+              O valor fechado em contrato a cada ano. O pico foi em {anoPico[0]}, com {moedaCurta(anoPico[1] + anoPico[2])}, na época em que o
+              Tesouro emprestava ao BNDES para baixar o juro. Depois de cair até 2019, os empréstimos voltaram a crescer em 2024.
+            </p>
+            <p class="texto">
+              <strong>Direto</strong> é quando o BNDES empresta à empresa. <strong><Termo id="operacao-indireta">Por um banco</Termo></strong> é quando
+              ele põe o dinheiro e um banco escolhe o cliente e fica com o risco.
+            </p>
+            {desemb && (
+              <p class="menor">
+                Contratado não é liberado: em {ano} saíram de fato {moedaExtenso(desemb[1])}, contando contratos de anos anteriores.{" "}
+                {moedaExtenso(desemb[2])} foram para pessoas, quase todas produtores rurais, que não aparecem uma a uma.
+              </p>
+            )}
+          </div>
+          <div class="grafico">
+            <ul class="chaves" aria-hidden="true">
+              <li><i style="background: var(--tinta)"></i>Direto</li>
+              <li><i style="background: var(--areia)"></i>Por um banco</li>
+            </ul>
+            <div class="colunas" role="img" aria-label={serie.map((s) => `${s[0]}: ${moedaCurta(s[1] + s[2])}`).join("; ")}>
+              {serie.map((s) => (
+                <div class="col">
+                  <span class="rot">{nf0.format((s[1] + s[2]) / 1e9)}</span>
+                  <span class="ind" style={`height: ${(s[2] / maxSerie) * 100}%`}></span>
+                  <span class="dir" style={`height: ${(s[1] / maxSerie) * 100}%`}></span>
+                </div>
+              ))}
+            </div>
+            <div class="anos" aria-hidden="true">
+              {serie.map((s) => <span><b class="longo">{s[0]}{s[0] === parcial ? "*" : ""}</b><b class="curto">'{String(s[0]).slice(2)}</b></span>)}
+            </div>
+            <p class="nota">R$ bilhões contratados.{parcial && ` ${parcial} vai até ${mesDe(r.ultima)}.`}</p>
+          </div>
+        </section>
+
+        <section class="bloco duas" id="juro">
+          <div class="lado">
+            <h2>Com que juro</h2>
+            <p class="texto">
+              {pct(a.faixas.abaixo, a.total).replace("%", " em cada 100 reais")} que o BNDES emprestou em {ano} saíram com juro abaixo do que um banco comum cobraria.
+            </p>
+            {r.programas_abaixo.length > 0 && (
+              <>
+                <p class="menor">O juro abaixo do de mercado em {ano}, por programa:</p>
+                <ul class="barras">
+                  {r.programas_abaixo.slice(0, 6).map(([nome, v]) => (
+                    <li><span class="lb"><span>{nome}</span><strong>{moedaCurta(v)}</strong></span><span class="barra" style={`width: ${(v / maxPrograma) * 100}%; background: ${COR_FAIXA.abaixo}`}></span></li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+          <div class="grafico">
+            <div class="barra-toda" role="img" aria-label={FAIXAS.map((f) => `${NOME_FAIXA[f]}: ${moedaCurta(a.faixas[f])}`).join("; ")}>
+              {FAIXAS.map((f) => <span style={`flex: ${a.faixas[f]} 1 0; background: ${COR_FAIXA[f]}`}></span>)}
+            </div>
+            <div class="faixas">
+              <article>
+                <h3><i style={`background: ${COR_FAIXA.abaixo}`} aria-hidden="true"></i>Juro abaixo do de mercado</h3>
+                <strong>{moedaCurta(a.faixas.abaixo)}</strong>
+                <p>Dinheiro de fundos do governo (Fundo Clima, FUST, FNDCT) ou com o Tesouro <Termo id="equalizacao">cobrindo parte do juro</Termo>. Inclui a <Termo id="tjlp">TJLP</Termo> e a taxa fixa.</p>
+              </article>
+              <article>
+                <h3><i style={`background: ${COR_FAIXA.tlp}`} aria-hidden="true"></i>Pela <Termo id="tlp">TLP</Termo></h3>
+                <strong>{moedaCurta(a.faixas.tlp)}</strong>
+                <p>Segue o juro que o próprio governo paga. Não tem desconto do Tesouro, mas tem um prazo longo que banco nenhum dá.</p>
+              </article>
+              <article>
+                <h3><i style={`background: ${COR_FAIXA.mercado}`} aria-hidden="true"></i>Juro de mercado</h3>
+                <strong>{moedaCurta(a.faixas.mercado)}</strong>
+                <p>Pela Selic, pela inflação ou em dólar: o mesmo que pagaria a um banco.</p>
+              </article>
+              <article>
+                <h3><i style={`background: ${COR_FAIXA.doacao}; outline: 1px solid #c9b23a`} aria-hidden="true"></i>Doação</h3>
+                <strong>{moedaCurta(a.faixas.doacao)}</strong>
+                <p>Não volta. Fundo Amazônia, Fundo Social, cultura.</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="bloco duas" id="para-que">
+          <div class="lado">
+            <h2>Para quê</h2>
+            <p class="texto">
+              {pct(r.setores.find((s) => s[0] === "infra")?.[2] ?? 0, a.total)} foi para estradas, aeroportos, portos, energia e saneamento.
+              {r.maiores.slice(0, 4).every((m) => /Rodovias|Aeroportos/.test(m[3])) && " Os quatro maiores clientes do ano foram concessionárias de rodovias e de aeroportos."}
+            </p>
+          </div>
+          <ul class="barras grafico">
+            {r.setores.map(([, nome, v]) => (
+              <li><span class="lb"><span>{nome}</span><strong>{moedaCurta(v)}</strong></span><span class="barra" style={`width: ${(v / maxSetor) * 100}%`}></span></li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="bloco" id="quem">
+          <div class="cabeca">
+            <div class="coluna">
+              <h2>Quem recebeu</h2>
+              <p>
+                Os maiores empréstimos de {ano}. A mesma empresa pode pagar menos imposto e pegar dinheiro mais barato: ao lado de cada uma está o{" "}
+                <a href="/impostos/empresas">benefício fiscal</a> que ela declarou no ano.
+              </p>
+            </div>
+            <form class="procurar" data-busca role="search">
+              <label for="busca-bndes">Procurar empresa, prefeitura ou CNPJ</label>
+              <div class="linha-busca">
+                <input id="busca-bndes" name="q" type="search" placeholder="Ex.: Suzano, 16.404.287" autocomplete="off" />
+                <button type="submit">Procurar</button>
+              </div>
+            </form>
+          </div>
+          <div class="resultado" data-resultado hidden aria-live="polite"></div>
+          <div class="rolagem">
+            <table class="maiores">
+              <thead><tr><th>Cliente</th><th>Para quê</th><th>Juro</th><th class="d">BNDES {ano}</th><th class="d">Benefício fiscal</th></tr></thead>
+              <tbody>
+                {r.maiores.map(([nome, raiz, uf, para, faixa, valor, , ben], i) => (
+                  <tr class={i >= VISIVEIS ? "extra" : undefined} hidden={i >= VISIVEIS}>
+                    <td class="empresa"><span>{nome}</span><small>{uf === "IE" ? "vários estados" : uf}</small></td>
+                    <td class="para">{para}</td>
+                    <td class="juro"><i style={`background: ${COR_FAIXA[faixa as Faixa | "misto"]}`} aria-hidden="true"></i>{NOME_FAIXA[faixa as Faixa | "misto"]}</td>
+                    <td class="d valor" title={moedaCompleta(valor)}>{moedaCurta(valor)}</td>
+                    <td class="d ben">{ben ? <a href={`/impostos/empresas?empresa=${raiz}`}>{moedaCurta(ben)}</a> : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {r.maiores.length > VISIVEIS && <button type="button" class="mais" data-mais>Ver os {r.maiores.length} maiores</button>}
+          <div class="pe">
+            {cruz && (
+              <p class="destaque">
+                Das <strong>{nf0.format(cruz.empresas)} empresas</strong> que pegaram empréstimo direto do BNDES em {cruz.anos[0]} e {cruz.anos[1]},{" "}
+                <strong>{nf0.format(cruz.com_beneficio)} também declararam benefício fiscal</strong>. Elas ficaram com {pct(cruz.valor_com_beneficio, cruz.valor)} do
+                dinheiro emprestado.
+              </p>
+            )}
+            <p class="menor">
+              Pessoas e microempreendedores só aparecem somados, nunca pelo nome: em {ano}, {nf0.format(r.sem_nome[0])} clientes sem nome somaram{" "}
+              {moedaCurta(r.sem_nome[1])}. Nos empréstimos por um banco, o BNDES não publica o CNPJ inteiro; o nome aparece quando bate com o
+              cadastro de empresas da Receita.
+            </p>
+          </div>
+        </section>
+
+        {(osu || safra.length > 0) && (
+          <section class="bloco duas" id="custo">
+            <div class="lado">
+              <h2>Quanto custa</h2>
+              <p class="texto">
+                O que custa para o Tesouro não é o valor emprestado. É a <Termo id="subsidio-crediticio">diferença de juros</Termo>.
+                {osu && anoOsu && <> Em {anoOsu}, o governo calculou esse custo em <strong>{moedaExtenso(osu.tipos.crediticios[iOsu])}</strong> para todo o crédito com juro baixo, não só o do BNDES.</>}
+              </p>
+              {crediticios.length > 1 && (
+                <p class="texto">A maior parte vem dos fundos regionais do Norte, Nordeste e Centro-Oeste e do dinheiro do FAT, o fundo do trabalhador, que fica no BNDES.</p>
+              )}
+              {safraAno > 0 && (
+                <div class="caixa">
+                  <span>Pago em dinheiro pelo Tesouro em {ano} para baixar o juro do Plano Safra</span>
+                  <strong>{moedaCurta(safraAno)}</strong>
+                  <span>
+                    {safraAntes.length > 0 && <>Era {safraAntes.map(([x, v]) => `${moedaCurta(v)} em ${x}`).join(" e ")}. </>}
+                    É a <Termo id="equalizacao">equalização</Termo>.
+                  </span>
+                </div>
+              )}
+            </div>
+            {crediticios.length > 0 && (
+              <div class="grafico">
+                <p class="menor">Custo estimado dos juros baixos em {anoOsu}, por programa</p>
+                <ul class="barras">
+                  {crediticios.map((c) => (
+                    <li><span class="lb"><span>{c.nome}</span><strong>{moedaCurta(c.valor)}</strong></span><span class="barra" style={`width: ${(c.valor / maxCred) * 100}%; background: ${c.bndes ? "var(--verde)" : "var(--texto-4)"}`}></span></li>
+                  ))}
+                </ul>
+                <p class="nota">Orçamento de Subsídios da União, publicado em {osu?.edicao}. Em verde, o que passa pelo BNDES. A conta mudou de método em 2025 e não se compara com os anos anteriores.</p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {(dividendos.length > 0 || depsVisiveis.length > 0) && (
+          <section class="bloco" id="estatais">
+            <div class="coluna estreita">
+              <h2>As empresas do governo</h2>
+              <p>
+                O governo federal tem empresas. Algumas dão dinheiro: em {ano}, as estatais pagaram <strong>{moedaExtenso(divTotal)}</strong> em
+                dividendos à União. Outras vivem do orçamento: as <Termo id="estatal-dependente">{sest?.dependentes ?? 17} estatais dependentes</Termo>{" "}
+                receberam <strong>{moedaExtenso(subvTotal)}</strong> do Tesouro{ebserh && subvTotal > 0 && <>, {pct(ebserh.valor, subvTotal)} disso para a Ebserh, que cuida dos hospitais universitários</>}.
+              </p>
+            </div>
+            <div class="lados">
+              {dividendos.length > 0 && (
+                <div>
+                  <h3>Entraram: dividendos, {moedaCurta(divTotal)}</h3>
+                  <ul class="barras">
+                    {dividendos.map((d) => (
+                      <li><span class="lb"><span>{d.nome}</span><strong>{moedaCurta(d.valor)}</strong></span><span class="barra" style={`width: ${(d.valor / maxEst) * 100}%; background: var(--verde)`}></span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {depsVisiveis.length > 0 && (
+                <div>
+                  <h3>Saíram: Tesouro para as dependentes, {moedaCurta(subvTotal)}</h3>
+                  <ul class="barras">
+                    {depsVisiveis.map((d) => (
+                      <li><span class="lb"><span>{d.nome}</span><strong>{moedaCurta(d.valor)}</strong></span><span class="barra" style={`width: ${(d.valor / maxEst) * 100}%; background: var(--texto-4)`}></span></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <p class="menor">
+              Uma não paga a outra: hospital e pesquisa não são feitos para dar lucro, e os dividendos mudam muito de um ano para outro
+              {divAntes > 0 && <> (foram {moedaCurta(divAntes)} em {ano - 1})</>}. A comparação mostra o tamanho de cada lado.
+              {periodoSest && periodoSest !== "Anual" && <> A subvenção de {ano} é a do balanço até o {periodoSest.toLowerCase()}, que soma o ano todo.</>}
+            </p>
+          </section>
+        )}
+
+        <section class="bloco ler" id="nao-diz">
+          <h2>O que esta conta não diz</h2>
+          <ul>
+            <li><strong>Empréstimo não é gasto.</strong> O dinheiro volta com juros. O que custa ao governo é o subsídio, a diferença de juros, e não o valor emprestado.</li>
+            <li><strong>Não sabemos o subsídio de cada empresa.</strong> O governo calcula o custo por programa. Aqui está quanto cada uma pegou com juro abaixo do de mercado, não quanto ela "ganhou".</li>
+            <li><strong>TLP não é juro de graça, mas também não é igual ao de um banco.</strong> Segue o juro do governo, com um prazo longo que banco nenhum dá.</li>
+            <li><strong>Por um banco, quem empresta é o banco.</strong> O BNDES põe o dinheiro; o banco escolhe o cliente e fica com o risco.</li>
+            <li><strong>Contratado não é liberado.</strong> Parte do dinheiro sai em vários anos, e parte nunca sai.</li>
+            <li><strong>O crédito rural das pessoas não aparece um a um.</strong>{desemb && <> Em {ano}, o BNDES liberou {moedaExtenso(desemb[2])} para pessoas físicas, quase todo para produtores rurais.</>} E o Plano Safra é bem maior que o BNDES: a maior parte passa pelo Banco do Brasil e pelas cooperativas.</li>
+            <li><strong>A cidade é onde está o projeto ou o cliente</strong>, não necessariamente onde o dinheiro é gasto. E {pct(r.sem_cidade, r.diretas)} do dinheiro direto de {ano} não tem cidade: rodovias e aeroportos que passam por várias.</li>
+            <li><strong>Estatal dependente não é prejuízo.</strong> Hospital e pesquisa não são feitos para dar lucro.</li>
+            <li><strong>Custo estimado e valor pago são contas diferentes</strong> e não se somam.</li>
+          </ul>
+          <p class="fonte">
+            Fontes: {r.fonte}. Contratos até {mesDe(r.ultima)}. Os nomes das empresas são os do cadastro do BNDES; o juro é o custo
+            financeiro de cada contrato, sem o spread do BNDES. Benefício fiscal: Receita Federal, Dirbi.
+          </p>
+        </section>
+      </>
+    )}
+  </div>
+</Base>
+
+<script>
+  type Empresa = [string, string, number, number, number, number];
+  const raizDe = (s: string) => s.replace(/\D/g, "");
+  const sem = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  const nf = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+  const curto = (v: number) => (v >= 1e9 ? `R$ ${nf.format(v / 1e9)} bi` : v >= 1e6 ? `R$ ${nf.format(v / 1e6)} mi` : `R$ ${nf.format(v / 1e3)} mil`);
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+
+  const form = document.querySelector<HTMLFormElement>("[data-busca]");
+  const caixa = document.querySelector<HTMLElement>("[data-resultado]");
+  let dados: Promise<{ desde: number; empresas: Record<string, Empresa> } | null> | null = null;
+  const carregar = () => (dados ??= fetch("/data/bndes/empresas.json").then((r) => (r.ok ? r.json() : null)).catch(() => null));
+
+  async function procurar(q: string) {
+    if (!caixa) return;
+    const t = q.trim();
+    if (t.length < 3) { caixa.hidden = true; return; }
+    caixa.hidden = false;
+    caixa.innerHTML = "<p class=\"menor\">Procurando…</p>";
+    const d = await carregar();
+    if (!d) { caixa.innerHTML = "<p class=\"menor\">Não deu para carregar a lista de empresas.</p>"; return; }
+    const digitos = raizDe(t);
+    const termo = sem(t);
+    const lista: [string, Empresa][] = Object.entries(d.empresas as Record<string, Empresa>);
+    const achou = lista
+      .filter(([raiz, e]) => (digitos.length >= 5 && digitos.length === t.replace(/[\s./-]/g, "").length ? raiz.startsWith(digitos.slice(0, 8)) : sem(e[0]).includes(termo)))
+      .sort((x, y) => y[1][2] - x[1][2]).slice(0, 30);
+    if (!achou.length) {
+      caixa.innerHTML = `<p class="menor">Nenhuma empresa com empréstimo do BNDES desde ${d.desde} com esse nome ou CNPJ. Pessoas e microempreendedores não aparecem pelo nome.</p>`;
+      return;
+    }
+    caixa.innerHTML = `<p class="menor">Empréstimos contratados desde ${d.desde}, somados.</p><ol class="achados">` + achou.map(([raiz, e]) =>
+      `<li><div><strong>${esc(e[0])}</strong><small>${e[1] === "IE" ? "vários estados" : esc(e[1])} · CNPJ ${raiz.slice(0, 2)}.${raiz.slice(2, 5)}.${raiz.slice(5, 8)} · último em ${e[4]}</small></div>` +
+      `<div class="d"><strong>${curto(e[2])}</strong><small>${e[3] > 0 ? `${Math.round((e[3] / e[2]) * 100)}% com juro abaixo do de mercado` : "sem juro abaixo do de mercado"}</small>` +
+      `<a href="/impostos/empresas?empresa=${raiz}">benefício fiscal</a></div></li>`).join("") + "</ol>";
+  }
+
+  form?.addEventListener("submit", (ev) => { ev.preventDefault(); procurar(new FormData(form).get("q") as string); });
+  let espera: number | undefined;
+  form?.querySelector("input")?.addEventListener("input", (ev) => {
+    clearTimeout(espera);
+    espera = window.setTimeout(() => procurar((ev.target as HTMLInputElement).value), 300);
+  });
+  document.querySelector<HTMLButtonElement>("[data-mais]")?.addEventListener("click", (ev) => {
+    document.querySelectorAll<HTMLElement>("tr.extra").forEach((tr) => (tr.hidden = false));
+    (ev.currentTarget as HTMLElement).remove();
+  });
+</script>
+
+<style>
+  .abre { padding: 40px 0 28px; max-width: 900px; display: flex; flex-direction: column; gap: 14px; }
+  .abre .caminho { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .abre h1 { font-size: 56px; line-height: 1.05; letter-spacing: -0.025em; }
+  .abre p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .abre strong { color: var(--tinta); }
+  .numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 36px; font-weight: 700; white-space: nowrap; }
+  .numeros .verde { color: var(--verde); }
+  .bloco { border-top: 2px solid var(--tinta); margin-top: 48px; padding: 32px 0 8px; display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 12px; }
+  .bloco h2 { font-size: 34px; }
+  .duas { flex-direction: row; flex-wrap: wrap; gap: 32px 48px; }
+  .duas .lado { flex: 1 1 340px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .duas .grafico { flex: 2 1 480px; display: flex; flex-direction: column; gap: 12px; min-width: 0; justify-content: center; }
+  .cabeca { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 16px 32px; }
+  .coluna { display: flex; flex-direction: column; gap: 10px; max-width: 680px; }
+  .coluna p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .coluna strong { color: var(--tinta); }
+  .estreita { max-width: 780px; }
+  .texto { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto strong { color: var(--tinta); }
+  .menor { margin: 0; font-size: 14px; line-height: 1.55; color: var(--texto-3); }
+  .nota { margin: 0; font-size: 12px; color: var(--texto-4); }
+  .chaves { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--texto-2); }
+  .chaves li { display: inline-flex; align-items: center; gap: 6px; }
+  .chaves i { display: inline-block; width: 12px; height: 12px; }
+  .colunas { display: flex; align-items: flex-end; gap: 8px; height: 260px; border-bottom: 1px solid var(--tinta); }
+  .col { flex: 1 1 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; min-width: 0; }
+  .col .rot { font-size: 12px; text-align: center; color: var(--texto-2); padding-bottom: 4px; font-variant-numeric: tabular-nums; }
+  .col .ind { background: var(--areia); }
+  .col .dir { background: var(--tinta); }
+  .anos { display: flex; gap: 8px; }
+  .anos span { flex: 1 1 0; text-align: center; font-size: 12px; color: var(--texto-3); min-width: 0; }
+  .anos b { font-weight: 400; }
+  .anos .curto { display: none; }
+  .barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .barras li { display: flex; flex-direction: column; gap: 4px; }
+  .lb { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .lb strong { white-space: nowrap; font-weight: 600; }
+  .barra { display: block; height: 10px; min-width: 2px; background: var(--tinta); }
+  .barra-toda { display: flex; gap: 2px; height: 40px; }
+  .faixas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 32px; }
+  .faixas article { display: flex; flex-direction: column; gap: 4px; }
+  .faixas h3 { font-family: var(--sans); font-size: 14px; font-weight: 600; letter-spacing: 0; display: flex; align-items: center; gap: 8px; }
+  .faixas h3 i { display: inline-block; width: 12px; height: 12px; flex: none; }
+  .faixas strong { font-family: var(--serifa); font-size: 26px; }
+  .faixas p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--texto-2); }
+  .procurar { display: flex; flex-direction: column; gap: 6px; flex: 0 1 420px; }
+  .procurar label { font-size: 14px; font-weight: 600; }
+  .linha-busca { display: flex; flex-wrap: wrap; gap: 8px; }
+  .linha-busca input { flex: 1 1 220px; height: 48px; padding: 0 14px; border: 1px solid var(--tinta); background: #fff; font: inherit; color: var(--tinta); }
+  .linha-busca button { height: 48px; padding: 0 20px; background: var(--verde); color: #fff; border: 0; font: inherit; font-weight: 600; cursor: pointer; }
+  .linha-busca button:hover { background: var(--verde-escuro); }
+  .resultado :global(.achados) { list-style: none; margin: 8px 0 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .resultado :global(.achados li) { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; }
+  .resultado :global(.achados div) { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .resultado :global(.achados .d) { align-items: flex-end; text-align: right; }
+  .resultado :global(.achados small) { font-size: 13px; color: var(--texto-3); }
+  .resultado :global(.achados a) { font-size: 13px; }
+  .rolagem { overflow-x: auto; }
+  .maiores { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 15px; }
+  .maiores th { text-align: left; font-weight: 400; font-size: 12px; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 16px 8px 0; border-top: 1px solid var(--tinta); border-bottom: 1px solid var(--tinta); }
+  .maiores td { padding: 10px 16px 10px 0; border-bottom: 1px solid var(--regra-leve); vertical-align: baseline; }
+  .maiores .d { text-align: right; }
+  .maiores .empresa span { font-weight: 600; }
+  .maiores .empresa small { display: block; font-size: 12px; color: var(--texto-3); }
+  .maiores .para { font-size: 14px; color: var(--texto-2); }
+  .maiores .juro { font-size: 14px; white-space: nowrap; }
+  .maiores .juro i { display: inline-block; width: 10px; height: 10px; margin-right: 6px; }
+  .maiores .valor { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .maiores .ben { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--texto-2); }
+  .mais { align-self: flex-start; min-height: 44px; padding: 0 16px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .pe { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: flex-start; }
+  .destaque { margin: 0; flex: 1 1 420px; font-size: 18px; line-height: 1.55; background: var(--marca-texto-fundo); padding: 16px 20px; }
+  .pe .menor { flex: 1 1 320px; }
+  .caixa { margin-top: 8px; padding: 18px 20px; border: 1px solid var(--regra); display: flex; flex-direction: column; gap: 4px; }
+  .caixa span { font-size: 14px; color: var(--texto-2); }
+  .caixa span:first-child { font-size: 13px; color: var(--texto-3); }
+  .caixa strong { font-family: var(--serifa); font-size: 32px; }
+  .lados { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 32px 48px; }
+  .lados h3 { font-size: 22px; margin-bottom: 12px; }
+  .ler { max-width: 980px; }
+  .ler ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 1.6; color: var(--texto-2); }
+  .ler li strong { color: var(--tinta); }
+  .fonte { margin: 8px 0 0; font-size: 13px; line-height: 1.55; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .abre { padding: 28px 0 20px; }
+    .abre h1 { font-size: 34px; line-height: 1.1; }
+    .abre p { font-size: 17px; }
+    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(odd) { padding-left: 0; }
+    .numeros div:nth-child(even) { border-right: 0; padding-right: 0; }
+    .numeros strong { font-size: 26px; }
+    .bloco { margin-top: 36px; padding-top: 22px; }
+    .bloco h2 { font-size: 26px; line-height: 1.15; }
+    .duas { flex-direction: column; gap: 18px; }
+    .duas .lado, .duas .grafico { flex: none; }
+    .faixas { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    .colunas { height: 190px; gap: 4px; }
+    .col .rot { font-size: 10px; }
+    .anos { gap: 4px; }
+    .anos span { font-size: 10px; }
+    .anos .longo { display: none; }
+    .anos .curto { display: inline; }
+    .procurar { flex: 1 1 100%; }
+    .rolagem { overflow: visible; }
+    .maiores { min-width: 0; }
+    .maiores thead { display: none; }
+    .maiores tr:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); }
+    .maiores td { padding: 0; border: 0; }
+    .maiores .empresa { grid-column: 1; }
+    .maiores .valor { grid-column: 2; grid-row: 1; }
+    .maiores .para { grid-column: 1; font-size: 13px; }
+    .maiores .juro { grid-column: 2; text-align: right; font-size: 13px; }
+    .maiores .ben { grid-column: 1 / -1; text-align: left; font-size: 13px; }
+    .maiores .ben::before { content: "Benefício fiscal: "; color: var(--texto-3); }
+    .destaque { font-size: 16px; }
+  }
+</style>
