@@ -140,10 +140,11 @@ def slug(s: str) -> str:
 PEQUENAS = {"de", "da", "do", "das", "dos", "e"}
 
 
-def nome_proprio(s: str) -> str:
-    """"PLÍNIO VALÉRIO" → "Plínio Valério"; nomes já em caixa mista ficam como estão."""
+def nome_proprio(s: str, pessoa: bool = False) -> str:
+    """"PLÍNIO VALÉRIO" → "Plínio Valério"; nomes já em caixa mista ficam como estão. Um nome curto em maiúsculas é
+    sigla de empresa ("TAM", "GOL"), a não ser que seja de pessoa (pessoa=True: "ZEMA" → "Zema")."""
     s = " ".join((s or "").split())
-    if s != s.upper() or len(s) <= 4:   # caixa mista, ou uma sigla ("TAM", "GOL")
+    if s != s.upper() or (len(s) <= 4 and not pessoa):
         return s
     return " ".join(p.lower() if i and p.lower() in PEQUENAS else p.capitalize() for i, p in enumerate(s.split()))
 
@@ -491,21 +492,30 @@ def _csv_do_zip(z: Path, membro: str, destino: Path) -> Path:
 
 
 CARGOS_TSE = ("DEPUTADO FEDERAL", "SENADOR", "1º SUPLENTE", "2º SUPLENTE")
+# Os cargos que só têm a página pelo TSE (por ora): eleitos de 2022 para o estado.
+CARGOS_ESTADUAIS = ("GOVERNADOR", "DEPUTADO ESTADUAL", "DEPUTADO DISTRITAL")
+CASA_DO_CARGO = {"GOVERNADOR": "governo", "DEPUTADO ESTADUAL": "assembleia", "DEPUTADO DISTRITAL": "assembleia"}
+MAX_CIDADES_VOTOS = 5
 
 
 def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict]:
-    """chave do político ("camara-<id>" ou "senado-<cod>") → a candidatura que o levou ao cargo, com votos, bens e
-    receitas. Deputados casam pelo CPF (só na memória); senadores, pelo nome completo e o estado."""
+    """chave do político → a candidatura que o levou ao cargo, com votos, bens e receitas.
+    - "camara-<id>": deputados federais, casados pelo CPF (só na memória);
+    - "senado-<cod>": senadores, pelo nome completo e o estado;
+    - "tse-<SQ_CANDIDATO>": governadores, deputados estaduais e distritais eleitos em 2022, que (por ora) só têm a
+      página pelo TSE. A chave é o número da candidatura no TSE, nunca o CPF. Esses levam também o nome completo
+      (para ligar à página da Câmara ou do Senado da mesma pessoa) e as cidades onde tiveram mais votos."""
     tmp = PASTA_TSE / "tmp"
     cand_partes = []
     for ano in (2018, 2022):
         z = _tse_zip("consulta_cand", ano)
         arq = _csv_do_zip(z, f"consulta_cand_{ano}_BRASIL.csv", tmp)
+        cargos = CARGOS_TSE + (CARGOS_ESTADUAIS if ano == 2022 else ())
         cand_partes.append(f"""SELECT {ano} AS eleicao, SQ_CANDIDATO AS sq, SG_UF AS uf, DS_CARGO AS cargo,
               NM_CANDIDATO AS completo, NM_URNA_CANDIDATO AS urna, regexp_replace(NR_CPF_CANDIDATO, '[^0-9]', '', 'g') AS cpf,
               SG_PARTIDO AS partido, DS_GENERO AS genero, DS_SIT_TOT_TURNO AS situacao, TRY_CAST(NR_TURNO AS INTEGER) AS turno
             FROM read_csv('{arq}', delim=';', header=true, all_varchar=true)
-            WHERE DS_CARGO IN {CARGOS_TSE}""")
+            WHERE DS_CARGO IN {cargos}""")
     con.execute(f"CREATE OR REPLACE TEMP TABLE cand AS {' UNION ALL '.join(cand_partes)}")
     # Câmara: pelo CPF; o par sai sem ele.
     # Um CPF pode ter mais de uma linha (candidatura substituída, recurso): fica a que se elegeu, senão a mais votada
@@ -519,8 +529,9 @@ def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict
     con.execute("DROP TABLE cam_cpf")
     con.execute("ALTER TABLE cand DROP COLUMN cpf")
     # Senado: nome completo e estado; senão, nome parlamentar e nome de urna.
-    linhas = con.execute("""SELECT sq, eleicao, uf, cargo, completo, urna FROM cand
-                            WHERE cargo <> 'DEPUTADO FEDERAL' AND (situacao ILIKE 'ELEITO%' OR cargo LIKE '%SUPLENTE')""").fetchall()
+    linhas = con.execute(f"""SELECT sq, eleicao, uf, cargo, completo, urna FROM cand
+                            WHERE cargo <> 'DEPUTADO FEDERAL' AND cargo NOT IN {CARGOS_ESTADUAIS}
+                              AND (situacao ILIKE 'ELEITO%' OR cargo LIKE '%SUPLENTE')""").fetchall()
     por_completo, por_urna = defaultdict(list), defaultdict(list)
     for sq, eleicao, uf, cargo, completo, urna in linhas:
         por_completo[(slug(completo), uf)].append((eleicao, sq))
@@ -534,6 +545,12 @@ def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict
     if pares_sen:
         con.executemany("INSERT INTO par VALUES (?, ?, ?)", pares_sen)
     print(f"TSE: {con.execute('SELECT count(*) FROM par').fetchone()[0]} políticos casados com a candidatura", flush=True)
+    # Governadores e deputados estaduais e distritais eleitos em 2022: a página é a candidatura.
+    con.execute(f"""INSERT INTO par SELECT DISTINCT 'tse-' || sq, sq, 2022 FROM cand
+                    WHERE eleicao = 2022 AND cargo IN {CARGOS_ESTADUAIS} AND situacao ILIKE 'ELEITO%'""")
+    for cargo, n in con.execute("""SELECT k.cargo, count(DISTINCT p.sq) FROM par p JOIN cand k USING (sq)
+                                   WHERE p.chave LIKE 'tse-%' GROUP BY 1 ORDER BY 1""").fetchall():
+        print(f"TSE: {n} eleitos para {cargo.lower()} em 2022", flush=True)
 
     sqs = {sq for (sq,) in con.execute("SELECT sq FROM par").fetchall()}
     # Bens: só o tipo e o valor.
@@ -556,7 +573,7 @@ def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict
                 SELECT r.SQ_CANDIDATO, r.DS_FONTE_RECEITA, r.DS_ORIGEM_RECEITA,
                        regexp_replace(r.NR_CPF_CNPJ_DOADOR, '[^0-9]', '', 'g'),
                        CASE WHEN r.SG_PARTIDO_DOADOR NOT LIKE '#NULO%' AND r.DS_ESFERA_PARTIDARIA_DOADOR NOT LIKE '#NULO%'
-                            THEN r.SG_PARTIDO_DOADOR || ', direção ' || lower(r.DS_ESFERA_PARTIDARIA_DOADOR)
+                            THEN r.SG_PARTIDO_DOADOR || ', direção ' || CASE WHEN r.DS_ESFERA_PARTIDARIA_DOADOR ILIKE '%estadual%' THEN 'estadual' ELSE lower(r.DS_ESFERA_PARTIDARIA_DOADOR) END
                             ELSE r.NM_DOADOR END,
                        TRY_CAST(replace(r.VR_RECEITA, ',', '.') AS DOUBLE)
                 FROM read_csv('{arq}', delim=';', header=true, all_varchar=true) r
@@ -573,47 +590,88 @@ def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict
             elif "partido" in (origem or "").lower() and len(doc) == 14:
                 rc["partidos"][doador if "," in (doador or "") else nome_proprio(doador)] += v
         arq.unlink(missing_ok=True)
-    # Votos: a soma das zonas, no primeiro turno.
+    # Votos: a soma das zonas, no primeiro turno (e no segundo, para governador). Para os cargos estaduais, também
+    # as cidades com mais votos e a parte dos votos que veio de cada uma.
     votos: Counter[str] = Counter()
+    votos2: Counter[str] = Counter()
+    cidades: dict[str, Counter] = defaultdict(Counter)
+    estaduais = {sq for (sq,) in con.execute("SELECT sq FROM par WHERE chave LIKE 'tse-%'").fetchall()}
+    cargos_votos = ", ".join(f"'{c}'" for c in ("DEPUTADO FEDERAL", "SENADOR") + CARGOS_ESTADUAIS)
     for ano in (2018, 2022):
         z = _tse_zip("votacao_candidato_munzona", ano)
         with zipfile.ZipFile(z) as zf:
-            membros = [n for n in zf.namelist() if n.endswith(".csv") and not n.endswith("_BR.csv")]
+            # Um arquivo por estado. O _BRASIL.csv repete todos os estados juntos (somar os dois dobra os votos) e
+            # o _BR.csv tem a votação para presidente: os dois ficam de fora.
+            membros = arquivos_de_votos(zf.namelist())
         for membro in membros:
             arq = _csv_do_zip(z, membro, tmp)
-            for sq, v in con.execute(f"""SELECT SQ_CANDIDATO, sum(TRY_CAST(QT_VOTOS_NOMINAIS AS BIGINT))
+            for sq, turno, cod, mun, uf, v in con.execute(f"""SELECT SQ_CANDIDATO, NR_TURNO, CD_MUNICIPIO, any_value(NM_MUNICIPIO),
+                        any_value(SG_UF), sum(TRY_CAST(QT_VOTOS_NOMINAIS AS BIGINT))
                     FROM read_csv('{arq}', delim=';', header=true, all_varchar=true)
-                    WHERE DS_CARGO IN ('Deputado Federal', 'Senador', 'DEPUTADO FEDERAL', 'SENADOR') AND NR_TURNO = '1'
-                    GROUP BY 1""").fetchall():
-                if sq in sqs:
+                    WHERE upper(DS_CARGO) IN ({cargos_votos})
+                    GROUP BY 1, 2, 3""").fetchall():
+                if sq not in sqs:
+                    continue
+                if turno == "1":
                     votos[sq] += int(v or 0)
+                    if sq in estaduais:
+                        cidades[sq][(cod, mun, uf)] += int(v or 0)
+                else:
+                    votos2[sq] += int(v or 0)
             arq.unlink(missing_ok=True)
     saida = {}
     for chave, sq, eleicao in con.execute("""SELECT p.chave, p.sq, p.eleicao FROM par p""").fetchall():
-        k = con.execute("SELECT cargo, uf, partido, genero, situacao, urna FROM cand WHERE sq = ? ORDER BY turno DESC LIMIT 1", [sq]).fetchone()
+        k = con.execute("SELECT cargo, uf, partido, genero, situacao, urna, completo FROM cand WHERE sq = ? ORDER BY turno DESC LIMIT 1", [sq]).fetchone()
         b, r = bens.get(sq), receitas.get(sq)
         saida[chave] = {
             "eleicao": eleicao, "cargo": k[0].title().replace("º Suplente", "º suplente"), "uf": k[1], "partido": k[2],
-            "genero": k[3], "situacao": situacao_tse(k[4]), "urna": nome_proprio(k[5]), "votos": votos.get(sq),
+            "genero": k[3], "situacao": situacao_tse(k[4]), "urna": nome_proprio(k[5], pessoa=True), "votos": votos.get(sq),
             "bens": {"total": round(b["total"]), "tipos": [[t, round(v)] for t, v in b["tipos"].most_common(5)]} if b else None,
             "receitas": {"total": round(r["total"]), "origens": [[o, round(v)] for o, v in r["origens"].most_common()],
                          "partidos": [[p, round(v)] for p, v in r["partidos"].most_common(3)],
                          "pf": [r["pf"][0], round(r["pf"][1])]} if r else None,
         }
+        if chave.startswith("tse-"):
+            e = saida[chave]
+            e["sq"] = sq
+            e["completo"] = k[6]   # o nome completo, que o TSE publica: liga à página da Câmara ou do Senado
+            if votos2.get(sq):
+                e["votos2"] = votos2[sq]
+            tot = votos.get(sq) or 0
+            e["cidades"] = [[nome_proprio(mun), uf, cod, v, round(v / tot, 4) if tot else 0]
+                            for (cod, mun, uf), v in cidades[sq].most_common(MAX_CIDADES_VOTOS)]
+            e["nCidades"] = sum(1 for v in cidades[sq].values() if v > 0)
+    # A posição de cada eleito estadual entre os eleitos do mesmo cargo e estado, pelos votos do 1º turno.
+    grupos: dict[tuple, list] = defaultdict(list)
+    for chave, e in saida.items():
+        if chave.startswith("tse-") and e["cargo"] != "Governador":
+            grupos[(e["cargo"], e["uf"])].append(e)
+    for lista in grupos.values():
+        lista.sort(key=lambda e: -(e["votos"] or 0))
+        for i, e in enumerate(lista):
+            e["posicao"] = [i + 1, len(lista)]
     shutil.rmtree(tmp, ignore_errors=True)
     return saida
+
+
+def arquivos_de_votos(nomes: list[str]) -> list[str]:
+    """Os CSVs de votação por estado (votacao_candidato_munzona_AAAA_SP.csv), sem o _BR e o _BRASIL."""
+    return [n for n in nomes if re.search(r"_[A-Z]{2}\.csv$", n) and not n.endswith("_BR.csv")]
 
 
 def nome_bem(t: str) -> str:
     t = (t or "").strip()
     s = sem_acento(t).lower()
-    if "quota" in s or "participac" in s or "acoes" in s:
+    if "quota" in s or "participac" in s or re.search(r"\bacoes\b", s):
         return "Participação em empresas"
-    if s.startswith(("casa", "apartamento", "terreno", "predio", "sala", "loja", "outros bens imoveis", "galpao", "construcao")) or "imovel" in s or "rural" in s:
+    if s.startswith(("casa", "apartamento", "terreno", "predio", "sala", "loja", "outros bens imoveis", "galpao", "construcao",
+                     "terra nua", "benfeitoria")) or "imovel" in s or "rural" in s:
         return "Imóveis"
     if "veiculo" in s or "aeronave" in s or "embarcac" in s:
         return "Veículos"
-    if "deposito" in s or "poupanca" in s or "aplicac" in s or "fundo" in s or "dinheiro" in s or "titulo" in s or "renda fixa" in s or "previdencia" in s:
+    if ("deposito" in s or "poupanca" in s or "aplicac" in s or "fundo" in s or "dinheiro" in s or "titulo" in s
+            or "renda fixa" in s or "previdencia" in s or "vgbl" in s or "pgbl" in s or "investimento" in s
+            or s.startswith("ouro") or "cripto" in s):
         return "Dinheiro e aplicações"
     if "credito" in s or "emprestimo" in s:
         return "Créditos a receber"
