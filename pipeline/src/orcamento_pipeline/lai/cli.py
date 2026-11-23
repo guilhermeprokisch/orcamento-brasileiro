@@ -31,6 +31,8 @@ from .formularios import FORMULARIOS, Pedido, achar_protocolo
 from .pessoa import Pessoa, carregar, criar_modelo
 
 COMPROVANTES = Path.home() / ".config" / "orcamento-br" / "lai-comprovantes"
+# Onde os formulários costumam mostrar erro (osTicket, Bootstrap, ASP.NET, JSF).
+ERROS = "#msg_error, .error:visible, .alert-danger:visible, .errorMessage:visible, .ui-messages-error:visible, font.error:visible"
 
 # Só para o ensaio sem os dados reais: valores que nenhum formulário aceitaria como verdadeiros.
 FICTICIA = Pessoa(nome="Teste Ensaio", cpf="000.000.000-00", nascimento="01/01/1990", sexo="Masculino",
@@ -101,6 +103,15 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
             navegador.assentar(p)
             p.wait_for_timeout(2000)
         p.screenshot(path=f"{base}-enviado.png", full_page=True)
+        erros = [t.strip() for t in p.locator(ERROS).all_inner_texts() if t.strip()]
+        if erros:
+            print("O site recusou o envio:")
+            for t in erros[:5]:
+                print(f"  - {t[:200]}")
+            print("Nada foi anotado. Corrija na janela ou rode de novo.")
+            navegador.esperar_pessoa("Se quiser corrigir e enviar na própria janela, faça e aperte Enter; o protocolo será procurado.")
+            if p.locator(ERROS).count() and any(t.strip() for t in p.locator(ERROS).all_inner_texts()):
+                return
         protocolo = achar_protocolo(p.locator("body").inner_text())
         if protocolo:
             print(f"Protocolo achado na página: {protocolo}")
