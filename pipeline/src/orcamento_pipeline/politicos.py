@@ -21,7 +21,9 @@ Fontes (levantamento em docs/levantamento-parlamentar.md):
 Dados pessoais:
 - O CPF nunca é guardado. A cota da Câmara traz o do deputado; o TSE, o do candidato. Os dois são casados só na
   memória (uma tabela temporária, apagada em seguida) e o que sai é o par "id da Câmara ↔ candidatura no TSE".
-- Fornecedor pessoa física, empresário individual e MEI (natureza 213-5, ou o CPF no nome): só somados, sem nome.
+- Fornecedor pessoa física, empresário individual e MEI (natureza 213-5, ou o CPF no nome), EIRELI, sociedade
+  unipessoal de advocacia e as pessoas físicas com CNPJ do grupo 4 das naturezas (produtor rural, empresa
+  individual imobiliária, candidato): só somados, sem nome.
 - Doador de campanha pessoa física: só somado. Partido aparece com o nome.
 - Bens: só o tipo e o valor, somados. A descrição de cada bem (texto livre, às vezes com endereço) não entra.
 - Assessores: só a contagem por gabinete; nenhum nome.
@@ -51,6 +53,7 @@ from pathlib import Path
 import duckdb
 
 from .cidades import RAIZ
+from .divida_ativa import e_pessoa
 
 PASTA = RAIZ / "data" / "raw" / "politicos"
 PASTA_TSE = RAIZ / "data" / "raw" / "tse"
@@ -120,6 +123,7 @@ EMPRESARIO_INDIVIDUAL = "2135"
 # Naturezas jurídicas que são uma pessoa só, com o nome dela: empresário individual e MEI (213-5), EIRELI (230-5 e
 # 231-3) e sociedade unipessoal de advocacia (232-1). Entram somadas, sem nome. A sociedade limitada de um sócio só
 # (206-2) não se distingue das outras limitadas sem o quadro de sócios: aparece com o nome, como empresa.
+# Além delas, o grupo 4 inteiro (pessoas físicas com CNPJ), pela mesma regra da dívida ativa (divida_ativa.e_pessoa).
 EMPRESA_DE_UMA_PESSOA = {EMPRESARIO_INDIVIDUAL, "2305", "2313", "2321"}
 CPF_NO_NOME = re.compile(r"\d{3}\.?\d{3}\.?\d{3}-?\d{2}")
 MAX_FORNECEDORES = 8
@@ -167,6 +171,16 @@ def limpa_nome_empresa(s: str) -> str:
     return " ".join(s.split()).strip(" -.,")
 
 
+def em_ordem(contagem: Counter | dict) -> list[tuple[str, float]]:
+    """Do maior para o menor valor e, no empate, pela chave: a mesma ordem a cada carga (o most_common desempata pela
+    ordem em que as linhas chegaram, que muda de uma carga para outra)."""
+    return sorted(contagem.items(), key=lambda kv: (-kv[1], str(kv[0])))
+
+
+def mais_comum(contagem: Counter) -> str:
+    return em_ordem(contagem)[0][0]
+
+
 def categoria(texto: str, tabela: list[tuple[str, str]]) -> str:
     t = sem_acento(texto or "").lower().strip()
     for chave, nome in tabela:
@@ -176,13 +190,15 @@ def categoria(texto: str, tabela: list[tuple[str, str]]) -> str:
 
 
 def tipo_fornecedor(doc: str, nome: str, natureza: dict[str, str]) -> str:
-    """"empresa", "pessoa_empresa" (empresário individual e MEI) ou "pessoa" (CPF, ou documento mascarado)."""
+    """"empresa", "pessoa_empresa" (empresário individual, MEI, EIRELI e as pessoas com CNPJ do grupo 4) ou "pessoa"
+    (CPF, ou documento mascarado)."""
     d = re.sub(r"\D", "", doc or "")
     if "*" in (doc or "") or len(d) == 11:
         return "pessoa"
     if len(d) != 14:
         return "outro"
-    if natureza.get(d[:8]) in EMPRESA_DE_UMA_PESSOA or CPF_NO_NOME.search(nome or "") or re.search(r"\d{11}", nome or ""):
+    nat = natureza.get(d[:8], "")
+    if nat in EMPRESA_DE_UMA_PESSOA or e_pessoa(nat) or CPF_NO_NOME.search(nome or "") or re.search(r"\d{11}", nome or ""):
         return "pessoa_empresa"
     return "empresa"
 
@@ -472,15 +488,15 @@ def emendas(con: duckdb.DuckDBPyConnection) -> dict[str, dict[int, dict]]:
                              "onde": [], "area": []}
     for autor, ano, mun, uf, ibge, v in con.execute(f"""
             SELECT autor, ano, municipio, uf, ibge, v FROM (
-              SELECT autor, ano, any_value(municipio) AS municipio, any_value(uf) AS uf, nullif(ibge, '') AS ibge,
-                     sum(valor) AS v, row_number() OVER (PARTITION BY autor, ano ORDER BY sum(valor) DESC) AS n
+              SELECT autor, ano, min(municipio) AS municipio, min(uf) AS uf, nullif(ibge, '') AS ibge,
+                     sum(valor) AS v, row_number() OVER (PARTITION BY autor, ano ORDER BY sum(valor) DESC, min(municipio), min(uf)) AS n
               FROM em GROUP BY autor, ano, coalesce(nullif(ibge, ''), municipio || uf), nullif(ibge, ''))
-            WHERE n <= {MAX_LUGARES} ORDER BY autor, ano, v DESC""").fetchall():
+            WHERE n <= {MAX_LUGARES} ORDER BY autor, ano, n""").fetchall():
         saida[autor][ano]["onde"].append([mun or "Sem lugar", uf or "", ibge, round(v)])
     for autor, ano, area, v in con.execute(f"""
             SELECT autor, ano, area, v FROM (
-              SELECT autor, ano, area, sum(valor) AS v, row_number() OVER (PARTITION BY autor, ano ORDER BY sum(valor) DESC) AS n
-              FROM em GROUP BY autor, ano, area) WHERE n <= {MAX_AREAS} ORDER BY autor, ano, v DESC""").fetchall():
+              SELECT autor, ano, area, sum(valor) AS v, row_number() OVER (PARTITION BY autor, ano ORDER BY sum(valor) DESC, area) AS n
+              FROM em GROUP BY autor, ano, area) WHERE n <= {MAX_AREAS} ORDER BY autor, ano, n""").fetchall():
         saida[autor][ano]["area"].append([area, round(v)])
     print(f"emendas: {len(saida):,} autores individuais desde {PRIMEIRO_ANO}", flush=True)
     return saida
@@ -616,8 +632,8 @@ def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict
             membros = arquivos_de_votos(zf.namelist())
         for membro in membros:
             arq = _csv_do_zip(z, membro, tmp)
-            for sq, turno, cod, mun, uf, v in con.execute(f"""SELECT SQ_CANDIDATO, NR_TURNO, CD_MUNICIPIO, any_value(NM_MUNICIPIO),
-                        any_value(SG_UF), sum(TRY_CAST(QT_VOTOS_NOMINAIS AS BIGINT))
+            for sq, turno, cod, mun, uf, v in con.execute(f"""SELECT SQ_CANDIDATO, NR_TURNO, CD_MUNICIPIO, min(NM_MUNICIPIO),
+                        min(SG_UF), sum(TRY_CAST(QT_VOTOS_NOMINAIS AS BIGINT))
                     FROM read_csv('{arq}', delim=';', header=true, all_varchar=true)
                     WHERE upper(DS_CARGO) IN ({cargos_votos})
                     GROUP BY 1, 2, 3""").fetchall():
@@ -637,9 +653,9 @@ def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict
         saida[chave] = {
             "eleicao": eleicao, "cargo": k[0].title().replace("º Suplente", "º suplente"), "uf": k[1], "partido": k[2],
             "genero": k[3], "situacao": situacao_tse(k[4]), "urna": nome_proprio(k[5], pessoa=True), "votos": votos.get(sq),
-            "bens": {"total": round(b["total"]), "tipos": [[t, round(v)] for t, v in b["tipos"].most_common(5)]} if b else None,
-            "receitas": {"total": round(r["total"]), "origens": [[o, round(v)] for o, v in r["origens"].most_common()],
-                         "partidos": [[p, round(v)] for p, v in r["partidos"].most_common(3)],
+            "bens": {"total": round(b["total"]), "tipos": [[t, round(v)] for t, v in em_ordem(b["tipos"])[:5]]} if b else None,
+            "receitas": {"total": round(r["total"]), "origens": [[o, round(v)] for o, v in em_ordem(r["origens"])],
+                         "partidos": [[p, round(v)] for p, v in em_ordem(r["partidos"])[:3]],
                          "pf": [r["pf"][0], round(r["pf"][1])]} if r else None,
         }
         if chave.startswith("tse-"):
@@ -650,7 +666,7 @@ def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict
                 e["votos2"] = votos2[sq]
             tot = votos.get(sq) or 0
             e["cidades"] = [[nome_proprio(mun), uf, cod, v, round(v / tot, 4) if tot else 0]
-                            for (cod, mun, uf), v in cidades[sq].most_common(MAX_CIDADES_VOTOS)]
+                            for (cod, mun, uf), v in em_ordem(cidades[sq])[:MAX_CIDADES_VOTOS]]
             e["nCidades"] = sum(1 for v in cidades[sq].values() if v > 0)
     # A posição de cada eleito estadual entre os eleitos do mesmo cargo e estado, pelos votos do 1º turno.
     grupos: dict[tuple, list] = defaultdict(list)
@@ -658,7 +674,7 @@ def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict
         if chave.startswith("tse-") and e["cargo"] != "Governador":
             grupos[(e["cargo"], e["uf"])].append(e)
     for lista in grupos.values():
-        lista.sort(key=lambda e: -(e["votos"] or 0))
+        lista.sort(key=lambda e: (-(e["votos"] or 0), e["urna"]))
         for i, e in enumerate(lista):
             e["posicao"] = [i + 1, len(lista)]
     shutil.rmtree(tmp, ignore_errors=True)
@@ -801,13 +817,13 @@ def resumo_linhas(linhas: list[tuple], nat: dict[str, str]) -> dict | None:
             grupos[tipo_][1] += v
     total = sum(por_cat.values())
     meses = sum(1 for x in por_mes if abs(x) > 0.005)
-    maiores = sorted(empresas.items(), key=lambda kv: -kv[1])[:MAX_FORNECEDORES]
+    maiores = em_ordem(empresas)[:MAX_FORNECEDORES]
     return {
         "total": round(total), "meses": meses, "porMes": round(total / meses) if meses else 0,
-        "categorias": [[c, round(v)] for c, v in por_cat.most_common() if round(v)],
+        "categorias": [[c, round(v)] for c, v in em_ordem(por_cat) if round(v)],
         "mes": [round(x) for x in por_mes],
-        "fornecedores": [[nome_proprio(nomes_emp[d].most_common(1)[0][0]), formata_cnpj(d),
-                          cat_emp[d].most_common(1)[0][0], round(v)] for d, v in maiores],
+        "fornecedores": [[nome_proprio(mais_comum(nomes_emp[d])), formata_cnpj(d),
+                          mais_comum(cat_emp[d]), round(v)] for d, v in maiores],
         "pessoaEmpresa": [len(grupos["pessoa_empresa"][0]), round(grupos["pessoa_empresa"][1])],
         "pessoas": [grupos["pessoa"][0], round(grupos["pessoa"][1])],
         "semDocumento": round(grupos["outro"][1]),
@@ -933,7 +949,7 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool, com_assembleia
                 cargo = "Deputada federal" if feminino else "Deputado federal"
             else:
                 s = sens.get(id_) or {}
-                nome_cota = con.execute("SELECT any_value(nome) FROM sen WHERE id = ?", [id_]).fetchone()[0]
+                nome_cota = con.execute("SELECT min(nome) FROM sen WHERE id = ?", [id_]).fetchone()[0]
                 nome = s.get("nome") or nome_proprio(nome_cota)
                 uf, partido, foto = s.get("uf") or (t or {}).get("uf"), s.get("partido"), s.get("foto")
                 feminino = s.get("sexo") == "Feminino"
@@ -943,7 +959,7 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool, com_assembleia
                 continue
             # O autor nas emendas: pelo nome parlamentar, pelo nome de urna e, no Senado, pelo nome que a cota usa.
             autor = None
-            for candidato in (nome, (t or {}).get("urna"), nome_proprio(con.execute(f"SELECT any_value(nome) FROM {'cam' if casa == 'camara' else 'sen'} WHERE id = ?", [id_]).fetchone()[0])):
+            for candidato in (nome, (t or {}).get("urna"), nome_proprio(con.execute(f"SELECT min(nome) FROM {'cam' if casa == 'camara' else 'sen'} WHERE id = ?", [id_]).fetchone()[0])):
                 if candidato and slug(candidato) in autores_por_slug:
                     autor = autores_por_slug[slug(candidato)]
                     break
@@ -1027,7 +1043,7 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool, com_assembleia
                 c = p["anos"][str(ano)]["cota"]
                 c["comparacao"] = {"mediana": round(mediana), "n": len(lista), "colegas": valores if casa == "camara" else None}
                 if casa == "senado":
-                    c["comparacao"]["pares"] = sorted(([q["nome"], q["slug"], t_] for q, _, t_ in lista), key=lambda x: -x[2])
+                    c["comparacao"]["pares"] = sorted(([q["nome"], q["slug"], t_] for q, _, t_ in lista), key=lambda x: (-x[2], sem_acento(x[0]).lower()))
     politicos.sort(key=lambda p: (p["uf"], sem_acento(p["nome"]).lower()))
     return {
         "gerado": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

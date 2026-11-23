@@ -119,6 +119,10 @@ fila_independente() {
   # (natureza jurídica, ~1,3 GB) e a dívida ativa, numa carga à mão (uv run beneficios-fiscais), a cada atualização
   # semestral da Dirbi. Os Parquet ficam no bucket; aqui só a cópia de referência do resumo.
   pipe pode-falhar "Benefícios fiscais por empresa" beneficios-fiscais --sem-baixar
+  # BNDES e estatais (/bndes e a seção da cidade): as operações do BNDES (~1,2 GB), o cadastro de CNPJ (~1,3 GB), o
+  # Orçamento de Subsídios, o Resultado do Tesouro e a SEST, numa carga à mão (uv run bndes) quando o BNDES atualiza
+  # (todo mês). Aqui só as cópias de referência.
+  pipe pode-falhar "BNDES e estatais" bndes --sem-baixar
   # Juízes e promotores acima do teto (DadosJusBr): o supersalarios.yml baixa os meses novos todo dia 20 e abre um
   # pull request com a cópia de referência; aqui só essa cópia.
   pipe pode-falhar "Acima do teto (DadosJusBr)" supersalarios --sem-baixar

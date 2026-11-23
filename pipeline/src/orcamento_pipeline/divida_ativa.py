@@ -18,9 +18,10 @@ Regras de privacidade (inegociáveis):
 
 - CPF nunca é guardado, nem parte dele. As pessoas físicas entram só no total e na contagem, por UF
   (a lista não diz a cidade delas); a contagem usa um hash em memória, que não sai do programa.
-- Empresas aparecem pelo nome e CNPJ, com a situação da dívida. O empresário individual (natureza
-  213-5, que inclui o MEI) é uma pessoa: entra nos totais, nunca pelo nome. Um nome com um número de
-  11 dígitos (CPF) também não sai.
+- Empresas aparecem pelo nome e CNPJ, com a situação da dívida. Quem tem CNPJ mas é pessoa entra nos totais,
+  nunca pelo nome: o empresário individual (natureza 213-5, que inclui o MEI) e todo o grupo 4 da tabela de
+  naturezas da Receita, o das pessoas físicas (produtor rural, 412-0; empresa individual imobiliária, 401-4;
+  candidato a cargo eletivo, 409-0; e os outros). Um nome com um número de 11 dígitos (CPF) também não sai.
 
 O município é o do estabelecimento devedor (o CNPJ completo); sem ele, o da matriz. CNPJ que não está
 no cadastro (empresas muito antigas) conta só no estado.
@@ -298,8 +299,14 @@ def _cnpj(c: int) -> str:
     return f"{d[:2]}.{d[2:5]}.{d[5:8]}/{d[8:12]}-{d[12:]}"
 
 
+def e_pessoa(nat: str) -> bool:
+    """Natureza jurídica de quem tem CNPJ mas é uma pessoa: o empresário individual e o MEI (213-5) e o grupo 4 da
+    tabela da Receita, "pessoas físicas" (produtor rural, empresa individual imobiliária, candidato, leiloeiro…)."""
+    return nat == EMPRESARIO_INDIVIDUAL or nat.startswith("4")
+
+
 def _pode_nomear(nome: str, nat: str) -> bool:
-    return nat != EMPRESARIO_INDIVIDUAL and not CPF_NO_NOME.search(nome) and not re.search(r"\d{11}", nome)
+    return not e_pessoa(nat) and not CPF_NO_NOME.search(nome) and not re.search(r"\d{11}", nome)
 
 
 def montar(dev: Devedores, municipio: array, ativa: array, natureza: dict[int, str], tri: str, mes: str) -> dict:
@@ -334,7 +341,7 @@ def montar(dev: Devedores, municipio: array, ativa: array, natureza: dict[int, s
                 a["s"][j] += s[j]
             if nat.startswith("1"):
                 a["pub"] += v
-            if nat == EMPRESARIO_INDIVIDUAL:
+            if e_pessoa(nat):
                 a["ind"] += v
             if ativa[k] == 0:
                 a["fech"] += v
@@ -442,7 +449,7 @@ def main() -> None:
     print("  tipos: " + ", ".join(f"{t} {bi(v)}" for t, v in zip(T, b["tipos"])))
     print("  situações: " + ", ".join(f"{s} {bi(v)}" for s, v in zip(SITUACOES, b["situacoes"])))
     print(f"  órgãos públicos {bi(b['publico'])}; empresas fechadas ou inativas {bi(b['fechadas'])}; "
-          f"empresários individuais {bi(b['individuais'])}; {b['cidades']} cidades")
+          f"pessoas com CNPJ {bi(b['individuais'])}; {b['cidades']} cidades")
     print(f"saída: {SAIDA.relative_to(RAIZ)} ({len(texto) / 1e3:.0f} KB) e {REFERENCIA.relative_to(RAIZ)}")
 
 
