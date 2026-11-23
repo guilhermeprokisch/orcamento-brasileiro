@@ -335,17 +335,21 @@ def natureza_fornecedores(raizes: set[str], completa: bool) -> dict[str, str]:
     print(f"natureza jurídica: {len(raizes) - len(faltam):,} de {len(raizes):,} fornecedores no cache", flush=True)
     if faltam and completa:
         from .divida_ativa import URL_RECEITA, _baixar, ultimo_mes_receita
-        mes = ultimo_mes_receita()
         tmp = PASTA_RECEITA / "cnpj-tmp"
-        for i in range(10):
-            arq = _baixar(f"{URL_RECEITA}{mes}/Empresas{i}.zip", tmp / f"Empresas{i}.zip", receita=True)
-            with zipfile.ZipFile(arq) as z:
-                for membro in z.namelist():
-                    for r in csv.reader(io.TextIOWrapper(z.open(membro), encoding="latin-1", newline=""), delimiter=";"):
-                        if r and r[0] in faltam:
-                            nat[r[0]] = r[2]
-            arq.unlink()
-            print(f"  Empresas{i}: {len(nat):,} raízes com natureza", flush=True)
+        try:
+            mes = ultimo_mes_receita()
+            for i in range(10):
+                arq = _baixar(f"{URL_RECEITA}{mes}/Empresas{i}.zip", tmp / f"Empresas{i}.zip", receita=True)
+                with zipfile.ZipFile(arq) as z:
+                    for membro in z.namelist():
+                        for r in csv.reader(io.TextIOWrapper(z.open(membro), encoding="latin-1", newline=""), delimiter=";"):
+                            if r and r[0] in faltam:
+                                nat[r[0]] = r[2]
+                arq.unlink()
+                print(f"  Empresas{i}: {len(nat):,} raízes com natureza", flush=True)
+        except Exception as e:   # noqa: BLE001 — a Receita fora do ar não impede a carga: segue com o cache
+            print(f"natureza jurídica: a Receita falhou ({e}); segue com o que já estava no cache", flush=True)
+            shutil.rmtree(tmp, ignore_errors=True)
     PASTA_RECEITA.mkdir(parents=True, exist_ok=True)
     with cache.open("w", encoding="utf-8", newline="") as f:
         csv.writer(f, delimiter=";").writerows(sorted((k, v) for k, v in nat.items() if k in raizes))

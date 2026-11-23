@@ -6,9 +6,12 @@ name: Políticos (deputados federais e senadores)
 # essa cópia (dados.sh, --sem-baixar).
 #
 # A parte das eleições (TSE, uns 2 GB) não roda aqui: é feita à mão (`uv run politicos --tse`) e fica na cópia de
-# referência. A natureza jurídica dos fornecedores (para somar o MEI e o empresário individual sem nome) também: os
-# fornecedores novos que ainda não estão no cache só são marcados como pessoa quando o nome traz um CPF, até a
-# próxima carga à mão com `--natureza`.
+# referência. Só precisa depois de uma eleição nova.
+#
+# A natureza jurídica dos fornecedores (para somar o MEI e o empresário individual sem nome) roda a cada três meses,
+# nas execuções de janeiro, abril, julho e outubro (`--natureza`, ~1,3 GB da Receita), ou à mão pelo botão "Run
+# workflow" com a opção marcada. Nos outros meses, um fornecedor novo que ainda não está no cache só é marcado como
+# pessoa quando o nome traz um CPF. Se a Receita falhar, a carga segue com o cache.
 #
 # O cache data/raw/politicos/ (a verba de gabinete dos anos fechados, a parte do TSE já montada, sem CPF) e
 # data/raw/receita-federal/natureza-politicos.csv ficam no release "dados-politicos" entre uma execução e outra.
@@ -19,6 +22,11 @@ on:
   schedule:
     - cron: "0 7 5 * *"
   workflow_dispatch:
+    inputs:
+      natureza:
+        description: "Procurar na Receita a natureza jurídica dos fornecedores novos (~1,3 GB)"
+        type: boolean
+        default: false
 
 concurrency:
   group: politicos
@@ -36,7 +44,7 @@ env:
 jobs:
   baixar:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 150
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -56,7 +64,16 @@ jobs:
           fi
 
       - name: Baixar e montar
-        run: uv run --project pipeline politicos 2>&1 | tee "$RUNNER_TEMP/saida.log"
+        env:
+          NATUREZA_PEDIDA: ${{ inputs.natureza }}
+        run: |
+          # A natureza jurídica a cada três meses (janeiro, abril, julho e outubro) ou quando pedida no botão.
+          EXTRA=""
+          if [ "$NATUREZA_PEDIDA" = true ] || { [ "${{ github.event_name }}" = schedule ] && [ $(( $(date -u +%-m) % 3 )) -eq 1 ]; }; then
+            EXTRA="--natureza"
+            echo "::notice::Com a natureza jurídica dos fornecedores (Receita, ~1,3 GB)."
+          fi
+          uv run --project pipeline politicos $EXTRA 2>&1 | tee "$RUNNER_TEMP/saida.log"
 
       - name: Guardar o cache
         if: always()
