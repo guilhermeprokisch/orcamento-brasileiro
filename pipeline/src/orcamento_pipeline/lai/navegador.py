@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 PERFIL = Path.home() / ".config" / "orcamento-br" / "lai-navegador"
+ALERTAS: list[str] = []   # o texto dos alertas (alert/confirm) que o site mostrou nesta execução
 ENSAIO = False   # ensaio: preenche e para antes de enviar; as pausas não esperam ninguém
 
 
@@ -25,6 +26,14 @@ def abrir(visivel: bool = True):
         try:
             pagina = ctx.pages[0] if ctx.pages else ctx.new_page()
             pagina.set_default_timeout(60_000)
+            ALERTAS.clear()
+
+            def alerta(d):   # o Playwright fecha os alertas sem mostrar: aqui eles aparecem no terminal
+                ALERTAS.append(d.message)
+                print(f"\n  O site disse: {d.message}", flush=True)
+                d.accept()
+
+            pagina.on("dialog", alerta)
             yield pagina
         finally:
             ctx.close()

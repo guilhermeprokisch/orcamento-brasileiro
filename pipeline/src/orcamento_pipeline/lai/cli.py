@@ -116,7 +116,7 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
             navegador.esperar_pessoa("Se quiser corrigir e enviar na própria janela, faça e aperte Enter; o protocolo será procurado.")
             if p.locator(ERROS).count() and any(t.strip() for t in p.locator(ERROS).all_inner_texts()):
                 return
-        protocolo = achar_protocolo(p.locator("body").inner_text())
+        protocolo = achar_protocolo(" ".join(navegador.ALERTAS) + " " + p.locator("body").inner_text())
         if protocolo:
             print(f"Protocolo achado na página: {protocolo}")
         else:
