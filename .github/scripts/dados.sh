@@ -178,6 +178,10 @@ fila_independente & PID_INDEP=$!
 fila_cidades & PID_CIDADES=$!
 fila_mapa & PID_MAPA=$!
 wait "$PID_SICONFI" "$PID_INDEP" "$PID_CIDADES" "$PID_MAPA"
+# Saiu daqui, voltou: junta o que três filas gravaram (imposto recolhido, dinheiro federal e INSS na do mapa, emendas
+# também; gasto federal direto na independente) com o PIB do IBGE. Por isso vem depois de todas. Se faltar uma
+# entrada, usa pipeline/referencia/saiu-voltou.json.
+pipe pode-falhar "Saiu daqui, voltou" saiu-voltou
 
 falhou=0
 for st in "$LOGS"/*.status; do
