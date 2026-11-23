@@ -1,80 +1,150 @@
 ---
 /**
- * A lista dos políticos com página (/politicos/<uf>/<nome>), por estado. Por ora, deputados federais e senadores.
- * Um campo filtra a lista pelo nome, no navegador.
+ * A lista dos políticos com página (/politicos/<uf>/<nome>), por estado e, dentro dele, por cargo: governador,
+ * senadores, deputados federais e deputados estaduais (ou distritais). Uma linha por pessoa. Botões filtram pelo
+ * cargo e um campo pelo nome, no navegador.
  */
 import Base from "../../layouts/Base.astro";
 import Termo from "../../components/Termo.astro";
 import { moedaCurta } from "../../lib/formato";
-import { caminhoPolitico, docPoliticos, type Politico } from "../../lib/politicos";
+import { caminhoPolitico, docPoliticos, partidoDe, type Politico } from "../../lib/politicos";
 
 const doc = docPoliticos;
 const ano = String(new Date().getFullYear() - 1);
+const atuais = (doc?.politicos ?? []).filter((p) => p.atual !== false);
 const porUf = new Map<string, Politico[]>();
-// Uma linha por pessoa: quem passou pelas duas Casas aparece no cargo mais recente, com o antigo numa nota.
-for (const p of (doc?.politicos ?? []).filter((p) => p.atual !== false)) {
+// Uma linha por pessoa: quem passou por dois cargos aparece no mais recente, com o antigo numa nota.
+for (const p of atuais) {
   if (!porUf.has(p.uf)) porUf.set(p.uf, []);
   porUf.get(p.uf)!.push(p);
 }
 const ufs = [...porUf.keys()].sort((a, b) => (doc!.ufs[a] ?? a).localeCompare(doc!.ufs[b] ?? b, "pt-BR"));
-const ordem = (p: Politico) => (p.casa === "senado" ? 0 : 1);
+const GRUPOS: { casa: Politico["casa"]; titulo: (n: number, uf: string) => string; filtro: string }[] = [
+  { casa: "governo", titulo: () => "Governador eleito em 2022", filtro: "governo" },
+  { casa: "senado", titulo: (n) => `Senadores (${n})`, filtro: "senado" },
+  { casa: "camara", titulo: (n) => `Deputados federais (${n})`, filtro: "camara" },
+  { casa: "assembleia", titulo: (n, uf) => `Deputados ${uf === "DF" ? "distritais" : "estaduais"} (${n})`, filtro: "assembleia" },
+];
+// Três colunas: o governador e os senadores juntos, depois os deputados federais e os estaduais.
+const COLUNAS = [[GRUPOS[0], GRUPOS[1]], [GRUPOS[2]], [GRUPOS[3]]];
+const conta = (casa: string) => atuais.filter((p) => p.casa === casa).length;
 const sem = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-const atuais = (doc?.politicos ?? []).filter((p) => p.atual !== false);
-const nSen = atuais.filter((p) => p.casa === "senado").length;
-const nDep = atuais.length - nSen;
+const VISIVEIS = 6;
+/** O número do lado: o gasto do mandato que temos para cada cargo. */
+function numero(p: Politico): string {
+  const a = p.anos[ano];
+  if (p.casa === "governo") return a?.salarioMensal ? `salário: ${moedaCurta(a.salarioMensal)} por mês` : "";
+  if (p.casa === "assembleia") return a?.verba ? `verba de ${ano}: ${moedaCurta(a.verba.total)}` : "";
+  return a?.cota ? `cota de ${ano}: ${moedaCurta(a.cota.total)}` : "";
+}
+function rotuloCargo(p: Politico): string {
+  const partido = partidoDe(p);
+  const saiu = p.casa === "governo" && p.saida ? ` · deixou o cargo em ${p.saida.data ? p.saida.data.slice(0, 4) : "2026"}` : "";
+  return `${p.cargo}${partido ? ` · ${partido}` : ""}${saiu}`;
+}
 ---
 
-<Base title="Políticos: quanto custam e para onde mandam dinheiro · Orçamento Brasileiro" description="Deputados federais e senadores: salário, cota parlamentar, assessores, emendas e eleição, um por um.">
-  <div class="wrap lista-politicos">
+<Base title="Políticos: quanto custam e para onde mandam dinheiro · Orçamento Brasileiro" description="Governadores, senadores, deputados federais e estaduais: salário, verba, assessores, emendas e eleição, um por um.">
+  <div class="wrap lista-politicos" data-lista>
     <p class="sobretitulo verde">Políticos</p>
     <h1>Quanto custa cada político e para onde manda dinheiro</h1>
     <p class="texto">
-      Uma página para cada deputado federal e senador desde 2023: o salário, a <Termo id="cota-parlamentar">cota parlamentar</Termo>, os assessores, as
-      emendas que mandou e como foi eleito. São {nDep} deputados e {nSen} senadores, contando os suplentes que assumiram. Deputados estaduais,
-      governadores, prefeitos e vereadores entram depois, conforme houver dado aberto.
+      Uma página para cada político eleito para o estado e para o Congresso: o salário, a <Termo id="cota-parlamentar">cota parlamentar</Termo> ou
+      a <Termo id="verba-estadual">verba</Termo> da Assembleia, os assessores, as emendas e como foi eleito. São {conta("governo")} governadores,
+      {" "}{conta("senado")} senadores, {conta("camara")} deputados federais e {conta("assembleia")} deputados estaduais e distritais (no Congresso,
+      contando os suplentes que assumiram). Prefeitos e vereadores entram depois, conforme houver dado aberto.
     </p>
-    <label class="busca">
-      <span>Procure pelo nome</span>
-      <input type="search" data-filtro placeholder="Ex.: Tabata, Romário" autocomplete="off" />
-    </label>
+    <div class="filtros">
+      <div class="cargos" role="group" aria-label="Cargo">
+        <button type="button" data-cargo="" aria-pressed="true">Todos</button>
+        <button type="button" data-cargo="governo" aria-pressed="false">Governadores</button>
+        <button type="button" data-cargo="senado" aria-pressed="false">Senadores</button>
+        <button type="button" data-cargo="camara" aria-pressed="false">Deputados federais</button>
+        <button type="button" data-cargo="assembleia" aria-pressed="false">Deputados estaduais</button>
+      </div>
+      <label class="busca">
+        <span>Procure pelo nome</span>
+        <input type="search" data-filtro placeholder="Ex.: Tabata, Suplicy" autocomplete="off" />
+      </label>
+    </div>
     <nav class="estados" aria-label="Estados">
       {ufs.map((uf) => <a href={`#${uf.toLowerCase()}`}>{uf}</a>)}
     </nav>
     {ufs.map((uf) => (
       <section id={uf.toLowerCase()} data-uf>
         <h2>{doc!.ufs[uf] ?? uf}</h2>
-        <ol class="lista">
-          {porUf.get(uf)!.sort((a, b) => ordem(a) - ordem(b) || a.nome.localeCompare(b.nome, "pt-BR")).map((p) => {
-            const c = p.anos[ano]?.cota;
+        <div class="grupos">
+          {COLUNAS.map((col) => <div class="coluna">{col.map((g) => {
+            const lista = porUf.get(uf)!.filter((p) => p.casa === g.casa).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+            if (!lista.length) return null;
             return (
-              <li data-nome={sem(p.nome)}>
-                <span><a href={caminhoPolitico(p)}>{p.nome}</a><small>{p.cargo}{p.partido ? ` · ${p.partido.replace(/^S\/ ?Partido$/i, "sem partido")}` : ""}</small>
-                  {(p.outros ?? []).filter((o) => !o.atual).map((o) => <small>antes: <a href={`/politicos/${p.uf.toLowerCase()}/${o.slug}`}>{o.cargo.toLowerCase()}</a>{o.periodo ? ` (${o.periodo.includes(" a ") ? o.periodo : "até " + o.periodo})` : ""}</small>)}</span>
-                <span>{c ? `cota de ${ano}: ${moedaCurta(c.total)}` : ""}</span>
-              </li>
+              <div class="grupo" data-grupo={g.filtro}>
+                <h3>{g.titulo(lista.length, uf)}</h3>
+                <ol class="lista">
+                  {lista.map((p, i) => (
+                    <li data-nome={sem(p.nome)} data-extra={i >= VISIVEIS ? "" : undefined} hidden={i >= VISIVEIS}>
+                      <span><a href={caminhoPolitico(p)}>{p.nome}</a><small>{rotuloCargo(p)}</small>
+                        {(p.outros ?? []).filter((o) => !o.atual).map((o) => <small>antes: <a href={`/politicos/${p.uf.toLowerCase()}/${o.slug}`}>{o.cargo.toLowerCase()}</a>{o.periodo ? ` (${o.periodo.includes(" a ") ? o.periodo : "até " + o.periodo})` : ""}</small>)}</span>
+                      <span>{numero(p)}</span>
+                    </li>
+                  ))}
+                </ol>
+                {lista.length > VISIVEIS && <button type="button" class="ver-todos" data-ver-todos>Ver os {lista.length} ›</button>}
+              </div>
             );
-          })}
-        </ol>
+          })}</div>)}
+        </div>
       </section>
     ))}
-    <p class="vazio" data-vazio hidden>Ninguém com esse nome. Procure como o nome aparece na Câmara ou no Senado.</p>
+    <p class="vazio" data-vazio hidden>Ninguém com esse nome. Procure como o nome aparece na Câmara, no Senado, na Assembleia ou na urna.</p>
   </div>
 </Base>
 
 <script is:inline>
   (() => {
-    const campo = document.querySelector("[data-filtro]");
+    const raiz = document.querySelector("[data-lista]");
+    const campo = raiz.querySelector("[data-filtro]");
     const sem = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-    campo?.addEventListener("input", () => {
+    let cargo = "";
+    const aplicar = () => {
       const q = sem(campo.value);
       let algum = false;
-      document.querySelectorAll("[data-uf]").forEach((sec) => {
-        let n = 0;
-        sec.querySelectorAll("li[data-nome]").forEach((li) => { const ok = !q || li.dataset.nome.includes(q); li.hidden = !ok; if (ok) n++; });
-        sec.hidden = n === 0;
-        if (n) algum = true;
+      raiz.querySelectorAll("[data-uf]").forEach((sec) => {
+        let nSec = 0;
+        sec.querySelectorAll("[data-grupo]").forEach((g) => {
+          const doCargo = !cargo || g.dataset.grupo === cargo;
+          const aberto = g.dataset.aberto === "1" || !!q || !!cargo;
+          let n = 0;
+          g.querySelectorAll("li[data-nome]").forEach((li) => {
+            const ok = doCargo && (!q || li.dataset.nome.includes(q)) && (aberto || !li.hasAttribute("data-extra"));
+            li.hidden = !ok;
+            if (ok) n++;
+          });
+          const temAlgum = doCargo && (!q || [...g.querySelectorAll("li[data-nome]")].some((li) => li.dataset.nome.includes(q)));
+          g.hidden = !temAlgum;
+          const botao = g.querySelector("[data-ver-todos]");
+          if (botao) botao.hidden = aberto || !temAlgum;
+          if (temAlgum) nSec++;
+        });
+        sec.hidden = nSec === 0;
+        if (nSec) algum = true;
       });
-      document.querySelector("[data-vazio]").hidden = algum;
+      raiz.querySelector("[data-vazio]").hidden = algum;
+    };
+    campo?.addEventListener("input", aplicar);
+    raiz.addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-cargo]");
+      if (b) {
+        cargo = b.dataset.cargo;
+        raiz.querySelectorAll("[data-cargo]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        aplicar();
+        return;
+      }
+      const v = ev.target.closest("[data-ver-todos]");
+      if (v) {
+        v.closest("[data-grupo]").dataset.aberto = "1";
+        aplicar();
+      }
     });
   })();
 </script>
@@ -83,16 +153,25 @@ const nDep = atuais.length - nSen;
   .lista-politicos { padding-top: 32px; padding-bottom: 72px; display: flex; flex-direction: column; gap: 18px; }
   h1 { font-size: clamp(32px, 5vw, 48px); line-height: 1.1; max-width: 900px; }
   .texto { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); max-width: 860px; }
-  .busca { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--texto-2); max-width: 420px; }
+  .filtros { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; justify-content: space-between; }
+  .cargos { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cargos button { min-height: 44px; padding: 0 16px; border: 1px solid var(--regra); background: transparent; font: inherit; font-size: 14px; color: var(--tinta); cursor: pointer; }
+  .cargos button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); border-color: var(--tinta); }
+  .busca { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--texto-2); width: min(100%, 320px); }
   .busca input { min-height: 48px; padding: 0 14px; border: 1px solid var(--tinta); background: #fff; font: inherit; font-size: 16px; }
   .estados { display: flex; flex-wrap: wrap; gap: 6px; }
   .estados a { min-width: 44px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--regra); text-decoration: none; color: var(--tinta); font-size: 14px; }
   section { margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
+  section[hidden], .grupo[hidden], .lista li[hidden], .ver-todos[hidden] { display: none; }
   section h2 { font-size: 26px; border-top: 2px solid var(--tinta); padding-top: 14px; }
-  .lista { list-style: none; margin: 0; padding: 0; columns: 2 360px; column-gap: 40px; }
-  .lista li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; break-inside: avoid; }
-  .lista li[hidden] { display: none; }
+  .grupos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 24px 44px; align-items: start; }
+  .coluna { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  .grupo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .grupo h3 { margin: 0 0 4px; font-family: var(--sans); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .lista { list-style: none; margin: 0; padding: 0; }
+  .lista li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
   .lista small { display: block; font-size: 12px; color: var(--texto-3); }
-  .lista li > span:last-child { white-space: nowrap; color: var(--texto-3); font-size: 13px; }
+  .lista li > span:last-child { white-space: nowrap; color: var(--texto-3); font-size: 13px; text-align: right; }
+  .ver-todos { align-self: flex-start; margin-top: 8px; min-height: 40px; padding: 0 14px; border: 1px solid var(--regra); background: transparent; font: inherit; font-size: 14px; color: var(--verde); cursor: pointer; }
   .vazio { color: var(--texto-3); }
 </style>

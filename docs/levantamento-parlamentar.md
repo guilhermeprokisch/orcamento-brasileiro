@@ -139,3 +139,96 @@ Ampliação de 23/11/2026: a página passa a ser de cada político eleito, não 
 - O nome é o parlamentar (o da Câmara ou do Senado), senão o de urna. Entre os eleitos de 2022, nenhum nome de urna se
   repete dentro do mesmo estado; em 5 casos ele se repete entre estados, por isso o estado vai no endereço.
 - Se um dia dois nomes coincidirem no mesmo estado, o segundo ganha o cargo no fim (`-deputado-estadual`).
+
+## 9. Deputados estaduais e governadores (eleitos em 2022)
+
+Levantado em 23/11/2026. As notas completas (URLs testadas, campos e um exemplo por estado) ficaram fora do git, nas
+notas da sessão; aqui vai o que decide o desenho.
+
+### 9.1 Base comum: o TSE de 2022
+
+- Os mesmos arquivos da seção 8. Eleitos: **27 governadores** (2 mulheres), **1.035 deputados estaduais** (186
+  mulheres) e **24 distritais**.
+- **A chave é `tse-<SQ_CANDIDATO>`**, o número da candidatura no TSE. O CPF não é guardado nem usado como chave.
+- Para governador entram os votos dos dois turnos. Para todos os cargos estaduais entram as 5 cidades com mais votos
+  (código do TSE, não o do IBGE) e a posição entre os eleitos do mesmo cargo e estado.
+- **Nome:** o de urna, nenhum se repete no mesmo estado. Sete governadores usam só o primeiro nome ou o sobrenome
+  ("Tarcísio", "Zema", "João", "Fábio", "Jerônimo", "Helder", "Clécio"); para eles fica uma tabela curta com o nome
+  público (Tarcísio de Freitas, Romeu Zema...).
+- **Ligar com a Câmara e o Senado:** por nome completo + estado, como em `ligar_mesma_pessoa`. São só 3 pessoas:
+  Bruna Furlan (SP) e Ney Leprevost (PR), que saíram da Câmara em 2023, e Sargento Reginauro (CE), suplente no
+  Senado desde ago/2026. Para conferir, contei também pelo CPF, só na memória: as mesmas 2 da Câmara.
+  A regra do nome não perde ninguém.
+- **Erro corrigido junto:** o zip de votos traz um CSV por estado e um `_BRASIL.csv` com todos. O código só pulava o
+  `_BR.csv`, por isso **os votos das páginas federais estavam em dobro** (Tabata Amaral: 675.746 no site, 337.873
+  no TSE).
+- Bens: VGBL, ouro, terra nua e benfeitorias caíam em "Outros bens"; agora vão para "Dinheiro e aplicações" ou
+  "Imóveis".
+- **Fotos:** o divulgacandcontas devolve 403. O TSE publica as fotos de 2022 num zip por estado
+  (`cdn.tse.jus.br/estatistica/sead/eleicoes/eleicoes2022/fotos/foto_cand2022_<UF>_div.zip`; SP tem 90 MB, AC 15 MB).
+
+### 9.2 Verba das Assembleias, estado por estado
+
+"Verba" não é a mesma coisa em todo lugar. Há quatro tipos:
+- **reembolso com nota fiscal**: dá para mostrar o fornecedor;
+- **só o total por categoria**;
+- **valor fixo por mês**, sem nota;
+- **nada publicado**.
+
+| UF | Fonte | Formato | Captcha | Fornecedor | Dá para automatizar |
+|---|---|---|---|---|---|
+| SP | ALESP, dados abertos: `www3.al.sp.gov.br/repositorio/dados-abertos/output/json/despesas.json` | JSON, um arquivo com tudo (161 MB), 2002–hoje | não | CNPJ | **sim, um download**. O certificado vem sem o intermediário (Let's Encrypt YE1): passar a cadeia com `--cacert`. O campo `cpf` (fornecedor pessoa física) não pode ser lido |
+| MG | ALMG, API v2 `/api/v2/prestacao_contas/verbas_indenizatorias/deputados/{id}/{ano}/{mes}` | JSON, 2019–hoje | não | CNPJ | sim, deputado a deputado e mês a mês (~924 chamadas por ano). O CSV em lote está num caminho que o robots.txt bloqueia |
+| GO | `transparencia.al.go.leg.br/api/transparencia/verbas_indenizatorias` | JSON, 2011–hoje | não | CNPJ | **sim**, a melhor API (traz até foto e partido) |
+| MS | `transparencia2.al.ms.gov.br/ceap/notas/exportar-csv?ano=AAAA` | CSV por ano | não | CNPJ | **sim**; sem id do deputado, casa pelo nome |
+| CE | Alece, `/despesas/verba-desempenho-parlamentar/csv?mes=MM&ano=AAAA` | CSV por mês, todos os deputados, 2021–hoje | não | CNPJ (27% das linhas com CPF, que é descartado) | **sim** |
+| PE | Alepe, `verbaindenizatoria*.php` (API da página) | JSON, 2023–hoje | não | CNPJ | sim, deputado × mês; a lotação por gabinete está em `dadosabertos.alepe.pe.gov.br` |
+| BA | ALBA, `/transparencia/verbas-idenizatorias-excel?ano=` + página de detalhe | XLSX do ano + HTML | não | CNPJ só no detalhe | sim, ~4.400 páginas por ano |
+| AM | Aleam, Controle de Cota Parlamentar | HTML (POST), 2015–hoje | não | CNPJ | sim, deputado × mês; site lento |
+| AP | Alap, CEAP | HTML, 2012–hoje | não | CNPJ | sim, deputado × mês |
+| RO | `transparencia.al.ro.leg.br` › Verba Indenizatória | HTML, 2020–hoje | não | CNPJ | sim, deputado × mês. Valores altos (R$ 1,3 a 1,5 mi por ano); ler o Ato MD 015/2024 antes |
+| TO | `al.to.leg.br/transparencia/verbaIndenizatoria` | PDF com texto, 2017–hoje | não | CNPJ (CPF sem máscara: descartar) | sim, devagar (robots pede 10 s: ~1,6 h por ano) |
+| DF | CLDF, CKAN `dados.cl.df.gov.br`, `verbas-indenizatorias` | CSV/XLSX por ano | não | CNPJ | sim, mas as planilhas estão sujas (colunas deslocadas) e trazem o CPF do deputado |
+| RJ | ALERJ, DOCIGP (`docigp.alerj.rj.gov.br/api/v1/...`) | JSON, 2019–hoje | não | CNPJ | o robots.txt bloqueia tudo: **pedir à ALERJ ou à LAI** |
+| SC | ALESC, `transparencia.alesc.sc.gov.br/gabinetes-parlamentares/csv/{ano}` | CSV por ano, 2011–hoje | não | só o nome, sem CNPJ | sim; o total inclui diárias e passagens de assessores |
+| PB | ALPB, VIAP | ODS/XLSX por deputado e mês | não | nome; CNPJ mascarado | sim; o formato mudou em out/2025 |
+| ES | ALES, `/Transparencia/Api/CotasParlamentaresNovoTable/...` | HTML | não | não | sim, só o total por categoria |
+| RS | ALRS, `/parlamentares/gastos/pesquisa` | HTML | não | não | sim, total por categoria, com cota e saldo do mês |
+| MA | Alema, CEAP | HTML (JSF) | não | não | sim, com trabalho; total por categoria |
+| SE | Alese, PDF mensal com todos os deputados | PDF com texto | não | não | sim; competência é o mês anterior ao pagamento |
+| PI | Alepi, grade ScriptCase | HTML com sessão | não (WAF Akamai) | não (as notas dão 403) | com trabalho |
+| RR | `transparencia.al.rr.leg.br`, ODT/PDF por deputado e mês | só desde set/2025 | não | não | trabalhoso |
+| AL | ALE-AL, VIAP | PDF escaneado | não | não | só com OCR |
+| PA | Alepa, painel DevExpress (JSON) | valor fixo de R$ 35 mil/mês | não | não há nota | sim, uma chamada por ano |
+| MT | não publica despesa; verba fixa (R$ 65 mil/mês, segundo a imprensa) | — | — | — | não |
+| AC | não publica (só o regulamento, Res. 132/2018) | — | — | — | não |
+| PR | ALEP, `consultas.assembleia.pr.leg.br/#/ressarcimento` | app | **pede captcha** de 2020 em diante | — | não: **LAI** |
+| RN | `api-transparencia.al.rn.leg.br/verbas/despesas` | JSON/CSV | não | ? | a API pede um token, que está fixo no JS do site. Não usado: **decisão do Guilherme** |
+
+Resumo: 13 Casas dão o fornecedor com CNPJ (SP, MG, GO, MS, CE, PE, BA, AM, AP, RO, TO, DF e RJ, esta com o robots
+contra); 9 dão só o total ou um valor fixo; AC e MT não publicam; PR e RN estão travados.
+
+Exemplos de 2025 (somados dos arquivos): Eduardo Suplicy (SP) R$ 254.201; Bruna Furlan (SP) R$ 111.727; mediana da
+ALESP R$ 36,5 mil por mês (95 deputados com 6 meses ou mais); teto da ALESP 1.250 UFESPs por mês (≈ R$ 46 mil).
+
+**Assessores por gabinete** (só a contagem): SP (`lotacoes.json`, 8 a 31 por gabinete), PE, DF, PA (com o valor em
+R$), RO, RR, MT, ES e SC. MG pede captcha na folha; RJ publica em PDF sem a lotação.
+
+**Subsídio do deputado estadual:** R$ 34.774,64 desde fev/2025 (75% do federal) na maioria dos estados, confirmado na
+lei em SP (Lei 18.384/2025), MG, PE (Lei 18.138/2023), PA e GO. Exceções a conferir: RS (R$ 34.772,11), CE (a folha
+mostra 15% a mais, um auxílio-saúde de 2025), MA (o valor cheio só desde fev/2026) e MT (a folha mostra R$ 41.729,57).
+
+### 9.3 Salário do governador
+
+O subsídio é fixado por lei estadual e muda muito de um estado para outro: de R$ 21.868,14 (RJ, desde 2015) a
+R$ 46.366,19 (SE). Em 18 estados o valor foi conferido no texto da lei. A tabela com as leis e os valores desde
+jan/2023 vai como constante no pipeline, com a fonte. Pendentes: AC e RN (lei não achada), RS (número da lei), MS (só
+imprensa), AL, GO e MT (seguem a revisão geral dos servidores, sem lei própria).
+
+- **A folha com o nome:** em lote só em ES, GO, MG, SP, PE, RJ, PB, PI e SC. Pedem captcha: AP, MT e o lote do PA.
+  O CE bloqueia robôs. A BA não mostra nomes.
+- **Troca de governador em 2026:** 11 dos 27 eleitos saíram do cargo (AC, AM, DF, ES, GO, MG, MT, PA, PB, RJ e RR),
+  quase todos em março e abril, para concorrer. A página do eleito precisa dizer até quando ele ficou, e o salário
+  de 2026 conta só esses meses.
+- **Casos que não seguem a regra:** em PE a governadora aparece na folha como procuradora do Estado e recebe por esse
+  cargo (há contestação no STF). No PI a folha tem R$ 800 por mês acima do subsídio. No MA há jeton de conselho.

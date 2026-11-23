@@ -208,17 +208,21 @@ uv run --project pipeline caminho-impostos
 
 ## Políticos: a parte das eleições (PR #142)
 
-> Ainda não está na `main`: vem com o PR #142 (página de cada político), em rascunho.
-
 ```bash
 uv run --project pipeline politicos --tse
 ```
 
 - **O que baixa:** os dados abertos do TSE de 2018 e 2022 (candidaturas, bens, receitas de campanha e votos), uns 2 GB.
+  Desde nov/2026 também monta os governadores e os deputados estaduais e distritais eleitos em 2022.
 - **Quando:** depois de uma eleição nova, ou quando um suplente novo assume o mandato. O resto (cota, gabinete,
-  assessores, emendas) roda sozinho no workflow `politicos.yml`, todo dia 5.
+  assessores, emendas e a verba das Assembleias de SP, MG, GO, MS, PE e CE) roda sozinho no workflow
+  `politicos.yml`, todo dia 5.
 - **Atenção, eleição de 2026:** o código lê só 2018 e 2022 e a legislatura 57 (2023 a 2027). Para a legislatura que
-  começa em fevereiro de 2027, o código precisa mudar antes de rodar o `--tse`.
+  começa em fevereiro de 2027 (e os governadores que tomam posse em janeiro), o código precisa mudar antes de rodar
+  o `--tse`.
+- **Governadores:** o salário de cada um e a saída do cargo em 2026 são tabelas à mão em
+  `pipeline/src/orcamento_pipeline/politicos_estaduais.py` (`SUBSIDIO_GOVERNADOR`, `SAIDA_GOVERNADOR`). Uma lei nova de
+  salário entra ali, com a fonte.
 - **Depois:** commit de `pipeline/referencia/politicos.json`. O workflow do dia 5 tira a parte do TSE dessa cópia.
   (Isso vale enquanto o release `dados-politicos` não tiver um `tse.json`; se tiver, ele tem prioridade.)
 - **Natureza jurídica dos fornecedores (`--natureza`, ~1,3 GB da Receita):** não roda à mão. O workflow já roda
