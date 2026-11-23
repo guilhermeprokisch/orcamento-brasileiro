@@ -1,0 +1,405 @@
+---
+/**
+ * A página de um político eleito: o que custa (salário, cota parlamentar, assessores), em que gastou a cota,
+ * como fica perto dos colegas do mesmo estado, para onde mandou emendas e como foi eleito. Por ora, deputados
+ * federais e senadores. Dados de lib/politicos.ts (pipeline/…/politicos.py). Tudo é feito no build; o único
+ * script troca o ano.
+ */
+import Base from "../../../layouts/Base.astro";
+import Termo from "../../../components/Termo.astro";
+import { moedaCurta, moedaExtenso } from "../../../lib/formato";
+import { anoPadrao, caminhoIbge, caminhoPolitico, docPoliticos, type Ano, type Politico } from "../../../lib/politicos";
+
+export function getStaticPaths() {
+  return (docPoliticos?.politicos ?? []).map((p) => ({ params: { uf: p.uf.toLowerCase(), nome: p.slug }, props: { p } }));
+}
+
+const { p } = Astro.props as { p: Politico };
+const doc = docPoliticos!;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const MES3 = MESES.map((m) => m.slice(0, 3));
+const ela = p.feminino ? "ela" : "ele";
+const dela = p.feminino ? "dela" : "dele";
+const Ela = p.feminino ? "Ela" : "Ele";
+const estado = doc.ufs[p.uf] ?? p.uf;
+const colegas = p.casa === "camara" ? `deputados ${deEstado(p.uf)}` : `senadores ${deEstado(p.uf)}`;
+const anos = Object.keys(p.anos).sort();
+const padrao = anoPadrao(p);
+const subsidioAtual = doc.subsidio.at(-1)![1];
+const emendasLink = (ano: string) => (p.autor ? `/emendas/buscar?autor=${encodeURIComponent(p.autor)}&ano=${ano}` : null);
+const linkOficial = p.casa === "camara" ? `https://www.camara.leg.br/deputados/${p.id}` : `https://www25.senado.leg.br/web/senadores/senador/-/perfil/${p.id}`;
+
+function deEstado(uf: string) {
+  const prep: Record<string, string> = { AC: "do", AL: "de", AM: "do", AP: "do", BA: "da", CE: "do", DF: "do", ES: "do", GO: "de", MA: "do", MG: "de", MS: "de", MT: "de", PA: "do", PB: "da", PE: "de", PI: "do", PR: "do", RJ: "do", RN: "do", RO: "de", RR: "de", RS: "do", SC: "de", SE: "de", SP: "de", TO: "do" };
+  return `${prep[uf] ?? "de"} ${doc.ufs[uf] ?? uf}`;
+}
+/** Até que mês vai o ano (o ano corrente ainda não fechou). */
+function ultimoMes(a: Ano): number {
+  const m = a.cota?.mes ?? [];
+  for (let i = 11; i >= 0; i--) if (Math.abs(m[i] ?? 0) > 0) return i + 1;
+  return 12;
+}
+const rotuloAno = (ano: string) => {
+  const a = p.anos[ano];
+  return Number(ano) === new Date().getFullYear() && a.cota ? `${ano} (até ${MESES[ultimoMes(a) - 1]})` : ano;
+};
+const milhoes = (v: number) => moedaExtenso(v);
+/** As partes do custo do ano e a frase do topo. */
+function custo(a: Ano) {
+  const salario = a.salario ?? 0, cota = a.cota?.total ?? 0, gab = a.gabinete?.gasto ?? 0;
+  return { salario, cota, gab, total: salario + cota + gab };
+}
+function frase(ano: string, a: Ano) {
+  const c = custo(a);
+  const quando = Number(ano) === new Date().getFullYear() ? `Em ${ano}, até ${MESES[ultimoMes(a) - 1]}` : `Em ${ano}`;
+  const partes: string[] = [];
+  if (a.cota && a.gabinete) partes.push(`${quando}, o mandato ${dela} custou <strong>${milhoes(c.total)}</strong>, somando salário, cota parlamentar e assessores.`);
+  else if (a.cota) partes.push(`${quando}, ${ela} recebeu <strong>${milhoes(c.salario)}</strong> de salário e <strong>${milhoes(c.cota)}</strong> da cota parlamentar.`);
+  else partes.push(`${quando}:`);
+  if (a.emendas) partes.push(`${a.cota ? Ela : ela.charAt(0).toUpperCase() + ela.slice(1)} indicou <strong>${milhoes(a.emendas.total)}</strong> em emendas, pagas para ${a.emendas.lugares} ${a.emendas.lugares === 1 ? "lugar" : "lugares"}.`);
+  return partes.join(" ");
+}
+const largura = (v: number, max: number) => `width:${max > 0 ? Math.max(0.5, (v / max) * 100).toFixed(1) : 0}%`;
+const t = p.tse;
+const cargoTse = (t?.cargo ?? "").toLowerCase().replace(/^deputado/, p.feminino ? "deputada" : "deputado").replace(/^senador$/, p.feminino ? "senadora" : "senador");
+const partidoHoje = p.partido && /^s\/ ?partido$/i.test(p.partido) ? "sem partido" : p.partido;
+const situacaoId: Record<string, string> = { "eleito por QP": "eleito-por-qp", "eleito por média": "eleito-por-media" };
+const tituloPagina = `${p.nome} (${p.uf}): quanto custa e para onde manda dinheiro`;
+---
+
+<Base title={`${tituloPagina} · Orçamento Brasileiro`} description={`${p.cargo} ${deEstado(p.uf)}: salário, cota parlamentar, assessores, emendas e eleição, com os dados oficiais.`}>
+  <div class="wrap politico" data-politico data-padrao={padrao}>
+    <p class="migalha"><a href="/politicos">Políticos</a> › <a href={`/politicos#${p.uf.toLowerCase()}`}>{estado}</a></p>
+    <header class="topo-p">
+      {p.foto && <img class="foto" src={p.foto} alt={`Foto oficial de ${p.nome}`} width="96" height="120" referrerpolicy="no-referrer" />}
+      <div>
+        <p class="sobretitulo verde">{p.cargo} · {estado}{partidoHoje ? ` · ${partidoHoje}` : ""}</p>
+        <h1>{p.nome}</h1>
+      </div>
+    </header>
+
+    {anos.map((ano) => <p class="frase" data-ano={ano} hidden={ano !== padrao} set:html={frase(ano, p.anos[ano])} />)}
+
+    {anos.length > 1 && (
+      <div class="anos" role="group" aria-label="Ano">
+        <span>Ano:</span>
+        {anos.map((ano) => <button type="button" data-escolhe={ano} aria-pressed={ano === padrao ? "true" : "false"}>{rotuloAno(ano)}</button>)}
+      </div>
+    )}
+
+    {anos.map((ano) => {
+      const a = p.anos[ano];
+      const c = custo(a);
+      const cota = a.cota;
+      const comp = cota?.comparacao;
+      const dif = comp ? cota!.porMes / comp.mediana - 1 : null;
+      const tetoMes = cota?.teto && cota.meses ? cota.teto / cota.meses : null;
+      const maxMes = Math.max(...(cota?.mes ?? [0]), tetoMes ?? 0, 1);
+      const maxCat = cota?.categorias[0]?.[1] ?? 1;
+      const e = a.emendas;
+      const maxLugar = e?.onde[0]?.[3] ?? 1;
+      const maxArea = e?.area[0]?.[1] ?? 1;
+      const escala = comp?.colegas ? Math.ceil(Math.max(...comp.colegas, cota!.porMes) / 10000) * 10000 : 0;
+      let marcado = false;
+      const pontos = (comp?.colegas ?? []).map((v, i) => {
+        const eu = !marcado && v === cota!.porMes;
+        if (eu) marcado = true;
+        return { left: (v / escala) * 100, top: eu ? 30 : 8 + ((i * 37) % 60), eu };
+      });
+      return (
+        <div class="bloco-ano" data-ano={ano} hidden={ano !== padrao}>
+          {cota && (
+            <section>
+              <h2>Quanto custou em {rotuloAno(ano)}</h2>
+              {a.gabinete && (
+                <div class="pilha" aria-hidden="true">
+                  <i class="c1" style={largura(c.salario, c.total)}></i><i class="c2" style={largura(c.cota, c.total)}></i><i class="c3" style={largura(c.gab, c.total)}></i>
+                </div>
+              )}
+              <div class="cartoes">
+                <div>
+                  <p class="rot"><i class="c1"></i>Salário</p>
+                  <p class="grande">{moedaCurta(c.salario)}</p>
+                  <p class="nota">R$ {nf2.format(subsidioAtual)} por mês, mais 13º e férias. É igual para todos os deputados e senadores. Valor aproximado: contamos como meses no cargo os meses com gasto na cota.</p>
+                </div>
+                <div>
+                  <p class="rot"><i class="c2"></i><Termo id="cota-parlamentar">Cota parlamentar</Termo></p>
+                  <p class="grande">{moedaCurta(cota.total)}</p>
+                  <p class="nota">Reembolso de gastos do mandato, com nota fiscal.{cota.teto ? ` Usou ${nf0.format((cota.total / cota.teto) * 100)}% do teto ${deEstado(p.uf)}.` : ""}</p>
+                </div>
+                <div>
+                  <p class="rot"><i class="c3"></i>Assessores</p>
+                  {a.gabinete ? (
+                    <>
+                      <p class="grande">{moedaCurta(a.gabinete.gasto)}</p>
+                      <p class="nota">A <Termo id="verba-de-gabinete">verba de gabinete</Termo>, que paga os secretários parlamentares.{p.assessores ? ` Tem ${p.assessores} hoje; o máximo é ${doc.maxSecretarios}.` : ""}</p>
+                    </>
+                  ) : p.casa === "senado" ? (
+                    <>
+                      <p class="grande">{p.assessores ? `${p.assessores} pessoas` : "—"}</p>
+                      <p class="nota">No gabinete e nos escritórios de apoio, hoje. O Senado não publica em reais quanto cada gabinete gasta com eles.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p class="grande">{p.assessores ? `${p.assessores} pessoas` : "—"}</p>
+                      <p class="nota">Ainda não temos a verba de gabinete deste ano.</p>
+                    </>
+                  )}
+                </div>
+              </div>
+              <p class="nota">Ficam de fora o auxílio-moradia ou o apartamento funcional, o plano de saúde e a estrutura da {p.casa === "camara" ? "Câmara" : "Casa"}.</p>
+            </section>
+          )}
+
+          {cota && (
+            <section>
+              <h2>{p.feminino ? "Comparada" : "Comparado"} com os {colegas}</h2>
+              {comp ? (
+                p.casa === "camara" ? (
+                  <>
+                    <p class="texto">{Ela} gastou em média <strong>R$ {nf0.format(cota.porMes / 1000)} mil por mês</strong> da cota. A <Termo id="mediana">mediana</Termo> dos {comp.n} {colegas} foi R$ {nf0.format(comp.mediana / 1000)} mil. {Ela} ficou{" "}
+                      <strong>{Math.abs(dif!) < 0.03 ? "perto da mediana" : `${nf0.format(Math.abs(dif!) * 100)}% ${dif! > 0 ? "acima" : "abaixo"}`}</strong>.</p>
+                    <div class="faixa" role="img" aria-label={`Gasto médio por mês dos ${comp.n} ${colegas}. ${p.nome}: R$ ${nf0.format(cota.porMes)}. Mediana: R$ ${nf0.format(comp.mediana)}.`}>
+                      {pontos.map((d) => <span class={d.eu ? "ponto eu" : "ponto"} style={`left:${d.left.toFixed(2)}%;top:${d.top}px`}></span>)}
+                      <span class="linha-mediana" style={`left:${((comp.mediana / escala) * 100).toFixed(2)}%`}><b>mediana</b></span>
+                      <span class="rot-eu" style={`left:${((cota.porMes / escala) * 100).toFixed(2)}%`}>{p.nome.split(" ")[0]}</span>
+                    </div>
+                    <div class="eixo"><span>R$ 0</span><span>R$ {nf0.format(escala / 2000)} mil</span><span>R$ {nf0.format(escala / 1000)} mil por mês</span></div>
+                    <p class="nota">Cada ponto é um deputado {deEstado(p.uf)} com pelo menos 6 meses de gasto na cota em {ano}. Comparamos com o mesmo estado porque o teto muda: viajar do Norte custa mais.</p>
+                  </>
+                ) : (
+                  <>
+                    <p class="texto">Cada estado tem 3 senadores. Em vez de uma mediana, mostramos {comp.pares!.length === 3 ? "os três" : "os que ficaram pelo menos 6 meses no cargo"}: o total da cota em {ano}.</p>
+                    <div class="barras">
+                      {comp.pares!.map(([nome, s, v]) => (
+                        <div class={s === p.slug ? "lin eu" : "lin"}>
+                          {s === p.slug ? <span>{nome}</span> : <a href={`/politicos/${p.uf.toLowerCase()}/${s}`}>{nome}</a>}
+                          <i style={largura(v, comp.pares![0][2])}></i><b>{moedaCurta(v)}</b>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )
+              ) : (
+                <p class="texto">Em {ano}, {ela} teve gasto na cota em só {cota.meses} {cota.meses === 1 ? "mês" : "meses"}: fica fora da comparação, que usa quem teve pelo menos 6.</p>
+              )}
+            </section>
+          )}
+
+          {cota && (
+            <section>
+              <h2>Em que gastou a cota</h2>
+              <div class="duas">
+                <div>
+                  <h3>Por tipo de gasto</h3>
+                  <div class="barras">
+                    {cota.categorias.filter(([, v]) => v > 0).map(([nome, v]) => <div class="lin"><span>{nome}</span><i style={largura(v, maxCat)}></i><b>{moedaCurta(v)}</b></div>)}
+                  </div>
+                </div>
+                <div>
+                  <h3>Mês a mês</h3>
+                  <div class="meses" role="img" aria-label={`Gasto da cota em cada mês de ${ano}.`}>
+                    {cota.mes.map((v, i) => <div class="m"><i style={`height:${Math.max(0, (v / maxMes) * 150).toFixed(0)}px`}></i><span>{MES3[i]}</span></div>)}
+                    {tetoMes && <span class="teto" style={`bottom:${((tetoMes / maxMes) * 150 + 18).toFixed(0)}px`}><b>teto: R$ {nf0.format(tetoMes / 1000)} mil</b></span>}
+                  </div>
+                  <p class="nota">{tetoMes ? "Um mês pode passar do teto: o que sobra num mês fica para os seguintes, dentro do mesmo ano." : "O valor reembolsado em cada mês."}</p>
+                </div>
+              </div>
+              <h3>Quem mais recebeu</h3>
+              <ol class="lista">
+                {cota.fornecedores.map(([nome, cnpj, cat, v]) => <li><span>{nome}<small>CNPJ {cnpj} · {cat.toLowerCase()}</small></span><span>{moedaCurta(v)}</span></li>)}
+                {cota.pessoaEmpresa[1] > 0 && <li class="soma"><span>Empresas em nome de uma pessoa ({cota.pessoaEmpresa[0]})<small>MEI, empresário individual e sociedade de uma pessoa só, somados, sem nome</small></span><span>{moedaCurta(cota.pessoaEmpresa[1])}</span></li>}
+                <li class="soma"><span>Pessoas físicas<small>somadas, sem nome e sem CPF{cota.pessoas[0] ? ` · ${cota.pessoas[0]} ${cota.pessoas[0] === 1 ? "nota" : "notas"}` : ""}</small></span><span>{moedaCurta(cota.pessoas[1])}</span></li>
+              </ol>
+              <p class="nota"><a href={linkOficial}>Ver as notas no site {p.casa === "camara" ? "da Câmara" : "do Senado"} ›</a></p>
+            </section>
+          )}
+
+          <section>
+            <h2>Para onde mandou emendas</h2>
+            {e ? (
+              <>
+                <p class="texto">Em {ano}, foram pagos <strong>{milhoes(e.total)}</strong> em <Termo id="emenda-individual">emendas individuais</Termo> {dela}, para <strong>{e.lugares} {e.lugares === 1 ? "lugar" : "lugares"}</strong>.
+                  {e.posicao <= 10 && <> É o {e.posicao}º maior valor entre os {nf0.format(e.de)} parlamentares e ex-parlamentares com emendas pagas no ano.</>}
+                  {e.pix > 0 && <> {milhoes(e.pix)} foram por <Termo id="emenda-pix">emenda Pix</Termo>.</>}</p>
+                <div class="duas">
+                  <div>
+                    <h3>Para onde</h3>
+                    <div class="barras">
+                      {e.onde.map(([mun, uf, ibge, v]) => {
+                        const href = caminhoIbge(ibge);
+                        const rot = uf ? `${mun} (${uf})` : mun;
+                        return <div class="lin">{href ? <a href={href}>{rot}</a> : <span>{rot}</span>}<i style={largura(v, maxLugar)}></i><b>{moedaCurta(v)}</b></div>;
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <h3>Para quê</h3>
+                    <div class="barras">
+                      {e.area.map(([area, v]) => <div class="lin"><span>{area}</span><i class="azul" style={largura(v, maxArea)}></i><b>{moedaCurta(v)}</b></div>)}
+                    </div>
+                  </div>
+                </div>
+                <a class="botao-verde" href={emendasLink(ano)!}>Ver todas as emendas {p.feminino ? "da" : "do"} {p.cargo.split(" ")[0].toLowerCase()} ›</a>
+              </>
+            ) : (
+              <p class="texto">{p.autor ? `Nenhuma emenda individual ${dela} foi paga em ${ano}.` : `Não achamos emendas pagas em nome ${dela} desde 2023. Suplentes que ficam pouco tempo no cargo em geral não têm emendas próprias.`}</p>
+            )}
+          </section>
+        </div>
+      );
+    })}
+
+    {t && (
+      <section>
+        <h2>A eleição de {t.eleicao}</h2>
+        <p class="texto">
+          {t.cargo.includes("suplente")
+            ? <>{Ela} foi {t.cargo.toLowerCase()} na chapa para o Senado {deEstado(t.uf)}, pelo {t.partido}, e assumiu a vaga.</>
+            : <>{Ela} se candidatou a {cargoTse} {deEstado(t.uf)} pelo {t.partido}{t.votos ? <>, teve <strong>{nf0.format(t.votos)} votos</strong></> : null} e foi{" "}
+              {situacaoId[t.situacao] ? <Termo id={situacaoId[t.situacao]}>{t.situacao}</Termo> : t.situacao}{t.situacao === "suplente" ? " (assumiu depois a vaga)" : ""}.</>}
+          {t.partido && partidoHoje && t.partido !== partidoHoje && <> Hoje está {partidoHoje === "sem partido" ? "sem partido" : `no ${partidoHoje}`}.</>}
+        </p>
+        <div class="duas">
+          <div>
+            <h3>Bens declarados ao TSE</h3>
+            {t.bens ? (
+              <>
+                <p class="grande">{moedaCurta(t.bens.total)}</p>
+                <div class="barras">
+                  {t.bens.tipos.map(([tipo, v]) => <div class="lin"><span>{tipo}</span><i class="areia" style={largura(v, t.bens!.tipos[0][1])}></i><b>{moedaCurta(v)}</b></div>)}
+                </div>
+                <p class="nota">É o valor que {ela} declarou ao se candidatar, em geral o preço de compra, não o valor de mercado.</p>
+              </>
+            ) : <p class="nota">Não declarou bens ao TSE.</p>}
+          </div>
+          <div>
+            <h3>De onde veio o dinheiro da campanha</h3>
+            {t.receitas ? (
+              <>
+                <p class="grande">{moedaCurta(t.receitas.total)}</p>
+                <div class="barras">
+                  {t.receitas.origens.map(([o, v]) => (
+                    <div class="lin"><span>{o === "Fundo eleitoral" ? <Termo id="fundo-eleitoral">Fundo eleitoral</Termo> : o === "Fundo partidário" ? <Termo id="fundo-partidario">Fundo partidário</Termo> : o}</span><i style={largura(v, t.receitas!.origens[0][1])}></i><b>{moedaCurta(v)}</b></div>
+                  ))}
+                </div>
+                {t.receitas.partidos.length > 0 && <p class="nota">Partidos que mais repassaram: {t.receitas.partidos.map(([n, v]) => `${n} (${moedaCurta(v)})`).join("; ")}.</p>}
+                {t.receitas.pf[0] > 0 && <p class="nota">Doações de pessoas: {nf0.format(t.receitas.pf[0])} {t.receitas.pf[0] === 1 ? "doação" : "doações"}, somadas, sem nome.</p>}
+              </>
+            ) : <p class="nota">Sem prestação de contas no TSE.</p>}
+          </div>
+        </div>
+      </section>
+    )}
+
+    <section class="nao-diz">
+      <h2>O que esta conta não diz</h2>
+      <ul>
+        <li>A cota é um reembolso. {p.casa === "camara" ? "O deputado" : "O senador"} gasta, apresenta a nota fiscal e {p.casa === "camara" ? "a Câmara" : "o Senado"} devolve, até um teto por estado.</li>
+        <li>Gastar muito da cota não é ilegal, e gastar pouco não quer dizer que trabalhou mais ou menos. O que vale olhar é em que foi gasto.</li>
+        <li>O teto é maior para quem vem de longe, porque as passagens custam mais. Por isso comparamos com os colegas do mesmo estado.</li>
+        <li>O salário do ano é aproximado: contamos como meses no cargo os meses com gasto na cota. O número de assessores é o de hoje, não o de cada ano.</li>
+        <li>A emenda é uma indicação. O dinheiro só chega quando o governo federal libera o pagamento, e quem recebe decide como usar. As emendas de bancada e de comissão, indicadas em grupo, não entram aqui.</li>
+        <li>Os bens são os que {ela} declarou ao TSE na eleição, pelo valor declarado, que em geral é o de compra.</li>
+        <li>Salário, cota e assessores não são tudo: ficam de fora o apartamento funcional ou o auxílio-moradia, o plano de saúde e a estrutura da Casa.</li>
+      </ul>
+    </section>
+
+    <p class="fonte">
+      Fontes: {p.casa === "camara" ? doc.fontes.camara : doc.fontes.senado}; {doc.fontes.emendas}; {doc.fontes.tse}. Fornecedores pessoa física e empresas
+      em nome de uma pessoa aparecem só somados. Nenhum CPF é guardado. <a href={linkOficial}>Página oficial de {p.nome}</a> · <a href="/data/politicos/politicos.json">Baixe os dados de todos (JSON)</a>.
+    </p>
+  </div>
+</Base>
+
+<script is:inline>
+  (() => {
+    const raiz = document.querySelector("[data-politico]");
+    if (!raiz) return;
+    const mostrar = (ano) => {
+      if (!raiz.querySelector(`.bloco-ano[data-ano="${ano}"]`)) return;
+      raiz.querySelectorAll("[data-ano]").forEach((el) => { el.hidden = el.dataset.ano !== ano; });
+      raiz.querySelectorAll("[data-escolhe]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.escolhe === ano)));
+    };
+    const pedido = new URLSearchParams(location.search).get("ano");
+    if (pedido) mostrar(pedido);
+    raiz.addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-escolhe]");
+      if (!b) return;
+      mostrar(b.dataset.escolhe);
+      const u = new URL(location.href);
+      if (b.dataset.escolhe === raiz.dataset.padrao) u.searchParams.delete("ano"); else u.searchParams.set("ano", b.dataset.escolhe);
+      history.replaceState(null, "", u);
+    });
+  })();
+</script>
+
+<style>
+  .politico { --clara: #8fc1a3; --destaque: #a8461f; padding-top: 28px; padding-bottom: 72px; display: flex; flex-direction: column; gap: 20px; }
+  .migalha { margin: 0; font-size: 13px; color: var(--texto-3); }
+  .topo-p { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+  .foto { width: 96px; height: 120px; object-fit: cover; background: var(--papel-escuro); border: 1px solid var(--regra); }
+  .topo-p h1 { font-size: clamp(36px, 6vw, 52px); line-height: 1.05; margin-top: 6px; }
+  .frase { margin: 0; font-size: 20px; line-height: 1.6; color: var(--texto-2); max-width: 900px; }
+  .frase :global(strong), .texto strong { color: var(--tinta); }
+  .anos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; color: var(--texto-3); }
+  .anos button { min-height: 44px; padding: 0 16px; border: 1px solid var(--regra); background: transparent; font: inherit; color: var(--tinta); cursor: pointer; }
+  .anos button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); border-color: var(--tinta); }
+  .bloco-ano { display: flex; flex-direction: column; gap: 20px; }
+  .bloco-ano[hidden], .frase[hidden] { display: none; }
+  section { display: flex; flex-direction: column; gap: 16px; margin-top: 28px; }
+  section h2 { font-size: 30px; border-top: 2px solid var(--tinta); padding-top: 20px; }
+  h3 { margin: 0; font-family: var(--sans); font-size: 15px; font-weight: 600; letter-spacing: 0; }
+  .texto { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); max-width: 860px; }
+  .nota { margin: 0; font-size: 14px; line-height: 1.5; color: var(--texto-3); max-width: 860px; }
+  .grande { margin: 0; font-family: var(--serifa); font-size: 34px; font-weight: 700; }
+  .pilha { display: flex; height: 28px; }
+  .pilha i, .rot i { display: block; }
+  .c1 { background: var(--verde); } .c2 { background: var(--clara); } .c3 { background: var(--areia); }
+  .cartoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 28px; }
+  .cartoes > div { display: flex; flex-direction: column; gap: 6px; }
+  .rot { margin: 0; font-size: 14px; color: var(--texto-2); display: flex; gap: 8px; align-items: center; }
+  .rot i { width: 12px; height: 12px; flex: none; }
+  .duas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 40px; }
+  .duas > div { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .barras { border-top: 1px solid var(--tinta); }
+  .lin { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 92px; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .lin i { display: block; height: 12px; background: var(--verde); }
+  .lin i.azul { background: #3b6ea8; } .lin i.areia { background: var(--areia); }
+  .lin b { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+  .lin.eu { font-weight: 600; } .lin.eu i { background: var(--destaque); }
+  .faixa { position: relative; height: 84px; border-bottom: 1px solid var(--tinta); max-width: 860px; margin-top: 22px; }
+  .ponto { position: absolute; width: 9px; height: 9px; border-radius: 50%; transform: translateX(-50%); background: var(--texto-4); opacity: .7; }
+  .ponto.eu { width: 16px; height: 16px; background: var(--destaque); border: 2px solid var(--tinta); opacity: 1; z-index: 2; }
+  .linha-mediana { position: absolute; top: 0; bottom: 0; border-left: 2px dashed var(--tinta); }
+  .linha-mediana b { position: absolute; top: -22px; transform: translateX(-50%); font-size: 12px; white-space: nowrap; }
+  .rot-eu { position: absolute; bottom: 58px; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: var(--destaque); white-space: nowrap; }
+  .eixo { display: flex; justify-content: space-between; font-size: 12px; color: var(--texto-3); max-width: 860px; }
+  .meses { position: relative; height: 172px; display: flex; align-items: flex-end; gap: 6px; border-bottom: 1px solid var(--tinta); }
+  .meses .m { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; }
+  .meses .m i { display: block; width: 100%; background: var(--clara); }
+  .meses .m span { font-size: 11px; color: var(--texto-3); }
+  .teto { position: absolute; left: 0; right: 0; border-top: 2px dashed var(--destaque); }
+  .teto b { position: absolute; right: 0; bottom: 2px; font-size: 12px; color: var(--destaque); }
+  .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); max-width: 860px; }
+  .lista li { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .lista li > span:last-child { white-space: nowrap; color: var(--texto-2); font-variant-numeric: tabular-nums; }
+  .lista small { display: block; font-size: 12px; color: var(--texto-3); }
+  .lista li.soma { background: var(--papel-escuro); padding-left: 8px; padding-right: 8px; }
+  .botao-verde { align-self: flex-start; display: inline-flex; align-items: center; min-height: 48px; padding: 0 22px; background: var(--verde); color: #fff; text-decoration: none; font-weight: 600; font-size: 15px; }
+  .botao-verde:hover { background: var(--verde-escuro); color: #fff; }
+  .nao-diz { background: var(--papel-escuro); padding: 24px 28px; }
+  .nao-diz h2 { border-top: 0; padding-top: 0; font-size: 28px; }
+  .nao-diz ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 16px; line-height: 1.55; color: var(--texto-2); max-width: 900px; }
+  .fonte { margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: var(--texto-3); max-width: 900px; }
+  @media (max-width: 640px) {
+    .frase { font-size: 17px; }
+    section h2 { font-size: 24px; }
+    .lin { grid-template-columns: minmax(0, 1fr) 84px; row-gap: 4px; font-size: 14px; }
+    .lin i { grid-column: 1 / 3; grid-row: 2; height: 8px; }
+    .grande { font-size: 28px; }
+    .nao-diz { padding: 20px 16px; }
+  }
+</style>
