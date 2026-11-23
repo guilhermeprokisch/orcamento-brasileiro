@@ -11,10 +11,15 @@ import { moedaCurta, moedaExtenso } from "../../../lib/formato";
 import { anoPadrao, caminhoIbge, caminhoPolitico, docPoliticos, type Ano, type Politico } from "../../../lib/politicos";
 
 export function getStaticPaths() {
-  return (docPoliticos?.politicos ?? []).map((p) => ({ params: { uf: p.uf.toLowerCase(), nome: p.slug }, props: { p } }));
+  return (docPoliticos?.politicos ?? []).flatMap((p) => [
+    { params: { uf: p.uf.toLowerCase(), nome: p.slug }, props: { p, para: null } },
+    // Endereços antigos (o primeiro endereço de quem passou pelas duas Casas): levam ao atual.
+    ...(p.slugsAntigos ?? []).map((s) => ({ params: { uf: p.uf.toLowerCase(), nome: s }, props: { p, para: caminhoPolitico(p) } })),
+  ]);
 }
 
-const { p } = Astro.props as { p: Politico };
+const { p, para } = Astro.props as { p: Politico; para: string | null };
+if (para) return Astro.redirect(para, 301);
 const doc = docPoliticos!;
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -27,7 +32,11 @@ const estado = doc.ufs[p.uf] ?? p.uf;
 const colegas = p.casa === "camara" ? `deputados ${deEstado(p.uf)}` : `senadores ${deEstado(p.uf)}`;
 const anos = Object.keys(p.anos).sort();
 const padrao = anoPadrao(p);
-const subsidioAtual = doc.subsidio.at(-1)![1];
+/** O subsídio de um mês (o valor muda por decreto legislativo). */
+const subsidioEm = (ano: string, mes: number) => {
+  const m = `${ano}-${String(mes).padStart(2, "0")}`;
+  return (doc.subsidio.filter(([desde]) => desde <= m).at(-1) ?? doc.subsidio[0])[1];
+};
 const emendasLink = (ano: string) => (p.autor ? `/emendas/buscar?autor=${encodeURIComponent(p.autor)}&ano=${ano}` : null);
 const linkOficial = p.casa === "camara" ? `https://www.camara.leg.br/deputados/${p.id}` : `https://www25.senado.leg.br/web/senadores/senador/-/perfil/${p.id}`;
 
@@ -53,7 +62,8 @@ function custo(a: Ano) {
 }
 function frase(ano: string, a: Ano) {
   const c = custo(a);
-  const quando = Number(ano) === new Date().getFullYear() ? `Em ${ano}, até ${MESES[ultimoMes(a) - 1]}` : `Em ${ano}`;
+  const quando = a.cota?.meses === 1 ? `Em ${MESES[ultimoMes(a) - 1]} de ${ano}`
+    : Number(ano) === new Date().getFullYear() ? `Em ${ano}, até ${MESES[ultimoMes(a) - 1]}` : `Em ${ano}`;
   const partes: string[] = [];
   if (a.cota && a.gabinete) partes.push(`${quando}, o mandato ${dela} custou <strong>${milhoes(c.total)}</strong>, somando salário, cota parlamentar e assessores.`);
   else if (a.cota) partes.push(`${quando}, ${ela} recebeu <strong>${milhoes(c.salario)}</strong> de salário e <strong>${milhoes(c.cota)}</strong> da cota parlamentar.`);
@@ -79,6 +89,13 @@ const tituloPagina = `${p.nome} (${p.uf}): quanto custa e para onde manda dinhei
         <h1>{p.nome}</h1>
       </div>
     </header>
+    {(p.outros ?? []).map((o) => (
+      <p class="outro-cargo">
+        {o.atual
+          ? <>Hoje {p.feminino ? "ela" : "ele"} é {o.cargo.toLowerCase()}. <a href={`/politicos/${p.uf.toLowerCase()}/${o.slug}`}>Ver a página {o.cargo.startsWith("Sen") ? "de senador" + (p.feminino ? "a" : "") : "de deputad" + (p.feminino ? "a" : "o")} ›</a></>
+          : <>Também foi {o.cargo.toLowerCase()}{o.periodo ? ` (${o.periodo.includes(" a ") ? "de " + o.periodo : "em " + o.periodo})` : ""}. <a href={`/politicos/${p.uf.toLowerCase()}/${o.slug}`}>Ver os gastos desse período ›</a></>}
+      </p>
+    ))}
 
     {anos.map((ano) => <p class="frase" data-ano={ano} hidden={ano !== padrao} set:html={frase(ano, p.anos[ano])} />)}
 
@@ -122,7 +139,7 @@ const tituloPagina = `${p.nome} (${p.uf}): quanto custa e para onde manda dinhei
                 <div>
                   <p class="rot"><i class="c1"></i>Salário</p>
                   <p class="grande">{moedaCurta(c.salario)}</p>
-                  <p class="nota">R$ {nf2.format(subsidioAtual)} por mês, mais 13º e férias. É igual para todos os deputados e senadores. Valor aproximado: contamos como meses no cargo os meses com gasto na cota.</p>
+                  <p class="nota">R$ {nf2.format(subsidioEm(ano, ultimoMes(a)))} por mês, mais 13º e férias. É igual para todos os deputados e senadores. Valor aproximado: contamos como meses no cargo os meses com gasto na cota.</p>
                 </div>
                 <div>
                   <p class="rot"><i class="c2"></i><Termo id="cota-parlamentar">Cota parlamentar</Termo></p>
@@ -244,6 +261,8 @@ const tituloPagina = `${p.nome} (${p.uf}): quanto custa e para onde manda dinhei
                 </div>
                 <a class="botao-verde" href={emendasLink(ano)!}>Ver todas as emendas {p.feminino ? "da" : "do"} {p.cargo.split(" ")[0].toLowerCase()} ›</a>
               </>
+            ) : p.atual === false ? (
+              <p class="texto">As emendas {dela} estão na <a href={`/politicos/${p.uf.toLowerCase()}/${p.outros.find((o) => o.atual)?.slug}`}>página de {p.outros.find((o) => o.atual)?.cargo.toLowerCase()}</a>, com todos os anos.</p>
             ) : (
               <p class="texto">{p.autor ? `Nenhuma emenda individual ${dela} foi paga em ${ano}.` : `Não achamos emendas pagas em nome ${dela} desde 2023. Suplentes que ficam pouco tempo no cargo em geral não têm emendas próprias.`}</p>
             )}
@@ -342,6 +361,7 @@ const tituloPagina = `${p.nome} (${p.uf}): quanto custa e para onde manda dinhei
   .topo-p { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
   .foto { width: 96px; height: 120px; object-fit: cover; background: var(--papel-escuro); border: 1px solid var(--regra); }
   .topo-p h1 { font-size: clamp(36px, 6vw, 52px); line-height: 1.05; margin-top: 6px; }
+  .outro-cargo { margin: 0; padding: 10px 14px; background: var(--papel-escuro); font-size: 15px; color: var(--texto-2); max-width: 900px; }
   .frase { margin: 0; font-size: 20px; line-height: 1.6; color: var(--texto-2); max-width: 900px; }
   .frase :global(strong), .texto strong { color: var(--tinta); }
   .anos { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; color: var(--texto-3); }

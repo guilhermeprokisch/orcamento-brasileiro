@@ -1,0 +1,41 @@
+---
+/**
+ * Uma lista de obras paradas (lib/obras-paradas.ts): nome, quem paga, quanto foi feito, desde quando está na
+ * lista, o motivo e a situação que o órgão informa; à direita, quanto custaria e quanto já foi liberado.
+ * As `mostrar` primeiras aparecem; o resto fica num "ver as outras".
+ */
+import ItemObra from "./ItemObra.astro";
+import type { Obra } from "../../lib/obras-paradas";
+
+interface Props {
+  obras: Obra[];
+  mostrar?: number;
+  /** Mostra a cidade (com link) em cada obra: no estado e no Brasil. */
+  comLocal?: boolean;
+  /** A primeira data-base da série: "desde" igual a ela quer dizer "pelo menos desde". */
+  primeira: string;
+}
+const { obras, mostrar = 8, comLocal = false, primeira } = Astro.props;
+const visiveis = obras.slice(0, mostrar);
+const resto = obras.slice(mostrar);
+---
+
+{visiveis.length > 0 && (
+  <ol class="obras">
+    {visiveis.map((o) => <ItemObra obra={o} comLocal={comLocal} primeira={primeira} />)}
+  </ol>
+)}
+{resto.length > 0 && (
+  <details class="mais">
+    <summary>Ver {resto.length === 1 ? "a outra obra" : `as outras ${resto.length} obras`}</summary>
+    <ol class="obras">
+      {resto.map((o) => <ItemObra obra={o} comLocal={comLocal} primeira={primeira} />)}
+    </ol>
+  </details>
+)}
+
+<style>
+  .obras { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .mais summary { cursor: pointer; padding: 10px 0; font-size: 14px; font-weight: 600; color: var(--verde); }
+  .mais .obras { border-top: 0; }
+</style>
