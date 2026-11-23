@@ -12,7 +12,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Callable
 
-from . import navegador
+from . import navegador, passos
 from .navegador import esperar_pessoa
 from .pessoa import Pessoa
 
@@ -109,6 +109,8 @@ class Formulario:
     # reCAPTCHA invisível: o site dá nota de "robô" ao navegador e recusa o navegador controlado pelo script. Aí o
     # script não disfarça o navegador: abre o formulário no navegador normal da pessoa e copia o texto para colar.
     colar: bool = False
+    # Os passos para a extensão do Chrome (e para o script), quando o formulário é descrito assim.
+    passos: Callable[[Pedido, Pessoa], list[dict]] | None = None
 
 
 def _tce_se(p, pedido: Pedido, s: Pessoa) -> None:
@@ -129,15 +131,17 @@ def _tce_se(p, pedido: Pedido, s: Pessoa) -> None:
     escrever(p, c("tbxMensagem"), pedido.texto)
 
 
-def _almg(p, pedido: Pedido, s: Pessoa) -> None:
-    escrever(p, '[name="nomeCompleto"]', s.nome)
-    escrever(p, '[name="telefonePrincipal"]', s.telefone_completo)
-    escrever(p, '[name="email"]', s.email)
-    escrever(p, '[name="cpf"]', s.cpf, digitar=True)
-    p.locator('[name="endereco.resideNoBrasil"]').first.check()
-    escolher(p, '[name="endereco.siglaUf"]', UFS.get(s.uf, s.uf))
-    escolher(p, '[name="endereco.municipio"]', s.municipio)
-    escrever(p, '[name="mensagem"]', pedido.com_assunto)
+def passos_almg(pedido: Pedido, s: Pessoa) -> list[dict]:
+    return [
+        passos.preencher('[name="nomeCompleto"]', s.nome),
+        passos.preencher('[name="telefonePrincipal"]', s.telefone_completo),
+        passos.preencher('[name="email"]', s.email),
+        passos.preencher('[name="cpf"]', s.cpf),
+        passos.marcar('[name="endereco.resideNoBrasil"]'),   # o primeiro é "Sim"
+        passos.opcao('[name="endereco.siglaUf"]', UFS.get(s.uf, s.uf)),
+        passos.opcao('[name="endereco.municipio"]', s.municipio),
+        passos.preencher('[name="mensagem"]', pedido.com_assunto),
+    ]
 
 
 def _alerj(p, pedido: Pedido, s: Pessoa) -> None:
@@ -247,9 +251,9 @@ FORMULARIOS: dict[str, Formulario] = {f.orgao: f for f in [
                DADOS_BASE + ["nascimento", "telefone", "logradouro", "numero", "bairro", "cep", "municipio", "uf"],
                obs="O protocolo chega por e-mail.", pronto='[name$="tbxNome"]'),
     Formulario("ALMG", "Assembleia Legislativa de Minas Gerais", "https://www.almg.gov.br/apps/fale-com/assembleia",
-               _almg, lambda p: p.get_by_role("button", name=re.compile(r"^\s*Enviar\s*$")).click(),
-               DADOS_BASE + ["uf", "municipio"], pronto='[name="nomeCompleto"]', colar=True,
-               obs="O reCAPTCHA invisível recusa o navegador do script (23/11/2026): o formulário abre no seu navegador e o texto vai para a área de transferência."),
+               lambda p, ped, s: passos.executar(p, passos_almg(ped, s)), lambda p: p.get_by_role("button", name=re.compile(r"^\s*Enviar\s*$")).click(),
+               DADOS_BASE + ["uf", "municipio"], pronto='[name="nomeCompleto"]', colar=True, passos=passos_almg,
+               obs="O reCAPTCHA invisível recusa o navegador do script (23/11/2026): a extensão preenche no seu Chrome e você clica em Enviar."),
     Formulario("ALERJ", "Assembleia Legislativa do Estado do Rio de Janeiro",
                "http://www2.alerj.rj.gov.br/leideacesso/formulario-2016.asp",
                _alerj, _clicar('input[type="submit"]'), DADOS_BASE + ["nascimento"], captcha=True, pronto='[name="nome"]'),

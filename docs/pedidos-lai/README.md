@@ -52,13 +52,32 @@ texto viram os seus dados (para a assinatura).
 | Órgão | Observação |
 |---|---|
 | TCE-SE | O protocolo chega por e-mail. |
-| ALMG | O reCAPTCHA invisível do site recusa o navegador do script. O comando abre o formulário no seu navegador normal e copia o texto para a área de transferência; você preenche os dados, cola e envia, e ele anota o protocolo. |
+| ALMG | O reCAPTCHA invisível do site recusa o navegador do script. Vai pela extensão do Chrome (abaixo): ela preenche, você clica em Enviar, e o protocolo volta para o terminal. Sem a extensão, `--colar` abre o formulário e copia o texto. |
 | ALERJ | CAPTCHA. |
 | ALERR | O formulário recarrega partes ao escolher o assunto; o script espera e confere. |
 | TCE-RS | Pede a cópia do documento de identidade (`documento` no lai.toml) e tem CAPTCHA. O texto do pedido é publicado no site do tribunal, por isso vai sem a assinatura. |
 | TCE-PR | Três etapas: o script preenche a identificação e o que reconhecer da descrição; você confere e conclui. |
 
 Testados em 23/11/2026 com dados fictícios, sem enviar (`--ensaio`).
+
+## A extensão do Chrome (para os sites com reCAPTCHA invisível)
+
+Alguns sites dão uma nota de "robô" a cada navegador e recusam o navegador controlado pelo script. Para esses, a
+extensão `pipeline/lai-extensao/` preenche o formulário no seu Chrome de verdade. Ela não clica em Enviar: o clique fica
+com você.
+
+Instalar uma vez: abra `chrome://extensions`, ligue o "Modo do desenvolvedor", clique em "Carregar sem compactação" e
+escolha a pasta `pipeline/lai-extensao`.
+
+Como funciona: o `lai enviar` abre uma ponte só no seu computador (127.0.0.1:8765) e abre o formulário no Chrome com
+uma senha de uso único no endereço. A extensão vê a senha, pega os passos pela ponte, preenche e tira a senha do
+endereço. Depois que você envia, ela lê o protocolo na página de confirmação e devolve ao terminal. Sem a senha, a
+extensão não faz nada, e ela só roda nas páginas dos formulários que conhece (lista em `manifest.json`).
+
+## Sem perguntar
+
+`--direto` envia sem a pergunta de confirmação, nos formulários sem CAPTCHA e sem etapas desconhecidas (hoje, TCE-SE e
+ALERR). Nos outros, o comando recusa a opção.
 
 ## Escrever um formulário novo
 

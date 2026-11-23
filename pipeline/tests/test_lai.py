@@ -41,3 +41,30 @@ def test_textos_prontos_tem_formulario():
 
 def test_pedido_sem_assinatura_quando_nao_ha():
     assert Pedido("X", "a", "só o texto").sem_assinatura == "só o texto"
+
+
+def test_ponte_senha_e_uso_unico():
+    import json
+    import urllib.error
+    import urllib.request
+
+    from orcamento_pipeline.lai.ponte import Ponte
+
+    with Ponte([{"acao": "preencher", "seletor": "#a", "valor": "x"}], porta=8799) as ponte:
+        base = "http://127.0.0.1:8799"
+        try:
+            urllib.request.urlopen(f"{base}/pedido?senha=errada")
+            raise AssertionError("aceitou senha errada")
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+        ok = json.loads(urllib.request.urlopen(f"{base}/pedido?senha={ponte.senha}").read())
+        assert ok["passos"][0]["valor"] == "x"
+        try:
+            urllib.request.urlopen(f"{base}/pedido?senha={ponte.senha}")   # segunda vez: já foi
+            raise AssertionError("entregou duas vezes")
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+        req = urllib.request.Request(f"{base}/evento", json.dumps({"senha": ponte.senha, "tipo": "preenchido"}).encode(),
+                                     {"Content-Type": "application/json"})
+        urllib.request.urlopen(req)
+        assert ponte.esperar("preenchido", 2) == {"tipo": "preenchido"}

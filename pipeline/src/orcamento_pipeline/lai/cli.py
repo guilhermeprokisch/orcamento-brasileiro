@@ -5,6 +5,7 @@ tudo e para só no que é da pessoa: login, CAPTCHA e o OK antes de enviar.
     uv run --extra lai lai orgaos                        # os formulários que o script sabe preencher
     uv run --extra lai lai enviar ALMG pedido.txt        # preenche, mostra, pergunta e envia
     uv run --extra lai lai enviar ALMG pedido.txt --ensaio   # preenche e para sem enviar
+    uv run --extra lai lai enviar TCE-SE pedido.txt --direto # sem perguntar (só formulários sem CAPTCHA)
     uv run --extra lai lai prazos                        # os pedidos enviados e o prazo de cada um
     uv run --extra lai lai inspecionar <URL>             # lista os campos de um formulário novo
 
@@ -47,7 +48,8 @@ def ler_pedido(orgao: str, arquivo: Path, pessoa: Pessoa) -> Pedido:
     return Pedido(orgao, assunto, texto)
 
 
-def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool) -> None:
+def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool, direto: bool = False,
+           forcar_colar: bool = False) -> None:
     f = FORMULARIOS.get(orgao.upper())
     if not f:
         raise SystemExit(f"Não sei preencher o formulário de {orgao}. Veja `lai orgaos`.")
@@ -64,8 +66,14 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
     print(f"{f.nome}: {f.url}")
     if f.obs:
         print(f"  {f.obs}")
+    if direto and (f.captcha or f.colar or f.enviar is None):
+        raise SystemExit(f"{f.orgao} tem verificação anti-robô ou etapas que o script não conhece: --direto não vale. "
+                         "Rode sem --direto.")
     if f.colar and not ensaio:
-        colar(f, pedido, pessoa)
+        if f.passos and not forcar_colar:
+            pela_extensao(f, pedido, pessoa)
+        else:
+            colar(f, pedido, pessoa)
         return
     with navegador.abrir(visivel=janela) as p:
         p.goto(f.url, wait_until="domcontentloaded")
@@ -86,7 +94,7 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
         if f.enviar is None:
             navegador.esperar_pessoa("Confira, avance as etapas que faltam e conclua o envio na janela.")
         else:
-            if not navegador.confirmar(f"Confira a janela. Enviar o pedido a {f.nome}?"):
+            if not direto and not navegador.confirmar(f"Confira a janela. Enviar o pedido a {f.nome}?"):
                 print("Não enviado.")
                 return
             f.enviar(p)
@@ -99,6 +107,39 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
         else:
             protocolo = input("Não achei o protocolo na página. Digite-o (ou Enter, se não apareceu): ").strip() or None
     linha = registro.anotar(f.orgao, pedido.assunto, f"formulário: {f.url}", protocolo, obs=f.obs)
+    print(f"Anotado em {registro.ARQUIVO.name}: prazo {linha['prazo']} (com prorrogação, {linha['prazo_prorrogado']}).")
+
+
+def pela_extensao(f, pedido: Pedido, pessoa: Pessoa) -> None:
+    """Para os sites com reCAPTCHA invisível: a extensão (pipeline/lai-extensao/) preenche no Chrome da pessoa, que
+    confere e clica em enviar; a extensão manda de volta o trecho da confirmação com o protocolo."""
+    from .ponte import Ponte
+
+    with Ponte(f.passos(pedido, pessoa), f.pronto) as ponte:
+        ponte.abrir_no_chrome(f.url)
+        print("\nO formulário abriu no Chrome. Esperando a extensão preencher...")
+        ev = ponte.esperar("preenchido", 60)
+        if ev is None:
+            print("A extensão não respondeu em 1 minuto. Ela está instalada? (docs/pedidos-lai/README.md)")
+            print("Seguindo pelo modo colar.")
+            return colar(f, pedido, pessoa)
+        if ev.get("tipo") == "erro":
+            print(f"A extensão parou: {ev.get('mensagem')}. Complete à mão na janela.")
+        print("Preenchido. Confira e clique em Enviar no Chrome; o protocolo volta sozinho para cá.")
+        print("(Se nada voltar, aperte Ctrl-C e digite o protocolo.)")
+        try:
+            res = ponte.esperar("resultado", 1800)
+        except KeyboardInterrupt:
+            res = None
+    protocolo = achar_protocolo((res or {}).get("trecho", "")) if res else None
+    if protocolo:
+        print(f"Protocolo lido na confirmação: {protocolo}")
+    else:
+        protocolo = input("\nDigite o protocolo (ou Enter, se não apareceu; 'n' se não enviou): ").strip()
+        if protocolo.lower() == "n":
+            print("Não anotado.")
+            return
+    linha = registro.anotar(f.orgao, pedido.assunto, f"formulário (extensão no Chrome): {f.url}", protocolo or None, obs=f.obs)
     print(f"Anotado em {registro.ARQUIVO.name}: prazo {linha['prazo']} (com prorrogação, {linha['prazo_prorrogado']}).")
 
 
@@ -138,6 +179,8 @@ def main() -> None:
     e.add_argument("--ensaio", action="store_true", help="preenche e para, sem enviar")
     e.add_argument("--ficticia", action="store_true", help="no ensaio, usa dados de teste em vez dos seus")
     e.add_argument("--sem-janela", action="store_true", help="no ensaio, sem abrir a janela do navegador")
+    e.add_argument("--direto", action="store_true", help="envia sem perguntar (só formulários sem CAPTCHA)")
+    e.add_argument("--colar", action="store_true", help="sem a extensão: abre o formulário e copia o texto")
     i = sub.add_parser("inspecionar", help="lista os campos de um formulário")
     i.add_argument("url")
     i.add_argument("--saida", type=Path)
@@ -154,7 +197,7 @@ def main() -> None:
     elif a.cmd == "enviar":
         if (a.ficticia or a.sem_janela) and not a.ensaio:
             raise SystemExit("--ficticia e --sem-janela só valem com --ensaio.")
-        enviar(a.orgao, a.arquivo, a.ensaio, a.ficticia, janela=not a.sem_janela)
+        enviar(a.orgao, a.arquivo, a.ensaio, a.ficticia, janela=not a.sem_janela, direto=a.direto, forcar_colar=a.colar)
     elif a.cmd == "inspecionar":
         for c in navegador.inspecionar(a.url, a.saida):
             if c["visivel"]:
