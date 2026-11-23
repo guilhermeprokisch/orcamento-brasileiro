@@ -7,6 +7,7 @@ tudo e para só no que é da pessoa: login, CAPTCHA e o OK antes de enviar.
     uv run --extra lai lai enviar ALMG pedido.txt --ensaio   # preenche e para sem enviar
     uv run --extra lai lai enviar TCE-SE pedido.txt --direto # sem perguntar (só formulários sem CAPTCHA)
     uv run --extra lai lai prazos                        # os pedidos enviados e o prazo de cada um
+    uv run --extra lai lai caixa                         # lê o e-mail (Homerow): devoluções e respostas dos órgãos
     uv run --extra lai lai inspecionar <URL>             # lista os campos de um formulário novo
 
 O arquivo do pedido: a primeira linha é "Assunto: ...", depois uma linha em branco e o texto. No texto, {nome} e
@@ -186,6 +187,9 @@ def main() -> None:
     sub.add_parser("configurar", help="cria o arquivo com os seus dados")
     sub.add_parser("orgaos", help="os formulários que o script preenche")
     sub.add_parser("prazos", help="os pedidos enviados e os prazos")
+    c = sub.add_parser("caixa", help="lê o e-mail do Homerow e anota devoluções e respostas")
+    c.add_argument("--desde", help="AAAA-MM-DD (padrão: o primeiro envio do registro)")
+    c.add_argument("--sem-anotar", action="store_true", help="só mostra, não muda o registro")
     e = sub.add_parser("enviar", help="preenche e envia um pedido")
     e.add_argument("orgao")
     e.add_argument("arquivo", type=Path)
@@ -208,6 +212,10 @@ def main() -> None:
             print(f"{f.orgao:8} {f.nome}{f' ({marcas})' if marcas else ''}")
     elif a.cmd == "prazos":
         prazos()
+    elif a.cmd == "caixa":
+        from .caixa import verificar
+        for linha in verificar(a.desde, anotar=not a.sem_anotar):
+            print(linha)
     elif a.cmd == "enviar":
         if (a.ficticia or a.sem_janela) and not a.ensaio:
             raise SystemExit("--ficticia e --sem-janela só valem com --ensaio.")

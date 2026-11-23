@@ -74,6 +74,19 @@ uma senha de uso único no endereço. A extensão vê a senha, pega os passos pe
 endereço. Depois que você envia, ela lê o protocolo na página de confirmação e devolve ao terminal. Sem a senha, a
 extensão não faz nada, e ela só roda nas páginas dos formulários que conhece (lista em `manifest.json`).
 
+## A caixa de e-mail
+
+```bash
+uv run --extra lai lai caixa              # lê o e-mail do Homerow desde o primeiro envio do registro
+uv run --extra lai lai caixa --sem-anotar # só mostra
+```
+
+Lê a caixa pela skill `homerow-workspace` (que já tem as credenciais), sem apagar nem marcar nada como lido. Uma
+devolução ("caixa cheia", "recusado") muda o pedido para `devolvido`, com o motivo. Uma mensagem de um órgão do
+registro fica anotada no pedido (assunto e número do e-mail) para ler: confirmação, pedido de outro canal e resposta com
+os dados chegam todos assim, então a situação não muda sozinha. As mensagens já vistas ficam em
+`~/.config/orcamento-br/lai-caixa.json`.
+
 ## Sem perguntar
 
 `--direto` envia sem a pergunta de confirmação, nos formulários sem CAPTCHA e sem etapas desconhecidas (hoje, TCE-SE e

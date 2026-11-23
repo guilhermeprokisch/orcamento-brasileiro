@@ -68,3 +68,14 @@ def test_ponte_senha_e_uso_unico():
                                      {"Content-Type": "application/json"})
         urllib.request.urlopen(req)
         assert ponte.esperar("preenchido", 2) == {"tipo": "preenchido"}
+
+
+def test_caixa_casa_dominio_do_orgao():
+    from orcamento_pipeline.lai.caixa import _casa, _dominio
+
+    assert _dominio("e-mail para ouvidoria@al.to.leg.br") == "al.to.leg.br"
+    assert _dominio("formulário: https://www.almg.gov.br/apps/fale-com/assembleia") == "almg.gov.br"
+    assert _casa("almg.gov.br", "almg.gov.br")
+    assert _casa("mail.almg.gov.br", "almg.gov.br")
+    assert not _casa("tcese.tc.br", "tce.se.gov.br")
+    assert not _casa("inout.email", "almg.gov.br")
