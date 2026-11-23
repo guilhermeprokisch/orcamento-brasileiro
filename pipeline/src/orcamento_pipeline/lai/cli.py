@@ -51,7 +51,7 @@ def ler_pedido(orgao: str, arquivo: Path, pessoa: Pessoa) -> Pedido:
 
 
 def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool, direto: bool = False,
-           forcar_colar: bool = False) -> None:
+           forcar_colar: bool = False, usar_chrome: bool = False) -> None:
     f = FORMULARIOS.get(orgao.upper())
     if not f:
         raise SystemExit(f"Não sei preencher o formulário de {orgao}. Veja `lai orgaos`.")
@@ -71,7 +71,9 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
     if direto and (f.captcha or f.colar or f.enviar is None):
         raise SystemExit(f"{f.orgao} tem verificação anti-robô ou etapas que o script não conhece: --direto não vale. "
                          "Rode sem --direto.")
-    if f.colar and not ensaio:
+    if usar_chrome and not f.passos:
+        raise SystemExit(f"O formulário de {f.orgao} ainda não está descrito em passos para a extensão.")
+    if (f.colar or usar_chrome) and not ensaio:
         if f.passos and not forcar_colar:
             pela_extensao(f, pedido, pessoa)
         else:
@@ -136,7 +138,7 @@ def pela_extensao(f, pedido: Pedido, pessoa: Pessoa) -> None:
             return colar(f, pedido, pessoa)
         if ev.get("tipo") == "erro":
             print(f"A extensão parou: {ev.get('mensagem')}. Complete à mão na janela.")
-        print("Preenchido. Confira e clique em Enviar no Chrome; o protocolo volta sozinho para cá.")
+        print("Preenchido. Confira, digite o CAPTCHA se houver, e clique em Enviar no Chrome; o protocolo volta sozinho para cá.")
         print("(Se nada voltar, aperte Ctrl-C e digite o protocolo.)")
         try:
             res = ponte.esperar("resultado", 1800)
@@ -192,6 +194,7 @@ def main() -> None:
     e.add_argument("--sem-janela", action="store_true", help="no ensaio, sem abrir a janela do navegador")
     e.add_argument("--direto", action="store_true", help="envia sem perguntar (só formulários sem CAPTCHA)")
     e.add_argument("--colar", action="store_true", help="sem a extensão: abre o formulário e copia o texto")
+    e.add_argument("--chrome", action="store_true", help="preenche pela extensão no seu Chrome (CAPTCHA: você digita)")
     i = sub.add_parser("inspecionar", help="lista os campos de um formulário")
     i.add_argument("url")
     i.add_argument("--saida", type=Path)
@@ -208,7 +211,7 @@ def main() -> None:
     elif a.cmd == "enviar":
         if (a.ficticia or a.sem_janela) and not a.ensaio:
             raise SystemExit("--ficticia e --sem-janela só valem com --ensaio.")
-        enviar(a.orgao, a.arquivo, a.ensaio, a.ficticia, janela=not a.sem_janela, direto=a.direto, forcar_colar=a.colar)
+        enviar(a.orgao, a.arquivo, a.ensaio, a.ficticia, janela=not a.sem_janela, direto=a.direto, forcar_colar=a.colar, usar_chrome=a.chrome)
     elif a.cmd == "inspecionar":
         for c in navegador.inspecionar(a.url, a.saida):
             if c["visivel"]:

@@ -185,21 +185,23 @@ def _alerr(p, pedido: Pedido, s: Pessoa) -> None:
     esperar_pessoa("O formulário da ALERR não guardou todos os campos; confira o assunto e a síntese na janela.")
 
 
-def _alpb(p, pedido: Pedido, s: Pessoa) -> None:
+def passos_alpb(pedido: Pedido, s: Pessoa) -> list[dict]:
     """osTicket (open.php), o sistema de chamados que vários órgãos usam como SIC."""
-    escrever(p, '[name="name"]', s.nome)
-    escrever(p, '[name="home_address"]', ", ".join(x for x in (f"{s.logradouro} {s.numero}".strip(), s.complemento) if x))
-    escrever(p, '[name="home_neigh"]', s.bairro)
-    escrever(p, '[name="home_city"]', s.municipio)
-    escrever(p, '[name="home_state"]', s.uf)
-    escrever(p, '[name="home_zip"]', s.cep)
-    escrever(p, '[name="email"]', s.email)
-    escrever(p, '[name="phone"]', s.telefone_completo)
-    escrever(p, '[name="user_doc"]', s.cpf)
-    escrever(p, '[name="user_date_nasc"]', s.nascimento)
-    escolher(p, '[name="topicId"]', "Finanças e Orçamento")
-    escrever(p, '[name="subject"]', pedido.assunto)
-    escrever(p, '[name="message"]', pedido.texto)
+    return [
+        passos.preencher('[name="name"]', s.nome),
+        passos.preencher('[name="home_address"]', ", ".join(x for x in (f"{s.logradouro} {s.numero}".strip(), s.complemento) if x)),
+        passos.preencher('[name="home_neigh"]', s.bairro),
+        passos.preencher('[name="home_city"]', s.municipio),
+        passos.preencher('[name="home_state"]', s.uf),
+        passos.preencher('[name="home_zip"]', s.cep),
+        passos.preencher('[name="email"]', s.email),
+        passos.preencher('[name="phone"]', s.telefone_completo),
+        passos.preencher('[name="user_doc"]', s.cpf),
+        passos.preencher('[name="user_date_nasc"]', s.nascimento),
+        passos.opcao('[name="topicId"]', "Finanças e Orçamento"),
+        passos.preencher('[name="subject"]', pedido.assunto),
+        passos.preencher('[name="message"]', pedido.texto),
+    ]
 
 
 def _tce_rs(p, pedido: Pedido, s: Pessoa) -> None:
@@ -279,9 +281,10 @@ FORMULARIOS: dict[str, Formulario] = {f.orgao: f for f in [
                _alerr, _clicar('input[type="submit"][value="Salvar"]'), DADOS_BASE,
                obs="Depois de salvar, o sistema pergunta se quer o comprovante.", pronto='[id="form:sintese:fieldTextarea"]'),
     Formulario("ALPB", "Assembleia Legislativa do Estado da Paraíba", "https://www.al.pb.leg.br/sic/open.php",
-               _alpb, _clicar('[name="submit_x"]'),
+               lambda p, ped, s: passos.executar(p, passos_alpb(ped, s)), _clicar('[name="submit_x"]'),
                DADOS_BASE + ["nascimento", "telefone", "logradouro", "numero", "bairro", "cep", "municipio", "uf"],
-               captcha=True, pronto='[name="name"]', obs="A Ouvidoria pede que o pedido venha por este portal, não por e-mail."),
+               captcha=True, pronto='[name="name"]', passos=passos_alpb,
+               obs="A Ouvidoria pede que o pedido venha por este portal, não por e-mail. O CAPTCHA recusou o navegador do script (23/11/2026): use --chrome."),
     Formulario("TCE-RS", "Tribunal de Contas do Estado do Rio Grande do Sul", "https://portal.tce.rs.gov.br/aplicprod/f?p=20000:91",
                _tce_rs, _clicar('#CRIAR, [name="CRIAR"]'), DADOS_BASE + ["rg", "rg_uf", "documento"], captcha=True,
                obs="Pede a cópia do documento de identidade. A solicitação é pública no site do TCE-RS.", pronto='[name="P91_NOME"]'),

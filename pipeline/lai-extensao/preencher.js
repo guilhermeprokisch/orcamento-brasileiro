@@ -10,7 +10,7 @@
   } else {
     senha = sessionStorage.getItem(CHAVE);
     if (!senha) return;
-    observarResultado(senha); // voltou depois do envio
+    observarResultado(senha, ""); // voltou depois do envio: a confirmação pode já estar na página
     return;
   }
 
@@ -85,12 +85,11 @@
     }
     faixa("lai: formulário preenchido. Confira os dados e clique em Enviar. Depois, o protocolo vai sozinho para o terminal.");
     evento({ tipo: "preenchido" });
-    observarResultado(senha);
+    observarResultado(senha, document.body ? document.body.innerText : "");
   })();
 
-  function observarResultado(senha) {
-    const PALAVRAS = /protocolo|registrad[ao]|recebid[ao]|enviad[ao] com sucesso|sucesso/i;
-    const inicial = document.body ? document.body.innerText : "";
+  function observarResultado(senha, inicial) {
+    const PALAVRAS = /protocolo|registrad[ao]|recebid[ao]|enviad[ao] com sucesso|sucesso|criad[ao]/i;
     let enviado = false;
     const olhar = () => {
       if (enviado || !document.body) return;
