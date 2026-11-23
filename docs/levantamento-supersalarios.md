@@ -526,3 +526,12 @@ por quê; vale perguntar às duas Casas.
 
 No Actions (`supersalarios-legislativo.yml`, todo dia 22), com o cache no release `dados-supersalarios-legislativo`.
 
+### CE, AL e PI fora do GitHub (23/11/2026)
+
+Os três recusam os servidores do GitHub e também um servidor de casa na Europa (CE com HTTP 403; AL e PI sem aceitar a
+conexão), mas respondem de uma máquina com conexão residencial que eles aceitam: tudo indica que só aceitam endereços
+do Brasil. A carga mensal deles roda nessa máquina, no dia 24, pela conexão normal, sem proxy
+(`.github/scripts/fora-do-github/`: o script e o timer do systemd). Ela baixa do release o cache dos três, roda a
+carga e, se entrou mês novo, sobe o cache de volta; no dia 25, o `supersalarios-estados.yml` monta o arquivo com eles e
+abre o pull request. Não se passa por proxy nem se troca de endereço para chegar aos portais.
+
