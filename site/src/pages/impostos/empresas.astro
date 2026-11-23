@@ -195,7 +195,7 @@ const descricao = r
               <input id="busca-beneficios" name="q" type="search" placeholder="Ex.: Vale, 33.592.510" autocomplete="off" />
               <button type="submit">Procurar</button>
             </div>
-            <p class="menor">Empresário individual e MEI entram só nos totais: o nome deles é o nome de uma pessoa ({nf0.format(r.ocultas[0])} empresas, {moedaCurta(r.ocultas[1])}).</p>
+            <p class="menor">Empresário individual, MEI e produtor rural com CNPJ entram só nos totais: o nome deles é o nome de uma pessoa ({nf0.format(r.ocultas[0])} empresas, {moedaCurta(r.ocultas[1])}).</p>
           </form>
         </section>
 
@@ -317,7 +317,7 @@ const descricao = r
       FROM read_parquet('${abs(raiz.dataset.empresas)}') WHERE ${onde[0]} ORDER BY valor DESC LIMIT 40`, onde[1]);
     const voltar = `<p class="voltar"><a href="/impostos/empresas">← Todas as empresas</a></p>`;
     if (!achadas.length) {
-      saida.innerHTML = `${voltar}<h2>Nada encontrado para “${esc(texto)}”</h2><p class="texto">A Dirbi só tem as empresas fora do Simples Nacional que usaram algum benefício federal desde 2024. Empresário individual e MEI não aparecem pelo nome.</p>`;
+      saida.innerHTML = `${voltar}<h2>Nada encontrado para “${esc(texto)}”</h2><p class="texto">A Dirbi só tem as empresas fora do Simples Nacional que usaram algum benefício federal desde 2024. Empresário individual, MEI e produtor rural com CNPJ não aparecem pelo nome.</p>`;
       return;
     }
     saida.innerHTML = `${voltar}<h2>${achadas.length === 40 ? "As 40 primeiras" : nf0.format(achadas.length)} para “${esc(texto)}”</h2>
@@ -419,7 +419,7 @@ const descricao = r
     saida.innerHTML = `<p class="voltar"><a href="/impostos/empresas">← Página inicial</a></p>
       <h2>${nomeGrupo ? `${esc(nomeGrupo)}: todas as empresas` : "Todas as empresas"}</h2>
       <p class="texto"><strong>${nf0.format(s.n)} ${s.n === 1 ? "empresa" : "empresas"}</strong> que deixaram de pagar ${curto(num(s.valor))} em ${ANO}${nomeGrupo ? ` neste grupo` : ""}${uf ? `, com sede em ${esc(uf)}` : ""}.
-        O número ao lado do nome é a posição ${nomeGrupo ? "dentro do grupo" : "no país todo"}. Empresário individual e MEI não aparecem pelo nome.</p>
+        O número ao lado do nome é a posição ${nomeGrupo ? "dentro do grupo" : "no país todo"}. Empresário individual, MEI e produtor rural com CNPJ não aparecem pelo nome.</p>
       <form class="filtros-lista" data-filtros-lista>
         <input type="hidden" name="lista" value="1" />
         <label><span>Benefício</span><select name="grupo">${opcoes(GRUPOS, grupo, "Todos os benefícios")}</select></label>

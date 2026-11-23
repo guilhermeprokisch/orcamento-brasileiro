@@ -4,7 +4,8 @@
  * Sem o arquivo, tudo vem null.
  *
  * Privacidade: o arquivo não tem CPF nem nome de pessoa. As pessoas físicas só aparecem somadas, por
- * estado (a lista da PGFN não diz a cidade delas). Empresário individual e MEI também não têm nome.
+ * estado (a lista da PGFN não diz a cidade delas). Empresário individual, MEI e as outras pessoas com CNPJ (produtor
+ * rural, empresa individual imobiliária, candidato) também não têm nome.
  */
 import type { Cidade } from "./cidades";
 
