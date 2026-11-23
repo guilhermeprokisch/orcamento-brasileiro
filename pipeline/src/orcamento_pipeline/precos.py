@@ -134,7 +134,7 @@ OUTRO = re.compile(r"\+|\bASSOC|\bCOM\s+[A-Z]{5,}INA\b|HIDROCLOROTIAZ.*(LOSARTAN
                    r"CLAVUL|SULBACT|CODEIN|CAFEIN|ESCOPOLAMIN|ORFENADRIN|GLIBENCL.*METFORMIN|METFORMIN.*(GLIBENCL|GLIMEPIR|SITAGLIP|VILDAGLIP|DAPAGLI|EMPAGLI|"
                    r"LINAGLIP|SAXAGLIP|ALOGLIP|GLICLAZ)|ANLODIPINO.*LOSARTAN|LOSARTAN.*ANLODIPIN|GOTAS|SUSP|XAROPE|SOLUCAO|INFANTIL|PEDIATR|"
                    r"PROLONGAD|LIBERACAO|RETARD|\bXR\b|\bAP\b|\bSR\b|\bCR\b|EFERVESC|MASTIGAV|DISPERSIV|SUBLINGU|VAGINAL|CREME|POMADA|GEL\b|COLIRIO|"
-                   r"SUPOSIT|TOPIC|MANIPUL|VETERIN|PO PARA")
+                   r"SUPOSIT|TOPIC|MANIPUL|VETERIN|PO PARA|\bCLAV|MAGNESI|TAMPONAD|JUDICIAL|\bMUPS\b")
 OUTRO_INJETAVEL = re.compile(r"\+|\bASSOC|ESCOPOLAMIN|ORFENADRIN|ADIFENIN|PROMETAZIN|COMPRIMID|GOTAS|ORAL\b|VETERIN")
 
 ANO_ATUAL = dt.date.today().year
@@ -244,6 +244,55 @@ def compras_comprasgov() -> list[dict]:
                 "fonte": "c",
             })
     return saida
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# PNCP (pregões de todas as plataformas, baixados pelo precos_pncp.py)
+
+LINK_PNCP = "https://pncp.gov.br/app/editais/{}/{}/{}"
+# No pregão o preço final não pode passar do estimado. Muito acima dele, o homologado é o preço da caixa e o estimado,
+# o do comprimido (Pains-MG, 2026: losartana estimada a R$ 0,04, homologada a R$ 30,41).
+ACIMA_DO_ESTIMADO = 3
+
+
+def compras_pncp(sem_rs: bool) -> tuple[list[dict], int]:
+    """As compras do PNCP no formato comum, menos as que já vêm de outra fonte: as feitas no Compras.gov.br (estão na
+    pesquisa de preço) e, com o LicitaCon, as das prefeituras do RS. Devolve também quantas foram tiradas por passar do
+    estimado."""
+    from .precos_pncp import compras_guardadas   # aqui, e não no topo: precos_pncp importa deste módulo
+
+    saida, acima = [], 0
+    for x in compras_guardadas():
+        if x.get("plataforma") == "Compras.gov.br" or (not sem_rs and x.get("esfera") == "M" and x.get("uf") == "RS"):
+            continue
+        esfera = "E" if x.get("esfera") == "D" else x.get("esfera")
+        comprador = bonito(x.get("unidade") or x.get("orgao") or "")
+        if re.fullmatch(r"(?i)(prefeitura municipal|fundo municipal de sa[uú]de|secretaria municipal de sa[uú]de)", comprador.strip()):
+            comprador = f"{comprador} ({bonito(x.get('orgao') or '')})"
+        for i in x["itens"]:
+            if casar(i["descricao"], i.get("unidade") or "") != i["codigo"]:   # a regra do casamento pode ter mudado
+                continue
+            res = [r for r in i["resultados"] if r.get("preco")]
+            if not res:
+                continue
+            r = min(res, key=lambda r: r.get("ordem") or 1)   # no registro de preço, o primeiro colocado
+            preco = float(r["preco"])
+            qtd = float(r.get("qtd") or i.get("qtd") or 0)
+            data = r.get("data") or x.get("publicacao") or ""
+            if not qtd or data[:4] not in {str(a) for a in ANOS}:
+                continue
+            if i.get("estimado") and preco > ACIMA_DO_ESTIMADO * float(i["estimado"]):
+                acima += 1
+                continue
+            fornecedor = r.get("fornecedor") or ""
+            saida.append({
+                "codigo": i["codigo"], "ano": int(data[:4]), "data": data, "preco": preco, "qtd": qtd, "esfera": esfera, "uf": x.get("uf") or "",
+                "ibge": int(x["ibge"]) if esfera == "M" and str(x.get("ibge") or "").isdigit() else None,
+                "comprador": comprador, "id_comprador": f"pncp:{x['cnpj']}:{x.get('unidade')}",
+                "fornecedor": "" if MEI.match(fornecedor) else bonito(fornecedor),
+                "modalidade": "pregão", "link": LINK_PNCP.format(x["cnpj"], x["ano"], x["seq"]), "fonte": "p",
+            })
+    return saida, acima
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -485,7 +534,7 @@ def montar(compras: list[dict], disputa: dict[int, dict]) -> tuple[dict, dict]:
         mun.setdefault(str(ibge), {"n": 0, "r": 0, "baratas": 0, "caras": [], "n_caras": 0, "n_dobro": 0})["rs"] = d
     hoje = dt.date.today().isoformat()
     doc = {
-        "fonte": "Compras.gov.br (pesquisa de preço) e LicitaCon (TCE-RS)", "gerado": hoje, "anos": ANOS,
+        "fonte": "Compras.gov.br (pesquisa de preço), PNCP e LicitaCon (TCE-RS)", "gerado": hoje, "anos": ANOS,
         "regras": {"mais_cara": MAIS_CARA, "a_mais": A_MAIS_MINIMO, "erro": ERRO_DE_UNIDADE},
         "remedios": {str(cod): [nome, forma] for cod, nome, forma, *_ in REMEDIOS},
         "mun": dict(sorted(mun.items())), "uf": dict(sorted(uf.items())),
@@ -532,6 +581,9 @@ def main() -> None:
 
     compras = compras_comprasgov()
     print(f"Compras.gov.br: {len(compras)} compras de {len(REMEDIOS)} remédios em {ANOS}")
+    pncp, acima = compras_pncp(args.sem_rs)
+    compras += pncp
+    print(f"PNCP (outras plataformas): {len(pncp)} compras; {acima} tiradas por passar de {ACIMA_DO_ESTIMADO} vezes o preço estimado")
     disputa: dict[int, dict] = {}
     if not args.sem_rs:
         ibge_rs = _ibge_rs()
