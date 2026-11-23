@@ -63,7 +63,7 @@ import duckdb
 import openpyxl
 
 from .cidades import RAIZ
-from .divida_ativa import EMPRESARIO_INDIVIDUAL, URL_RECEITA, _baixar as _baixar_receita, ultimo_mes_receita
+from .divida_ativa import URL_RECEITA, _baixar as _baixar_receita, e_pessoa, ultimo_mes_receita
 from .fontes import CONTEXTO_TLS, USER_AGENT
 
 PASTA = RAIZ / "data" / "raw" / "bndes"
@@ -166,13 +166,9 @@ def raiz_no_nome(nome: str) -> str:
 
 
 def pode_nomear(nome: str, natureza: str | None) -> bool:
+    """A mesma regra da dívida ativa e dos benefícios fiscais (divida_ativa.e_pessoa), com a natureza obrigatória:
+    nas indiretas, quem não foi achado no cadastro de CNPJ não aparece pelo nome."""
     return bool(natureza) and not e_pessoa(natureza) and not CPF_NO_NOME.search(nome or "")
-
-
-def e_pessoa(natureza: str) -> bool:
-    """Empresário individual e MEI (213-5) e todo o grupo 4 da tabela de naturezas da Receita, "pessoas físicas" com
-    CNPJ: produtor rural (412-0), contribuinte individual, segurado especial, leiloeiro, candidato."""
-    return natureza == EMPRESARIO_INDIVIDUAL or natureza.startswith("4")
 
 
 # ---------------------------------------------------------------- downloads
@@ -340,7 +336,11 @@ def identificar(con: duckdb.DuckDBPyConnection, mes: str) -> None:
 def marcar_nomeaveis(con: duckdb.DuckDBPyConnection) -> None:
     """chave: a raiz de quem pode aparecer pelo nome; '' para o resto (pessoas, MEI, quem não foi achado)."""
     con.execute("ALTER TABLE op ADD COLUMN IF NOT EXISTS chave VARCHAR")
-    con.execute(f"""UPDATE op SET chave = CASE WHEN op.raiz <> '' AND n.natureza_rfb IS NOT NULL AND n.natureza_rfb <> '{EMPRESARIO_INDIVIDUAL}' AND n.natureza_rfb NOT LIKE '4%'
+    # As naturezas de pessoa saem da mesma regra da dívida ativa (e_pessoa), não de uma cópia dela em SQL.
+    naturezas = [n for (n,) in con.execute("SELECT DISTINCT natureza_rfb FROM nat WHERE natureza_rfb IS NOT NULL").fetchall()]
+    tabela(con, "pessoa", ["natureza_rfb"], [[n] for n in naturezas if e_pessoa(n)])
+    con.execute(f"""UPDATE op SET chave = CASE WHEN op.raiz <> '' AND n.natureza_rfb IS NOT NULL
+                                                  AND n.natureza_rfb NOT IN (SELECT natureza_rfb FROM pessoa)
                                                   AND NOT regexp_matches(op.cliente, '{CPF_NO_NOME.pattern}') THEN op.raiz
                                              WHEN op.forma = 'direta' AND op.raiz <> '' AND n.natureza_rfb IS NULL
                                                   AND op.natureza NOT ILIKE 'PRIVADA%' THEN op.raiz
@@ -485,13 +485,13 @@ def montar(con: duckdb.DuckDBPyConnection, desemb: list, osu: dict | None, rtn: 
     serie = con.execute(f"""SELECT ano, round(sum(valor) FILTER (forma = 'direta')), round(sum(valor) FILTER (forma = 'indireta')), {f}
                             FROM op GROUP BY ano ORDER BY ano""").fetchall()
     serie = [[int(x or 0) for x in r] for r in serie]
-    setores = con.execute(f"SELECT setor, round(sum(valor)) v FROM op WHERE ano = {ano} GROUP BY 1 ORDER BY v DESC").fetchall()
+    setores = con.execute(f"SELECT setor, round(sum(valor)) v FROM op WHERE ano = {ano} GROUP BY 1 ORDER BY v DESC, setor").fetchall()
     programas = con.execute(f"""SELECT para, round(sum(valor)) v FROM op WHERE ano = {ano} AND faixa = 'abaixo'
-                                GROUP BY 1 ORDER BY v DESC LIMIT 8""").fetchall()
+                                GROUP BY 1 ORDER BY v DESC, para LIMIT 8""").fetchall()
 
     # Os clientes que podem aparecer pelo nome, agregados pela raiz.
     con.execute(f"""CREATE OR REPLACE TEMP TABLE cli AS
-        SELECT chave, ano, arg_max(cliente, valor) AS nome, arg_max(uf, valor) AS uf, arg_max(para, valor) AS para,
+        SELECT chave, ano, first(cliente ORDER BY valor DESC, cliente) AS nome, first(uf ORDER BY valor DESC, uf) AS uf, first(para ORDER BY valor DESC, para) AS para,
                sum(valor) AS valor, sum(valor) FILTER (faixa = 'abaixo') AS abaixo,
                {", ".join(f"sum(valor) FILTER (faixa = '{x}') AS v_{x}" for x in FAIXAS)},
                bool_or(forma = 'direta') AS direta, count(*) AS n
@@ -513,7 +513,7 @@ def montar(con: duckdb.DuckDBPyConnection, desemb: list, osu: dict | None, rtn: 
         return FAIXAS[fx] if vs[fx] >= 0.8 * vs[4] else "misto"
     maiores = []
     for chave, nome, uf, para, valor, abaixo in con.execute(
-            f"SELECT chave, nome, uf, para, valor, coalesce(abaixo, 0) FROM cli WHERE ano = {ano} ORDER BY valor DESC LIMIT 100").fetchall():
+            f"SELECT chave, nome, uf, para, valor, coalesce(abaixo, 0) FROM cli WHERE ano = {ano} ORDER BY valor DESC, chave LIMIT 100").fetchall():
         b = beneficio.get(chave)
         maiores.append([nome_limpo(nome), chave, uf, para, principal(chave, ano), round(valor), round(abaixo), b[0] if b else None])
     sem_nome = con.execute(f"SELECT count(DISTINCT cliente), round(sum(valor)) FROM op WHERE ano = {ano} AND chave = ''").fetchone()
@@ -534,12 +534,12 @@ def montar(con: duckdb.DuckDBPyConnection, desemb: list, osu: dict | None, rtn: 
     por_cidade = con.execute(f"""SELECT ibge, count(*), round(sum(valor)), {", ".join(f"round(coalesce(sum(valor) FILTER (faixa = '{x}'), 0))" for x in FAIXAS)},
                                         count(DISTINCT cliente), round(coalesce(sum(valor) FILTER (forma = 'indireta'), 0)),
                                         round(coalesce(sum(valor) FILTER (para IN ('Máquinas e equipamentos', 'Ônibus e caminhões')), 0))
-                                   FROM op WHERE ano = {ano} AND ibge IS NOT NULL GROUP BY ibge""").fetchall()
+                                   FROM op WHERE ano = {ano} AND ibge IS NOT NULL GROUP BY ibge ORDER BY ibge""").fetchall()
     top = defaultdict(list)
     for ibge, chave, nome, valor, para in con.execute(f"""
-            SELECT ibge, chave, arg_max(cliente, valor), sum(valor) v, arg_max(para, valor) FROM op
+            SELECT ibge, chave, first(cliente ORDER BY valor DESC, cliente), sum(valor) v, first(para ORDER BY valor DESC, para) FROM op
              WHERE ano = {ano} AND ibge IS NOT NULL AND chave <> '' GROUP BY ibge, chave
-            QUALIFY row_number() OVER (PARTITION BY ibge ORDER BY v DESC) <= 5 ORDER BY ibge, v DESC""").fetchall():
+            QUALIFY row_number() OVER (PARTITION BY ibge ORDER BY v DESC, chave) <= 5 ORDER BY ibge, v DESC, chave""").fetchall():
         top[ibge].append([nome_limpo(nome), chave, round(valor), para])
     for ibge, n, total, *resto in por_cidade:
         faixas, (clientes, indireta, maquinas) = [int(x) for x in resto[:4]], resto[4:]
@@ -549,8 +549,8 @@ def montar(con: duckdb.DuckDBPyConnection, desemb: list, osu: dict | None, rtn: 
     # Por empresa, desde 2020: a busca de /bndes e a ficha de /impostos/empresas.
     empresas = {}
     for chave, nome, uf, valor, abaixo, ult, direta in con.execute(f"""
-            SELECT chave, arg_max(nome, valor), arg_max(uf, valor), sum(valor), coalesce(sum(abaixo), 0), max(ano), bool_or(direta)
-              FROM cli WHERE ano >= {PRIMEIRO_ANO_EMPRESAS} GROUP BY chave HAVING sum(valor) >= 1e6""").fetchall():
+            SELECT chave, first(nome ORDER BY valor DESC, nome), first(uf ORDER BY valor DESC, uf), sum(valor), coalesce(sum(abaixo), 0), max(ano), bool_or(direta)
+              FROM cli WHERE ano >= {PRIMEIRO_ANO_EMPRESAS} GROUP BY chave HAVING sum(valor) >= 1e6 ORDER BY chave""").fetchall():
         empresas[chave] = [nome_limpo(nome), uf, round(valor), round(abaixo), ult, 1 if direta else 0]
 
     resumo = {

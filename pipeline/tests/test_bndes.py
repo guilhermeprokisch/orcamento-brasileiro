@@ -75,7 +75,7 @@ class Regras(unittest.TestCase):
         self.assertEqual(b.normalizar_nome("CONCESSIONÁRIA ROTA DO OESTE S.A. (19521322)"), "CONCESSIONARIA ROTA DO OESTE S")
         self.assertEqual(b.nome_limpo("COPOBRAS S/A. INDUSTRIA E COMERCIO DE EMBALAGENS"), "Copobras S.A. Industria e Comercio de Embalagens")
         self.assertFalse(b.pode_nomear("JOSE SOUZA 52998224725", "2062"))
-        self.assertFalse(b.pode_nomear("JOSE SOUZA", b.EMPRESARIO_INDIVIDUAL))
+        self.assertFalse(b.pode_nomear("JOSE SOUZA", "2135"))
         self.assertFalse(b.pode_nomear("JOSE SOUZA", None))
         self.assertTrue(b.pode_nomear("COPOBRAS SA", "2054"))
         self.assertFalse(b.pode_nomear("OSMAR TESTE E OUTRO", "4120"))   # produtor rural pessoa física
