@@ -13,6 +13,9 @@ deputado e a cidade:
 - RJ: a base das emendas impositivas e o relatório de execução (Seplag), com o município pelo nome;
 - DF: a API do portal da transparência do DF (o DF é uma cidade só);
 - MS: CSV por ano (dados.ms.gov.br), com o município pelo nome e só o valor indicado.
+- SC: o painel Power BI da Secretaria da Fazenda (2023 em diante), com o código IBGE, o tipo de quem recebe e o pago;
+- SP: os painéis Power BI do portal da transparência (um por ano, 2023 a 2025), com o município pelo nome e o estágio
+  de cada emenda (o pago é o valor das que estão como "Pagas").
 
 Nada de CPF: as colunas de documento do credor não são lidas, e os nomes de quem recebe não são guardados, só o total
 por cidade, separado entre a prefeitura, entidades e o estado. O deputado é ligado à página dele em /politicos pelo
@@ -48,6 +51,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import cidades as c
+from . import powerbi
 from .fontes import CONTEXTO_TLS
 from .politicos import em_ordem, nome_proprio, sem_acento
 from .politicos_estaduais import chave_nome, ligar_assembleia
@@ -76,6 +80,10 @@ ESTADOS = {
            "url": "https://www.redeplan.planejamento.rj.gov.br/demaisprocessos/emendas.html", "pago": True, "pix": True},
     "DF": {"nome": "Distrito Federal", "fonte": "Portal da Transparência do Distrito Federal: emendas parlamentares",
            "url": "https://www.transparencia.df.gov.br/#/despesas/emendas-parlamentares", "pago": True, "pix": False},
+    "SC": {"nome": "Santa Catarina", "fonte": "Secretaria da Fazenda de Santa Catarina, painel de emendas parlamentares estaduais",
+           "url": "https://www.sef.sc.gov.br/transparencias/emendas-parlamentares-estaduais", "pago": True, "pix": True},
+    "SP": {"nome": "São Paulo", "fonte": "Portal da Transparência de São Paulo, painéis de emendas impositivas",
+           "url": "https://www.transparencia.sp.gov.br/home/emendasparlamentares", "pago": True, "pix": False},
     "MS": {"nome": "Mato Grosso do Sul", "fonte": "Governo de Mato Grosso do Sul, dados abertos: emendas parlamentares",
            "url": "https://www.dados.ms.gov.br/dataset/emendas-parlamentares", "pago": False, "pix": False},
 }
@@ -84,6 +92,8 @@ NOTAS = {
     "ES": "Até 2026 as emendas do Espírito Santo não eram obrigatórias: o governo podia não pagar, e pagou bem menos do que foi indicado.",
     "RJ": "Em 2024 o relatório de execução não separa as emendas; só há o valor indicado.",
     "DF": "O pago inclui o que foi pago no ano de emendas de anos anteriores.",
+    "SP": ("São Paulo publica o estágio de cada emenda, não o valor pago: conta como pago o valor das emendas que estão como "
+           "pagas. O painel de 2026 ainda não existe. A lei paulista prevê a transferência especial, mas o painel não a separa."),
     "MS": "Mato Grosso do Sul publica só o valor indicado de cada emenda, não quanto já foi pago.",
 }
 
@@ -430,6 +440,87 @@ def ler_ms(forcar: bool, ibge_de) -> list[Linha]:
     return saida
 
 
+# Os painéis Power BI: SC tem um só, de 2023 em diante; SP, um por ano (a chave do de 2026 entra aqui quando sair).
+PAINEL_SC = "cd153507-3216-4721-9c42-b900a95507d9"
+PAINEIS_SP = {2023: "f7243798-e16d-47bf-a76d-587c0fc94501", 2024: "7ae99f38-6898-461b-8d93-aeee788c318a",
+              2025: "c53a54e7-9c63-4d84-be1a-5111bf2756d8"}
+AREAS_SC = {"FUNDO SOCIAL": "Fundo Social", "SED": "Educação", "SES": "Saúde", "SIE": "Infraestrutura", "SAR": "Agricultura",
+            "SSP": "Segurança pública"}
+FUNCOES = {"SAUDE": "Saúde", "EDUCACAO": "Educação", "ADMINISTRACAO": "Administração", "ASSISTENCIA SOCIAL": "Assistência social",
+           "SEGURANCA PUBLICA": "Segurança pública", "ENCARGOS ESPECIAIS": "Encargos especiais", "CULTURA": "Cultura",
+           "DESPORTO E LAZER": "Esporte e lazer", "ESPORTE": "Esporte e lazer", "AGRICULTURA": "Agricultura", "URBANISMO": "Urbanismo",
+           "SANEAMENTO": "Saneamento", "TRANSPORTE": "Transporte", "HABITACAO": "Habitação", "DIREITOS DA CIDADANIA": "Direitos da cidadania",
+           "TURISMO": "Turismo", "GESTAO AMBIENTAL": "Meio ambiente", "MEIO AMBIENTE": "Meio ambiente", "TRABALHO": "Trabalho"}
+
+
+def num(v) -> float:
+    return v if isinstance(v, (int, float)) else numero(str(v).replace(".", ",")) if v else 0.0
+
+
+def area_sp(funcao: str | None, orgao: str | None) -> str:
+    """ "10 - SAUDE" (ou "04 - ADMINISTRACAO; 06 - ...", fica a primeira); sem função, o órgão que processou."""
+    for s in (funcao, orgao):
+        if not s:
+            continue
+        s = sem_acento(re.sub(r"^\s*\d+\s*-\s*", "", s.split(";")[0])).upper().strip()
+        return next((v for k, v in FUNCOES.items() if s.startswith(k)), nome_proprio(s, pessoa=True))
+    return "Não informado"
+
+
+def guardar_json(dados, destino: Path) -> None:
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(json.dumps(dados, ensure_ascii=False), encoding="utf-8")
+
+
+def ler_sc(forcar: bool) -> list[Linha]:
+    """Só as colunas da emenda: o documento de quem recebe, o banco e a conta, que o painel também carrega, não são lidos."""
+    destino = PASTA / "SC" / "cadastro.json"
+    if forcar or not destino.exists():
+        m = powerbi.modelo(PAINEL_SC)
+        cols = ["num_ano", "num_emenda_parlamentar", "nom_parlamentar", "nom_tipo_beneficiario", "Código IBGE", "val_emenda_parlamentar",
+                "Pagamentos", "Modalidade Final", "Unidade Orçamentária", "dsc_situacao"]
+        guardar_json(powerbi.consultar(PAINEL_SC, m, "CadastroEmendasParlamentares", cols), destino)
+    tipos = {"Prefeituras / Municípios": 0, "Fundos": 0, "Órgão da Administração Direta Municipal": 0,
+             "Entidade Privada Sem Fins Lucrativos": 1, "APAE": 1}
+    saida = []
+    for r in json.loads(destino.read_text(encoding="utf-8")):
+        if r.get("dsc_situacao") == "Inativo" or not r.get("num_ano"):
+            continue
+        pix = (r.get("Modalidade Final") or "").startswith("Município")
+        ibge = r.get("Código IBGE")
+        autor = r.get("nom_parlamentar") or ""
+        saida.append(Linha("SC", int(r["num_ano"]), autor, autor.lower().startswith(("bancada", "comiss", "mesa")), int(ibge) if ibge else None,
+                           tipos.get(r.get("nom_tipo_beneficiario"), 2), "Transferência especial" if pix else
+                           AREAS_SC.get(r.get("Unidade Orçamentária") or "", "Não informado"), pix,
+                           num(r.get("val_emenda_parlamentar")), num(r.get("Pagamentos"))))
+    return saida
+
+
+def ler_sp(forcar: bool, ibge_de) -> list[Linha]:
+    hoje = dt.date.today().year
+    saida = []
+    for ano, k in sorted(PAINEIS_SP.items()):
+        destino = PASTA / "SP" / f"{ano}.json"
+        if forcar or ano >= hoje - 1 or not destino.exists():
+            m = powerbi.modelo(k)
+            tabela = next(t for t, cols in powerbi.esquema(k, m).items() if "PARLAMENTAR" in cols)
+            cols = ["CÓDIGO", "ANO", "MUNICÍPIO", "PARLAMENTAR", "BENEFICIÁRIO", "FUNÇÃO DE GOVERNO", "ÓRGÃO PROCESSADOR", "ESTÁGIO",
+                    "VALOR DECISÃO", "Primeira Fase Substituídas"]
+            guardar_json(powerbi.consultar(k, m, tabela, cols), destino)
+        for r in json.loads(destino.read_text(encoding="utf-8")):
+            # A emenda impedida na 1ª fase foi trocada por outra, que também está na lista: contar as duas dobraria o indicado.
+            if r.get("Primeira Fase Substituídas") == "Sim":
+                continue
+            mun = (r.get("MUNICÍPIO") or "").strip()
+            ibge = ibge_de(mun, "SP") if mun and not mun.upper().startswith(("ESTADO", "DIVERSOS", "VARIOS", "VÁRIOS")) else None
+            v = num(r.get("VALOR DECISÃO"))
+            autor = r.get("PARLAMENTAR") or ""
+            saida.append(Linha("SP", int(r.get("ANO") or ano), autor, autor.lower().startswith(("bancada", "comiss", "mesa")), ibge,
+                               grupo_pelo_nome(r.get("BENEFICIÁRIO") or ""), area_sp(r.get("FUNÇÃO DE GOVERNO"), r.get("ÓRGÃO PROCESSADOR")),
+                               False, v, v if r.get("ESTÁGIO") == "Pagas" else 0.0))
+    return saida
+
+
 # ---------------------------------------------------------------- montagem
 
 def eleitos() -> list[dict]:
@@ -445,6 +536,8 @@ APELIDOS = {
     ("MG", "celinho-sinttrocel"): "Celinho Sintrocel",
     ("MG", "grego-fundacao"): "Grego",
     ("PA", "flavio-igor-pantoja"): "Flavio Higor Pantoja",
+    ("SP", "teonilio-barba"): "Barba",
+    ("SP", "fabiana-bolsonaro"): "Fabiana B.",
 }
 
 
@@ -459,8 +552,20 @@ def ligar(linhas: list[Linha]) -> dict[tuple[str, str], str]:
             k = f"{l.uf}-{chave_nome(nome_tse(l))}"
             autores[l.uf].add((k, nome_tse(l)))
             volta[(l.uf, l.autor)] = k
-    ligacao = ligar_assembleia(eleitos(), autores)
+    todos = eleitos()
+    ligacao = ligar_assembleia(todos, autores)
     dono = {k: ch for ch, ks in ligacao.items() for k in ks}
+    # O mesmo deputado com duas grafias em anos diferentes ("Julio Garcia" e "Julio Cesar Garcia"): a regra acima liga
+    # só uma. A outra liga se for igual, palavra por palavra, ao nome de urna ou ao nome completo de um eleito só.
+    exatos: dict[str, set[str]] = defaultdict(set)
+    for e in todos:
+        for n in (e["urna"], e.get("completo")):
+            if n:
+                exatos[f"{e['uf']}-{chave_nome(n)}"].add(e["chave"])
+    for nomes in autores.values():
+        for k, _ in nomes:
+            if k not in dono and len(exatos.get(k, ())) == 1:
+                dono[k] = next(iter(exatos[k]))
     for uf, nomes in sorted(autores.items()):
         chaves = {k for k, _ in nomes}
         sem = sorted({n for k, n in nomes if k not in dono})
@@ -628,7 +733,7 @@ def main() -> None:
 
     leitores = {"MG": lambda f: ler_mg(f), "ES": lambda f: ler_es(f, ibge6), "AC": lambda f: ler_ac(f, ibge_de),
                 "PA": lambda f: ler_pa(f, ibge_de), "RJ": lambda f: ler_rj(f, ibge_de), "DF": lambda f: ler_df(f),
-                "MS": lambda f: ler_ms(f, ibge_de)}
+                "MS": lambda f: ler_ms(f, ibge_de), "SC": lambda f: ler_sc(f), "SP": lambda f: ler_sp(f, ibge_de)}
     escolhidos = args.uf or sorted(ESTADOS)
     linhas: list[Linha] = []
     falhou = []

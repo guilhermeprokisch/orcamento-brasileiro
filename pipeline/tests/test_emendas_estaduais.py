@@ -45,6 +45,32 @@ class Nomes(unittest.TestCase):
         self.assertEqual(e.area("SAÚDE"), "Saúde")
 
 
+class PowerBI(unittest.TestCase):
+    def test_linhas_compactas(self):
+        from orcamento_pipeline import powerbi
+        ds = {"ValueDicts": {"D0": ["Ana", "Bia"]},
+              "PH": [{"DM0": [
+                  {"S": [{"N": "G0", "T": 1, "DN": "D0"}, {"N": "G1", "T": 4}, {"N": "G2", "T": 1}], "C": [0, 100, "x"]},
+                  {"C": [1], "R": 2 | 4},          # repete o valor e o texto da linha anterior
+                  {"C": [0, "250.5D"], "Ø": 4},    # o texto é nulo; o número vem como texto
+              ]}]}
+        self.assertEqual(powerbi.ler_dsr(ds), [["Ana", 100, "x"], ["Bia", 100, "x"], ["Ana", 250.5, None]])
+
+    def test_chave_do_link(self):
+        from orcamento_pipeline import powerbi
+        r = "eyJrIjoiY2QxNTM1MDctMzIxNi00NzIxLTljNDItYjkwMGE5NTUwN2Q5IiwidCI6ImVjNjNiYzNkIn0%3D"
+        self.assertEqual(powerbi.chave_do_link(r), "cd153507-3216-4721-9c42-b900a95507d9")
+
+
+class AreasSP(unittest.TestCase):
+    def test_funcao_e_orgao(self):
+        self.assertEqual(e.area_sp("10 - SAUDE", "SAÚDE"), "Saúde")
+        self.assertEqual(e.area_sp("04 - ADMINISTRACAO; 06 - SEGURANCA PUBLICA", None), "Administração")
+        self.assertEqual(e.area_sp(None, "CULTURA"), "Cultura")
+        self.assertEqual(e.area_sp(None, None), "Não informado")
+        self.assertEqual(e.num("194291.19999999998"), 194291.19999999998)
+
+
 class RelatorioRJ(unittest.TestCase):
     def test_com_linha_de_total(self):
         t = ("Posição;Sigla UO;Cod Ação;Tit Ação;Ano Fonte;Fonte RJ;Fonte STN;Deputado;Cod. Emenda;Nº Empenho;Descrição; Dotação; Emp; Liq; Pago\n"
