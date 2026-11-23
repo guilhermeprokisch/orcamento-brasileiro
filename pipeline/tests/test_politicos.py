@@ -43,3 +43,27 @@ def test_receitas_de_campanha():
     assert p.grupo_receita("FUNDO PARTIDARIO", "Recursos de partido político") == "Fundo partidário"
     assert p.grupo_receita("OUTROS RECURSOS", "Recursos de pessoas físicas") == "Pessoas físicas"
     assert p.grupo_receita("OUTROS RECURSOS", "Recursos próprios") == "Recursos próprios"
+
+
+def _pol(chave, casa, uf, mes_ano, feminino=False, cargo="Deputado federal"):
+    ano, mes = mes_ano
+    meses = [0] * 12
+    meses[mes - 1] = 100
+    return {"chave": chave, "casa": casa, "uf": uf, "feminino": feminino, "cargo": cargo,
+            "anos": {str(ano): {"cota": {"mes": meses}}}}
+
+
+def test_mesma_pessoa_em_duas_casas():
+    dep = _pol("camara-1", "camara", "MS", (2023, 1))
+    sen = _pol("senado-2", "senado", "MS", (2025, 6), feminino=True, cargo="Senador")
+    p.ligar_mesma_pessoa([dep, sen], {"camara-1": "TEREZA CRISTINA CORREA DA COSTA DIAS", "senado-2": "Tereza Cristina Corrêa da Costa Dias"})
+    assert sen["atual"] and not dep["atual"]
+    assert dep["cargo"] == "Deputada federal" and sen["cargo"] == "Senadora"
+    assert dep["outros"][0]["chave"] == "senado-2" and dep["outros"][0]["periodo"] == "jun/2025"
+
+
+def test_pai_e_filho_na_mesma_casa_nao_se_juntam():
+    pai = _pol("camara-1", "camara", "PI", (2023, 1))
+    filho = _pol("camara-2", "camara", "PI", (2025, 6))
+    p.ligar_mesma_pessoa([pai, filho], {"camara-1": "ÁTILA FREITAS LIRA", "camara-2": "ÁTILA DE MELO LIRA"})
+    assert pai["atual"] and filho["atual"] and not pai["outros"] and not filho["outros"]

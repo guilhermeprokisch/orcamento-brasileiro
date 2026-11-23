@@ -11,15 +11,17 @@ import { caminhoPolitico, docPoliticos, type Politico } from "../../lib/politico
 const doc = docPoliticos;
 const ano = String(new Date().getFullYear() - 1);
 const porUf = new Map<string, Politico[]>();
-for (const p of doc?.politicos ?? []) {
+// Uma linha por pessoa: quem passou pelas duas Casas aparece no cargo mais recente, com o antigo numa nota.
+for (const p of (doc?.politicos ?? []).filter((p) => p.atual !== false)) {
   if (!porUf.has(p.uf)) porUf.set(p.uf, []);
   porUf.get(p.uf)!.push(p);
 }
 const ufs = [...porUf.keys()].sort((a, b) => (doc!.ufs[a] ?? a).localeCompare(doc!.ufs[b] ?? b, "pt-BR"));
 const ordem = (p: Politico) => (p.casa === "senado" ? 0 : 1);
 const sem = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-const nSen = (doc?.politicos ?? []).filter((p) => p.casa === "senado").length;
-const nDep = (doc?.politicos ?? []).length - nSen;
+const atuais = (doc?.politicos ?? []).filter((p) => p.atual !== false);
+const nSen = atuais.filter((p) => p.casa === "senado").length;
+const nDep = atuais.length - nSen;
 ---
 
 <Base title="Políticos: quanto custam e para onde mandam dinheiro · Orçamento Brasileiro" description="Deputados federais e senadores: salário, cota parlamentar, assessores, emendas e eleição, um por um.">
@@ -46,7 +48,8 @@ const nDep = (doc?.politicos ?? []).length - nSen;
             const c = p.anos[ano]?.cota;
             return (
               <li data-nome={sem(p.nome)}>
-                <span><a href={caminhoPolitico(p)}>{p.nome}</a><small>{p.cargo}{p.partido ? ` · ${p.partido.replace(/^S\/ ?Partido$/i, "sem partido")}` : ""}</small></span>
+                <span><a href={caminhoPolitico(p)}>{p.nome}</a><small>{p.cargo}{p.partido ? ` · ${p.partido.replace(/^S\/ ?Partido$/i, "sem partido")}` : ""}</small>
+                  {(p.outros ?? []).filter((o) => !o.atual).map((o) => <small>antes: <a href={`/politicos/${p.uf.toLowerCase()}/${o.slug}`}>{o.cargo.toLowerCase()}</a>{o.periodo ? ` (${o.periodo.includes(" a ") ? o.periodo : "até " + o.periodo})` : ""}</small>)}</span>
                 <span>{c ? `cota de ${ano}: ${moedaCurta(c.total)}` : ""}</span>
               </li>
             );
