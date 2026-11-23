@@ -1,5 +1,6 @@
-"""A página de cada político eleito (/politicos): o que custa e para onde manda dinheiro. Por ora, deputados federais e
-senadores; o formato já tem lugar para os outros cargos (cada seção sem fonte diz o que falta).
+"""A página de cada político eleito (/politicos): o que custa e para onde manda dinheiro. Deputados federais e
+senadores (aqui) e, desde nov/2026, governadores, deputados estaduais e distritais eleitos em 2022
+(politicos_estaduais.py, com a verba das Assembleias em assembleias.py). Cada seção sem fonte diz o que falta.
 
     uv run politicos                  # baixa a cota, o gabinete e as emendas do ano; o TSE vem da cópia de referência
     uv run politicos --tse            # refaz também a parte das eleições (TSE 2018 e 2022, uns 2 GB, à mão)
@@ -90,6 +91,7 @@ TETO_CAMARA = [
                  "SE": 52248.86, "SP": 48727.46, "TO": 51525.80}),
 ]
 MAX_SECRETARIOS = 25
+SUFIXO_CASA = {"camara": "deputado", "senado": "senador", "assembleia": "deputado-estadual", "governo": "governador"}
 
 UFS = {"AC": "Acre", "AL": "Alagoas", "AM": "Amazonas", "AP": "Amapá", "BA": "Bahia", "CE": "Ceará",
        "DF": "Distrito Federal", "ES": "Espírito Santo", "GO": "Goiás", "MA": "Maranhão", "MG": "Minas Gerais",
@@ -137,7 +139,10 @@ def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", sem_acento(s).lower()).strip("-") or "sem-nome"
 
 
-PEQUENAS = {"de", "da", "do", "das", "dos", "e"}
+PEQUENAS = {"de", "da", "do", "das", "dos", "e", "em", "com", "para", "a", "o", "na", "no", "nas", "nos"}
+# Siglas de tipo de empresa, como ficam no nome.
+SIGLAS = {"S.A.": "S.A.", "S.A": "S.A.", "SA": "S.A.", "S/A": "S/A", "ME": "ME", "EPP": "EPP", "LTDA": "Ltda", "LTDA.": "Ltda.",
+          "EIRELI": "Eireli", "CIA": "Cia", "CIA.": "Cia."}
 
 
 def nome_proprio(s: str, pessoa: bool = False) -> str:
@@ -146,7 +151,13 @@ def nome_proprio(s: str, pessoa: bool = False) -> str:
     s = " ".join((s or "").split())
     if s != s.upper() or (len(s) <= 4 and not pessoa):
         return s
-    return " ".join(p.lower() if i and p.lower() in PEQUENAS else p.capitalize() for i, p in enumerate(s.split()))
+    def palavra(i: int, p: str) -> str:
+        if p.upper() in SIGLAS and (i or len(s.split()) > 1):
+            return SIGLAS[p.upper()]
+        if i and p.lower() in PEQUENAS:
+            return p.lower()
+        return p.capitalize()
+    return " ".join(palavra(i, p) for i, p in enumerate(s.split()))
 
 
 def limpa_nome_empresa(s: str) -> str:
@@ -695,6 +706,28 @@ def grupo_receita(fonte: str | None, origem: str | None) -> str:
     return "Outras origens"
 
 
+# Os partidos que o TSE escreve por extenso, em maiúsculas: como aparecem na página.
+NOME_PARTIDO = {"REPUBLICANOS": "Republicanos", "SOLIDARIEDADE": "Solidariedade", "UNIÃO": "União", "CIDADANIA": "Cidadania",
+                "AVANTE": "Avante", "NOVO": "Novo", "PATRIOTA": "Patriota", "PODE": "Podemos", "REDE": "Rede", "AGIR": "Agir",
+                "PC do B": "PCdoB", "MOBILIZA": "Mobiliza", "PROS": "Pros"}
+
+
+def partido_nome(s: str | None) -> str | None:
+    return NOME_PARTIDO.get((s or "").strip(), s)
+
+
+def arruma_tse(t: dict | None) -> dict | None:
+    """O partido da candidatura e os partidos que doaram, com o nome como a página mostra (vale também para a cópia
+    do TSE já guardada)."""
+    if not t:
+        return t
+    t["partido"] = partido_nome(t.get("partido"))
+    r = t.get("receitas")
+    if r:
+        r["partidos"] = [[(lambda a, _, b: f"{partido_nome(a)},{b}")(*n.partition(",")) if "," in n else n, v] for n, v in r["partidos"]]
+    return t
+
+
 def situacao_tse(s: str) -> str:
     return {"ELEITO": "eleito", "ELEITO POR QP": "eleito por QP", "ELEITO POR MÉDIA": "eleito por média",
             "SUPLENTE": "suplente", "NÃO ELEITO": "não eleito"}.get((s or "").upper(), (s or "").lower())
@@ -704,6 +737,37 @@ def situacao_tse(s: str) -> str:
 
 def resumo_cota(con, tabela: str, id_: str, ano: int, cats: list[tuple[str, str]], nat: dict[str, str]) -> dict | None:
     linhas = con.execute(f"SELECT cat, forn, doc{', doc_bruto' if tabela == 'sen' else ''}, v, mes FROM {tabela} WHERE id = ? AND ano = ?", [id_, ano]).fetchall()
+    # (categoria curta, fornecedor, documento como a fonte traz, valor, mês)
+    return resumo_linhas([(categoria(l[0], cats), l[1], l[3] if tabela == "sen" else l[2], l[-2], l[-1]) for l in linhas], nat)
+
+
+# Palavras que só aparecem em nome de empresa. Um fornecedor com CNPJ, sem natureza jurídica no cache e sem nenhuma
+# delas, com até 5 palavras ("RACHEL SCHEIN"), é tratado como empresa de uma pessoa: entra somado, sem nome.
+MARCAS_DE_EMPRESA = re.compile(r"\b(LTDA|S\.?\s?A|S/A|ME|EPP|EIRELI|CIA|COMPANHIA|LIMITADA|SOCIEDADE|ASSOCIACAO|INSTITUTO|"
+                               r"FUNDACAO|COOPERATIVA|BANCO|CONDOMINIO|SINDICATO|IGREJA|PREFEITURA|MUNICIPIO|SECRETARIA|"
+                               r"SERVICOS?|TELECOM|PARTIDO|POSTO|HOTEL|COMERCIO|INDUSTRIA|EDITORA|JORNAL|RADIO|TV|GRAFICA|"
+                               r"COMUNICACAO|TECNOLOGIA|CONSULTORIA|ASSESSORIA|PUBLICIDADE|MARKETING|DISTRIBUIDORA|"
+                               r"LOCADORA|TRANSPORTES?|VIAGENS|TURISMO|EVENTOS|PRODUCOES|SOLUCOES|SISTEMAS|ADVOGADOS|"
+                               r"CONTABIL|ENGENHARIA|IMOVEIS|EMPREENDIMENTOS|PARTICIPACOES|HOLDING|GRUPO|BRASIL)\b")
+
+
+def uma_pessoa_pelo_nome(nome: str) -> bool:
+    """O nome diz que a empresa é de uma pessoa só: "35.596.258 FULANO DE TAL" (a razão social do MEI começa pela
+    raiz do CNPJ), EIRELI, sociedade individual ou unipessoal."""
+    n = sem_acento(nome or "").upper()
+    return bool(re.match(r"^\d{2}\.?\d{3}\.?\d{3}\s", n) or re.search(r"\b(EIRELI|SOCIEDADE INDIVIDUAL|UNIPESSOAL|MEI)\b", n))
+
+
+def parece_pessoa(nome: str) -> bool:
+    n = sem_acento(nome or "").upper()
+    if uma_pessoa_pelo_nome(n):
+        return True
+    return bool(n) and not MARCAS_DE_EMPRESA.search(n) and len(n.split()) <= 5 and not re.search(r"\d", n)
+
+
+def resumo_linhas(linhas: list[tuple], nat: dict[str, str]) -> dict | None:
+    """O resumo de um ano de cota ou verba. Cada linha: (categoria, fornecedor, documento, valor, mês). O documento é o
+    da fonte (CNPJ, CPF mascarado) ou "PF" (pessoa física já marcada na leitura, sem o CPF)."""
     if not linhas:
         return None
     por_cat: Counter[str] = Counter()
@@ -712,17 +776,19 @@ def resumo_cota(con, tabela: str, id_: str, ano: int, cats: list[tuple[str, str]
     nomes_emp: dict[str, Counter] = defaultdict(Counter)
     cat_emp: dict[str, Counter] = defaultdict(Counter)
     grupos = {"pessoa_empresa": [set(), 0.0], "pessoa": [0, 0.0], "outro": [0, 0.0]}
-    for linha in linhas:
-        cat, forn, doc = linha[0], linha[1], linha[2]
-        bruto = linha[3] if tabela == "sen" else doc
-        v, mes = linha[-2], linha[-1]
+    for c, forn, bruto, v, mes in linhas:
         if v is None:
             continue
-        c = categoria(cat, cats)
+        doc = re.sub(r"\D", "", bruto or "")
         por_cat[c] += v
         if mes and 1 <= mes <= 12:
             por_mes[mes - 1] += v
-        tipo_ = tipo_fornecedor(bruto, forn, nat)
+        if bruto == "PF":
+            tipo_ = "pessoa"
+        else:
+            tipo_ = tipo_fornecedor(bruto, forn, nat)
+            if tipo_ == "empresa" and (uma_pessoa_pelo_nome(forn) or (doc[:8] not in nat and parece_pessoa(forn))):
+                tipo_ = "pessoa_empresa"
         if tipo_ == "empresa":
             empresas[doc] = empresas.get(doc, 0.0) + v
             nomes_emp[doc][limpa_nome_empresa(forn)] += 1
@@ -772,9 +838,17 @@ def nomes_civis_camara() -> dict[str, str]:
 
 
 def periodo(p: dict) -> tuple[int, int] | None:
-    """(primeiro, último) mês com despesa na cota, como AAAAMM."""
-    meses = [int(a) * 100 + i + 1 for a, x in p["anos"].items() for i, v in enumerate((x.get("cota") or {}).get("mes", [])) if abs(v) > 0]
-    return (min(meses), max(meses)) if meses else None
+    """(primeiro, último) mês com despesa na cota (ou na verba da Assembleia), como AAAAMM. Para quem só tem a página
+    pelo TSE (o eleito estadual sem verba aberta), o mandato desde a posse até dois meses atrás: perde para quem tem
+    gasto no último mês publicado em outra Casa, e ganha de quem saiu antes."""
+    meses = [int(a) * 100 + i + 1 for a, x in p["anos"].items()
+             for i, v in enumerate((x.get("cota") or x.get("verba") or {}).get("mes", [])) if abs(v) > 0]
+    if meses:
+        return (min(meses), max(meses))
+    if p.get("casa") in ("assembleia", "governo"):
+        h = dt.date.today().replace(day=1) - dt.timedelta(days=32)
+        return (202301 if p["casa"] == "governo" else 202302, h.year * 100 + h.month)
+    return None
 
 
 MES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
@@ -809,13 +883,15 @@ def ligar_mesma_pessoa(politicos: list[dict], completos: dict[str, str]) -> None
         if any(m["feminino"] for m in membros):   # o gênero vem do TSE ou do Senado; a página antiga pode não ter
             for m in membros:
                 m["feminino"] = True
-                m["cargo"] = {"Deputado federal": "Deputada federal", "Senador": "Senadora"}.get(m["cargo"], m["cargo"])
+                m["cargo"] = {"Deputado federal": "Deputada federal", "Senador": "Senadora", "Deputado estadual": "Deputada estadual",
+                              "Deputado distrital": "Deputada distrital", "Governador": "Governadora"}.get(m["cargo"], m["cargo"])
         for m in membros:
             m["atual"] = m is atual
             if m is not atual:
                 # A página do cargo antigo fica com os anos desse cargo e sem as emendas, que são da pessoa e já
                 # estão na página atual (o autor é o mesmo nas duas).
-                m["anos"] = {a: {k: v for k, v in x.items() if k != "emendas"} for a, x in m["anos"].items() if x.get("cota")}
+                m["anos"] = {a: {k: v for k, v in x.items() if k != "emendas"} for a, x in m["anos"].items()
+                             if x.get("cota") or x.get("verba") or (m["casa"] in ("assembleia", "governo") and x.get("salario"))}
                 m["autor"] = None
             m["outros"] = [{"chave": o["chave"], "cargo": o["cargo"], "periodo": rotulo_periodo(periodo(o)), "atual": o is atual}
                            for o in membros if o is not m]
@@ -823,8 +899,9 @@ def ligar_mesma_pessoa(politicos: list[dict], completos: dict[str, str]) -> None
     print(f"mesma pessoa em duas Casas: {n} páginas de cargo antigo ligadas à atual", flush=True)
 
 
-def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
+def montar(con, tse_dados: dict, com_verba: bool, completa: bool, com_assembleias: bool = True) -> dict:
     sens = senadores()
+    tse_dados = {k: arruma_tse(v) for k, v in tse_dados.items()}
     # Nome, estado e partido mais recentes de cada deputado.
     deps = {id_: {"nome": n, "uf": uf, "partido": p} for id_, n, uf, p in con.execute("""
         SELECT id, arg_max(nome, ano * 100 + mes), arg_max(uf, ano * 100 + mes), arg_max(partido, ano * 100 + mes)
@@ -832,6 +909,10 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
     sen_ids = [r[0] for r in con.execute("SELECT DISTINCT id FROM sen").fetchall()]
 
     raizes = {d[:8] for (d,) in con.execute("SELECT DISTINCT doc FROM cam WHERE length(doc) = 14 UNION SELECT DISTINCT doc FROM sen WHERE length(doc) = 14").fetchall()}
+    # A verba das Assembleias (assembleias.py): os CNPJs entram na mesma busca de natureza jurídica.
+    from . import assembleias, politicos_estaduais
+    carregado = assembleias.carregar(baixar=com_assembleias)
+    raizes |= {l[7][:8] for l in carregado[0] if len(l[7]) == 14}
     nat = natureza_fornecedores(raizes, completa)
     verba = verba_gabinete(sorted(deps)) if com_verba else {}
     ass_cam = assessores_camara({i: d["nome"] for i, d in deps.items()})
@@ -894,8 +975,15 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
                 "anos": por_ano,
             })
 
+    # Governadores, deputados estaduais e distritais eleitos em 2022 (politicos_estaduais.py).
+    estaduais, extras = politicos_estaduais.montar(tse_dados, carregado, subsidio, resumo_linhas, nat)
+    politicos += estaduais
+
     completos = {f"camara-{i}": n for i, n in nomes_civis_camara().items()}
     completos.update({f"senado-{c}": s["completo"] for c, s in sens.items() if s.get("completo")})
+    completos.update({p["chave"]: p["tse"].get("completo") for p in estaduais if p["tse"].get("completo")})
+    # O nome completo dos eleitos estaduais fica no JSON (o TSE o publica): a carga mensal, sem o cache do TSE, liga
+    # as páginas da mesma pessoa a partir da cópia de referência.
     ligar_mesma_pessoa(politicos, completos)
 
     # Endereço: /politicos/<uf>/<nome>. Se o nome repete no estado, o cargo atual de quem passou pelas duas Casas
@@ -906,7 +994,7 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
     for p in politicos:
         s = slug(p["nome"])
         if usados[(p["uf"], s)] > 1 and not (p["atual"] and p["outros"] and limpos[(p["uf"], s)] == 1):
-            s = f"{s}-{'deputado' if p['casa'] == 'camara' else 'senador'}"
+            s = f"{s}-{SUFIXO_CASA[p['casa']]}"
         p["slug"] = s
     repetidos = Counter((p["uf"], p["slug"]) for p in politicos)
     for p in politicos:
@@ -929,7 +1017,7 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
     for ano in anos():
         grupos: dict[tuple, list] = defaultdict(list)
         for p in politicos:
-            c = p["anos"].get(str(ano), {}).get("cota")
+            c = p["anos"].get(str(ano), {}).get("cota") if p["casa"] in ("camara", "senado") else None
             if c and c["meses"] >= MESES_MINIMOS:
                 grupos[(p["casa"], p["uf"])].append((p, c["porMes"], c["total"]))
         for (casa, uf), lista in grupos.items():
@@ -952,7 +1040,11 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
             "senado": "Senado Federal: cota parlamentar (CEAPS), senadores e servidores (dados abertos)",
             "emendas": "Controladoria-Geral da União, Portal da Transparência: emendas parlamentares pagas",
             "tse": "Tribunal Superior Eleitoral: candidaturas, bens, receitas de campanha e votos (dados abertos)",
+            "assembleia": "Assembleia Legislativa: verba dos deputados, deputados e lotações (dados abertos)",
+            "subsidioEstadual": "Constituição, art. 27, §2º: o deputado estadual ganha até 75% do deputado federal",
+            "governador": "Leis estaduais do salário do governador (levantamento de 23/11/2026)",
         },
+        **extras,
         "politicos": politicos,
     }
 
@@ -962,6 +1054,7 @@ def main() -> None:
     p.add_argument("--sem-baixar", action="store_true", help="só copia a versão guardada em pipeline/referencia")
     p.add_argument("--tse", action="store_true", help="refaz a parte das eleições (TSE, uns 2 GB de download)")
     p.add_argument("--sem-verba", action="store_true", help="não lê a verba de gabinete da Câmara (513 páginas por ano)")
+    p.add_argument("--sem-assembleias", action="store_true", help="não baixa a verba das Assembleias (usa só o cache)")
     p.add_argument("--natureza", action="store_true", help="procura na Receita a natureza jurídica dos fornecedores novos (~1,3 GB)")
     args = p.parse_args()
 
@@ -987,7 +1080,7 @@ def main() -> None:
             anterior = json.loads(REFERENCIA.read_text(encoding="utf-8")) if REFERENCIA.exists() else {"politicos": []}
             tse_dados = {q["chave"]: q.get("tse") for q in anterior["politicos"] if q.get("tse")}
         con.execute("DROP TABLE IF EXISTS cam_cpf")
-    dados = montar(con, tse_dados, com_verba=not args.sem_verba, completa=args.natureza)
+    dados = montar(con, tse_dados, com_verba=not args.sem_verba, completa=args.natureza, com_assembleias=not args.sem_assembleias)
     texto = json.dumps(dados, ensure_ascii=False, separators=(",", ":"))
     for destino in (SAIDA, REFERENCIA):
         destino.parent.mkdir(parents=True, exist_ok=True)
