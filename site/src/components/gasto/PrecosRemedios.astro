@@ -1,0 +1,180 @@
+---
+/**
+ * O preço dos remédios: as compras em que a prefeitura (ou o governo do estado) pagou mais que o dobro do que outros
+ * compradores pagaram pelo mesmo remédio, em compras de quantidade parecida, e, no RS, os pregões de remédio com uma
+ * empresa só por item. Fonte: pipeline/…/precos.py; regras em docs/levantamento-preco-pago.md.
+ */
+import Termo from "../Termo.astro";
+import { moedaCurta } from "../../lib/formato";
+import { artigo, docPrecos, formaRemedio, mesAno, nomeRemedio, plural, precoUnit, precosDe, quantidade, vezes } from "../../lib/precos";
+
+interface Props {
+  ibge: number;
+  esfera?: "mun" | "uf";
+  /** "a prefeitura de Fortaleza", "o governo do Ceará" */
+  quem: string;
+  /** "do estado", para a frase sem dados */
+  uf?: string;
+}
+const { ibge, esfera = "mun", quem, uf } = Astro.props;
+const mun = esfera === "mun";
+const p = docPrecos ? precosDe(ibge, esfera) : null;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const pct0 = (v: number) => `${nf0.format(v * 100)}%`;
+const anos = docPrecos?.anos ?? [];
+const periodo = anos.length > 1 ? `${anos[0]} e ${anos.at(-1)}` : String(anos[0] ?? "");
+const Quem = quem.charAt(0).toUpperCase() + quem.slice(1);
+const noRS = mun && uf === "RS";
+const normais = p ? p.n - p.n_dobro : 0;
+const rs = p?.rs;
+/** Quantas compras mais caras aparecem (as de maior diferença em reais). */
+const MOSTRA = 6;
+---
+
+{docPrecos && (
+  <section class="precos">
+    <div class="texto">
+      <span class="sobretitulo">Quanto pagou</span>
+      <h2>O preço dos remédios</h2>
+      {p && p.n > 0 ? (
+        <p>
+          Em {periodo}, {quem} fez <strong>{nf0.format(p.n)} {p.n === 1 ? "compra" : "compras"}</strong> de {p.r} {p.r === 1 ? "remédio" : "remédios"} da
+          farmácia básica que dá para comparar com as de outros compradores: o mesmo remédio, na mesma dose, pago por {""}
+          comprimido, cápsula ou ampola, no mesmo ano.
+        </p>
+      ) : (
+        <p>
+          {mun
+            ? (noRS
+              ? `${Quem} não teve, em ${periodo}, compra homologada dos remédios comparados aqui.`
+              : `${Quem} não compra remédio pelo sistema federal de compras (Compras.gov.br), e por isso ainda não dá para comparar o preço que pagou.`)
+            : `Os órgãos do governo do estado não compraram os remédios comparados aqui pelo sistema federal de compras (Compras.gov.br) em ${periodo}.`}
+          {" "}A comparação ainda cobre só uma parte das cidades; as outras compram por plataformas privadas, e elas entram aos poucos.
+        </p>
+      )}
+      {p && p.n > 0 && p.n_dobro === 0 && (
+        <p>
+          {p.n === 1 ? "Nela, não pagou" : "Em nenhuma delas pagou"} mais que o dobro do que outros compradores pagaram em compras de quantidade parecida.
+          {p.baratas > 0 && <> Em {nf0.format(p.baratas)}, pagou a <Termo id="mediana">mediana</Termo> ou menos.</>}
+        </p>
+      )}
+      {p && p.n_dobro > 0 && (
+        <p>
+          Em <strong>{nf0.format(p.n_dobro)} {p.n_dobro === 1 ? "compra" : "compras"}</strong>, pagou mais que o dobro do que outros compradores pagaram
+          pelo mesmo remédio, em compras de quantidade parecida.
+          {normais > 0 && <> Nas outras {nf0.format(normais)}, pagou menos que o dobro{p.baratas > 0 && <>, e em {nf0.format(p.baratas)} pagou a <Termo id="mediana">mediana</Termo> ou menos</>}.</>}
+          {p.n_caras === 0 && <> Em nenhuma a diferença chegou a R$ 1.000.</>}
+        </p>
+      )}
+      <div class="nao-diz">
+        <h3>O que esta conta não diz</h3>
+        <p>
+          Preço maior não prova desperdício. Frete, quantidade, prazo de entrega, compra de emergência e marca exigida mudam o preço.
+          E num <Termo id="registro-de-preco">registro de preço</Termo> {mun ? "a prefeitura" : "o governo"} pode comprar menos do que registrou.
+          A conta mostra onde vale olhar a compra de perto.
+        </p>
+      </div>
+    </div>
+
+    <div class="lado">
+      {p && p.caras.length > 0 && (
+        <div class="lista">
+          <h3>Pagou mais caro que {mun ? "as outras cidades" : "os outros compradores"} em quais remédios</h3>
+          <ol>
+            {p.caras.slice(0, MOSTRA).map(([cod, , data, preco, ref, qtd, aMais, modalidade, comprador, fornecedor, link]) => {
+              const forma = formaRemedio(cod);
+              return (
+                <li>
+                  <div class="topo">
+                    <a class="nome" href={`/precos/${cod}`}>{nomeRemedio(cod)}</a>
+                    <strong class="num vezes">{vezes(preco / ref)}</strong>
+                  </div>
+                  <p>
+                    Pagou <strong>{precoUnit(preco)}</strong> {artigo(forma)}; compras parecidas saíram por {precoUnit(ref)}.
+                    {" "}{quantidade(qtd)} {plural(forma)}: <strong>{moedaCurta(aMais)} a mais</strong>, se comprar tudo.
+                  </p>
+                  {preco / ref >= 10 && <p class="erro">Uma diferença desse tamanho pode ser erro de digitação ou de unidade (o preço da caixa no lugar {forma === "comprimido" ? "do comprimido" : `da ${forma}`}). Confira na compra.</p>}
+                  <small>
+                    {mesAno(data)} · {modalidade} · {comprador}{fornecedor && <> · {fornecedor}</>}
+                    {link && <> · <a href={link} target="_blank" rel="noopener">ver a compra</a></>}
+                  </small>
+                </li>
+              );
+            })}
+          </ol>
+          {p.n_dobro > Math.min(MOSTRA, p.caras.length) && <p class="menor">E mais {nf0.format(p.n_dobro - Math.min(MOSTRA, p.caras.length))} {p.n_dobro - Math.min(MOSTRA, p.caras.length) === 1 ? "compra" : "compras"} acima do dobro, com diferença menor em reais.</p>}
+        </div>
+      )}
+
+      {rs && (
+        <div class="lista disputa">
+          <h3>Licitações de remédio com uma empresa só</h3>
+          {rs.informa ? (
+            <>
+              <p>
+                Em {rs.ano}, a prefeitura fez {rs.pregoes} {rs.pregoes === 1 ? "pregão" : "pregões"} de remédio, com {nf0.format(rs.itens)} itens.
+                {rs.um === 0
+                  ? " Todos os itens tiveram mais de uma empresa disputando."
+                  : <> Em <strong>{nf0.format(rs.um)} {rs.um === 1 ? "item" : "itens"} ({pct0(rs.um / rs.itens)})</strong>, só uma empresa fez proposta.</>}
+                {rs.n_so_um > 0 && <> {rs.n_so_um === 1 ? "Em um pregão" : `Em ${rs.n_so_um} pregões`}, todos os itens tiveram uma proposta só:</>}
+              </p>
+              {rs.so_um.length > 0 && (
+                <ol>
+                  {rs.so_um.map(([objeto, data, itens, valor, link]) => (
+                    <li>
+                      <div><span>{objeto}</span><small>{mesAno(data)} · {itens} {itens === 1 ? "item" : "itens"}{link && <> · <a href={link} target="_blank" rel="noopener">ver no TCE-RS</a></>}</small></div>
+                      {valor > 0 && <strong class="num">{moedaCurta(valor)}</strong>}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </>
+          ) : (
+            <p>
+              A prefeitura informa ao Tribunal de Contas só a proposta da empresa que ganhou, e não as das que perderam. Por isso não dá para saber
+              quantas empresas disputaram os {rs.pregoes} {rs.pregoes === 1 ? "pregão" : "pregões"} de remédio que ela fez em {rs.ano}.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+    <p class="fonte">
+      <a href="/precos"><strong>Ver o preço de cada remédio no país →</strong></a> · Fonte: Compras.gov.br (pesquisa de preço){noRS ? " e LicitaCon, do Tribunal de Contas do RS" : ""}.
+      "Compras parecidas" são as do mesmo remédio e ano, de quantidade parecida, em todo o país; a referência é a <Termo id="mediana">mediana</Termo> delas.
+    </p>
+  </section>
+)}
+
+<style>
+  .precos { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .nao-diz { margin-top: 6px; padding: 12px 14px; border-left: 3px solid var(--tinta); background: var(--papel-escuro); }
+  .nao-diz h3 { margin: 0 0 4px; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--tinta); }
+  .nao-diz p { font-size: 14px; line-height: 1.55; }
+  .lado { grid-column: span 6; display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  .lista h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  .lista ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .lista li { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .lista li .topo { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  .lista li .nome { font-weight: 600; }
+  .lista li .vezes { white-space: nowrap; background: var(--marca-texto); padding: 0 5px; }
+  .lista li p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--texto-2); }
+  .lista li p strong { color: var(--tinta); }
+  .lista li small { font-size: 13px; color: var(--texto-3); overflow-wrap: anywhere; }
+  .lista li p.erro { font-size: 13px; color: var(--texto-2); padding-left: 8px; border-left: 2px solid var(--marca-texto); }
+  .disputa li { flex-direction: row; justify-content: space-between; align-items: baseline; }
+  .disputa li div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .disputa li strong { white-space: nowrap; }
+  .disputa > p { margin: 0 0 8px; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
+  .disputa > p strong { color: var(--tinta); }
+  .menor { margin: 6px 0 0; font-size: 13px; color: var(--texto-3); }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .precos { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+  }
+</style>

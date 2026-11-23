@@ -1,0 +1,105 @@
+name: Preço dos remédios
+
+# Uma vez por mês, baixa as compras dos remédios da farmácia básica (`uv run precos`: a pesquisa de preço do Compras.gov.br,
+# uma consulta por remédio e ano, e o LicitaCon do TCE-RS, dois zips de ~280 MB lidos e guardados só durante a execução)
+# e abre um pull request em rascunho com as cópias de referência (pipeline/referencia/precos.json e precos-remedios.json),
+# para conferir os números antes de irem ao ar. A publicação diária só copia essas cópias (dados.sh, --sem-baixar).
+#
+# Quando roda: dia 5 de cada mês (as compras do mês anterior já foram homologadas e publicadas).
+on:
+  schedule:
+    - cron: "0 9 5 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: precos
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # o branch do pull request
+  pull-requests: write   # abrir o pull request
+
+env:
+  RAMO: dados/precos
+  # Só a main abre o pull request; em outro branch (teste), o resultado fica como artefato.
+  NA_MAIN: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+
+      # O LicitaCon liga a prefeitura ao código IBGE pelo nome: precisa da lista das cidades, que a publicação diária
+      # gera. Aqui ela vem do site no ar.
+      - name: Lista das cidades
+        run: |
+          mkdir -p site/public/data/cidades
+          curl -fsSL -o site/public/data/cidades/municipios.json https://orcamentobrasileiro.com.br/data/cidades/municipios.json
+
+      - name: Baixar e comparar
+        run: uv run --project pipeline precos 2>&1 | tee "$RUNNER_TEMP/saida.log"
+
+      - name: Ver se as cópias de referência mudaram
+        id: mudou
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, subprocess
+          mudou = False
+          for arq in ("pipeline/referencia/precos.json", "pipeline/referencia/precos-remedios.json"):
+              novo = json.load(open(arq, encoding="utf-8"))
+              velho = subprocess.run(["git", "show", f"HEAD:{arq}"], capture_output=True, text=True).stdout
+              velho = json.loads(velho) if velho else {}
+              for d in (novo, velho):
+                  d.pop("gerado", None)   # a data de geração muda sempre
+              mudou = mudou or novo != velho
+          print(f"mudou={'sim' if mudou else 'nao'}")
+          PY
+          cat "$GITHUB_OUTPUT"
+
+      - name: Artefato do teste
+        if: always() && env.NA_MAIN != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: precos
+          path: |
+            pipeline/referencia/precos.json
+            pipeline/referencia/precos-remedios.json
+            ${{ runner.temp }}/saida.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Um branch fixo, refeito a partir da main a cada mês: se o pull request do mês anterior não entrou, o deste mês o
+      # substitui. Precisa de "Allow GitHub Actions to create and approve pull requests" (Settings → Actions → General).
+      - name: Pull request com as cópias de referência
+        if: steps.mudou.outputs.mudou == 'sim' && env.NA_MAIN == 'true'
+        run: |
+          HOJE=$(date +%d/%m/%Y)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$RAMO"
+          git add pipeline/referencia/precos.json pipeline/referencia/precos-remedios.json
+          git commit -q -m "Preço dos remédios: compras até $HOJE"
+          git push -f origin "$RAMO"
+          {
+            echo "Atualização mensal automática (workflow \`precos.yml\`) da página /precos e da seção \"O preço dos remédios\" das cidades e estados, com as compras até **$HOJE**."
+            echo
+            echo "Confira os números antes de marcar como pronto e fazer o merge. Resumo da execução:"
+            echo
+            echo '```'
+            grep -vE "^\s*$" "$RUNNER_TEMP/saida.log" | tail -15 || true
+            echo '```'
+            echo
+            echo "Execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$RUNNER_TEMP/corpo.md"
+          if [ "$(gh pr view "$RAMO" --json state -q .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit "$RAMO" --body-file "$RUNNER_TEMP/corpo.md"
+          elif ! gh pr create --draft --base "${{ github.event.repository.default_branch }}" --head "$RAMO" \
+                 --title "Preço dos remédios: compras até $HOJE" --body-file "$RUNNER_TEMP/corpo.md"; then
+            echo "::warning::O Actions não pôde abrir o pull request. Abra à mão: ${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.repository.default_branch }}...$RAMO?expand=1"
+          fi

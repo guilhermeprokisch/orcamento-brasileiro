@@ -177,7 +177,7 @@ estatístico, não julgar onde o número é ruído).
 2. **Mesma unidade.** Preço por comprimido, cápsula ou ampola; frasco só com o mesmo volume. Fica
    de fora a unidade que não é a do item ("CX", "ENV", "BLISTER", "KIT", "SEMAN"), e a unidade
    vazia.
-3. **Mesmo período.** Compras do mesmo ano, pela data do resultado. Remédio muda pouco de preço em
+3. **Mesmo período.** Compras do mesmo ano, pela data da compra (no RS, a da homologação). Remédio muda pouco de preço em
    um ano, mas a comparação nunca mistura 2025 com 2026.
 4. **Mediana e faixa, não média.** A referência de cada item é a mediana nacional do ano. A faixa
    vai do primeiro ao terceiro quarto das compras. Uma compra só aparece como "mais cara" se
@@ -249,3 +249,18 @@ texto conferido à mão e de um workflow como o dos contratos.
 - A página nacional **/precos**, com a lista dos remédios, a mediana de cada um e, ao clicar,
   todas as compras do ano, da mais cara à mais barata, com filtro por estado.
 - O texto "O que esta conta não diz", na seção e na página nacional.
+
+## O que entrou na fase 1 (23/11/2026)
+
+- `uv run precos` (pipeline/src/orcamento_pipeline/precos.py): 45 remédios, 2025 e 2026. Compras.gov.br para todo o
+  país, menos as prefeituras do RS, que vêm do LicitaCon (casadas pela descrição; testes em
+  pipeline/tests/test_precos.py). Na primeira carga: 45 remédios com mediana, 26,6 mil compras comparadas, 471 cidades e
+  21 estados com compra, 517 compras de prefeitura acima do dobro das parecidas com pelo menos R$ 1.000 a mais.
+- O casamento pela descrição bate com o Compras.gov.br: nas prefeituras do RS, a razão típica de cada remédio fica entre
+  0,75 e 1,0 da mediana nacional (o RS compra um pouco mais barato).
+- Entre 10 e 30 vezes a mediana, a compra aparece com o aviso "pode ser erro de unidade". O caso que levou a isso:
+  Campinas registrou em 30/09/2025 losartana a R$ 0,86 o comprimido (1,05 milhão), enquanto o hospital municipal Mário
+  Gatti, na mesma cidade, pagou R$ 0,032. Pelos dados não dá para saber se é o preço da caixa.
+- O workflow precos.yml roda todo dia 5 e abre um pull request com as cópias de referência; a publicação diária só copia
+  (`--sem-baixar`).
+- Fica para a fase 2: os itens do PNCP (as outras ~5 mil cidades), e o número de empresas fora do RS.

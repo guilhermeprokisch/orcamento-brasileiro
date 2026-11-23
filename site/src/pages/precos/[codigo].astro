@@ -1,0 +1,180 @@
+---
+/**
+ * Um remédio: a mediana do ano, a faixa, as medianas por tamanho de compra e por região e todas as compras, da mais
+ * cara à mais barata (relativamente às compras de quantidade parecida). Dados de pipeline/…/precos.py.
+ */
+import Base from "../../layouts/Base.astro";
+import Termo from "../../components/Termo.astro";
+import { caminhoCidade, docCidades, NOMES_UF } from "../../lib/cidades";
+import { artigo, dataCurta, docNacional, docPrecos, plural, precoUnit, quantidade, vezes, type Remedio } from "../../lib/precos";
+
+export function getStaticPaths() {
+  return (docNacional?.remedios ?? []).map((r) => ({ params: { codigo: String(r.codigo) }, props: { r } }));
+}
+interface Props { r: Remedio }
+const { r } = Astro.props;
+
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const anos = Object.keys(r.anos).sort().reverse();
+const limite = docPrecos?.regras.mais_cara ?? 2;
+const cidadePorIbge = new Map((docCidades?.cidades ?? []).map((c) => [c.ibge, c]));
+const ESFERA: Record<string, string> = { M: "Prefeitura", E: "Estado", F: "Federal", D: "Distrito Federal" };
+const ufs = [...new Set(anos.flatMap((a) => r.anos[a].compras.map((x) => x[1])))].filter(Boolean).sort();
+const a0 = r.anos[anos[0]];
+const descricao = `${r.nome}: quanto prefeituras, estados e órgãos federais pagaram ${artigo(r.forma)} em ${anos.join(" e ")}. Mediana de ${precoUnit(a0.mediana)}.`;
+const rotuloGrupo = (i: number, g: [number | null, number][]) =>
+  i === 0 ? `até ${quantidade(g[0][0] ?? 0)}` : i === 1 ? `de ${quantidade(g[0][0] ?? 0)} a ${quantidade(g[1][0] ?? 0)}` : `mais de ${quantidade(g[1][0] ?? 0)}`;
+---
+
+<Base title={`${r.nome}: o preço pago · Orçamento Brasileiro`} description={descricao}>
+  <div class="wrap pagina-remedio">
+    <nav aria-label="Caminho" class="caminho"><a href="/precos">O preço dos remédios</a><span aria-hidden="true">/</span><span>{r.nome}</span></nav>
+    <section class="cabeca">
+      <div>
+        <span class="sobretitulo">Preço por {r.forma} · código {r.codigo} no <Termo id="catmat">catálogo federal</Termo></span>
+        <h1>{r.nome}</h1>
+        <p>
+          Em {anos[0]}, {nf0.format(a0.n)} compras de {nf0.format(a0.compradores)} compradores. Metade pagou até <strong>{precoUnit(a0.mediana)}</strong> {artigo(r.forma)};
+          a maioria ficou entre {precoUnit(a0.faixa[0])} e {precoUnit(a0.faixa[1])}.
+        </p>
+      </div>
+    </section>
+
+    {anos.map((ano) => {
+      const a = r.anos[ano];
+      const caras = a.compras.filter((x) => x[7] >= limite).length;
+      return (
+        <section class="ano" data-ano={ano}>
+          <h2>{ano}</h2>
+          <div class="resumo">
+            <div class="numeros">
+              <div><span>Mediana</span><strong>{precoUnit(a.mediana)}</strong><small>{artigo(r.forma)}</small></div>
+              <div><span>Faixa</span><strong>{precoUnit(a.faixa[0])} a {precoUnit(a.faixa[1])}</strong><small>do 1º ao 3º quarto das compras</small></div>
+              <div><span>Compras</span><strong>{nf0.format(a.n)}</strong><small>{caras} acima do dobro das parecidas</small></div>
+            </div>
+            <div class="grupos">
+              <div>
+                <h3>Por tamanho da compra</h3>
+                <ul>{a.grupos.map(([, m], i) => <li><span>{rotuloGrupo(i, a.grupos)} {plural(r.forma)}</span><strong class="num">{precoUnit(m)}</strong></li>)}</ul>
+              </div>
+              <div>
+                <h3>Por região</h3>
+                <ul>{Object.entries(a.regioes).map(([reg, [n, m]]) => <li><span>{reg} <small>({n})</small></span><strong class="num">{precoUnit(m)}</strong></li>)}</ul>
+              </div>
+            </div>
+            {a.fora > 0 && <p class="menor">{a.fora === 1 ? "Uma compra ficou" : `${a.fora} compras ficaram`} de fora por ter preço mais de 30 vezes acima ou abaixo da mediana, quase sempre o preço da caixa no lugar {r.forma === "comprimido" ? "do comprimido" : `da ${r.forma}`}.</p>}
+          </div>
+
+          <div class="filtro">
+            <label>Estado
+              <select data-filtro-uf>
+                <option value="">Todos</option>
+                {ufs.map((u) => <option value={u}>{NOMES_UF[u] ?? u}</option>)}
+              </select>
+            </label>
+            <label>Quem comprou
+              <select data-filtro-esfera>
+                <option value="">Todos</option>
+                <option value="M">Prefeituras</option>
+                <option value="E">Estados</option>
+                <option value="F">Órgãos federais</option>
+              </select>
+            </label>
+          </div>
+          <div class="tabela-rolagem">
+            <table>
+              <thead><tr><th>Comprador</th><th>Data</th><th class="num">Preço</th><th class="num">Quantidade</th><th class="num" title="Quantas vezes a mediana das compras de quantidade parecida">Vezes a mediana</th></tr></thead>
+              <tbody>
+                {a.compras.map(([comprador, uf, esfera, ibge, data, preco, qtd, razao, modalidade, link]) => {
+                  const c = ibge ? cidadePorIbge.get(ibge) : null;
+                  return (
+                    <tr data-uf={uf} data-esfera={esfera} class={razao >= limite ? "cara" : undefined}>
+                      <td>
+                        {link ? <a href={link} target="_blank" rel="noopener">{comprador}</a> : comprador}
+                        <small>{ESFERA[esfera] ?? esfera}{c ? <> · <a href={`${caminhoCidade(c)}#precos`}>{c.nome} ({c.uf})</a></> : uf && <> · {uf}</>} · {modalidade}</small>
+                      </td>
+                      <td>{dataCurta(data)}</td>
+                      <td class="num">{precoUnit(preco)}</td>
+                      <td class="num">{quantidade(qtd)}</td>
+                      <td class="num"><span class="vezes">{vezes(razao)}</span>{razao >= 10 && <small>pode ser erro de unidade</small>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      );
+    })}
+
+    <section class="nao-diz">
+      <h2>O que esta conta não diz</h2>
+      <p>
+        Um preço maior não prova desperdício. Frete e distância, quantidade, prazo de entrega, compra de emergência por <Termo id="dispensa">dispensa</Termo> e
+        marca ou embalagem exigida mudam o preço. Num <Termo id="registro-de-preco">registro de preço</Termo>, o preço é o máximo e a quantidade é a que pode ser
+        comprada: o comprador pode comprar menos. "Vezes a mediana" compara cada compra com as do mesmo ano e de quantidade parecida. <a href="/precos">Como a conta é feita →</a>
+      </p>
+    </section>
+  </div>
+</Base>
+
+<script>
+  // Filtro por estado e por tipo de comprador nas tabelas de compras (sem ilha: só esconde linhas).
+  for (const sec of document.querySelectorAll<HTMLElement>(".ano")) {
+    const uf = sec.querySelector<HTMLSelectElement>("[data-filtro-uf]");
+    const esf = sec.querySelector<HTMLSelectElement>("[data-filtro-esfera]");
+    const linhas = [...sec.querySelectorAll<HTMLTableRowElement>("tbody tr")];
+    const filtrar = () => {
+      for (const tr of linhas) tr.hidden = !!(uf?.value && tr.dataset.uf !== uf.value) || !!(esf?.value && tr.dataset.esfera !== esf.value);
+    };
+    uf?.addEventListener("change", filtrar);
+    esf?.addEventListener("change", filtrar);
+  }
+</script>
+
+<style>
+  .caminho { display: flex; gap: 8px; padding-top: 20px; font-size: 14px; color: var(--texto-3); }
+  .cabeca { padding: 24px 0 24px; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 880px; }
+  .cabeca h1 { font-size: 60px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .cabeca p strong { color: var(--tinta); }
+  .ano { border-top: 2px solid var(--tinta); padding: 24px 0 16px; display: flex; flex-direction: column; gap: 16px; }
+  .ano h2 { margin: 0; font-size: 34px; }
+  .numeros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--regra); }
+  .numeros div { padding: 8px 16px 14px 0; display: flex; flex-direction: column; gap: 2px; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 28px; font-weight: 700; }
+  .numeros small { font-size: 14px; color: var(--texto-3); }
+  .resumo { display: flex; flex-direction: column; gap: 16px; }
+  .grupos { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grupos h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  .grupos ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .grupos li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .grupos small { color: var(--texto-3); }
+  .menor { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .filtro { display: flex; flex-wrap: wrap; gap: 16px; font-size: 14px; color: var(--texto-2); }
+  .filtro label { display: flex; flex-direction: column; gap: 4px; }
+  .filtro select { font: inherit; padding: 6px 8px; border: 1px solid var(--tinta); background: var(--papel); }
+  .tabela-rolagem { overflow-x: auto; max-height: 720px; overflow-y: auto; border-bottom: 1px solid var(--regra); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { position: sticky; top: 0; background: var(--papel); text-align: left; font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--texto-3); padding: 8px 10px 8px 0; border-bottom: 2px solid var(--tinta); }
+  td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--regra); vertical-align: top; }
+  td small { display: block; font-size: 13px; color: var(--texto-3); }
+  .num { text-align: right; white-space: nowrap; }
+  tr.cara .vezes { background: var(--marca-texto); padding: 0 5px; font-weight: 600; }
+  .nao-diz { margin: 24px 0 8px; padding: 16px 18px; border-left: 3px solid var(--tinta); background: var(--papel-escuro); max-width: 880px; }
+  .nao-diz h2 { margin: 0 0 6px; font-size: 24px; }
+  .nao-diz p { margin: 0; font-size: 16px; line-height: 1.55; color: var(--texto-2); }
+
+  @media (max-width: 900px) {
+    .cabeca h1 { font-size: 40px; }
+    .cabeca p { font-size: 18px; }
+    .numeros { grid-template-columns: 1fr; }
+    .numeros div { border-bottom: 1px solid var(--regra-leve, var(--regra)); }
+    .grupos { grid-template-columns: 1fr; }
+    table { font-size: 14px; }
+    th:nth-child(2), td:nth-child(2), th:nth-child(4), td:nth-child(4) { display: none; }
+    td:first-child { min-width: 0; overflow-wrap: break-word; }
+  }
+</style>

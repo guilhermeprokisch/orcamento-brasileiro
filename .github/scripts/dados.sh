@@ -131,6 +131,9 @@ fila_independente() {
   # Prefeituras da Paraíba (quem ganha mais que o prefeito, pela folha do TCE-PB): o supersalarios-municipios.yml baixa
   # todo dia 23 e abre um pull request com a cópia de referência; aqui só essa cópia.
   pipe pode-falhar "Acima do teto: prefeituras da Paraíba" supersalarios-municipios --sem-baixar
+  # O preço dos remédios (Compras.gov.br e LicitaCon do TCE-RS): o precos.yml baixa todo dia 5 e abre um pull request
+  # com as cópias de referência; aqui só essas cópias.
+  pipe pode-falhar "Preço dos remédios" precos --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).
