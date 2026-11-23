@@ -20,7 +20,7 @@ Atualizado em 23/11/2026.
 | 4 | Bolsa Família e BPC de outros anos | Depende de download manual (o Portal pede captcha); hoje só 2025 |
 | 5 | Gasto do estado em cada cidade | Feito para Paraíba, Minas Gerais, Paraná e Santa Catarina. Demais estados: ver o item H |
 | 6 | ICMS medido por cidade (hoje estimado pela cota-parte × 4) | Nenhum estado pesquisado publica em formato aberto e atualizado. Pedidos de LAI enviados a SP e MG em 19/11/2026 ([pedidos-lai/icms-por-municipio.md](pedidos-lai/icms-por-municipio.md)); resposta até 09/12/2026 |
-| 7 | Obras paradas com dinheiro federal (bloco 3) | Começou em 23/11/2026: levantamento das fontes (Obrasgov, painel do TCU, FNDE, Transferegov) e proposta antes de construir |
+| 7 | Obras paradas com dinheiro federal (bloco 3) | Pronto para revisão (#139): página `/obras-paradas` e seção nas cidades e nos estados, pela lista do TCU ([levantamento-obras-paradas.md](levantamento-obras-paradas.md)) |
 | 8 | Preço pago comparado (bloco 3) | Começou em 23/11/2026: levantamento (Banco de Preços em Saúde, itens do PNCP, Painel de Preços) e proposta antes de construir |
 | 9 | Acima do teto: Executivo do Ceará e das prefeituras | CE, AL e PI rodam numa máquina de casa (#134), primeira carga automática em 24/11/2026. Pedido de LAI à AGU sobre os honorários ([pedidos-lai/honorarios-agu-teto.md](pedidos-lai/honorarios-agu-teto.md)); resposta até 14/12/2026 |
 | 10 | Espelho dos dados na Cloudflare | No ar por dados.orcamentobrasileiro.com.br (#97). Falta o `CF_ZONE_ID` e trocar o token, para limpar o cache a cada publicação |
@@ -80,7 +80,7 @@ Atualizado em 23/11/2026.
 ## Os próximos blocos
 
 Combinado em 21/11/2026. Situação em 23/11/2026: os blocos 1 e 2 e a previdência do bloco 3
-estão no ar; o preço pago e as obras paradas começaram; o bloco 4 está num protótipo local.
+estão no ar; o preço pago começou e as obras paradas estão em revisão (#139); o bloco 4 está num protótipo local.
 
 O site já responde quanto entra, de onde vem, para onde vai e quem
 recebeu. O que falta é o que explica por que o gasto é assim e o que daria para mudar. Quatro
