@@ -158,6 +158,16 @@ def limpa_nome_empresa(s: str) -> str:
     return " ".join(s.split()).strip(" -.,")
 
 
+def em_ordem(contagem: Counter | dict) -> list[tuple[str, float]]:
+    """Do maior para o menor valor e, no empate, pela chave: a mesma ordem a cada carga (o most_common desempata pela
+    ordem em que as linhas chegaram, que muda de uma carga para outra)."""
+    return sorted(contagem.items(), key=lambda kv: (-kv[1], str(kv[0])))
+
+
+def mais_comum(contagem: Counter) -> str:
+    return em_ordem(contagem)[0][0]
+
+
 def categoria(texto: str, tabela: list[tuple[str, str]]) -> str:
     t = sem_acento(texto or "").lower().strip()
     for chave, nome in tabela:
@@ -465,15 +475,15 @@ def emendas(con: duckdb.DuckDBPyConnection) -> dict[str, dict[int, dict]]:
                              "onde": [], "area": []}
     for autor, ano, mun, uf, ibge, v in con.execute(f"""
             SELECT autor, ano, municipio, uf, ibge, v FROM (
-              SELECT autor, ano, any_value(municipio) AS municipio, any_value(uf) AS uf, nullif(ibge, '') AS ibge,
-                     sum(valor) AS v, row_number() OVER (PARTITION BY autor, ano ORDER BY sum(valor) DESC) AS n
+              SELECT autor, ano, min(municipio) AS municipio, min(uf) AS uf, nullif(ibge, '') AS ibge,
+                     sum(valor) AS v, row_number() OVER (PARTITION BY autor, ano ORDER BY sum(valor) DESC, min(municipio), min(uf)) AS n
               FROM em GROUP BY autor, ano, coalesce(nullif(ibge, ''), municipio || uf), nullif(ibge, ''))
-            WHERE n <= {MAX_LUGARES} ORDER BY autor, ano, v DESC""").fetchall():
+            WHERE n <= {MAX_LUGARES} ORDER BY autor, ano, n""").fetchall():
         saida[autor][ano]["onde"].append([mun or "Sem lugar", uf or "", ibge, round(v)])
     for autor, ano, area, v in con.execute(f"""
             SELECT autor, ano, area, v FROM (
-              SELECT autor, ano, area, sum(valor) AS v, row_number() OVER (PARTITION BY autor, ano ORDER BY sum(valor) DESC) AS n
-              FROM em GROUP BY autor, ano, area) WHERE n <= {MAX_AREAS} ORDER BY autor, ano, v DESC""").fetchall():
+              SELECT autor, ano, area, sum(valor) AS v, row_number() OVER (PARTITION BY autor, ano ORDER BY sum(valor) DESC, area) AS n
+              FROM em GROUP BY autor, ano, area) WHERE n <= {MAX_AREAS} ORDER BY autor, ano, n""").fetchall():
         saida[autor][ano]["area"].append([area, round(v)])
     print(f"emendas: {len(saida):,} autores individuais desde {PRIMEIRO_ANO}", flush=True)
     return saida
@@ -600,9 +610,9 @@ def tse(con: duckdb.DuckDBPyConnection, sens: dict[str, dict]) -> dict[str, dict
         saida[chave] = {
             "eleicao": eleicao, "cargo": k[0].title().replace("º Suplente", "º suplente"), "uf": k[1], "partido": k[2],
             "genero": k[3], "situacao": situacao_tse(k[4]), "urna": nome_proprio(k[5]), "votos": votos.get(sq),
-            "bens": {"total": round(b["total"]), "tipos": [[t, round(v)] for t, v in b["tipos"].most_common(5)]} if b else None,
-            "receitas": {"total": round(r["total"]), "origens": [[o, round(v)] for o, v in r["origens"].most_common()],
-                         "partidos": [[p, round(v)] for p, v in r["partidos"].most_common(3)],
+            "bens": {"total": round(b["total"]), "tipos": [[t, round(v)] for t, v in em_ordem(b["tipos"])[:5]]} if b else None,
+            "receitas": {"total": round(r["total"]), "origens": [[o, round(v)] for o, v in em_ordem(r["origens"])],
+                         "partidos": [[p, round(v)] for p, v in em_ordem(r["partidos"])[:3]],
                          "pf": [r["pf"][0], round(r["pf"][1])]} if r else None,
         }
     shutil.rmtree(tmp, ignore_errors=True)
@@ -682,13 +692,13 @@ def resumo_cota(con, tabela: str, id_: str, ano: int, cats: list[tuple[str, str]
             grupos[tipo_][1] += v
     total = sum(por_cat.values())
     meses = sum(1 for x in por_mes if abs(x) > 0.005)
-    maiores = sorted(empresas.items(), key=lambda kv: -kv[1])[:MAX_FORNECEDORES]
+    maiores = em_ordem(empresas)[:MAX_FORNECEDORES]
     return {
         "total": round(total), "meses": meses, "porMes": round(total / meses) if meses else 0,
-        "categorias": [[c, round(v)] for c, v in por_cat.most_common() if round(v)],
+        "categorias": [[c, round(v)] for c, v in em_ordem(por_cat) if round(v)],
         "mes": [round(x) for x in por_mes],
-        "fornecedores": [[nome_proprio(nomes_emp[d].most_common(1)[0][0]), formata_cnpj(d),
-                          cat_emp[d].most_common(1)[0][0], round(v)] for d, v in maiores],
+        "fornecedores": [[nome_proprio(mais_comum(nomes_emp[d])), formata_cnpj(d),
+                          mais_comum(cat_emp[d]), round(v)] for d, v in maiores],
         "pessoaEmpresa": [len(grupos["pessoa_empresa"][0]), round(grupos["pessoa_empresa"][1])],
         "pessoas": [grupos["pessoa"][0], round(grupos["pessoa"][1])],
         "semDocumento": round(grupos["outro"][1]),
@@ -735,7 +745,7 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
                 cargo = "Deputada federal" if feminino else "Deputado federal"
             else:
                 s = sens.get(id_) or {}
-                nome_cota = con.execute("SELECT any_value(nome) FROM sen WHERE id = ?", [id_]).fetchone()[0]
+                nome_cota = con.execute("SELECT min(nome) FROM sen WHERE id = ?", [id_]).fetchone()[0]
                 nome = s.get("nome") or nome_proprio(nome_cota)
                 uf, partido, foto = s.get("uf") or (t or {}).get("uf"), s.get("partido"), s.get("foto")
                 feminino = s.get("sexo") == "Feminino"
@@ -745,7 +755,7 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
                 continue
             # O autor nas emendas: pelo nome parlamentar, pelo nome de urna e, no Senado, pelo nome que a cota usa.
             autor = None
-            for candidato in (nome, (t or {}).get("urna"), nome_proprio(con.execute(f"SELECT any_value(nome) FROM {'cam' if casa == 'camara' else 'sen'} WHERE id = ?", [id_]).fetchone()[0])):
+            for candidato in (nome, (t or {}).get("urna"), nome_proprio(con.execute(f"SELECT min(nome) FROM {'cam' if casa == 'camara' else 'sen'} WHERE id = ?", [id_]).fetchone()[0])):
                 if candidato and slug(candidato) in autores_por_slug:
                     autor = autores_por_slug[slug(candidato)]
                     break
@@ -803,7 +813,7 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
                 c = p["anos"][str(ano)]["cota"]
                 c["comparacao"] = {"mediana": round(mediana), "n": len(lista), "colegas": valores if casa == "camara" else None}
                 if casa == "senado":
-                    c["comparacao"]["pares"] = sorted(([q["nome"], q["slug"], t_] for q, _, t_ in lista), key=lambda x: -x[2])
+                    c["comparacao"]["pares"] = sorted(([q["nome"], q["slug"], t_] for q, _, t_ in lista), key=lambda x: (-x[2], sem_acento(x[0]).lower()))
     politicos.sort(key=lambda p: (p["uf"], sem_acento(p["nome"]).lower()))
     return {
         "gerado": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
