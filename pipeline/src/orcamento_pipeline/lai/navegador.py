@@ -30,6 +30,14 @@ def abrir(visivel: bool = True):
             ctx.close()
 
 
+def assentar(pagina, segundos: float = 10) -> None:
+    """Espera a página parar de carregar, mas sem travar: muitos sites nunca param (estatísticas, chat, polling)."""
+    try:
+        pagina.wait_for_load_state("networkidle", timeout=segundos * 1000)
+    except Exception:   # noqa: BLE001 — o tempo acabou: segue com o que já carregou
+        pass
+
+
 def esperar_pessoa(motivo: str) -> None:
     """Para e espera a pessoa fazer algo no navegador (login, CAPTCHA). O script nunca resolve nem contorna isso."""
     if ENSAIO:

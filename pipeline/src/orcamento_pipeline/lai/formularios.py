@@ -157,7 +157,7 @@ def _alerr(p, pedido: Pedido, s: Pessoa) -> None:
     """JSF: cada <select> recarrega parte do formulário por ajax e pode apagar o que já foi escrito. Escolhe um por
     vez, espera a recarga, escreve o texto por último e confere tudo no fim."""
     def esperar():
-        p.wait_for_load_state("networkidle")
+        navegador.assentar(p, 5)
         p.wait_for_timeout(1500)
 
     for _ in range(3):
@@ -223,7 +223,7 @@ def _tce_pr(p, pedido: Pedido, s: Pessoa) -> None:
         return
     esperar_pessoa("Confira a identificação no TCE-PR. O script vai clicar em 'Próximo' e preencher a descrição.")
     p.locator('[name="btnValidarIdentificacao"], #btnValidarIdentificacao').first.click()
-    p.wait_for_load_state("networkidle")
+    navegador.assentar(p)
     assunto = p.get_by_label(re.compile("assunto", re.I))
     if assunto.count():
         assunto.first.fill(pedido.assunto)
@@ -242,22 +242,23 @@ FORMULARIOS: dict[str, Formulario] = {f.orgao: f for f in [
     Formulario("TCE-SE", "Tribunal de Contas do Estado de Sergipe", "https://www.tce.se.gov.br/SitePages/esic.aspx",
                _tce_se, _clicar('[name$="btnEnviarEmail"]'),
                DADOS_BASE + ["nascimento", "telefone", "logradouro", "numero", "bairro", "cep", "municipio", "uf"],
-               obs="O protocolo chega por e-mail."),
+               obs="O protocolo chega por e-mail.", pronto='[name$="tbxNome"]'),
     Formulario("ALMG", "Assembleia Legislativa de Minas Gerais", "https://www.almg.gov.br/apps/fale-com/assembleia",
                _almg, lambda p: p.get_by_role("button", name=re.compile(r"^\s*Enviar\s*$")).click(),
-               DADOS_BASE + ["uf", "municipio"]),
+               DADOS_BASE + ["uf", "municipio"], pronto='[name="nomeCompleto"]'),
     Formulario("ALERJ", "Assembleia Legislativa do Estado do Rio de Janeiro",
                "http://www2.alerj.rj.gov.br/leideacesso/formulario-2016.asp",
-               _alerj, _clicar('input[type="submit"]'), DADOS_BASE + ["nascimento"], captcha=True),
+               _alerj, _clicar('input[type="submit"]'), DADOS_BASE + ["nascimento"], captcha=True, pronto='[name="nome"]'),
     Formulario("ALERR", "Assembleia Legislativa do Estado de Roraima",
                "http://grp.al.rr.leg.br/grp/acessoexterno/programaAcessoExterno.faces?codigo=68000",
                _alerr, _clicar('input[type="submit"][value="Salvar"]'), DADOS_BASE,
                obs="Depois de salvar, o sistema pergunta se quer o comprovante.", pronto='[id="form:sintese:fieldTextarea"]'),
     Formulario("TCE-RS", "Tribunal de Contas do Estado do Rio Grande do Sul", "https://portal.tce.rs.gov.br/aplicprod/f?p=20000:91",
                _tce_rs, _clicar('#CRIAR, [name="CRIAR"]'), DADOS_BASE + ["rg", "rg_uf", "documento"], captcha=True,
-               obs="Pede a cópia do documento de identidade. A solicitação é pública no site do TCE-RS."),
+               obs="Pede a cópia do documento de identidade. A solicitação é pública no site do TCE-RS.", pronto='[name="P91_NOME"]'),
     Formulario("TCE-PR", "Tribunal de Contas do Estado do Paraná",
                "https://servicos.tce.pr.gov.br/TCEPR/Tribunal/Ouvidoria/Atendimentos/Atendimento/PedidoAcessoInformacao",
                _tce_pr, None, DADOS_BASE + ["rg", "rg_orgao", "cep", "uf", "municipio", "logradouro", "numero", "bairro"],
-               obs="Formulário em 3 etapas: o script preenche a 1ª e o que reconhecer da 2ª; você confere e conclui."),
+               obs="Formulário em 3 etapas: o script preenche a 1ª e o que reconhecer da 2ª; você confere e conclui.",
+               pronto='[name="NmCidadao"]'),
 ]}

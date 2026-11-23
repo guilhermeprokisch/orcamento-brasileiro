@@ -64,7 +64,7 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
         print(f"  {f.obs}")
     with navegador.abrir(visivel=janela) as p:
         p.goto(f.url, wait_until="domcontentloaded")
-        p.wait_for_load_state("networkidle")
+        navegador.assentar(p)
         if f.pronto:
             p.wait_for_selector(f.pronto, state="visible")
         if f.login:
@@ -85,7 +85,7 @@ def enviar(orgao: str, arquivo: Path, ensaio: bool, ficticia: bool, janela: bool
                 print("Não enviado.")
                 return
             f.enviar(p)
-            p.wait_for_load_state("networkidle")
+            navegador.assentar(p)
             p.wait_for_timeout(2000)
         p.screenshot(path=f"{base}-enviado.png", full_page=True)
         protocolo = achar_protocolo(p.locator("body").inner_text())
