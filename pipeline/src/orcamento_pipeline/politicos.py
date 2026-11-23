@@ -20,7 +20,9 @@ Fontes (levantamento em docs/levantamento-parlamentar.md):
 Dados pessoais:
 - O CPF nunca é guardado. A cota da Câmara traz o do deputado; o TSE, o do candidato. Os dois são casados só na
   memória (uma tabela temporária, apagada em seguida) e o que sai é o par "id da Câmara ↔ candidatura no TSE".
-- Fornecedor pessoa física, empresário individual e MEI (natureza 213-5, ou o CPF no nome): só somados, sem nome.
+- Fornecedor pessoa física, empresário individual e MEI (natureza 213-5, ou o CPF no nome), EIRELI, sociedade
+  unipessoal de advocacia e as pessoas físicas com CNPJ do grupo 4 das naturezas (produtor rural, empresa
+  individual imobiliária, candidato): só somados, sem nome.
 - Doador de campanha pessoa física: só somado. Partido aparece com o nome.
 - Bens: só o tipo e o valor, somados. A descrição de cada bem (texto livre, às vezes com endereço) não entra.
 - Assessores: só a contagem por gabinete; nenhum nome.
@@ -50,6 +52,7 @@ from pathlib import Path
 import duckdb
 
 from .cidades import RAIZ
+from .divida_ativa import e_pessoa
 
 PASTA = RAIZ / "data" / "raw" / "politicos"
 PASTA_TSE = RAIZ / "data" / "raw" / "tse"
@@ -117,6 +120,7 @@ EMPRESARIO_INDIVIDUAL = "2135"
 # Naturezas jurídicas que são uma pessoa só, com o nome dela: empresário individual e MEI (213-5), EIRELI (230-5 e
 # 231-3) e sociedade unipessoal de advocacia (232-1). Entram somadas, sem nome. A sociedade limitada de um sócio só
 # (206-2) não se distingue das outras limitadas sem o quadro de sócios: aparece com o nome, como empresa.
+# Além delas, o grupo 4 inteiro (pessoas físicas com CNPJ), pela mesma regra da dívida ativa (divida_ativa.e_pessoa).
 EMPRESA_DE_UMA_PESSOA = {EMPRESARIO_INDIVIDUAL, "2305", "2313", "2321"}
 CPF_NO_NOME = re.compile(r"\d{3}\.?\d{3}\.?\d{3}-?\d{2}")
 MAX_FORNECEDORES = 8
@@ -163,13 +167,15 @@ def categoria(texto: str, tabela: list[tuple[str, str]]) -> str:
 
 
 def tipo_fornecedor(doc: str, nome: str, natureza: dict[str, str]) -> str:
-    """"empresa", "pessoa_empresa" (empresário individual e MEI) ou "pessoa" (CPF, ou documento mascarado)."""
+    """"empresa", "pessoa_empresa" (empresário individual, MEI, EIRELI e as pessoas com CNPJ do grupo 4) ou "pessoa"
+    (CPF, ou documento mascarado)."""
     d = re.sub(r"\D", "", doc or "")
     if "*" in (doc or "") or len(d) == 11:
         return "pessoa"
     if len(d) != 14:
         return "outro"
-    if natureza.get(d[:8]) in EMPRESA_DE_UMA_PESSOA or CPF_NO_NOME.search(nome or "") or re.search(r"\d{11}", nome or ""):
+    nat = natureza.get(d[:8], "")
+    if nat in EMPRESA_DE_UMA_PESSOA or e_pessoa(nat) or CPF_NO_NOME.search(nome or "") or re.search(r"\d{11}", nome or ""):
         return "pessoa_empresa"
     return "empresa"
 

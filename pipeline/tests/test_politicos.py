@@ -14,9 +14,12 @@ def test_nome_da_empresa_perde_o_cpf():
 
 
 def test_tipo_de_fornecedor():
-    nat = {"12345678": p.EMPRESARIO_INDIVIDUAL, "87654321": "2062"}
+    nat = {"12345678": p.EMPRESARIO_INDIVIDUAL, "87654321": "2062", "22223333": "4014", "44445555": "4120"}
     assert p.tipo_fornecedor("12345678000190", "QUALQUER", nat) == "pessoa_empresa"
     assert p.tipo_fornecedor("87654321000190", "EMPRESA LTDA", nat) == "empresa"
+    # Pessoas físicas com CNPJ (grupo 4): empresa individual imobiliária e produtor rural.
+    assert p.tipo_fornecedor("22223333000190", "FULANO IMOVEIS", nat) == "pessoa_empresa"
+    assert p.tipo_fornecedor("44445555000190", "FULANO E OUTRO", nat) == "pessoa_empresa"
     assert p.tipo_fornecedor("11111111000190", "FULANO 12345678901", nat) == "pessoa_empresa"
     assert p.tipo_fornecedor("12345678901", "FULANO", nat) == "pessoa"
     assert p.tipo_fornecedor("586.***.***-53", "FULANA", nat) == "pessoa"
