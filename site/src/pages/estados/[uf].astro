@@ -14,6 +14,7 @@ import SaudeResultado from "../../components/gasto/SaudeResultado.astro";
 import SegurancaEstado from "../../components/gasto/SegurancaEstado.astro";
 import SaneamentoResultado from "../../components/gasto/SaneamentoResultado.astro";
 import EducacaoEstado from "../../components/gasto/EducacaoEstado.astro";
+import ObrasParadasEstado from "../../components/obras/ObrasParadasEstado.astro";
 import { moedaCompleta, moedaCurta, moedaExtenso, pct } from "../../lib/formato";
 import { fatorIpca, resumo } from "../../lib/perfis";
 import { caminhoCidade, deUf, docCidades, docEstados, habitantes, NOMES_UF, porPessoa, type Cidade } from "../../lib/cidades";
@@ -68,7 +69,7 @@ const cidades = ehDF ? [] : (docCidades?.cidades ?? []).filter((c) => c.uf === e
 const SUMARIO: GrupoDaPagina[] = [
   { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["contratos", "Os contratos"], ["evolucao", "Ao longo dos anos"]] },
   { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida frente ao limite"], ["pessoal", "O gasto com pessoal"], ["previdencia", "A aposentadoria dos servidores"], ["teto", "Juízes e promotores acima do teto"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
-  { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"]] },
+  { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["obras-paradas", "Obras federais paradas"]] },
   { id: "como-esta", n: 4, titulo: ehDF ? "Como está o Distrito Federal" : "Como está o estado", itens: [["educacao", "Educação: gasto por aluno"], ["saude", "Saúde: mortalidade infantil"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
   ...(cidades.length ? [{ id: "grupo-cidades", n: 5, titulo: `As cidades ${deUf(e.uf)}`, itens: [["cidades", "As cidades"]] as [string, string][] }] : []),
 ];
@@ -159,6 +160,7 @@ const descricao = temDados
     {ctx && <div class="ficha" id="beneficios" data-parte="inss" set:html={contasHtml(ctx, "inss")} />}
     {temDados && <div id="ir" data-so-padrao="o imposto de renda dos moradores"><IrMoradores cidade={e} esfera="uf" deOnde={ehDF ? "do Distrito Federal" : deUf(e.uf)} grupo={ehDF ? null : "dos estados"} /></div>}
     {temDados && <div id="emendas" data-so-padrao="as emendas parlamentares"><EmendasResultado ente={e} esfera="uf" paraOnde={ehDF ? "para o Distrito Federal" : `para ${deUf(e.uf).replace(/^(do|da|de) /, (x) => ({ "do ": "o ", "da ": "a ", "de ": "" })[x] ?? x)}`} grupo={ehDF ? null : "dos estados"} /></div>}
+    <div id="obras-paradas" data-so-padrao="as obras federais paradas"><ObrasParadasEstado uf={e.uf} /></div>
 
     {temDados && <p class="grupo-pagina" id="como-esta" data-grupo="como-esta">4 · Como está {ehDF ? "o Distrito Federal" : "o estado"}</p>}
     {temDados && <div id="educacao" data-so-padrao="o gasto por aluno"><EducacaoEstado estado={e} quem={quem} /></div>}

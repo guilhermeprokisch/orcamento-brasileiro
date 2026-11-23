@@ -1,0 +1,91 @@
+---
+/**
+ * As obras com dinheiro federal paradas na cidade, pela lista do TCU (Painel de Obras Paralisadas).
+ * Dados: lib/obras-paradas.ts (pipeline/…/obras_paradas.py).
+ */
+import Termo from "../Termo.astro";
+import ListaObras from "./ListaObras.astro";
+import { moedaCompleta, moedaExtenso } from "../../lib/formato";
+import type { Cidade } from "../../lib/cidades";
+import { mesAno, obrasNaCidade } from "../../lib/obras-paradas";
+
+interface Props {
+  cidade: Cidade;
+}
+const { cidade } = Astro.props;
+const d = await obrasNaCidade(cidade);
+const ehDF = cidade.ibge === 53;
+const em = ehDF ? "no Distrito Federal" : `em ${cidade.nome}`;
+const nf = new Intl.NumberFormat("pt-BR");
+const primeira = d?.datas[0] ?? "";
+const antigas = d ? d.obras.filter((o) => o.desde === primeira).length : 0;
+const umaSo = d?.n === 1;
+---
+
+{d && (
+  <section class="obras-paradas">
+    <div class="texto">
+      <h2>Obras federais paradas</h2>
+      {d.n > 0 ? (
+        <>
+          <p>
+            {umaSo ? <>Uma obra feita com dinheiro federal está <Termo id="obra-paralisada">parada</Termo> {em}</> : <><strong>{nf.format(d.n)} obras</strong> feitas com dinheiro federal estão <Termo id="obra-paralisada">paradas</Termo> {em}</>},
+            segundo a lista do <Termo id="tcu">TCU</Termo> de {mesAno(d.dataBase)}. {umaSo ? "Custaria" : "Somadas, custariam"} <strong>{moedaExtenso(d.previsto)}</strong>,
+            e o governo federal já <Termo id="valor-liberado">liberou</Termo> <strong>{moedaExtenso(d.liberado)}</strong> para {umaSo ? "ela" : "elas"}.
+          </p>
+          {d.ativas > d.n && (
+            <p>
+              A lista tem {nf.format(d.ativas)} obras federais começadas e ainda não terminadas {em}; {umaSo ? "uma delas está parada" : `${nf.format(d.n)} delas estão paradas`}.
+            </p>
+          )}
+          {antigas > 0 && primeira !== d.dataBase && (
+            <p>
+              {antigas === d.n ? (umaSo ? "Ela já estava parada" : "Todas já estavam paradas") : (antigas === 1 ? "Uma já estava parada" : `${nf.format(antigas)} já estavam paradas`)} em {mesAno(primeira)}, a lista mais antiga que o TCU publica.
+            </p>
+          )}
+          <p class="menor">
+            A lista junta obras de algumas bases do governo federal (Caixa, FNDE, Funasa, Saúde, DNIT, universidades),
+            com a situação que cada órgão informou. Pode haver obra parada fora dela e obra que já voltou a andar.{" "}
+            <a href="/obras-paradas#limites">O que esta conta não diz</a>.
+          </p>
+        </>
+      ) : (
+        <p>
+          {d.ativas > 0
+            ? <>Nenhuma das {nf.format(d.ativas)} obras federais começadas e ainda não terminadas {em} aparece como <Termo id="obra-paralisada">parada</Termo> na lista do <Termo id="tcu">TCU</Termo> de {mesAno(d.dataBase)}.</>
+            : <>Nenhuma obra federal {em} aparece como <Termo id="obra-paralisada">parada</Termo> na lista do <Termo id="tcu">TCU</Termo> de {mesAno(d.dataBase)}.</>}
+          {" "}A lista não tem todas as obras do país. <a href="/obras-paradas">Ver as obras paradas no Brasil</a>.
+        </p>
+      )}
+    </div>
+    {d.n > 0 && (
+      <div class="dados">
+        <h3>{umaSo ? "A obra" : "As obras, da mais cara para a mais barata"}</h3>
+        <ListaObras obras={d.obras} mostrar={6} primeira={primeira} />
+        <p class="fonte">
+          Fonte: <a href={d.url}>{d.fonte}</a>, data-base de {mesAno(d.dataBase)}. À direita, quanto a obra custaria (o valor
+          previsto) e quanto o governo federal já liberou. "% feita" é a <Termo id="execucao-fisica">execução física</Termo>. "No órgão"
+          é a situação que o próprio órgão informa, quando é diferente da do TCU. Total liberado: {moedaCompleta(d.liberado)}.
+        </p>
+      </div>
+    )}
+  </section>
+)}
+
+<style>
+  .obras-paradas { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .obras-paradas:not(:has(.dados)) .texto { grid-column: span 8; }
+  h3 { margin: 6px 0 0; font-family: var(--sans, inherit); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .fonte { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .obras-paradas { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; line-height: 1.1; }
+  }
+</style>

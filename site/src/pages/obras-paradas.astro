@@ -1,0 +1,381 @@
+---
+/**
+ * Obras paradas: as obras com dinheiro federal que o TCU considera paralisadas, no Brasil todo. Onde estão,
+ * quem paga, as maiores, há quanto tempo estão paradas, o que aconteceu com as da lista anterior e onde o
+ * TCU e o órgão discordam. Dados: lib/obras-paradas.ts (pipeline/…/obras_paradas.py).
+ */
+import Base from "../layouts/Base.astro";
+import Termo from "../components/Termo.astro";
+import ListaObras from "../components/obras/ListaObras.astro";
+import { moedaCompleta, moedaCurta, moedaExtenso } from "../lib/formato";
+import { corDaRampa } from "../lib/cores";
+import { caminhoEstado } from "../lib/cidades";
+import { mesAno, mesAnoCurto, obrasNoBrasil } from "../lib/obras-paradas";
+
+const d = await obrasNoBrasil();
+const nf = new Intl.NumberFormat("pt-BR");
+const pct0 = (v: number) => `${Math.round(v * 100)}%`;
+const primeira = d?.datas[0] ?? "";
+const antigas = d?.desde.find((x) => x.nome === primeira);
+const maxUf = Math.max(1, ...(d?.estados ?? []).map((e) => e.n));
+const maxPaga = Math.max(1, ...(d?.quemPaga ?? []).map((q) => q.n));
+const maxHist = Math.max(1, ...(d?.historico ?? []).map((h) => h.paralisadas + h.em_execucao));
+const maxDesde = Math.max(1, ...(d?.desde ?? []).map((x) => x.n));
+const anterior = d?.historico.at(-2);
+const NORTE_NORDESTE = new Set(["AC", "AM", "AP", "PA", "RO", "RR", "TO", "AL", "BA", "CE", "MA", "PB", "PE", "PI", "RN", "SE"]);
+const parteNNE = d ? d.estados.filter((e) => NORTE_NORDESTE.has(e.uf)).reduce((s, e) => s + e.n, 0) / d.n : 0;
+// O que aconteceu com as paradas da data-base anterior, na ordem em que a frase conta.
+const NOMES_DESTINO: Record<string, string> = {
+  Cancelada: "foram canceladas",
+  Paralisada: "continuavam paradas",
+  "Em execução": "voltaram a andar",
+  Concluída: "ficaram prontas",
+  "Saiu da lista": "saíram da lista",
+};
+const CORES_DESTINO: Record<string, string> = {
+  Paralisada: "var(--tinta)",
+  Cancelada: "#b5452e",
+  "Em execução": corDaRampa(0.3),
+  Concluída: corDaRampa(0),
+  "Saiu da lista": "var(--regra)",
+};
+const LEGENDA_DESTINO: Record<string, string> = {
+  Cancelada: "Canceladas",
+  Paralisada: "Continuam paradas",
+  "Em execução": "Voltaram a andar",
+  Concluída: "Ficaram prontas",
+  "Saiu da lista": "Saíram da lista",
+};
+const destino = d?.destino
+  ? d.destino.situacoes.map(([nome, n]) => ({ nome, n, texto: NOMES_DESTINO[nome] ?? nome.toLowerCase(), legenda: LEGENDA_DESTINO[nome] ?? nome }))
+  : [];
+const discordam = d ? d.noOrgao.filter((o) => !/^(paralisad[ao]|obra paralisada)$/i.test(o.nome)) : [];
+const nDiscordam = discordam.reduce((s, o) => s + o.n, 0);
+const descricao = d
+  ? `${nf.format(d.n)} obras feitas com dinheiro federal estão paradas, segundo o TCU (${mesAno(d.dataBase)}): custariam ${moedaExtenso(d.previsto)} e já receberam ${moedaExtenso(d.liberado)}. Onde estão, quem paga e há quanto tempo.`
+  : "Obras com dinheiro federal paradas, segundo o TCU.";
+---
+
+<Base title="Obras paradas · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap pagina-obras">
+    {!d ? (
+      <section class="cabeca"><div><h1>Obras paradas</h1><p>Os dados ainda não foram carregados.</p></div></section>
+    ) : (
+      <>
+        <section class="cabeca">
+          <div>
+            <span class="sobretitulo">Dinheiro federal · lista do TCU de {mesAno(d.dataBase)}</span>
+            <h1>Obras paradas</h1>
+            <p>
+              Escolas, creches, postos de saúde, esgoto, ruas e estradas que o governo federal começou a pagar e que não andam.
+              Pela lista do <Termo id="tcu">TCU</Termo>, são <strong class="marca">{nf.format(d.n)} obras</strong>{" "}
+              <Termo id="obra-paralisada">paradas</Termo> em {nf.format(d.cidadesComObra)} cidades. Juntas, custariam{" "}
+              <strong>{moedaExtenso(d.previsto)}</strong>, e o governo federal já <Termo id="valor-liberado">liberou</Termo>{" "}
+              <strong>{moedaExtenso(d.liberado)}</strong> para elas.
+            </p>
+          </div>
+        </section>
+
+        <section class="numeros" aria-label="Os números principais">
+          <div><span>Obras paradas</span><strong class="num">{nf.format(d.n)}</strong><small>{pct0(d.n / d.ativas)} das {nf.format(d.ativas)} obras federais começadas e não terminadas na lista</small></div>
+          <div><span>Custariam</span><strong class="num">{moedaCurta(d.previsto)}</strong><small>o valor previsto, somado</small></div>
+          <div><span>Já liberado</span><strong class="num">{moedaCurta(d.liberado)}</strong><small>dinheiro federal que já saiu para elas</small></div>
+          {antigas && <div><span>Paradas desde {mesAnoCurto(primeira)}</span><strong class="num">{nf.format(antigas.n)}</strong><small>já estavam na lista mais antiga do TCU</small></div>}
+        </section>
+
+        <nav class="indice" aria-label="Nesta página">
+          <a href="#estados">Onde estão</a>
+          <a href="#quem-paga">Quem paga</a>
+          <a href="#maiores">As maiores</a>
+          <a href="#tempo">Há quanto tempo</a>
+          {d.destino && <a href="#antes">O que aconteceu com as de {d.destino.de.slice(0, 4)}</a>}
+          {nDiscordam > 0 && <a href="#orgao">O TCU e o órgão</a>}
+          <a href="#limites">O que esta conta não diz</a>
+        </nav>
+
+        <section class="bloco" id="estados">
+          <div class="texto">
+            <h2>Onde estão</h2>
+            <p>
+              {pct0(parteNNE)} das obras paradas estão no Nordeste e no Norte. {d.estados[0].nome} tem a maior lista: <strong>{nf.format(d.estados[0].n)} obras</strong>,
+              que custariam {moedaExtenso(d.estados[0].previsto)}.
+            </p>
+            <p>
+              Ao lado de cada estado, quantas são e quanto custariam. Clique no estado para ver as cidades e as obras. Em cada cidade, a página
+              dela mostra as obras paradas ali.
+            </p>
+            {d.semCidade.n > 0 && (
+              <p class="menor">
+                {nf.format(d.semCidade.n)} obras aparecem só com o estado, sem cidade: estradas do DNIT, obras da Codevasf e algumas de
+                universidades. Elas contam no estado.
+              </p>
+            )}
+          </div>
+          <div class="grafico">
+            <ol class="linhas">
+              {d.estados.map((e) => (
+                <li>
+                  <a class="rotulo" href={caminhoEstado(e.uf)}>{e.nome}</a>
+                  <span class="trilho"><span class="barra" style={`width:${(e.n / maxUf) * 100}%`}></span></span>
+                  <span class="valor">{nf.format(e.n)} <span>· {moedaCurta(e.previsto)}</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section class="bloco" id="quem-paga">
+          <div class="texto">
+            <h2>Quem paga</h2>
+            <p>
+              Quase metade das obras paradas é de escolas, creches e quadras pagas pelo <strong>FNDE</strong>, o fundo da educação:
+              {" "}{nf.format(d.quemPaga[0].n)} obras. Mas as mais caras são as do <strong>Ministério das Cidades</strong>, de esgoto,
+              drenagem, ruas e moradia: {nf.format(d.quemPaga.find((q) => q.nome === "Ministério das Cidades")?.n ?? 0)} obras que custariam
+              {" "}{moedaExtenso(d.quemPaga.find((q) => q.nome === "Ministério das Cidades")?.previsto ?? 0)}.
+            </p>
+            <p class="menor">
+              Quem paga é o ministério ou o fundo que manda o dinheiro. Quem faz a obra, quase sempre, é a prefeitura ou o estado,
+              que contrata a empresa.
+            </p>
+          </div>
+          <div class="grafico">
+            <ol class="linhas largo">
+              {d.quemPaga.map((q, k) => (
+                <li>
+                  <span class="rotulo">{q.nome}</span>
+                  <span class="trilho"><span class="barra" style={`width:${(q.n / maxPaga) * 100}%;background:${corDaRampa(Math.min(1, k / 8))}`}></span></span>
+                  <span class="valor" title={`Custariam ${moedaCompleta(q.previsto)}; liberado ${moedaCompleta(q.liberado)}`}>{nf.format(q.n)} <span>· {moedaCurta(q.previsto)}</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section class="bloco" id="maiores">
+          <div class="texto">
+            <h2>As maiores</h2>
+            <p>
+              As {d.maiores.length} obras paradas mais caras. Ao lado de cada uma, quanto custaria e quanto já foi liberado; abaixo do nome,
+              quem paga, quanto foi feito (a <Termo id="execucao-fisica">execução física</Termo>) e desde quando está na lista.
+            </p>
+            <p class="menor">
+              "Por quê" é a causa que o órgão informou, quando informou: {pct0(d.semCausa / d.n)} das obras não têm causa na lista.
+            </p>
+          </div>
+          <div class="grafico">
+            <ListaObras obras={d.maiores} mostrar={10} comLocal={true} primeira={primeira} />
+          </div>
+        </section>
+
+        <section class="bloco" id="tempo">
+          <div class="texto">
+            <h2>Há quanto tempo</h2>
+            <p>
+              Nenhuma das bases diz o dia em que a obra parou. O que dá para saber é desde quando ela aparece parada nas listas que o TCU
+              publica, uma por ano. {antigas && <><strong>{nf.format(antigas.n)} obras</strong> já estavam paradas em {mesAno(primeira)}, a lista
+              mais antiga, e continuam paradas.</>}
+            </p>
+            <p class="menor">
+              A conta só vale para quem ficou parada em todas as listas seguidas. Uma obra que voltou a andar e parou de novo conta a partir
+              da última vez.
+            </p>
+          </div>
+          <div class="grafico">
+            <ol class="linhas">
+              {d.desde.map((x) => (
+                <li>
+                  <span class="rotulo">{x.nome === primeira ? `${mesAnoCurto(x.nome)} ou antes` : mesAnoCurto(x.nome)}</span>
+                  <span class="trilho"><span class="barra escura" style={`width:${(x.n / maxDesde) * 100}%`}></span></span>
+                  <span class="valor">{nf.format(x.n)} <span>· {moedaCurta(x.previsto)}</span></span>
+                </li>
+              ))}
+            </ol>
+            <p class="menor-grafico">Obras paradas hoje, pela primeira lista em que aparecem paradas sem interrupção.</p>
+          </div>
+        </section>
+
+        {d.destino && anterior && (
+          <section class="bloco" id="antes">
+            <div class="texto">
+              <h2>O que aconteceu com as de {d.destino.de.slice(0, 4)}</h2>
+              <p>
+                Em {mesAno(d.destino.de)}, a lista tinha <strong>{nf.format(d.destino.total)} obras paradas</strong>. Um ano depois,
+                {" "}{destino.map((x, i) => <>{i > 0 && (i === destino.length - 1 ? " e " : ", ")}<strong>{nf.format(x.n)}</strong> {x.texto}</>)}.
+              </p>
+              <p>
+                Por isso o número caiu tanto, de {nf.format(anterior.paralisadas)} para {nf.format(d.n)}: boa parte das obras saiu da lista
+                porque foi cancelada, não porque ficou pronta. Obra cancelada não é obra entregue; parte do dinheiro pode ter de ser devolvida.
+              </p>
+              <p class="menor">
+                O próprio TCU avisa que comparar datas exige cuidado: as bases mudam e os critérios também. Parte da queda pode ser
+                mudança de critério, e não da obra.
+              </p>
+            </div>
+            <div class="grafico">
+              <div class="pilha" role="img" aria-label={destino.map((x) => `${x.nome}: ${x.n}`).join("; ")}>
+                {destino.map((x) => <span style={`flex:${x.n} 1 0;background:${CORES_DESTINO[x.nome] ?? "var(--regra)"}`}></span>)}
+              </div>
+              <ul class="legenda">
+                {destino.map((x) => (
+                  <li><span class="cor" style={`background:${CORES_DESTINO[x.nome] ?? "var(--regra)"}`}></span><span>{x.legenda}</span><span class="num">{nf.format(x.n)}</span></li>
+                ))}
+              </ul>
+              <h3>Obras na lista do TCU, por data</h3>
+              <ol class="linhas serie">
+                {d.historico.map((h) => (
+                  <li>
+                    <span class="rotulo">{mesAnoCurto(h.data)}</span>
+                    <span class="trilho duplo">
+                      <span class="barra escura" style={`width:${(h.paralisadas / maxHist) * 100}%`}></span>
+                      <span class="barra" style={`width:${(h.em_execucao / maxHist) * 100}%`}></span>
+                    </span>
+                    <span class="valor">{nf.format(h.paralisadas)} <span>paradas</span></span>
+                  </li>
+                ))}
+              </ol>
+              <ul class="legenda-curta">
+                <li><span class="cor escura"></span>Paradas</li>
+                <li><span class="cor"></span>Em execução</li>
+              </ul>
+            </div>
+          </section>
+        )}
+
+        {nDiscordam > 0 && (
+          <section class="bloco" id="orgao">
+            <div class="texto">
+              <h2>O TCU e o órgão nem sempre concordam</h2>
+              <p>
+                O TCU usa um critério próprio para dizer que uma obra está parada. Em <strong>{nf.format(nDiscordam)} das {nf.format(d.n)}</strong> obras
+                da lista, o órgão que acompanha a obra informa outra situação: ainda em licitação, em cancelamento, inacabada, em execução.
+              </p>
+              <p>
+                Uma obra que o órgão ainda dá como "em licitação" ou "em cancelamento" não está andando, e o TCU a conta como parada. Nas
+                páginas das cidades, a situação que o órgão informa aparece ao lado da obra, como "No órgão".
+              </p>
+            </div>
+            <div class="grafico">
+              <h3>O que o órgão diz das obras que o TCU conta como paradas</h3>
+              <ol class="linhas largo">
+                {discordam.slice(0, 10).map((o) => (
+                  <li>
+                    <span class="rotulo">{o.nome}</span>
+                    <span class="trilho"><span class="barra" style={`width:${(o.n / Math.max(1, discordam[0].n)) * 100}%`}></span></span>
+                    <span class="valor">{nf.format(o.n)}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+        )}
+
+        <section class="fontes" id="limites">
+          <h2>O que esta conta não diz</h2>
+          <ul>
+            <li>
+              <strong>Não é a lista de todas as obras paradas do país.</strong> Só entram obras com dinheiro federal, e só as das nove bases que o
+              TCU junta: Caixa, FNDE, Funasa, Ministério da Saúde (SISMOB), DNIT, Codevasf e as obras de universidades, institutos federais e
+              outras do MEC. Obra paga só pela prefeitura ou pelo estado não aparece.
+            </li>
+            <li>
+              <strong>O cadastro é incompleto.</strong> Quem informa é a prefeitura, o estado ou o órgão; há obra sem cidade, sem causa da parada
+              ({pct0(d.semCausa / d.n)} das paradas) e sem percentual executado.
+            </li>
+            <li>
+              <strong>A situação pode estar velha.</strong> A lista é uma fotografia de {mesAno(d.dataBase)}, publicada pelo TCU meses depois.
+              Uma obra parada pode ter voltado a andar, e uma marcada "em execução" pode estar parada há anos sem que ninguém tenha atualizado.
+            </li>
+            <li>
+              <strong>O valor não é o custo final.</strong> É o valor previsto no convênio ou contrato quando a lista foi feita. A obra pode ter
+              outras fontes de dinheiro, como a contrapartida da prefeitura, outro convênio ou uma emenda, que não entram aqui.
+            </li>
+            <li>
+              <strong>Liberado não quer dizer desperdiçado.</strong> Parte do dinheiro virou obra que ainda pode ser terminada: em {nf.format(d.repactuar.n)}
+              {" "}obras paradas, a prefeitura ou o estado manifestou interesse em retomá-las pelo <Termo id="pacto-retomada">Pacto de retomada</Termo>.
+              Parte do dinheiro pode ser devolvida.
+            </li>
+            <li>
+              <strong>As datas não se comparam direto.</strong> O TCU mudou as bases e os critérios entre uma lista e outra.
+            </li>
+          </ul>
+          <p class="menor">
+            Fonte: <a href={d.url}>{d.fonte}</a>, datas-base de {d.datas.map(mesAnoCurto).join(", ")}, exportadas do painel.
+            O TCU junta os dados dos sistemas do governo e avisa que não os audita. A cidade vem pelo nome e foi casada com o código do IBGE.{" "}
+            <a href="/data/obras-paradas/obras-paradas.json">Baixe os dados desta página</a> (JSON).
+          </p>
+        </section>
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .cabeca { padding: 40px 0 32px; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 880px; }
+  .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .cabeca p strong { color: var(--tinta); }
+  .numeros { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 32px; font-weight: 700; white-space: nowrap; }
+  .numeros small { font-size: 14px; color: var(--texto-3); }
+  .indice { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 16px 0; font-size: 15px; border-bottom: 1px solid var(--regra); }
+  .bloco { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 40px; scroll-margin-top: 12px; }
+  .indice + .bloco { border-top: 0; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .grafico { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .grafico h3 { margin: 8px 0 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .linhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .linhas li { display: grid; grid-template-columns: 150px minmax(0, 1fr) 130px; gap: 12px; align-items: center; font-size: 14px; }
+  .linhas.largo li { grid-template-columns: 200px minmax(0, 1fr) 130px; }
+  .linhas .rotulo { color: var(--texto-2); line-height: 1.3; }
+  a.rotulo { color: var(--tinta); }
+  .trilho { position: relative; display: block; height: 14px; }
+  .barra { display: block; height: 100%; min-width: 2px; background: var(--verde); }
+  .barra.escura { background: var(--tinta); }
+  .trilho.duplo { height: 20px; display: flex; flex-direction: column; justify-content: space-between; }
+  .trilho.duplo .barra { height: 9px; }
+  .valor { text-align: right; white-space: nowrap; font-weight: 600; }
+  .valor span { color: var(--texto-3); font-size: 13px; font-weight: 400; }
+  .linhas.serie li { grid-template-columns: 70px minmax(0, 1fr) 130px; }
+  .menor-grafico { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .pilha { display: flex; height: 36px; border: 1px solid var(--tinta); }
+  .pilha span { min-width: 4px; }
+  .pilha span + span { border-left: 2px solid var(--papel); }
+  .legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--regra); }
+  .legenda li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--regra-leve); font-size: 14px; }
+  .legenda .cor { width: 14px; height: 14px; align-self: center; border: 1px solid rgba(0, 0, 0, 0.15); }
+  .legenda .num { font-family: var(--serifa); font-size: 18px; font-weight: 700; white-space: nowrap; }
+  .legenda-curta { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--texto-3); }
+  .legenda-curta li { display: flex; align-items: center; gap: 6px; }
+  .legenda-curta .cor { width: 14px; height: 14px; display: inline-block; background: var(--verde); }
+  .legenda-curta .cor.escura { background: var(--tinta); }
+  .fontes { border-top: 2px solid var(--tinta); padding: 32px 0 48px; display: flex; flex-direction: column; gap: 14px; max-width: 880px; scroll-margin-top: 12px; }
+  .fontes h2 { font-size: 34px; }
+  .fontes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; color: var(--texto-2); line-height: 1.55; }
+  .fontes .menor { margin: 0; font-size: 14px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .cabeca { padding: 28px 0 24px; }
+    .cabeca h1 { font-size: 40px; }
+    .cabeca p { font-size: 17px; }
+    .numeros { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(2n) { border-right: 0; }
+    .numeros div:nth-child(2n + 1) { padding-left: 0; }
+    .numeros strong { font-size: 26px; }
+    .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2, .fontes h2 { font-size: 28px; }
+    .linhas li, .linhas.largo li { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; }
+    .linhas .trilho { grid-column: 1 / -1; grid-row: 2; }
+    .linhas.serie li { grid-template-columns: 64px minmax(0, 1fr) auto; }
+    .linhas.serie .trilho { grid-column: auto; grid-row: auto; }
+  }
+</style>

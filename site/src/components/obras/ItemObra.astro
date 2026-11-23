@@ -1,0 +1,56 @@
+---
+/** Uma obra parada numa lista (ver ListaObras.astro). */
+import { moedaCompleta, moedaCurta } from "../../lib/formato";
+import { caminhoCidade } from "../../lib/cidades";
+import { mesAnoCurto, type Obra } from "../../lib/obras-paradas";
+
+interface Props {
+  obra: Obra;
+  comLocal: boolean;
+  primeira: string;
+}
+const { obra: o, comLocal, primeira } = Astro.props;
+
+let local: { texto: string; href: string | null } | null = null;
+if (comLocal && o.local) {
+  const i = o.local.lastIndexOf("/");
+  if (i < 0) local = { texto: o.local, href: null };
+  else {
+    const nome = o.local.slice(0, i), uf = o.local.slice(i + 1);
+    const texto = `${nome} (${uf})`;
+    local = { texto, href: o.ibge ? caminhoCidade({ ibge: o.ibge === 5300108 ? 53 : o.ibge, nome, uf }) : null };
+  }
+}
+const desde = o.desde === primeira ? `parada desde ${mesAnoCurto(o.desde)} ou antes` : `parada desde ${mesAnoCurto(o.desde)}`;
+---
+
+<li>
+  <div class="obra">
+    <strong class="nome">{o.nome}</strong>
+    <small>
+      {local && <>{local.href ? <a href={local.href}>{local.texto}</a> : local.texto} · </>}
+      Paga: {o.quemPaga}{o.feito !== null && <> · {o.feito}% feita</>} · {desde}
+    </small>
+    {(o.causa || o.noOrgao) && (
+      <small class="motivo">
+        {o.causa && <>Por quê: {o.causa}</>}{o.causa && o.noOrgao && " · "}{o.noOrgao && <>No órgão: “{o.noOrgao.toLowerCase()}”</>}
+      </small>
+    )}
+  </div>
+  <div class="valores">
+    <span class="num" title={`Custaria ${moedaCompleta(o.previsto)}`}>{moedaCurta(o.previsto)}</span>
+    <small title={moedaCompleta(o.liberado)}>{moedaCurta(o.liberado)} liberados</small>
+  </div>
+</li>
+
+<style>
+  li { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--regra-leve); }
+  .obra { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .nome { font-size: 15px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .obra small { font-size: 13px; line-height: 1.45; color: var(--texto-3); }
+  .obra small a { color: inherit; }
+  .motivo { font-style: italic; }
+  .valores { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; text-align: right; }
+  .valores .num { font-size: 15px; font-weight: 600; white-space: nowrap; }
+  .valores small { font-size: 12px; color: var(--texto-3); white-space: nowrap; }
+</style>

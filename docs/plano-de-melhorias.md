@@ -102,8 +102,8 @@ e o 4.
 - **Preço pago comparado**: o mesmo item entre cidades, a começar pelos remédios (Banco de Preços
   em Saúde), e quantas empresas disputaram cada licitação. Usa os contratos que já temos. Cuidado
   com o que é só diferença de porte ou ruído.
-- **Obras paradas**: as obras com dinheiro federal paradas, com cidade e valor (painel do governo
-  federal e do TCU).
+- **Obras paradas**: **feito**. As obras com dinheiro federal paradas, com cidade e valor, pela lista do
+  TCU: página `/obras-paradas` e seção nas cidades e nos estados. Ver `docs/levantamento-obras-paradas.md`.
 
 ### 4. Quanto eu pago e como volta
 
