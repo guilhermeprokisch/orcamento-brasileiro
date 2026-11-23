@@ -10,6 +10,7 @@ import { porPessoa, type Cidade } from "../../lib/cidades";
 import { emendasDe } from "../../lib/indicadores";
 import SerieAnos from "./SerieAnos.astro";
 import { ehColetivo, nomeAutor as nome } from "../../lib/autores-emendas";
+import { politicoDoAutor } from "../../lib/politicos";
 
 interface Props {
   ente: Cidade;
@@ -52,7 +53,7 @@ const frente = e && e.mediana ? e.porHab / e.mediana - 1 : null;
         <div class="lista">
           <h3>Quem mandou mais</h3>
           <ol>
-            {e.autores.map(([autor, valor]) => <li><span>{nome(autor)}</span><strong class="num">{moedaCurta(valor)}</strong></li>)}
+            {e.autores.map(([autor, valor]) => { const href = politicoDoAutor(nome(autor)); return <li><span>{href ? <a href={href}>{nome(autor)}</a> : nome(autor)}</span><strong class="num">{moedaCurta(valor)}</strong></li>; })}
           </ol>
           {coletivo && <p class="nota">Comissões e bancadas são emendas coletivas, indicadas em grupo.</p>}
         </div>
