@@ -14,8 +14,6 @@ A folha de pagamento está publicada em PDF, sem a lotação.
 
 Se já houver um endereço público para baixar esses dados, sem login nem captcha, peço que o informem. Caso alguma informação não exista na forma pedida, peço que seja enviada na forma mais próxima disponível, com a explicação de cada coluna. Caso alguma parte seja negada, peço a indicação do fundamento legal e da autoridade a quem cabe recurso.
 
-Os dados serão usados no site orcamentobrasileiro.com.br, um projeto independente que mostra de forma simples para onde vai o dinheiro público, sempre citando a fonte.
-
 Atenciosamente,
 {nome}
 {email}
