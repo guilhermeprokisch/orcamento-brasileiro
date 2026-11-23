@@ -87,6 +87,15 @@ registro fica anotada no pedido (assunto e número do e-mail) para ler: confirma
 os dados chegam todos assim, então a situação não muda sozinha. As mensagens já vistas ficam em
 `~/.config/orcamento-br/lai-caixa.json`.
 
+### Toda manhã
+
+`lai diario` roda a caixa e confere os prazos (os que vencem em até 3 dias e os vencidos sem resposta, quando cabe
+recurso) e, se houver algo, manda um resumo por e-mail (padrão: guilherme@inout.email). No Mac do Guilherme, o launchd
+roda às 8h30: `~/Library/LaunchAgents/com.guilherme.orcamento-lai-diario.plist`, com log em
+`~/Library/Logs/orcamento-lai-diario.log`. O plist aponta para a pasta `pipeline/` de onde o comando roda; se a pasta
+mudar (por exemplo, depois de o ramo ser mesclado), troque o caminho no plist. Para desligar:
+`launchctl bootout gui/$(id -u)/com.guilherme.orcamento-lai-diario`.
+
 ## Sem perguntar
 
 `--direto` envia sem a pergunta de confirmação, nos formulários sem CAPTCHA e sem etapas desconhecidas (hoje, TCE-SE e

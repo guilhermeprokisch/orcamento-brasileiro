@@ -8,6 +8,7 @@ tudo e para só no que é da pessoa: login, CAPTCHA e o OK antes de enviar.
     uv run --extra lai lai enviar TCE-SE pedido.txt --direto # sem perguntar (só formulários sem CAPTCHA)
     uv run --extra lai lai prazos                        # os pedidos enviados e o prazo de cada um
     uv run --extra lai lai caixa                         # lê o e-mail (Homerow): devoluções e respostas dos órgãos
+    uv run --extra lai lai diario                        # caixa + prazos; manda um resumo por e-mail se houver novidade
     uv run --extra lai lai inspecionar <URL>             # lista os campos de um formulário novo
 
 O arquivo do pedido: a primeira linha é "Assunto: ...", depois uma linha em branco e o texto. No texto, {nome} e
@@ -181,6 +182,35 @@ def prazos() -> None:
         print(f"{r['orgao']:8} {r['enviado_em']}  prazo {r['prazo']}  {r['situacao']:10} {aviso}  {r['protocolo']}")
 
 
+def diario(para: str, dias: int = 3) -> None:
+    """O resumo da manhã (o launchd roda): o que chegou na caixa e os prazos que vencem em até `dias` dias. Manda por
+    e-mail só se houver algo."""
+    from .caixa import HOMEROW, verificar
+
+    novas = [l for l in verificar() if not l.startswith("Nada novo")]
+    hoje = dt.date.today()
+    prazos_ = []
+    for r in registro.ler():
+        if r["situacao"] != "aguardando":
+            continue
+        p1, p2 = dt.date.fromisoformat(r["prazo"]), dt.date.fromisoformat(r["prazo_prorrogado"])
+        if p2 < hoje:
+            prazos_.append(f"{r['orgao']}: prazo vencido em {p2:%d/%m} (com prorrogação) sem resposta: cabe recurso (art. 15).")
+        elif 0 <= (p1 - hoje).days <= dias:
+            prazos_.append(f"{r['orgao']}: o prazo vence em {p1:%d/%m}.")
+    if not novas and not prazos_:
+        print("Nada novo.")
+        return
+    corpo = "\n".join(
+        (["Na caixa:"] + [f"- {l}" for l in novas] + [""] if novas else [])
+        + (["Prazos:"] + [f"- {l}" for l in prazos_] + [""] if prazos_ else [])
+        + [f"Registro: {registro.ARQUIVO}"])
+    subprocess.run(["python3", str(HOMEROW), "mail", "send", "--to", para, "--subject",
+                    f"LAI: {len(novas)} novidade(s) e {len(prazos_)} prazo(s) nos pedidos", "--body", corpo],
+                   check=True, capture_output=True)
+    print(corpo)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="lai", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -190,6 +220,8 @@ def main() -> None:
     c = sub.add_parser("caixa", help="lê o e-mail do Homerow e anota devoluções e respostas")
     c.add_argument("--desde", help="AAAA-MM-DD (padrão: o primeiro envio do registro)")
     c.add_argument("--sem-anotar", action="store_true", help="só mostra, não muda o registro")
+    d = sub.add_parser("diario", help="caixa + prazos; resumo por e-mail se houver novidade")
+    d.add_argument("--para", default="guilherme@inout.email")
     e = sub.add_parser("enviar", help="preenche e envia um pedido")
     e.add_argument("orgao")
     e.add_argument("arquivo", type=Path)
@@ -212,6 +244,8 @@ def main() -> None:
             print(f"{f.orgao:8} {f.nome}{f' ({marcas})' if marcas else ''}")
     elif a.cmd == "prazos":
         prazos()
+    elif a.cmd == "diario":
+        diario(a.para)
     elif a.cmd == "caixa":
         from .caixa import verificar
         for linha in verificar(a.desde, anotar=not a.sem_anotar):
