@@ -7,6 +7,7 @@ import PessoalResultado from "../../../components/gasto/PessoalResultado.astro";
 import PrevidenciaServidores from "../../../components/gasto/PrevidenciaServidores.astro";
 import GastoEstadualAqui from "../../../components/gasto/GastoEstadualAqui.astro";
 import GastoFederalAqui from "../../../components/gasto/GastoFederalAqui.astro";
+import SaiuVoltou from "../../../components/gasto/SaiuVoltou.astro";
 import DividaAtivaCidade from "../../../components/gasto/DividaAtivaCidade.astro";
 import SupersalariosCidade from "../../../components/gasto/SupersalariosCidade.astro";
 import EducacaoResultado from "../../../components/gasto/EducacaoResultado.astro";
@@ -64,7 +65,7 @@ const base: BaseDaPagina | null = ctx
 const SUMARIO: GrupoDaPagina[] = [
   { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["contratos", "Os contratos"], ["pagamentos", "Para quem pagou"]] },
   { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida da prefeitura"], ["pessoal", "O gasto com pessoal"], ["previdencia", "A aposentadoria dos servidores"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
-  { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["estado-aqui", "O que o governo do estado gastou aqui"], ["federal-aqui", "O que o governo federal gastou aqui"], ["obras-paradas", "Obras federais paradas"], ["divida-ativa", "O que se deve ao governo federal"], ["teto-fpm", "Salários acima do teto e o FPM"]] },
+  { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["saiu-voltou", "Saiu daqui, voltou"], ["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["estado-aqui", "O que o governo do estado gastou aqui"], ["federal-aqui", "O que o governo federal gastou aqui"], ["obras-paradas", "Obras federais paradas"], ["divida-ativa", "O que se deve ao governo federal"], ["teto-fpm", "Salários acima do teto e o FPM"]] },
   { id: "como-esta", n: 4, titulo: "Como está a cidade", itens: [["educacao", "Educação: gasto por aluno e nota das escolas"], ["escolas", "As escolas da prefeitura"], ["saude", "Saúde: mortalidade infantil"], ["postos", "Os postos e hospitais"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
 ];
 const descricao = temDados
@@ -121,6 +122,7 @@ const descricao = temDados
     {temDados && <div id="ano-atual"><AnoEmAndamento ente={c} esfera="mun" quem={quem} /></div>}
 
     {ctx && <p class="grupo-pagina" id="chega-e-sai" data-grupo="chega-e-sai">3 · O que chega e o que sai daqui</p>}
+    <div id="saiu-voltou" data-so-padrao="o saiu daqui, voltou"><SaiuVoltou esfera="mun" chave={String(c.ibge)} deOnde={ehDF ? "do Distrito Federal" : `de ${c.nome}`} onde={onde} /></div>
     {ctx && <div class="ficha" id="beneficios" data-parte="inss" set:html={contasHtml(ctx, "inss")} />}
     {temDados && <div id="ir" data-so-padrao="o imposto de renda dos moradores"><IrMoradores cidade={c} deOnde={ehDF ? "do Distrito Federal" : `de ${c.nome}`} grupo={!ehDF && faixa ? "das cidades parecidas" : null} /></div>}
     {temDados && <div id="emendas" data-so-padrao="as emendas parlamentares"><EmendasResultado ente={c} esfera="mun" paraOnde={ehDF ? "para o Distrito Federal" : `para ${c.nome}`} grupo={!ehDF && faixa ? "das cidades parecidas" : null} /></div>}

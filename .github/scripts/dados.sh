@@ -136,6 +136,9 @@ fila_independente() {
   # Prefeituras da Paraíba (quem ganha mais que o prefeito, pela folha do TCE-PB): o supersalarios-municipios.yml baixa
   # todo dia 23 e abre um pull request com a cópia de referência; aqui só essa cópia.
   pipe pode-falhar "Acima do teto: prefeituras da Paraíba" supersalarios-municipios --sem-baixar
+  # Políticos (deputados federais e senadores: cota, gabinete, emendas e TSE): o politicos.yml baixa todo dia 5 e abre
+  # um pull request com a cópia de referência; aqui só essa cópia.
+  pipe pode-falhar "Políticos" politicos --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).
@@ -183,6 +186,10 @@ fila_independente & PID_INDEP=$!
 fila_cidades & PID_CIDADES=$!
 fila_mapa & PID_MAPA=$!
 wait "$PID_SICONFI" "$PID_INDEP" "$PID_CIDADES" "$PID_MAPA"
+# Saiu daqui, voltou: junta o que três filas gravaram (imposto recolhido, dinheiro federal e INSS na do mapa, emendas
+# também; gasto federal direto na independente) com o PIB do IBGE. Por isso vem depois de todas. Se faltar uma
+# entrada, usa pipeline/referencia/saiu-voltou.json.
+pipe pode-falhar "Saiu daqui, voltou" saiu-voltou
 
 falhou=0
 for st in "$LOGS"/*.status; do

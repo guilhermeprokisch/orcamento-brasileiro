@@ -111,8 +111,9 @@ plano original:
 ### 2. O caminho dos impostos
 
 **Feito** (#91, #113, #126): /impostos, com o caminho do imposto, o que deixa de entrar (benefícios
-fiscais) e a dívida ativa; /impostos/empresas, com as empresas que recebem benefício. Falta o
-"saiu daqui, voltou" por cidade. O plano original:
+fiscais) e a dívida ativa; /impostos/empresas, com as empresas que recebem benefício. O "saiu daqui,
+voltou" por cidade e estado está **em andamento** desde 23/11/2026
+([levantamento](levantamento-saiu-voltou.md)). O plano original:
 
 - Um diagrama de fluxos: o imposto pago → quem arrecada (a União fica com uns dois terços) → o
   que é repassado por obrigação (FPE, FPM, cota do ICMS, Fundeb) → quem gasta. Primeiro o Brasil

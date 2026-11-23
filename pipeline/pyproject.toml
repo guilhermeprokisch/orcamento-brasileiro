@@ -48,6 +48,7 @@ estado-sc = "orcamento_pipeline.estado_sc:main"
 pagamentos = "orcamento_pipeline.pagamentos:main"
 receitas-uniao = "orcamento_pipeline.receitas_uniao:main"
 gasto-federal = "orcamento_pipeline.gasto_federal:main"
+saiu-voltou = "orcamento_pipeline.saiu_voltou:main"
 fluxo = "orcamento_pipeline.fluxo:main"
 caminho-impostos = "orcamento_pipeline.caminho_impostos:main"
 previdencia = "orcamento_pipeline.previdencia:main"
@@ -59,6 +60,7 @@ supersalarios-federal = "orcamento_pipeline.supersalarios_federal:main"
 supersalarios-estados = "orcamento_pipeline.supersalarios_estados:main"
 supersalarios-legislativo = "orcamento_pipeline.supersalarios_legislativo:main"
 supersalarios-municipios = "orcamento_pipeline.supersalarios_municipios:main"
+politicos = "orcamento_pipeline.politicos:main"
 
 [build-system]
 requires = ["hatchling"]
