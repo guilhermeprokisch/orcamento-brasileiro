@@ -51,10 +51,8 @@ const GRUPOS: { nome: string; itens: ItemMenu[] }[] = [
     ] },
     { href: "/obras-paradas", nome: "Obras paradas", desc: "As obras com dinheiro federal que não andam: onde estão, quanto custariam e há quanto tempo." },
   ] },
-  { nome: "Políticos", itens: [
+  { nome: "Políticos e servidores", itens: [
     { href: "/politicos", nome: "Deputados e senadores", desc: "Quanto custa cada um, em que gasta a cota parlamentar e para onde manda emendas." },
-  ] },
-  { nome: "Servidores", itens: [
     { href: "/supersalarios", nome: "Acima do teto", desc: "Juízes, promotores e servidores que recebem mais que o teto, órgão por órgão, e quanto isso custa." },
   ] },
   { nome: "Impostos", itens: [
@@ -367,9 +365,9 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
 
   /* Entre o celular e a tela larga o menu completo não cabe ao lado da marca: fica o menu
      recolhido, como no celular (as classes so-largo e so-celular trocam em 640px). A marca, os
-     seis grupos e a busca pedem ~1.230px; com folga, uma tela de 1.400px (com cinco grupos era 1.280px;
-     o grupo "Servidores" acrescentou ~90px). Páginas novas entram dentro dos grupos e não mudam essa
-     conta; um grupo novo muda. */
+     seis grupos e a busca pedem ~1.330px; com folga, uma tela de 1.400px ("Políticos e servidores"
+     num grupo só ocupa uns 30px a menos que os dois grupos separados). Páginas novas entram dentro
+     dos grupos e não mudam essa conta; um grupo novo, ou um nome de grupo mais longo, muda. */
   @media (min-width: 641px) and (max-width: 1400px) {
     .topo .nav.so-largo { display: none !important; }
     .topo .nav-celular.so-celular { display: flex !important; }
