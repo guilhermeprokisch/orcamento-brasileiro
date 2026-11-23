@@ -221,9 +221,9 @@ uv run --project pipeline politicos --tse
   começa em fevereiro de 2027, o código precisa mudar antes de rodar o `--tse`.
 - **Depois:** commit de `pipeline/referencia/politicos.json`. O workflow do dia 5 tira a parte do TSE dessa cópia.
   (Isso vale enquanto o release `dados-politicos` não tiver um `tse.json`; se tiver, ele tem prioridade.)
-- **Natureza jurídica dos fornecedores (`--natureza`, ~1,3 GB da Receita):** não precisa lembrar. O workflow já roda
+- **Natureza jurídica dos fornecedores (`--natureza`, ~1,3 GB da Receita):** não roda à mão. O workflow já roda
   em janeiro, abril, julho e outubro. Fora disso, dá para pedir no botão "Run workflow" do `politicos.yml`, com a
-  opção marcada.
+  opção marcada. Se a Receita falhar, a carga segue com o cache.
 
 ## Histórico do FINBRA
 
