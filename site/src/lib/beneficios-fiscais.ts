@@ -2,7 +2,8 @@
  * Benefícios fiscais por empresa (/impostos/empresas): o que cada empresa declarou à Receita, na Dirbi, que deixou de
  * pagar em impostos federais. Gerado por pipeline/…/beneficios_fiscais.py; lido no build. Sem o arquivo, vem null.
  *
- * Privacidade: empresário individual e MEI (nomes de pessoas) não aparecem pelo nome, só nos totais ("ocultas").
+ * Privacidade: empresário individual, MEI e as outras pessoas com CNPJ (grupo 4 das naturezas: produtor rural,
+ * empresa individual imobiliária, candidato) não aparecem pelo nome, só nos totais ("ocultas").
  */
 
 export type Tipo = "empresa" | "produto" | "setor";
