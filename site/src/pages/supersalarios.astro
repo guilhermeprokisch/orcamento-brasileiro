@@ -7,11 +7,13 @@
 import Base from "../layouts/Base.astro";
 import Termo from "../components/Termo.astro";
 import { moedaCurta, moedaExtenso, pct } from "../lib/formato";
+import { caminhoCidade } from "../lib/cidades";
 import {
   MINIMO_EDUCACAO, MINIMO_SAUDE, PARTE_FPE, PARTE_FPM, compararEstados, estadosComExecutivo, fpmDeCidadesPequenas, imposto,
   CORES_FEDERAL, CORES_GRUPOS, NOMES_CURTOS, NOMES_FEDERAL, ORDEM_TIPOS, docFederal, docSuper as d, linhas, linhasFederal, mesCurto,
   mesExtenso, nosDois, periodoFederal, serie, tetoAtual, total, totalFederal, MOSTRA_NOME, EXTRA_EVENTUAL, type Linha, type Tipo,
   docLegislativo, linhasLegislativo,
+  docMunicipios,
 } from "../lib/supersalarios";
 
 const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -92,6 +94,14 @@ function notaLeg(p: { eventuais: number; atrasados: number; auxilios: number }) 
   if (p.auxilios >= EXTRA_EVENTUAL) return "auxílios";
   return null;
 }
+
+/** Prefeituras (piloto: Paraíba): quem ganha mais que o prefeito da própria cidade. */
+const mun = docMunicipios && docMunicipios.total.acima >= 5 ? (() => {
+  const d = docMunicipios;
+  // As chaves são códigos do IBGE, que o navegador ordena como números: a ordem pelo valor vem daqui.
+  const cidades = Object.values(d.municipios).filter((o) => o.acima !== null && o.ibge).sort((a, b) => (b.excesso ?? 0) - (a.excesso ?? 0));
+  return { d, cidades: cidades.slice(0, 10), outras: d.total.acima - cidades.reduce((t, o) => t + (o.acima ?? 0), 0), maxExc: Math.max(1, ...cidades.map((o) => o.excesso ?? 0)) };
+})() : null;
 
 /** Quanto isso custa: o que passou do teto por pagador e o imposto de renda que deixou de entrar. */
 function calcularCusto() {
@@ -194,7 +204,7 @@ const larguraGrupos = (l: Linha) => {
             ))}
           </ul>
           <p class="menor">
-            "Pelo menos" porque faltam as Assembleias e os Tribunais de Contas dos estados, as prefeituras e o Executivo de {27 - estadosTodos.length} estados
+            "Pelo menos" porque faltam as Assembleias e os Tribunais de Contas dos estados, as prefeituras (a Paraíba aparece à parte, com o teto do prefeito) e o Executivo de {27 - estadosTodos.length} estados
             {poderes!.bruto > 0 && <>, e ficam fora da soma até {moedaCurta(poderes!.bruto)} em {estadosBruto.length} estados que só publicam o salário bruto, sem o corte pelo teto</>}.
             O Judiciário entra com {x.pA.rotulo}, o último ano completo: em 2026, nem todos os tribunais e MPs mandaram todos os meses.
           </p>
@@ -213,7 +223,8 @@ const larguraGrupos = (l: Linha) => {
           {f && <a href="#federal">2. Executivo federal</a>}
           {leg && <a href="#legislativo">3. Legislativo federal</a>}
           {estadosExe.length > 0 && <a href="#estados">4. Governos estaduais</a>}
-          {c && <a href="#custo">5. Quanto isso custa</a>}
+          {mun && <a href="#prefeituras">5. Prefeituras</a>}
+          {c && <a href="#custo">6. Quanto isso custa</a>}
           <a href="#falta">O que falta</a>
           <a href="#cuidados">O que esta conta não diz</a>
         </nav>
@@ -640,11 +651,57 @@ const larguraGrupos = (l: Linha) => {
           </section>
         )}
 
-        <!-- Capítulo 5: Quanto custa -->
+        <!-- Capítulo 5: Prefeituras -->
+        {mun && (
+          <section class="bloco" id="prefeituras">
+            <div class="texto">
+              <span class="sobretitulo">Capítulo 5</span>
+              <h2>Prefeituras</h2>
+              <p>
+                Na prefeitura, o teto não é o salário do ministro do Supremo: é o do <strong>prefeito da cidade</strong>, que vale também para a
+                câmara, as autarquias e os institutos de previdência. A exceção são os procuradores municipais, que seguem o salário do
+                desembargador (R$ {nf0.format(mun.d.teto_procuradores)}). Por enquanto, a conta é só da Paraíba, cujo Tribunal de Contas publica a folha
+                de todos os municípios num arquivo só.
+              </p>
+              <p>
+                De {mesExtenso(mun.d.de)} a {mesExtenso(mun.d.ate)}, <strong>{nf0.format(mun.d.total.acima)} vínculos ganharam mais que o prefeito da
+                própria cidade</strong> num mês típico, em {mun.d.total.municipios_com_acima} dos {mun.d.total.municipios} municípios com o prefeito na
+                folha, e o que passou somou <strong>{moedaExtenso(mun.d.total.excesso)}</strong> em {mun.d.meses} meses.
+                {Object.keys(mun.d.cargos).length > 0 && <> Quase todos são {lista.format(Object.entries(mun.d.cargos).map(([k, v]) => `${k} (${nf0.format(v.acima)})`))}.</>}
+              </p>
+              <p class="menor">
+                O arquivo traz um valor só por pessoa e mês, sem separar 13º, férias e indenizações, e sem o corte pelo teto. Por isso a conta usa o
+                valor típico de cada um, a mediana dos meses em que aparece: um mês com 13º, férias ou um atrasado não faz ninguém passar. Ainda é
+                um máximo, porque o valor típico pode trazer indenizações que não entram no teto. A conta é por vínculo (quem acumula dois cargos,
+                como médicos, conta duas vezes), sem dezembro, sem os eleitos, os aposentados e os pensionistas. O prefeito sai da própria folha
+                ({mun.d.sem_prefeito.length} municípios não o têm e ficam de fora). Fonte: <a href={mun.d.url}>{mun.d.fonte}</a>.
+              </p>
+            </div>
+            <div class="grafico">
+              <h3>As cidades com mais dinheiro acima do salário do prefeito</h3>
+              <ol class="linhas federal" aria-label="Municípios da Paraíba com mais dinheiro acima do salário do prefeito">
+                {mun.cidades.map((o) => (
+                  <li title={`${o.nome}: ${nf0.format(o.acima!)} de ${nf0.format(o.vinculos)} vínculos acima do salário do prefeito num mês típico`}>
+                    <span class="rotulo"><a href={caminhoCidade({ uf: "PB", nome: o.nome, ibge: Number(o.ibge) })}>{o.nome}</a><small class="maior"> · prefeito: R$ {nf0.format(o.prefeito)}</small></span>
+                    <span class="trilho"><span class="barra" style={`width:${((o.excesso ?? 0) / mun.maxExc) * 100}%`}></span></span>
+                    <span class="num valor"><strong>{moedaCurta(o.excesso ?? 0)}</strong> <span>{nf0.format(o.acima!)} de {nf0.format(o.vinculos)}</span></span>
+                  </li>
+                ))}
+              </ol>
+              <p class="menor-grafico">
+                O que passou do salário do prefeito em {mun.d.meses} meses e, embaixo, quantos vínculos passam dele num mês típico, de quantos. Só
+                aparece pelo nome a cidade com pelo menos 5; as outras somam {nf0.format(mun.outras)} vínculos. A página de cada cidade da Paraíba
+                mostra o salário do prefeito e a conta dela.
+              </p>
+            </div>
+          </section>
+        )}
+
+        <!-- Capítulo 6: Quanto custa -->
         {c && (
           <section class="bloco" id="custo">
             <div class="texto">
-              <span class="sobretitulo">Capítulo 5</span>
+              <span class="sobretitulo">Capítulo 6</span>
               <h2>Quanto isso custa</h2>
               <p>
                 No Judiciário e no Ministério Público, onde está quase todo o dinheiro, o que passou do teto em {x.pA.rotulo}, {moedaExtenso(c.a.estado.excesso + c.a.uniao.excesso)}, saiu dos orçamentos públicos:{" "}
@@ -742,7 +799,7 @@ const larguraGrupos = (l: Linha) => {
             <h2>O que falta</h2>
             <ul>
               <li><strong>O Legislativo dos estados</strong>: as Assembleias e os Tribunais de Contas, onde o teto é outro (o salário do deputado estadual e o do desembargador).</li>
-              <li><strong>As prefeituras</strong>: lá o teto é o salário do prefeito, diferente em cada cidade.</li>
+              <li><strong>As prefeituras fora da Paraíba</strong>: poucos Tribunais de Contas publicam a folha dos municípios num arquivo que dê para somar.</li>
               <li><strong>O Executivo de {27 - estadosTodos.length} estados</strong>, que não publicam a folha num arquivo que dê para somar.</li>
             </ul>
           </div>

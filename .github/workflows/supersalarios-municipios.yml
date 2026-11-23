@@ -1,0 +1,96 @@
+name: Acima do teto (prefeituras da Paraíba)
+
+# Uma vez por mês, baixa a folha dos municípios da Paraíba do TCE-PB (`uv run supersalarios-municipios`: os ZIPs do ano
+# passado e do atual, uns 180 MB, lidos e apagados) e abre um pull request em rascunho com a cópia de referência
+# (pipeline/referencia/supersalarios-municipios.json), para conferir os números antes de irem ao ar. A publicação diária
+# só copia essa cópia (dados.sh, --sem-baixar). Não precisa de cache: o arquivo do ano já traz todos os meses.
+#
+# Quando roda: dia 23 de cada mês (o TCE-PB atualiza os arquivos ao longo do mês).
+on:
+  schedule:
+    - cron: "0 8 23 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: supersalarios-municipios
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # o branch do pull request
+  pull-requests: write   # abrir o pull request
+
+env:
+  RAMO: dados/supersalarios-municipios
+  # Só a main abre o pull request; em outro branch (teste), o resultado fica como artefato.
+  NA_MAIN: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Baixar e somar
+        run: uv run --project pipeline supersalarios-municipios 2>&1 | tee "$RUNNER_TEMP/saida.log"
+
+      - name: Ver se a cópia de referência mudou
+        id: mudou
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, subprocess
+          novo = json.load(open("pipeline/referencia/supersalarios-municipios.json", encoding="utf-8"))
+          velho = subprocess.run(["git", "show", "HEAD:pipeline/referencia/supersalarios-municipios.json"], capture_output=True, text=True).stdout
+          velho = json.loads(velho) if velho else {}
+          for d in (novo, velho):
+              d.pop("gerado", None)   # a data de geração muda sempre
+          print(f"mudou={'sim' if novo != velho else 'nao'}")
+          print(f"ultimo={novo.get('ate') or ''}")
+          PY
+          cat "$GITHUB_OUTPUT"
+
+      - name: Artefato do teste
+        if: always() && env.NA_MAIN != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: supersalarios-municipios
+          path: |
+            pipeline/referencia/supersalarios-municipios.json
+            ${{ runner.temp }}/saida.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Um branch fixo, refeito a partir da main a cada mês: se o pull request do mês anterior não entrou, o deste mês o
+      # substitui. Precisa de "Allow GitHub Actions to create and approve pull requests" (Settings → Actions → General).
+      - name: Pull request com a cópia de referência
+        if: steps.mudou.outputs.mudou == 'sim' && env.NA_MAIN == 'true'
+        env:
+          ULTIMO: ${{ steps.mudou.outputs.ultimo }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$RAMO"
+          git add pipeline/referencia/supersalarios-municipios.json
+          git commit -q -m "Acima do teto: prefeituras da Paraíba até $ULTIMO"
+          git push -f origin "$RAMO"
+          {
+            echo "Atualização mensal automática (workflow \`supersalarios-municipios.yml\`) da conta das prefeituras da Paraíba na página /supersalarios, com a folha do TCE-PB até **$ULTIMO**."
+            echo
+            echo "Confira os números antes de marcar como pronto e fazer o merge. Resumo da execução:"
+            echo
+            echo '```'
+            grep -E "^PB |^  " "$RUNNER_TEMP/saida.log" | head -20 || true
+            echo '```'
+            echo
+            echo "Execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > "$RUNNER_TEMP/corpo.md"
+          if [ "$(gh pr view "$RAMO" --json state -q .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit "$RAMO" --body-file "$RUNNER_TEMP/corpo.md"
+          elif ! gh pr create --draft --base "${{ github.event.repository.default_branch }}" --head "$RAMO" \
+                 --title "Acima do teto: prefeituras da Paraíba até $ULTIMO" --body-file "$RUNNER_TEMP/corpo.md"; then
+            echo "::warning::O Actions não pôde abrir o pull request. Abra à mão: ${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.repository.default_branch }}...$RAMO?expand=1"
+          fi

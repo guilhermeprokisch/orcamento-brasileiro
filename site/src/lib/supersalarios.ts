@@ -607,3 +607,43 @@ export function linhasLegislativo() {
 export function legislativoDoOrgao(cod: string) {
   return linhasLegislativo().find((o) => o.orcamento === cod) ?? null;
 }
+
+// ---------------------------------------------------------------------------------------------------- Prefeituras
+// Quem ganha mais que o prefeito da própria cidade (piloto: Paraíba, pipeline/…/supersalarios_municipios.py). No
+// município o teto é o subsídio do prefeito; o dos procuradores, o do desembargador. "acima" e "excesso" são nulos
+// quando o município tem menos de 5 vínculos acima do teto ("algum" diz se há algum).
+export interface MunicipioTeto {
+  nome: string;
+  ibge: string | null;
+  /** O subsídio do prefeito, pela mediana dos meses. */
+  prefeito: number;
+  vinculos: number;
+  acima: number | null;
+  algum: boolean;
+  excesso: number | null;
+  /** Só quando são pelo menos 5 (senão, nulo). */
+  camara: number | null;
+  procuradores: number | null;
+  mediana_acima: number | null;
+}
+interface DocMunicipios {
+  gerado: string;
+  fonte: string;
+  url: string;
+  uf: string;
+  de: string;
+  ate: string;
+  meses: number;
+  teto_procuradores: number;
+  total: { vinculos: number; acima: number; excesso: number; procuradores: number; camara: number; municipios: number; municipios_com_acima: number };
+  cargos: Record<string, { acima: number; excesso: number }>;
+  sem_prefeito: string[];
+  municipios: Record<string, MunicipioTeto>;
+}
+const arquivosMunicipios = import.meta.glob<DocMunicipios>("../../public/data/indicadores/supersalarios-municipios.json", { eager: true, import: "default" });
+export const docMunicipios: DocMunicipios | null = Object.values(arquivosMunicipios)[0] ?? null;
+
+/** O município (pelo código do IBGE), se estiver na conta. */
+export function tetoDoMunicipio(ibge: number | string): MunicipioTeto | null {
+  return docMunicipios?.municipios[String(ibge)] ?? null;
+}

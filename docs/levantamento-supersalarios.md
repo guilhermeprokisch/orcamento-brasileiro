@@ -535,3 +535,24 @@ do Brasil. A carga mensal deles roda nessa máquina, no dia 24, pela conexão no
 carga e, se entrou mês novo, sobe o cache de volta; no dia 25, o `supersalarios-estados.yml` monta o arquivo com eles e
 abre o pull request. Não se passa por proxy nem se troca de endereço para chegar aos portais.
 
+## Prefeituras: piloto na Paraíba (feito em 23/11/2026)
+
+`uv run supersalarios-municipios` lê a folha dos 223 municípios no ZIP anual do TCE-PB (Sagres; o ano passado e o
+atual, uns 180 MB, lidos direto do ZIP e apagados). No município, o teto é o **subsídio do prefeito** (art. 37, XI), que
+sai da própria folha (eletivos, cargo com "PREFEIT" e sem "VICE", pela mediana dos meses; 10 municípios não o têm e
+ficam de fora). Os procuradores seguem o do **desembargador** (90,25% do STF; RE 663.696).
+
+O arquivo traz um valor só por vínculo e mês, sem separar 13º, férias e indenizações, e sem o corte pelo teto. A conta
+usa o **valor típico** de cada vínculo, a mediana dos meses em que aparece (pelo menos 3), e não o de cada mês; o que
+passou é (típico − teto) × meses. Fica fora dezembro, além dos eleitos, aposentados e pensionistas. É um máximo, porque
+o valor típico pode trazer indenizações.
+
+Resultado (set/2025 a set/2026): **172 vínculos acima do salário do prefeito** num mês típico, em 44 dos 213 municípios
+com o prefeito na folha, R$ 10,1 mi em 12 meses: médicos (86), auditores e fiscais (51), procuradores (20, todos em João
+Pessoa, acima do desembargador), professores (7). João Pessoa tem 60 (prefeito R$ 34 mil), R$ 4,8 mi.
+
+O site mostra os números de um município só com pelo menos 5 acima do teto (e os grupos dentro dele, como os
+procuradores, também só com 5); abaixo disso, diz "menos de 5". Carga mensal no Actions (`supersalarios-municipios.yml`,
+dia 23): o TCE-PB responde de fora do Brasil. O próximo seria o TCE-CE, que separa as rubricas e traz o subsídio do
+prefeito em cada folha (mas só aceita IP do Brasil: teria de rodar na máquina de casa).
+
