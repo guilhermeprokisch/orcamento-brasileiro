@@ -69,6 +69,7 @@ URL_COTA_CAMARA = "https://www.camara.leg.br/cotas/Ano-{ano}.csv.zip"
 URL_COTA_SENADO = "https://adm.senado.gov.br/adm-dadosabertos/api/v1/senadores/despesas_ceaps/{ano}"
 URL_SENADORES = "https://legis.senado.leg.br/dadosabertos/senador/lista/legislatura/57"
 URL_FUNCIONARIOS_CAMARA = "https://dadosabertos.camara.leg.br/arquivos/funcionarios/csv/funcionarios.csv"
+URL_DEPUTADOS = "https://dadosabertos.camara.leg.br/arquivos/deputados/csv/deputados.csv"
 URL_SERVIDORES_SENADO = "https://adm.senado.gov.br/adm-dadosabertos/api/v1/servidores/servidores"
 URL_VERBA = "https://www.camara.leg.br/deputados/{id}/verba-gabinete?ano={ano}"
 URL_TSE = "https://cdn.tse.jus.br/estatistica/sead/odsele/{conjunto}/{conjunto}_{ano}.zip"
@@ -716,6 +717,70 @@ def salario_do_ano(ano: int, meses: int) -> int:
     return round(base + (valores[-1] * (1 + 1 / 3)) * meses / 12)
 
 
+def nomes_civis_camara() -> dict[str, str]:
+    """id do deputado → nome civil (o arquivo de deputados dos dados abertos; a coluna de CPF vem vazia e não é lida)."""
+    arq = baixar(URL_DEPUTADOS, PASTA / "camara" / "deputados.csv", refazer=True)
+    saida = {}
+    with arq.open(encoding="utf-8-sig", newline="") as f:
+        for r in csv.DictReader(f, delimiter=";"):
+            id_ = (r.get("uri") or "").rstrip("/").rsplit("/", 1)[-1]
+            if id_ and r.get("nomeCivil"):
+                saida[id_] = r["nomeCivil"]
+    return saida
+
+
+def periodo(p: dict) -> tuple[int, int] | None:
+    """(primeiro, último) mês com despesa na cota, como AAAAMM."""
+    meses = [int(a) * 100 + i + 1 for a, x in p["anos"].items() for i, v in enumerate((x.get("cota") or {}).get("mes", [])) if abs(v) > 0]
+    return (min(meses), max(meses)) if meses else None
+
+
+MES_CURTO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
+
+
+def rotulo_periodo(per: tuple[int, int] | None) -> str | None:
+    """"jan/2023", "fev/2023 a out/2026"."""
+    if not per:
+        return None
+    f = lambda m: f"{MES_CURTO[m % 100 - 1]}/{m // 100}"
+    return f(per[0]) if per[0] == per[1] else f"{f(per[0])} a {f(per[1])}"
+
+
+def ligar_mesma_pessoa(politicos: list[dict], completos: dict[str, str]) -> None:
+    """Quem passou pelas duas Casas (deputado até janeiro de 2023 e senador depois, ou o contrário) tem uma página
+    por cargo. Aqui as páginas da mesma pessoa se ligam: mesmo estado e mesmo nome completo (o nome civil na Câmara,
+    o nome completo no Senado). Dois deputados com o mesmo nome parlamentar (pai e filho, por exemplo) não se juntam:
+    só pessoas de Casas diferentes. Cada página ganha "outros" (os outros cargos) e "atual" (se é o cargo mais
+    recente); a lista mostra só a atual."""
+    grupos: dict[tuple, list[dict]] = defaultdict(list)
+    for p in politicos:
+        p["atual"] = True
+        p["outros"] = []
+        completo = completos.get(p["chave"])
+        if completo:
+            grupos[(p["uf"], slug(completo))].append(p)
+    for membros in grupos.values():
+        if len({m["casa"] for m in membros}) < 2:
+            continue
+        membros.sort(key=lambda m: (periodo(m) or (0, 0))[1])
+        atual = membros[-1]
+        if any(m["feminino"] for m in membros):   # o gênero vem do TSE ou do Senado; a página antiga pode não ter
+            for m in membros:
+                m["feminino"] = True
+                m["cargo"] = {"Deputado federal": "Deputada federal", "Senador": "Senadora"}.get(m["cargo"], m["cargo"])
+        for m in membros:
+            m["atual"] = m is atual
+            if m is not atual:
+                # A página do cargo antigo fica com os anos desse cargo e sem as emendas, que são da pessoa e já
+                # estão na página atual (o autor é o mesmo nas duas).
+                m["anos"] = {a: {k: v for k, v in x.items() if k != "emendas"} for a, x in m["anos"].items() if x.get("cota")}
+                m["autor"] = None
+            m["outros"] = [{"chave": o["chave"], "cargo": o["cargo"], "periodo": rotulo_periodo(periodo(o)), "atual": o is atual}
+                           for o in membros if o is not m]
+    n = sum(1 for p in politicos if not p["atual"])
+    print(f"mesma pessoa em duas Casas: {n} páginas de cargo antigo ligadas à atual", flush=True)
+
+
 def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
     sens = senadores()
     # Nome, estado e partido mais recentes de cada deputado.
@@ -787,17 +852,36 @@ def montar(con, tse_dados: dict, com_verba: bool, completa: bool) -> dict:
                 "anos": por_ano,
             })
 
-    # Endereço: /politicos/<uf>/<nome>; se repetir no estado, ganha o cargo; se ainda repetir, o id.
+    completos = {f"camara-{i}": n for i, n in nomes_civis_camara().items()}
+    completos.update({f"senado-{c}": s["completo"] for c, s in sens.items() if s.get("completo")})
+    ligar_mesma_pessoa(politicos, completos)
+
+    # Endereço: /politicos/<uf>/<nome>. Se o nome repete no estado, o cargo atual de quem passou pelas duas Casas
+    # fica com o endereço limpo e o antigo ganha o cargo no fim; se ainda repetir (dois deputados com o mesmo nome),
+    # o id.
     usados: Counter[str] = Counter((p["uf"], slug(p["nome"])) for p in politicos)
+    limpos: Counter[str] = Counter((p["uf"], slug(p["nome"])) for p in politicos if p["atual"] and p["outros"])
     for p in politicos:
         s = slug(p["nome"])
-        if usados[(p["uf"], s)] > 1:
+        if usados[(p["uf"], s)] > 1 and not (p["atual"] and p["outros"] and limpos[(p["uf"], s)] == 1):
             s = f"{s}-{'deputado' if p['casa'] == 'camara' else 'senador'}"
         p["slug"] = s
     repetidos = Counter((p["uf"], p["slug"]) for p in politicos)
     for p in politicos:
         if repetidos[(p["uf"], p["slug"])] > 1:
             p["slug"] = f"{p['slug']}-{p['id']}"
+    por_chave = {p["chave"]: p for p in politicos}
+    for p in politicos:
+        for o in p["outros"]:
+            o["slug"] = por_chave[o["chave"]]["slug"]
+    # Endereços que já foram ao ar e mudaram: a página nova responde também pelo antigo (redirecionamento).
+    anteriores = {}
+    if REFERENCIA.exists():
+        for q in json.loads(REFERENCIA.read_text(encoding="utf-8")).get("politicos", []):
+            anteriores[q["chave"]] = [q.get("slug")] + q.get("slugsAntigos", [])
+    for p in politicos:
+        antigos = [s_ for s_ in anteriores.get(p["chave"], []) if s_ and s_ != p["slug"]]
+        p["slugsAntigos"] = sorted(set(antigos) - {q["slug"] for q in politicos if q["uf"] == p["uf"]})
 
     # Comparação: mediana do gasto por mês dos colegas da mesma Casa e do mesmo estado (com 6 meses ou mais).
     for ano in anos():

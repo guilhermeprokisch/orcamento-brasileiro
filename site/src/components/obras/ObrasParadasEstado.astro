@@ -1,0 +1,134 @@
+---
+/**
+ * As obras com dinheiro federal paradas no estado, pela lista do TCU: o total, quem paga, as cidades com
+ * mais obras paradas, as maiores obras e as que só têm o estado (estradas do DNIT, Codevasf, universidades).
+ * Dados: lib/obras-paradas.ts (pipeline/…/obras_paradas.py).
+ */
+import Termo from "../Termo.astro";
+import ListaObras from "./ListaObras.astro";
+import { moedaCompleta, moedaCurta, moedaExtenso } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
+import { caminhoCidade, deUf, docCidades } from "../../lib/cidades";
+import { dataBr, mesAno, obrasNoEstado } from "../../lib/obras-paradas";
+
+interface Props {
+  uf: string;
+}
+const { uf } = Astro.props;
+const d = await obrasNoEstado(uf);
+const ehDF = uf === "DF";
+const no = ehDF ? "no Distrito Federal" : "no estado";
+// "na Paraíba", "no Acre", "em Goiás"
+const naUf = ehDF ? "no Distrito Federal" : deUf(uf).replace(/^(do|da|de) /, (x) => ({ "do ": "no ", "da ": "na ", "de ": "em " })[x] ?? x);
+const nf = new Intl.NumberFormat("pt-BR");
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+const nomes = new Map((docCidades?.cidades ?? []).filter((c) => c.uf === uf).map((c) => [c.ibge, c]));
+const cidades = (d?.cidades ?? []).map((c) => ({ ...c, cidade: nomes.get(c.ibge) })).filter((c) => c.cidade);
+const maiorPaga = Math.max(1, ...(d?.quemPaga ?? []).map((q) => q.n));
+const primeira = d?.datas[0] ?? "";
+---
+
+{d && (
+  <section class="obras-paradas">
+    <div class="texto">
+      <h2>Obras federais paradas</h2>
+      {d.n > 0 ? (
+        <>
+          <p>
+            <strong>{nf.format(d.n)} {d.n === 1 ? "obra feita" : "obras feitas"} com dinheiro federal</strong> {d.n === 1 ? "está" : "estão"} <Termo id="obra-paralisada">{d.n === 1 ? "parada" : "paradas"}</Termo> {naUf},
+            segundo a lista do <Termo id="tcu">TCU</Termo> de {mesAno(d.dataBase)}: {pct(d.n / Math.max(d.ativas, 1))} das {nf.format(d.ativas)} obras
+            federais começadas e ainda não terminadas {no}. {d.n === 1 ? "Custaria" : "Somadas, custariam"} <strong>{moedaExtenso(d.previsto)}</strong>; o governo federal
+            já <Termo id="valor-liberado">liberou</Termo> <strong>{moedaExtenso(d.liberado)}</strong>.
+          </p>
+          {!ehDF && d.cidadesComObra > 0 && (
+            <p>{d.cidadesComObra === 1 ? "Uma cidade tem" : `${nf.format(d.cidadesComObra)} cidades têm`} pelo menos uma obra parada{d.semCidade.length > 0 && <>; outras {nf.format(d.semCidade.length)} obras, como estradas e obras de universidades, aparecem na lista só com o estado</>}.</p>
+          )}
+          {d.convenios && d.convenios.n > 0 && d.transferegov && (
+            <p>
+              {d.convenios.n === 1 ? "Uma delas é paga" : `${nf.format(d.convenios.n)} são pagas`} por <Termo id="convenio">convênio</Termo>: a União já depositou
+              {" "}{moedaExtenso(d.convenios.depositado)} na conta dessas obras, e o <Termo id="saldo-em-conta">saldo parado na conta</Termo> é
+              {" "}de <strong>{moedaExtenso(d.convenios.naConta)}</strong> (Transferegov, {dataBr(d.transferegov.data)}).
+            </p>
+          )}
+          <p class="menor">
+            A lista junta obras de algumas bases do governo federal, com a situação que cada órgão informou: pode haver obra parada fora
+            dela e obra que já voltou a andar. <a href="/obras-paradas#limites">O que esta conta não diz</a> · <a href="/obras-paradas">O Brasil todo</a>.
+          </p>
+        </>
+      ) : (
+        <p>
+          Nenhuma obra federal {no} aparece como <Termo id="obra-paralisada">parada</Termo> na lista do <Termo id="tcu">TCU</Termo> de {mesAno(d.dataBase)}.{" "}
+          <a href="/obras-paradas">Ver as obras paradas no Brasil</a>.
+        </p>
+      )}
+    </div>
+    {d.n > 0 && (
+      <div class="dados">
+        <h3>Quem paga as obras paradas</h3>
+        <ul class="barras">
+          {d.quemPaga.map((q, k) => (
+            <li>
+              <span class="lb-linha"><span>{q.nome}</span><strong class="num" title={`Custariam ${moedaCompleta(q.previsto)}`}>{nf.format(q.n)} · {moedaCurta(q.previsto)}</strong></span>
+              <span class="lb-barra" style={`width:${(q.n / maiorPaga) * 100}%;background:${corDaRampa(Math.min(1, k / Math.max(d.quemPaga.length - 1, 1)))}`}></span>
+            </li>
+          ))}
+        </ul>
+        {cidades.length > 1 && (
+          <>
+            <h3>As cidades com mais obras paradas</h3>
+            <ol class="cidades">
+              {cidades.map((c) => (
+                <li>
+                  <a href={caminhoCidade(c.cidade!)}>{c.cidade!.nome}</a>
+                  <span class="num">{nf.format(c.n)} {c.n === 1 ? "obra" : "obras"} · {moedaCurta(c.previsto)}</span>
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
+        <h3>{d.maiores.length === 1 ? "A obra" : "As maiores obras paradas"}</h3>
+        <ListaObras obras={d.maiores} mostrar={5} comLocal={true} primeira={primeira} />
+        {d.semCidade.length > 0 && (
+          <details class="sem-cidade">
+            <summary>As {nf.format(d.semCidade.length)} {d.semCidade.length === 1 ? "obra" : "obras"} sem cidade (estradas, universidades e outras)</summary>
+            <ListaObras obras={d.semCidade} mostrar={d.semCidade.length} primeira={primeira} />
+          </details>
+        )}
+        <p class="fonte">
+          Fonte: <a href={d.url}>{d.fonte}</a>, data-base de {mesAno(d.dataBase)}. Valores: quanto as obras custariam (o valor
+          previsto) e quanto o governo federal já liberou para elas.
+        </p>
+      </div>
+    )}
+  </section>
+)}
+
+<style>
+  .obras-paradas { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .obras-paradas:not(:has(.dados)) .texto { grid-column: span 8; }
+  h3 { margin: 6px 0 0; font-family: var(--sans, inherit); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .barras li { display: flex; flex-direction: column; gap: 4px; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .lb-linha > span { min-width: 0; font-weight: 600; }
+  .lb-linha strong { white-space: nowrap; font-weight: 600; }
+  .lb-barra { display: block; height: 10px; min-width: 2px; }
+  .cidades { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); columns: 2; column-gap: 24px; }
+  .cidades li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; break-inside: avoid; }
+  .cidades a { font-weight: 600; color: var(--tinta); }
+  .cidades .num { white-space: nowrap; color: var(--texto-3); font-size: 14px; }
+  .sem-cidade summary { cursor: pointer; padding: 6px 0 10px; font-size: 14px; font-weight: 600; color: var(--verde); }
+  .fonte { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .obras-paradas { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; line-height: 1.1; }
+    .cidades { columns: 1; }
+  }
+</style>
