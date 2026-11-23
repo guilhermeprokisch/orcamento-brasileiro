@@ -67,6 +67,12 @@ export interface Politico {
   assessores: number | null;
   anos: Record<string, Ano>;
   slug: string;
+  /** false quando a mesma pessoa tem uma página de cargo mais recente (deputado até jan/2023 e senador depois) */
+  atual: boolean;
+  /** as páginas da mesma pessoa em outro cargo */
+  outros: { chave: string; cargo: string; periodo: string | null; atual: boolean; slug: string }[];
+  /** endereços que esta página já teve (redirecionam para o atual) */
+  slugsAntigos: string[];
 }
 export interface DocPoliticos {
   gerado: string;
@@ -86,7 +92,8 @@ export const caminhoPolitico = (p: Pick<Politico, "uf" | "slug">) => `/politicos
 /** O autor das emendas (como a CGU escreve, ou como o explorador escreve) → endereço da página do político. */
 export function mapaAutores(): Record<string, string> {
   const m: Record<string, string> = {};
-  for (const p of docPoliticos?.politicos ?? []) if (p.autor) m[slug(p.autor)] = caminhoPolitico(p);
+  // Quem passou pelas duas Casas tem o mesmo autor nas duas páginas: vale a do cargo atual.
+  for (const p of docPoliticos?.politicos ?? []) if (p.autor && (p.atual !== false || !m[slug(p.autor)])) m[slug(p.autor)] = caminhoPolitico(p);
   return m;
 }
 const autores = mapaAutores();
