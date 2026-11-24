@@ -1,16 +1,17 @@
 ---
 /**
- * O submenu das páginas das emendas: entender (a história), explorar (o explorador no desenho do de gastos) e buscar
- * emenda por emenda (a busca nos textos, por lugar, parlamentar ou entidade).
+ * O submenu das páginas das emendas: entender (a história), explorar (o explorador no desenho do de gastos), buscar
+ * emenda por emenda (a busca nos textos, por lugar, parlamentar ou entidade) e o mapa (bolhas por cidade, retratos).
  */
 import { ROTA } from "../../lib/emendas-panorama";
 
-interface Props { ativa: "inicio" | "explorar" | "busca" }
+interface Props { ativa: "inicio" | "explorar" | "busca" | "mapa" }
 const { ativa } = Astro.props;
 const ABAS = [
   { id: "inicio", href: ROTA.inicio, nome: "O que são", curto: "O que são", dica: "a história, com os números" },
   { id: "explorar", href: ROTA.explorar, nome: "Explorar", curto: "Explorar", dica: "todas as listas, por quem, onde e para quê" },
   { id: "busca", href: ROTA.busca, nome: "Buscar emenda por emenda", curto: "Buscar", dica: "por lugar, parlamentar ou assunto" },
+  { id: "mapa", href: ROTA.mapa, nome: "No mapa", curto: "Mapa", dica: "para onde vai e quem manda" },
 ] as const;
 ---
 
