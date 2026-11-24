@@ -166,19 +166,19 @@ O registro completo, atualizado pelo comando `lai` (PR #151), fica em `docs/pedi
 |---|---|---|---|---|---|
 | TCE-MG | 23/11/2026 | e-mail para crtce@tce.mg.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-SP | 23/11/2026 | e-mail para ouvidoria@tce.sp.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-SC | 23/11/2026 | e-mail para sic@tcesc.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: apontou o Farol, que só tem a folha somada. Resposta de 24/11 pede o painel com download por pessoa e mês ou os dados em CSV. |
+| TCE-SC | 23/11/2026 | e-mail para sic@tcesc.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: apontou o Farol, que só tem a folha somada; a resposta pediu download por pessoa ou CSV. Nova resposta: baixar em Pessoal On-line, "Movimentações Funcionais", UG por UG. Conferir se traz a remuneração por pessoa. |
 | TCE-PI | 23/11/2026 | e-mail para ouvidoria@tcepi.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-PE | 23/11/2026 | e-mail para ouvidoria@tcepe.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-RN | 23/11/2026 | e-mail para ouvidoria@tce.rn.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
+| TCE-RN | 23/11/2026 | e-mail para ouvidoria@tce.rn.gov.br | — | — | 24/11: pede o registro pelo Fala.BR. Reenviar por lá. |
 | TCM-PA | 23/11/2026 | e-mail para ouvidoria@tcm.pa.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-MT | 23/11/2026 | e-mail para ouvidoria@tce.mt.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
+| TCE-MT | 23/11/2026 | e-mail para ouvidoria@tce.mt.gov.br | 285.794-4/2026 | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: chamado 1908/2026, encaminhado à unidade competente ([acompanhar](https://www.tce.mt.gov.br/processo/2857944/2026)). |
 | TCE-TO | 23/11/2026 | e-mail para ouvidoria@tceto.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-AL | 23/11/2026 | e-mail para ouvidoria@tceal.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-RJ | 23/11/2026 | e-mail para ouv@tcerj.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 23/11: pediu CPF e data de nascimento; respondido no mesmo dia. |
 | TCE-MS | 23/11/2026 | e-mail para ouvidoria@tce.ms.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-RO | 23/11/2026 | e-mail para i.sic@tce.ro.gov.br | SICOUV-5316 | 13/12/2026 (até 23/12/2026 com prorrogação) | Pediu CPF, endereço, município e telefone (Res. 93/2012); registrado no SICOUV em 24/11. |
 | TCE-AC | 23/11/2026 | e-mail para ouvidoria@tceac.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-AP | 23/11/2026 | e-mail para ouvidoria@tce.ap.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
+| TCE-AP | 23/11/2026 | e-mail para ouvidoria@tce.ap.gov.br | 924194 | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: recebido e em análise. |
 | TCE-RR | 23/11/2026 | e-mail para ouvidoria@tcerr.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALEP | 23/11/2026 | e-mail para ouvidoria@assembleia.pr.leg.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALMT | 23/11/2026 | e-mail para ouvidoria@al.mt.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
