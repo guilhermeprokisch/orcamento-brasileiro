@@ -160,11 +160,13 @@ de 20/11, o TCM-GO pediu que tudo vá pelo sistema da ouvidoria, o e-mail ao TCE
 TCE-PR e o TCE-AM usam o e-mail só para dúvidas, a ALRS só aceita o formulário e ALEAL, ALAP, ALMG e ALERJ não
 publicam e-mail.
 
+O registro completo, atualizado pelo comando `lai` (PR #151), fica em `docs/pedidos-lai/registro.csv`.
+
 | Órgão | Enviado em | Canal | Protocolo | Prazo | Resposta |
 |---|---|---|---|---|---|
 | TCE-MG | 23/11/2026 | e-mail para crtce@tce.mg.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-SP | 23/11/2026 | e-mail para ouvidoria@tce.sp.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-SC | 23/11/2026 | e-mail para sic@tcesc.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
+| TCE-SC | 23/11/2026 | e-mail para sic@tcesc.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: diz que os dados são os do Farol, em Excel. Conferir se o painel de pessoal tem a folha por município com valores; se não, recurso. |
 | TCE-PI | 23/11/2026 | e-mail para ouvidoria@tcepi.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-PE | 23/11/2026 | e-mail para ouvidoria@tcepe.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-RN | 23/11/2026 | e-mail para ouvidoria@tce.rn.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
@@ -172,21 +174,21 @@ publicam e-mail.
 | TCE-MT | 23/11/2026 | e-mail para ouvidoria@tce.mt.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-TO | 23/11/2026 | e-mail para ouvidoria@tceto.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-AL | 23/11/2026 | e-mail para ouvidoria@tceal.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-RJ | 23/11/2026 | e-mail para ouv@tcerj.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
+| TCE-RJ | 23/11/2026 | e-mail para ouv@tcerj.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: pede CPF e data de nascimento para dar andamento. |
 | TCE-MS | 23/11/2026 | e-mail para ouvidoria@tce.ms.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-RO | 23/11/2026 | e-mail para i.sic@tce.ro.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
+| TCE-RO | 23/11/2026 | e-mail para i.sic@tce.ro.gov.br | SICOUV-5316 | 13/12/2026 (até 23/12/2026 com prorrogação) | Pediu CPF, endereço, município e telefone (Res. 93/2012); registrado no SICOUV em 24/11. |
 | TCE-AC | 23/11/2026 | e-mail para ouvidoria@tceac.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-AP | 23/11/2026 | e-mail para ouvidoria@tce.ap.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-RR | 23/11/2026 | e-mail para ouvidoria@tcerr.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALEP | 23/11/2026 | e-mail para ouvidoria@assembleia.pr.leg.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALMT | 23/11/2026 | e-mail para ouvidoria@al.mt.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| ALETO | 23/11/2026 | e-mail para ouvidoria@al.to.leg.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
+| ALETO | 23/11/2026, **voltou** | e-mail para ouvidoria@al.to.leg.br: caixa cheia. Reenviar pelo [formulário](https://www.al.to.leg.br/loginExterno/sic) (pede conta) | — | — | |
 | ALEPI | 23/11/2026 | e-mail para ouvidoria@al.pi.leg.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALEAC | 23/11/2026 | e-mail para ouvidoria@al.ac.leg.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALESE | 23/11/2026, **voltou** | e-mail para sic@al.se.leg.br: o servidor da ALESE recusou o servidor do inout.email (lista de bloqueio rbl.infonet.com.br), e o formulário do e-SIC está quebrado. Reenviar de outro e-mail (ex.: Gmail) | — | — | |
 | ALEMA | 23/11/2026 | e-mail para ouvidoria@al.ma.leg.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALEPA | 23/11/2026 | e-mail para ouvidoria@alepa.pa.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| ALERR | 23/11/2026, **voltou** | e-mail para ouvidoria@al.rr.leg.br: caixa cheia. Reenviar pelo [formulário](http://grp.al.rr.leg.br/grp/acessoexterno/programaAcessoExterno.faces?codigo=68000) | — | — | |
+| ALERR | 23/11/2026, **voltou** | e-mail para ouvidoria@al.rr.leg.br: caixa cheia. Reenviado pelo [formulário](http://grp.al.rr.leg.br/grp/acessoexterno/programaAcessoExterno.faces?codigo=68000) em 23/11 | 2026/75 | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALRN | 23/11/2026 | e-mail para ouvidoriageral@al.rn.leg.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALES | 23/11/2026 | e-mail para sic@al.es.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALESC | 23/11/2026 | e-mail para ci@alesc.sc.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
@@ -194,16 +196,16 @@ publicam e-mail.
 | ALBA | 23/11/2026 | e-mail para ouvidoria@alba.ba.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALECE | 23/11/2026 | e-mail para ouvidoria@al.ce.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | ALEMS | 23/11/2026 | e-mail para ouvidoria@al.ms.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| ALPB | 23/11/2026 | e-mail para ouvidoria@al.pb.leg.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
+| ALPB | 23/11/2026 | e-mail para ouvidoria@al.pb.leg.br; depois, resposta à ouvidoria com o pedido | — | 13/12/2026 (até 23/12/2026 com prorrogação) | A ouvidoria pediu o Portal da Transparência, cujo CAPTCHA recusa o código; o pedido seguiu na resposta ao e-mail dela. |
 | ALERO | 23/11/2026 | e-mail para ouvidoria@ale.ro.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-RS | | formulário (não aceita e-mail; enviar à mão) | | | |
+| TCE-RS | 23/11/2026 | formulário (comando `lai`) | 028860-0299/26-7 | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-PR | | formulário (não aceita e-mail; enviar à mão) | | | |
 | TCE-AM | | formulário (não aceita e-mail; enviar à mão) | | | |
 | TCM-BA | | formulário (não aceita e-mail; enviar à mão) | | | |
 | TCM-GO | | formulário (não aceita e-mail; enviar à mão) | | | |
-| TCE-SE | | formulário (não aceita e-mail; enviar à mão) | | | |
+| TCE-SE | 23/11/2026 | formulário (comando `lai`) | — | 13/12/2026 (até 23/12/2026 com prorrogação) | O protocolo chega por e-mail. |
 | ALRS | | formulário (não aceita e-mail; enviar à mão) | | | |
 | ALEAL | | formulário (não aceita e-mail; enviar à mão) | | | |
 | ALAP | | formulário (não aceita e-mail; enviar à mão) | | | |
-| ALMG | | formulário (não aceita e-mail; enviar à mão) | | | |
-| ALERJ | | formulário (não aceita e-mail; enviar à mão) | | | |
+| ALMG | 23/11/2026 | formulário (extensão do `lai` no Chrome) | 127134 | 13/12/2026 (até 23/12/2026 com prorrogação) | |
+| ALERJ | 23/11/2026 | formulário (comando `lai`) | 19559/2026 | 13/12/2026 (até 23/12/2026 com prorrogação) | |
