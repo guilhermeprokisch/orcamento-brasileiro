@@ -166,7 +166,7 @@ O registro completo, atualizado pelo comando `lai` (PR #151), fica em `docs/pedi
 |---|---|---|---|---|---|
 | TCE-MG | 23/11/2026 | e-mail para crtce@tce.mg.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-SP | 23/11/2026 | e-mail para ouvidoria@tce.sp.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-SC | 23/11/2026 | e-mail para sic@tcesc.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: diz que os dados são os do Farol, em Excel. Conferir se o painel de pessoal tem a folha por município com valores; se não, recurso. |
+| TCE-SC | 23/11/2026 | e-mail para sic@tcesc.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: diz que os dados são os do Farol, em Excel. O Farol só tem a folha somada, não por pessoa: resposta em preparo. |
 | TCE-PI | 23/11/2026 | e-mail para ouvidoria@tcepi.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-PE | 23/11/2026 | e-mail para ouvidoria@tcepe.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-RN | 23/11/2026 | e-mail para ouvidoria@tce.rn.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
@@ -174,7 +174,7 @@ O registro completo, atualizado pelo comando `lai` (PR #151), fica em `docs/pedi
 | TCE-MT | 23/11/2026 | e-mail para ouvidoria@tce.mt.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-TO | 23/11/2026 | e-mail para ouvidoria@tceto.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-AL | 23/11/2026 | e-mail para ouvidoria@tceal.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-RJ | 23/11/2026 | e-mail para ouv@tcerj.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: pede CPF e data de nascimento para dar andamento. |
+| TCE-RJ | 23/11/2026 | e-mail para ouv@tcerj.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 23/11: pediu CPF e data de nascimento; respondido no mesmo dia. |
 | TCE-MS | 23/11/2026 | e-mail para ouvidoria@tce.ms.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-RO | 23/11/2026 | e-mail para i.sic@tce.ro.gov.br | SICOUV-5316 | 13/12/2026 (até 23/12/2026 com prorrogação) | Pediu CPF, endereço, município e telefone (Res. 93/2012); registrado no SICOUV em 24/11. |
 | TCE-AC | 23/11/2026 | e-mail para ouvidoria@tceac.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
