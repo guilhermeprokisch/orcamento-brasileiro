@@ -150,6 +150,10 @@ fila_independente() {
   # Políticos (deputados federais e senadores: cota, gabinete, emendas e TSE): o politicos.yml baixa todo dia 5 e abre
   # um pull request com a cópia de referência; aqui só essa cópia.
   pipe pode-falhar "Políticos" politicos --sem-baixar
+  # Emendas dos deputados estaduais (a seção da cidade e "Para onde mandou emendas" em /politicos): cada estado publica
+  # de um jeito, e alguns portais só respondem do Brasil; a carga é à mão (uv run emendas-estaduais, docs/rodar-a-mao.md).
+  # Aqui, a cópia de referência.
+  pipe pode-falhar "Emendas dos deputados estaduais" emendas-estaduais --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).
