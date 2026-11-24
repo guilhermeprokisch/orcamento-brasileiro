@@ -95,7 +95,10 @@ def main() -> None:
             print(f"  {origem.relative_to(c.RAIZ)} não existe; pulando", flush=True)
             continue
         try:
-            b2("sync", "--compare-versions", "size", "--threads", "8", "--exclude-regex", IGNORAR,
+            # Sem seguir links simbólicos: `uv run emendas-mapa` deixa em site/public/data um link para a pasta
+            # versionada de data/publico (para o servidor de desenvolvimento), e segui-lo mandava os mesmos
+            # 131 MB uma segunda vez, em tratados/ (24/11/2026).
+            b2("sync", "--compare-versions", "size", "--threads", "8", "--exclude-regex", IGNORAR, "--exclude-all-symlinks",
                "--no-progress", str(origem), f"b2://{BUCKET}/{destino}")
         except subprocess.CalledProcessError as erro:   # uma pasta que falhou não impede as outras
             falhas += 1
