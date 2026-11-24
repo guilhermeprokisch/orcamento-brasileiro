@@ -96,6 +96,9 @@ fila_independente() {
   pipe pode-falhar "Saneamento (Censo 2022)" saneamento
   # Os Parquet dos exploradores ficam no bucket e são gerados à mão; aqui só os resumos.
   pipe pode-falhar "Explorador de emendas" explorador-emendas --sem-baixar
+  # O mapa das emendas (/emendas/mapa): a pasta versionada é gerada à mão (uv run emendas-mapa) e vive no bucket;
+  # aqui só o resumo, que diz à página qual versão está no ar.
+  pipe pode-falhar "Mapa das emendas" emendas-mapa --sem-baixar
   pipe pode-falhar "Receitas da União" receitas-uniao --sem-baixar
   # As contas fecham? (/contas): resultado primário e nominal (Banco Central) e despesas obrigatórias e
   # discricionárias (Resultado do Tesouro). Se o download falhar, usa pipeline/referencia/contas-federal.json.

@@ -1,0 +1,81 @@
+<details class="aviso" id="aviso">
+  <summary>Como ler este mapa</summary>
+  <p>Pagamentos de emendas do Portal da Transparência, 2014–2026, por município favorecido. Cada bolha é um <b>município</b>, no centróide da
+    malha do IBGE: é o município do favorecido que recebeu o pagamento, não o endereço da obra. Os dados
+    não têm endereço nem coordenada. A cara vem do cadastro da Câmara e do Senado; bancada, comissão e
+    relator são colegiados e aparecem como monograma.</p>
+  <p><b>Brasília</b> fica fora do mapa. Sozinha são R$ 112 bi, 40% de tudo — não é dinheiro gasto no
+    DF: quando o pagamento vai para uma entidade ou empresa com sede em Brasília, o "município favorecido"
+    é Brasília, mesmo que a obra ou o serviço seja em qualquer outro lugar. Com ela, a bolha dela engole a
+    escala e o resto do país vira poeira. <a href="#" id="ver-df">Ver com Brasília</a>.</p>
+</details>
+
+<header>
+  <div class="titulo-mapa"><h1>Para onde as emendas vão</h1></div>
+  <div class="frase" aria-label="O que o mapa mostra">
+    <div class="cel oque"><span>Mostre as emendas de</span>
+      <button type="button" class="tk" id="abre-autor" aria-expanded="false">
+        <span id="autor-rotulo">todos os autores</span><i aria-hidden="true">▾</i></button></div>
+    <div class="cel tipo-cel"><span>do tipo</span>
+      <div class="grupo" id="tipo">
+        <button type="button" data-t="" aria-pressed="true">todos</button>
+        <button type="button" data-t="Individual">individual</button>
+        <button type="button" data-t="Bancada">bancada</button>
+        <button type="button" data-t="Relator">relator</button>
+        <button type="button" data-t="Comissão">comissão</button>
+        <button type="button" data-t="Pix">Pix</button>
+      </div></div>
+    <label class="cel ano"><span>pagas em</span>
+      <select class="tk" id="ano" aria-label="Ano das emendas"></select></label>
+  </div>
+  <p class="total"><b id="total">—</b><span id="total-sub">—</span></p>
+</header>
+
+<div id="fundo-autor" hidden></div>
+<div id="painel-autor" hidden>
+  <input type="search" id="busca-autor" placeholder="Deputado, senador, bancada ou comissão…" autocomplete="off">
+  <ul id="lista-autor"></ul>
+</div>
+
+<div class="palco-todo" id="main">
+  <aside class="coluna" id="col-esq" aria-label="Parlamentares em destaque, lado oeste"></aside>
+  <div class="palco" id="palco">
+    <svg id="mapa" role="img" aria-label="Bolhas das emendas parlamentares por município"></svg>
+    <div class="legenda">
+      <span>Valor pago</span>
+      <svg id="legenda" aria-hidden="true"></svg>
+      <div class="grupo escala" id="escala" aria-label="Escala das bolhas">
+        <button type="button" data-e="raiz" aria-pressed="true">área ∝ valor</button>
+        <button type="button" data-e="log">log</button>
+      </div>
+      <p class="nota-cara" id="nota-cara" hidden><span class="so-tela-grande">Os retratos são dos
+        <b>8 parlamentares</b> que mais mandaram para o que está na tela; a linha aponta o maior
+        município de cada um. Zoom troca os oito.</span>
+        <button type="button" id="marca-todos"></button></p>
+    </div>
+    <div class="ranking">
+      <span>Maiores do ano</span>
+      <ol id="top"></ol>
+    </div>
+    <div class="faixa" id="faixa" hidden></div>
+    <div class="cartao" id="cartao" hidden></div>
+  </div>
+  <aside class="coluna" id="col-dir" aria-label="Parlamentares em destaque, lado leste"></aside>
+  <aside class="painel-mun" id="mun" aria-label="Emendas do município escolhido">
+    <button type="button" class="voltar" id="mun-voltar">← Voltar ao mapa do Brasil</button>
+    <h2 id="mun-nome"></h2>
+    <p class="resumo" id="mun-resumo"></p>
+    <div class="busca-linha">
+      <label>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+        <input type="search" id="mun-busca" placeholder="Buscar por autor, favorecido ou objeto — por exemplo, “UPA”" autocomplete="off">
+      </label>
+      <button type="button" id="mun-csv">Baixar CSV</button>
+    </div>
+    <div class="chips" id="mun-chips"></div>
+    <div class="cab-lista"><span>Emendas, da maior para a menor</span><span id="mun-conta"></span></div>
+    <ol id="mun-lista"></ol>
+    <button type="button" id="mun-mais" hidden>Mostrar mais</button>
+  </aside>
+  <svg id="linhas" aria-hidden="true"></svg>
+</div>

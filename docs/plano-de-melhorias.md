@@ -293,6 +293,22 @@ Fontes: Tesouro Nacional (Relatório Mensal da Dívida e os dados abertos no Tes
 Transparente, com a tabela de detentores) e Banco Central (dívida bruta do governo geral e
 juros nominais).
 
+### M. Emendas no mapa: bolhas, retratos e o clique na cidade
+
+**Primeiro passo feito em 24/11/2026:** o mapa das emendas entrou como página própria da seção de emendas
+(`/emendas/mapa/`), com os dados de `uv run emendas-mapa` no bucket. O que segue é a etapa seguinte, de
+juntar isso ao `/mapa/` — quando for a hora.
+
+Levar ao `/mapa/` o que o protótipo de novembro de 2026 decidiu: na pergunta "Emendas", "no total" vira
+bolhas por município; retratos dos parlamentares que mais mandaram para o que está na tela, em chamadas
+laterais ligadas ao município; e o clique na cidade abre as emendas dela uma a uma, lidas da ficha por
+lugar que o buscador já usa. Seis etapas pequenas, cada uma um PR, em
+[mapa-emendas-plano.md](mapa-emendas-plano.md). Pede antes: fotos dos parlamentares no pipeline
+(Câmara e Senado) e a série por tipo no `emendas.json`.
+
+É o primeiro passo da ideia de o mapa virar uma seção própria, com mais de uma visualização
+("para onde está indo, quem manda, por onde"), e não uma página presa ao recorte estados e cidades.
+
 ## Para depois
 
 ### C. Resumo e imagem para compartilhar
