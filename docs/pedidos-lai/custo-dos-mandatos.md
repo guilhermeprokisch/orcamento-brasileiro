@@ -166,7 +166,7 @@ O registro completo, atualizado pelo comando `lai` (PR #151), fica em `docs/pedi
 |---|---|---|---|---|---|
 | TCE-MG | 23/11/2026 | e-mail para crtce@tce.mg.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-SP | 23/11/2026 | e-mail para ouvidoria@tce.sp.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
-| TCE-SC | 23/11/2026 | e-mail para sic@tcesc.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: diz que os dados são os do Farol, em Excel. O Farol só tem a folha somada, não por pessoa: resposta em preparo. |
+| TCE-SC | 23/11/2026 | e-mail para sic@tcesc.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | 24/11: apontou o Farol, que só tem a folha somada. Resposta de 24/11 pede o painel com download por pessoa e mês ou os dados em CSV. |
 | TCE-PI | 23/11/2026 | e-mail para ouvidoria@tcepi.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-PE | 23/11/2026 | e-mail para ouvidoria@tcepe.tc.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
 | TCE-RN | 23/11/2026 | e-mail para ouvidoria@tce.rn.gov.br | — | 13/12/2026 (até 23/12/2026 com prorrogação) | |
