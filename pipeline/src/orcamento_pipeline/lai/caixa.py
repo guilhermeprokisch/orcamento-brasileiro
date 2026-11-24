@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 
 from . import registro
@@ -28,8 +29,13 @@ MOTIVOS = [(r"quota|mailbox (?:for user )?is full|caixa.{0,20}cheia", "caixa do 
 def _homerow(*args: str):
     if not HOMEROW.exists():
         raise SystemExit(f"Não achei a skill do Homerow em {HOMEROW} (defina LAI_HOMEROW).")
-    r = subprocess.run(["python3", str(HOMEROW), "mail", *args], capture_output=True, text=True, check=True)
-    return json.loads(r.stdout)
+    # O servidor de e-mail às vezes falha logo depois de o Mac acordar: tenta de novo antes de desistir.
+    for tentativa in range(4):
+        r = subprocess.run(["python3", str(HOMEROW), "mail", *args], capture_output=True, text=True)
+        if r.returncode == 0:
+            return json.loads(r.stdout)
+        time.sleep(30 * (tentativa + 1))
+    raise SystemExit(f"Não consegui ler a caixa do Homerow: {(r.stderr or r.stdout).strip()[-400:]}")
 
 
 def _dominio(canal: str) -> str | None:
