@@ -57,7 +57,7 @@
   [hidden] { display: none !important; }
   /* As escolhas ficam numa frase sobre o mapa (.frase). O painel lateral antigo continua no HTML, escondido:
      o ano, a inflação, "passar os anos" e os avisos seguem ligados ao código, e a frase os aciona. */
-  .notas { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; padding: 6px max(20px, env(safe-area-inset-right, 0px)) 6px max(20px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--regra); font-size: 12.5px; line-height: 1.45; color: var(--texto-2); min-width: 0; }
+  .notas { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; padding: 4px max(20px, env(safe-area-inset-right, 0px)) 4px max(20px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--regra); font-size: 12.5px; line-height: 1.45; color: var(--texto-2); min-width: 0; }
   .notas p { margin: 0; }
   .notas .so-2025 { font-size: inherit; color: var(--tinta); }
   .notas details { margin-left: auto; }
@@ -65,25 +65,26 @@
   .notas details[open] { flex-basis: 100%; margin-left: 0; display: flex; flex-direction: column; gap: 6px; padding-bottom: 4px; }
   .notas details small { font-size: inherit; display: block; }
   .notas .maiores { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px 14px; }
-  .frase { display: flex; align-items: flex-end; gap: 18px; padding: 12px max(20px, env(safe-area-inset-right, 0px)) 14px max(20px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--regra); min-width: 0; }
-  .frase .quem { flex: 0 0 350px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .frase { display: flex; align-items: flex-end; gap: 18px; padding: 8px max(20px, env(safe-area-inset-right, 0px)) 10px max(20px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--regra); min-width: 0; }
+  .frase .quem { flex: 0 0 350px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .frase .quem > span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; color: var(--texto-2); }
-  .frase .quem > div { display: grid; grid-template-columns: 1fr 0.8fr 1.25fr; border: 1px solid var(--tinta); height: 40px; }
+  .frase .quem > div { display: grid; grid-template-columns: 1fr 0.8fr 1.25fr; border: 1px solid var(--tinta); height: 36px; }
   .frase .quem button { font: inherit; font-size: 13.5px; padding: 0 4px; border: 0; background: transparent; color: var(--tinta); cursor: pointer; }
   .frase .quem button + button { border-left: 1px solid var(--tinta); }
   .frase .quem button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); font-weight: 600; }
-  .frase .cel { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .frase .cel { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .frase .cel.oque { flex-grow: 1.5; }
   .frase .cel.un { flex-grow: 0.75; }
   .frase .cel.ano { flex: 0 0 132px; }
   .frase .cel > span:first-child { font-family: var(--serifa); font-size: 15px; color: var(--texto-2); white-space: nowrap; }
-  .frase .tk, .frase .fixo { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 40px; min-width: 0; padding: 0 10px; font-family: var(--serifa); font-size: 18px; font-weight: 600; color: var(--tinta); }
+  .frase .tk, .frase .fixo { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 36px; min-width: 0; padding: 0 10px; font-family: var(--serifa); font-size: 18px; font-weight: 600; color: var(--tinta); }
   .frase .tk { width: 100%; text-align: left; border: 0; border-bottom: 2px solid var(--verde); background: var(--papel-2); cursor: pointer; }
   .frase .tk > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .frase .tk > i { font-style: normal; font-size: 13px; flex: none; }
   .frase .tk.leve { font-weight: 400; color: var(--texto-2); border-bottom-style: dashed; }
   .frase .tk[aria-expanded="true"] { background: var(--tinta); color: var(--papel); border-bottom-color: var(--tinta); }
   .frase .fixo { border-bottom: 2px solid var(--regra); justify-content: flex-start; white-space: nowrap; overflow: hidden; }
+  .frase .cel.sem-escolha { display: none; }   /* sem par para cruzar, não há o que escolher: o campo some */
   .frase .fixo small { font-family: var(--sans); font-size: 12px; font-weight: 400; color: var(--texto-2); margin-left: 8px; }
   #menu-fundo { position: fixed; inset: 0; z-index: 19; background: transparent; }
   #menu-frase { position: fixed; z-index: 20; min-width: 280px; max-width: 470px; max-height: 72vh; overflow: auto; background: var(--papel); border: 1px solid var(--tinta); box-shadow: 0 8px 22px var(--sombra); padding: 6px 0; }
@@ -98,7 +99,7 @@
   #menu-frase .anos button { font: inherit; font-size: 14px; padding: 8px 2px; border: 1px solid var(--regra); background: transparent; color: var(--tinta); cursor: pointer; }
   #menu-frase .anos button[aria-current="true"] { background: var(--tinta); color: var(--papel); border-color: var(--tinta); }
   #menu-frase label { display: flex; gap: 8px; align-items: center; padding: 8px 16px; font-size: 13px; border-top: 1px solid var(--regra); }
-  @media (min-width: 761px) { header { flex-wrap: nowrap; align-items: center; } header > p { flex: 1; min-width: 0; text-align: right; } header .busca { flex: none; width: 260px; } }
+  @media (min-width: 761px) { header { flex-wrap: nowrap; align-items: center; } header > p { flex: 1; min-width: 0; text-align: right; } header .busca { flex: none; width: 280px; } header .busca input { height: 34px; } }
   @media (max-width: 760px), (max-height: 520px) and (pointer: coarse) {
     .frase { flex-direction: column; align-items: stretch; gap: 6px; padding-top: 0; padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); border-bottom: 2px solid var(--tinta); position: relative; z-index: 4; background: var(--papel); }
     .frase .quem { flex: none; margin-bottom: 2px; }
@@ -109,8 +110,6 @@
     .frase .tk, .frase .fixo { font-size: 17px; height: auto; min-height: 38px; padding-block: 5px; }
     .frase .tk > span { white-space: normal; line-height: 1.2; }
     .frase .cel > span:first-child { white-space: normal; line-height: 1.2; }
-    .frase .cel.sem-escolha { display: none; }   /* no celular, some a linha em que não há o que escolher */
-    header .busca .rotulo { display: none; }
     #menu-fundo { background: rgba(0, 0, 0, .3); }
     #menu-frase { left: 0 !important; right: 0; top: auto !important; bottom: 0; max-width: none; max-height: 72vh; border-width: 2px 0 0; padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
     #menu-frase .op { padding-block: 11px; }
@@ -123,12 +122,13 @@
   .app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); }
   header {
     grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-    padding-block: 14px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+    padding-block: 9px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
     border-bottom: 2px solid var(--tinta);
   }
   header h1 { margin: 0; font-family: var(--serifa); font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
   header p { margin: 0; font-size: 13px; color: var(--texto-3); }
   .selo a { color: inherit; }
+  header .busca .rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }   /* o placeholder já diz */
   .selo { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--verde); }
 
   aside {
@@ -361,7 +361,7 @@
   <aside aria-label="Controles do mapa" hidden>
     <div class="busca">
       <label class="rotulo" for="busca" style="padding:0">Procure sua cidade</label>
-      <input type="search" id="busca" placeholder="Ex.: Campinas, Juazeiro BA" autocomplete="off">
+      <input type="search" id="busca" placeholder="Procure sua cidade, ex.: Campinas" autocomplete="off">
       <ul id="busca-lista" hidden></ul>
     </div>
 
