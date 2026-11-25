@@ -21,7 +21,7 @@ O banco tem duas tabelas, `pessoas` e `seguindo`, criadas pela própria função
 
 ## Para ligar (uma vez)
 
-1. **Caixa de e-mail.** No repositório do Homerow, acrescentar `boletim@orcamentobrasileiro.com.br` em `extraMailboxes` (`modules/settings.nix`), com uma senha só dela, e publicar o servidor. O domínio já tem MX, SPF, DKIM e DMARC.
+1. **Caixa de e-mail.** No repositório do Homerow, acrescentar `boletim@orcamentobrasileiro.com.br:<hash>` em `EXTRA_MAILBOXES` no `config.env` (fora do git), com uma senha só dela, e publicar com `./hrow deploy`. O script local `.claude/seguir-senhas.sh` faz isso e grava as senhas nos dois lados, sem mostrá-las. O domínio já tem MX, SPF, DKIM e DMARC.
 2. **Banco D1.** Feito em 26/11/2026: o banco `orcamento-seguir` está ligado ao site como `DB` em `site/wrangler.toml`, que vale para produção e para as prévias. Com esse arquivo, as ligações e variáveis do Pages ficam no repositório, não no painel.
 3. **Senha do e-mail no Pages:** `npx wrangler pages secret put SMTP_SENHA --project-name orcamento-brasileiro` (só produção; as prévias ficam sem e-mail e só registram no log). As outras variáveis têm padrão (`mail.inout.email`, porta 465, usuário = remetente).
 4. **Segredos do GitHub** para o envio mensal:
