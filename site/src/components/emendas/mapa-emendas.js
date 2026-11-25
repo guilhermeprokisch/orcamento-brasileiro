@@ -222,17 +222,14 @@
       .on("click", (ev, g) => { ev.stopPropagation(); esconder(true); aproximarGrupo(g); });
     novos.append("circle").attr("class", "fundo");
     novos.append("circle").attr("class", "aro");
-    novos.append("rect").attr("class", "selo").attr("rx", 9).attr("height", 18);
-    novos.append("text").attr("class", "selo-txt").attr("text-anchor", "middle").attr("dy", "0.35em");
     novos.merge(gs).each(function (g) {
       const r = raioGrupo(g), [x, y] = t.apply([g.px, g.py]);
       const padrao = comRosto() && g.dono && naVista(x, y) ? padraoDe(g.dono) : null;
-      const n = String(g.itens.length), larg = 12 + 7 * n.length;
+      // Sem número no grupo: ao lado de um retrato, qualquer número parecia ser do parlamentar. A cara
+      // diz quem, a área diz quanto; municípios e valor ficam no cartão do hover.
       const sel = d3.select(this).attr("transform", `translate(${x},${y})`).classed("foto", !!padrao);
       sel.select(".fundo").attr("r", r).style("fill", padrao ? `url(#${padrao})` : null);
       sel.select(".aro").attr("r", r + 1);
-      sel.select(".selo").attr("x", r * 0.62 - larg / 2).attr("y", -r * 0.62 - 9).attr("width", larg);
-      sel.select(".selo-txt").attr("x", r * 0.62).attr("y", -r * 0.62).text(n);
     });
   }
 

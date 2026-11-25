@@ -233,8 +233,6 @@
 .mapa-emendas .marca-grupo.foto .fundo { fill-opacity: 1; }
 .mapa-emendas .marca-grupo .aro { fill: none; stroke: var(--bolha-borda); stroke-width: 1px; stroke-opacity: .75; }
 .mapa-emendas .marca-grupo.acesa .aro, .mapa-emendas .marca-grupo:hover .aro { stroke: var(--verde); stroke-width: 2.6px; stroke-opacity: 1; }
-.mapa-emendas .marca-grupo .selo { fill: var(--tinta); stroke: var(--papel); stroke-width: 1.5px; }
-.mapa-emendas .marca-grupo .selo-txt { fill: var(--papel); font: 600 10.5px var(--sans); pointer-events: none; }
 .mapa-emendas .bolha { cursor: pointer; }
 
 /* ---- A malha dos municípios, de perto; e o nome dos maiores à vista ------------------------ */
