@@ -279,12 +279,12 @@
   }
 
   // ---- Terceiro nível: dentro do município ------------------------------------------------
-  // Quando um município ocupa boa parte da tela (ZOOM_DENTRO e LARGURA_DENTRO), o retrato único dá
-  // lugar aos parlamentares que mandaram para ele, espalhados dentro do território, cada um com o
-  // tamanho do que mandou — a partir da lista completa de emendas do município (mun/<ibge>.json).
-  // Só entra quando o município ocupa boa parte da TELA (FRACAO_DENTRO do lado menor do palco), não
-  // um tamanho fixo em pixels: senão município de área grande entrava enquanto a vista ainda era regional.
-  const ZOOM_DENTRO = 12, FRACAO_DENTRO = 0.55, PESSOAS_DENTRO = 14, DENTRO_MAX = 3;
+  // O terceiro nível é a cidade ABERTA, como o segundo é o estado em que se entrou: clicar na cidade
+  // enquadra o território na parte livre da tela e o retrato único dá lugar aos parlamentares que
+  // mandaram para ela, espalhados dentro do território, cada um com o tamanho do que mandou — a partir
+  // da lista completa de emendas do município (mun/<ibge>.json). Nenhuma regra de tamanho em pixels:
+  // município pequeno abre igual ao grande.
+  const PESSOAS_DENTRO = 14;
   const feicaoMun = new Map(mun.features.map((f) => [f.properties.id, f]));
   const dentroCache = new Map();   // ibge → [{nome, v, n}] ou "carregando"
   function pessoasDentro(d) {
@@ -309,17 +309,11 @@
   // o filtro de ano/tipo muda a conta: a cache vai embora com ele
   let chaveDentro = "";
   function largurasNaTela(t) {
-    const m = palco.getBoundingClientRect(), out = [];
-    if (t.k < ZOOM_DENTRO) return out;
-    const minimo = FRACAO_DENTRO * Math.min(m.width, m.height);
-    for (const d of emDesenho) {
-      const f = feicaoMun.get(d.ibge); if (!f) continue;
-      const [x, y] = t.apply(projecao(d.c));
-      if (!naVista(x, y, 0)) continue;
-      const b = caminho.bounds(f), larg = (b[1][0] - b[0][0]) * t.k, alt = (b[1][1] - b[0][1]) * t.k;
-      if (Math.min(larg, alt) >= minimo) out.push({ d, lado: Math.min(larg, alt) });
-    }
-    return out.sort((a, b) => b.lado - a.lado).slice(0, DENTRO_MAX);
+    if (!munSel) return [];
+    const f = feicaoMun.get(munSel.ibge);
+    if (!f) return [];
+    const b = caminho.bounds(f), larg = (b[1][0] - b[0][0]) * t.k, alt = (b[1][1] - b[0][1]) * t.k;
+    return [{ d: munSel, lado: Math.max(120, Math.min(larg, alt)) }];
   }
   let dentroAgora = new Set();
   function desenharDentro(t) {
@@ -476,7 +470,7 @@
         <dt>Tipos</dt><dd>${lista(d.t)}</dd>
       </dl>
       <p class="sub" style="margin-top:7px">Áreas, autores e tipos: todo o período.</p>
-      <p class="dica">Clique na bolha para ver as emendas dela, uma a uma.</p>`;
+      <p class="dica">Clique para entrar na cidade: quem mandou, no território, e as emendas uma a uma.</p>`;
     gGrupos.selectAll("g.marca-grupo").classed("acesa", false);
     cartao.classList.toggle("fixo", fixado === d.ibge);
     cartao.hidden = false;
@@ -522,25 +516,37 @@
     const trocou = munSel?.ibge !== d.ibge;
     munSel = d; munFiltro = ""; munBusca = ""; munLimite = 60; elMun.busca.value = "";
     esconder(true);
-    // O painel abre por cima do mapa, à direita: o mapa não muda de tamanho, de zoom nem de lugar.
-    // Só se a bolha clicada ficaria escondida atrás do painel é que o mapa desliza, sem mudar o zoom.
+    // Entrar na cidade: o painel abre por cima, à direita, e o mapa enquadra o território na parte
+    // livre — como clicar no estado entra no estado. Ao fechar, a vista volta a ser a de antes.
+    if (!main.classList.contains("com-mun")) antesDaCidade = d3.zoomTransform(svg.node());
     main.classList.add("com-mun");
     desenharMarcas();
-    garantirVisivel(d);
+    enquadrarCidade(d);
     if (trocou) { munDados = null; pintarMunicipio(); }
     const [dados] = await Promise.all([d3.json(`${BASE}/mun/${d.ibge}.json`).catch(() => []), carregarPop()]);
     if (munSel !== d) return;
     munDados = dados;
     pintarMunicipio();
   }
-  function garantirVisivel(d) {
-    const m = palco.getBoundingClientRect(), t = d3.zoomTransform(svg.node());
-    const painel = document.getElementById("mun").getBoundingClientRect();
-    const livre = innerWidth > 1100 ? m.width - painel.width : m.width;   // no celular o painel é uma folha embaixo
-    const [x, y] = t.apply(projecao(d.c));
-    if (x > 40 && x < livre - 40 && y > 40 && y < m.height - 40) return;
-    const alvoX = livre / 2, alvoY = m.height / 2;
-    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(t.x + alvoX - x, t.y + alvoY - y).scale(t.k));
+  let antesDaCidade = null;
+  function enquadrarCidade(d) {
+    // No computador o painel toma a direita; no celular é uma folha fixa embaixo, e o mapa sobe para
+    // o alto da tela, de modo que a faixa livre acima da folha é onde a cidade cabe.
+    const celular = innerWidth <= 1100;
+    if (celular) main.scrollIntoView({ block: "start" });
+    const m = palco.getBoundingClientRect(), munEl = document.getElementById("mun");
+    const painel = munEl.getBoundingClientRect();
+    // A folha ainda está quase vazia quando o clique chega (a lista de emendas vem depois): a altura
+    // que vale é a máxima que o CSS lhe dá, não a de agora.
+    const folha = Math.max(painel.height, parseFloat(getComputedStyle(munEl).maxHeight) || 0);
+    const livreW = celular ? m.width : m.width - painel.width;
+    const livreH = celular ? Math.max(160, Math.min(m.height, innerHeight - folha - m.top)) : m.height;
+    const f = feicaoMun.get(d.ibge);
+    const b = f ? caminho.bounds(f) : [projecao(d.c), projecao(d.c)];
+    const bw = Math.max(b[1][0] - b[0][0], 1e-6), bh = Math.max(b[1][1] - b[0][1], 1e-6);
+    const k = Math.min(400, 0.62 * Math.min(livreW / bw, livreH / bh));
+    const cx = (b[0][0] + b[1][0]) / 2, cy = (b[0][1] + b[1][1]) / 2;
+    svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(livreW / 2 - k * cx, livreH / 2 - k * cy).scale(k));
   }
   /** Leva o mapa até caber um conjunto de municípios (o território de um parlamentar); sem conjunto, volta ao Brasil. */
   function enquadrar(conjunto) {
@@ -557,6 +563,7 @@
     main.classList.remove("com-mun");
     desenharMarcas();
     pintarTotal();
+    if (antesDaCidade) { svg.transition().duration(600).call(zoom.transform, antesDaCidade); antesDaCidade = null; }
   }
   // Uma emenda paga em mais de um ano entra no ano escolhido se o pagamento passou por ele; o valor
   // mostrado é o total dela (o arquivo não reparte por ano), e o texto do resumo avisa.
