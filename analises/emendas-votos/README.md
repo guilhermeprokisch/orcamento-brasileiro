@@ -8,7 +8,7 @@ ele teve ali, o tamanho da cidade não acrescenta nada. Onde a emenda chegou, o 
 mas os dados não permitem dizer que foi a emenda que trouxe o voto.
 
 Todos os números abaixo saem de `uv run analise-emendas-votos` e ficam em `data/analises/emendas-votos/resultados.json`.
-A exceção é o teste com os votos de 2018 (seção 5), que ainda não está no comando.
+As exceções são os testes da revisão citados na seção 5 (votos de 2018, prefeitos de 2024 e dobradinhas), que ainda não estão no comando e por isso aparecem sem números.
 
 ## Resultados
 
@@ -125,9 +125,20 @@ acompanha a aliança que traz o voto".
 Por isso não há aqui "R$ por voto a mais". A comparação é entre cidades do mesmo deputado e não dá um total de votos
 ganhos.
 
+**Duas medidas de aliança.** A revisão testou duas medidas de aliança que ainda não estão neste comando.
+- **Prefeitos eleitos em 2024.** O dinheiro acompanha o prefeito: depois da posse, a cidade com prefeito do partido do
+  deputado passa a receber mais que o dobro. Mas o partido do prefeito não explica por que o deputado vai melhor onde
+  mandou emenda.
+- **Dobradinhas com deputados estaduais.** Onde o deputado federal mandou emenda, o parceiro estadual também foi melhor
+  em 2026, mas bem menos que o próprio federal. O ganho é do deputado, não do grupo. Esta medida vale só para os
+  deputados com um parceiro estável no estado inteiro, uma minoria do painel.
+
+As duas mostram que o dinheiro acompanha a aliança, mas nenhuma delas explica a associação entre emenda e voto. O canal
+mais provável é o apoio pessoal do prefeito ao deputado, e ele não tem fonte pública. A causa continua em aberto.
+
 **Próximos passos:**
 - as planilhas do FNS de 2019–22, porque metade das emendas individuais daqueles anos aparece no Portal sem a cidade;
-- os prefeitos eleitos em 2024;
+- levar para este comando os testes da revisão: votos de 2018, prefeitos de 2024 e dobradinhas;
 - as emendas de 2027 em diante, quando existirem.
 
 ## Dados
