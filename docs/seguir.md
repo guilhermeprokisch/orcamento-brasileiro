@@ -22,13 +22,8 @@ O banco tem duas tabelas, `pessoas` e `seguindo`, criadas pela própria função
 ## Para ligar (uma vez)
 
 1. **Caixa de e-mail.** No repositório do Homerow, acrescentar `boletim@orcamentobrasileiro.com.br` em `extraMailboxes` (`modules/settings.nix`), com uma senha só dela, e publicar o servidor. O domínio já tem MX, SPF, DKIM e DMARC.
-2. **Banco D1.**
-   ```bash
-   npx wrangler login
-   npx wrangler d1 create orcamento-seguir
-   ```
-   No painel da Cloudflare, em Workers & Pages → `orcamento-brasileiro` → Settings → Bindings, ligar o banco com o nome `DB`, em Production e em Preview.
-3. **Senha do e-mail no Pages.** No mesmo projeto, em Settings → Variables and Secrets, criar `SMTP_SENHA` (secreta) com a senha da caixa `boletim@`. As outras variáveis têm padrão (`mail.inout.email`, porta 465, usuário = remetente).
+2. **Banco D1.** Feito em 26/11/2026: o banco `orcamento-seguir` está ligado ao site como `DB` em `site/wrangler.toml`, que vale para produção e para as prévias. Com esse arquivo, as ligações e variáveis do Pages ficam no repositório, não no painel.
+3. **Senha do e-mail no Pages:** `npx wrangler pages secret put SMTP_SENHA --project-name orcamento-brasileiro` (só produção; as prévias ficam sem e-mail e só registram no log). As outras variáveis têm padrão (`mail.inout.email`, porta 465, usuário = remetente).
 4. **Segredos do GitHub** para o envio mensal:
    ```bash
    gh secret set D1_SEGUIR_ID
@@ -47,4 +42,4 @@ O banco tem duas tabelas, `pessoas` e `seguindo`, criadas pela própria função
 
 - O boletim sai pelo mesmo IP do e-mail pessoal. Se muita gente marcar como spam, o e-mail do dia a dia também sofre. Por isso: confirmação obrigatória, cancelar com um clique, no máximo 400 e-mails por rodada e 1,5 s entre um e outro.
 - Para olhar o que sairia sem mandar nada: workflow Boletim com `modo = ensaio`. Os e-mails ficam como artefato da execução por 7 dias.
-- Testar no computador: `PUBLIC_SEGUIR=1 npm run build` e depois `npx wrangler pages dev dist --d1 DB` dentro de `site/`. Sem `SMTP_SENHA`, o e-mail de confirmação só aparece no log.
+- Testar no computador: `PUBLIC_SEGUIR=1 npm run build` e depois `npx wrangler pages dev dist` dentro de `site/` (usa um D1 local, em `site/.wrangler/`). Sem `SMTP_SENHA`, o e-mail de confirmação só aparece no log.
