@@ -1,7 +1,9 @@
 <details class="aviso" id="aviso">
   <summary>Como ler este mapa</summary>
-  <p>Pagamentos de emendas do Portal da Transparência, 2014–2026, por município favorecido. Cada bolha é um <b>município</b>, no centróide da
-    malha do IBGE: é o município do favorecido que recebeu o pagamento, não o endereço da obra. Os dados
+  <p>Pagamentos de emendas do Portal da Transparência, 2014–2026, por município favorecido. De longe, os municípios vizinhos aparecem juntos num
+    círculo, com o retrato de quem mais mandou para eles e quantos são; aproximando, o grupo se abre até
+    cada <b>município</b> ficar sozinho, no centróide da malha do IBGE. O lugar é o do favorecido que recebeu
+    o pagamento, não o endereço da obra. Os dados
     não têm endereço nem coordenada. A cara vem do cadastro da Câmara e do Senado; bancada, comissão e
     relator são colegiados e aparecem como monograma.</p>
   <p><b>Brasília</b> fica fora do mapa. Sozinha são R$ 112 bi, 40% de tudo — não é dinheiro gasto no
@@ -38,9 +40,8 @@
 </div>
 
 <div class="palco-todo" id="main">
-  <aside class="coluna" id="col-esq" aria-label="Parlamentares em destaque, lado oeste"></aside>
   <div class="palco" id="palco">
-    <svg id="mapa" role="img" aria-label="Bolhas das emendas parlamentares por município"></svg>
+    <svg id="mapa" role="img" aria-label="Emendas parlamentares por município: grupos de municípios vizinhos, que o zoom abre"></svg>
     <div class="legenda">
       <span>Valor pago</span>
       <svg id="legenda" aria-hidden="true"></svg>
@@ -48,9 +49,9 @@
         <button type="button" data-e="raiz" aria-pressed="true">área ∝ valor</button>
         <button type="button" data-e="log">log</button>
       </div>
-      <p class="nota-cara" id="nota-cara" hidden><span class="so-tela-grande">Os retratos são dos
-        <b>8 parlamentares</b> que mais mandaram para o que está na tela; a linha aponta o maior
-        município de cada um. Zoom troca os oito.</span>
+      <p class="nota-cara" id="nota-cara" hidden><span class="so-tela-grande">Cada círculo grande junta
+        os <b>municípios vizinhos</b> nesta escala: o retrato é do parlamentar que mais mandou para eles,
+        o número é quantos são. Aproxime, ou clique, para abrir.</span>
         <button type="button" id="marca-todos"></button></p>
     </div>
     <div class="ranking">
@@ -60,7 +61,6 @@
     <div class="faixa" id="faixa" hidden></div>
     <div class="cartao" id="cartao" hidden></div>
   </div>
-  <aside class="coluna" id="col-dir" aria-label="Parlamentares em destaque, lado leste"></aside>
   <aside class="painel-mun" id="mun" aria-label="Emendas do município escolhido">
     <button type="button" class="voltar" id="mun-voltar">← Voltar ao mapa do Brasil</button>
     <h2 id="mun-nome"></h2>
@@ -77,5 +77,4 @@
     <ol id="mun-lista"></ol>
     <button type="button" id="mun-mais" hidden>Mostrar mais</button>
   </aside>
-  <svg id="linhas" aria-hidden="true"></svg>
 </div>
