@@ -45,6 +45,13 @@
 
   for (const a of Object.values(caras)) if (a.foto) a.foto = `${BASE}/${a.foto}`;
 
+  /** O número do selo, curto: "3,2 bi", "642 mi", "98 mil". */
+  const curto = (mil) => {
+    const v = mil * 1e3;
+    if (v >= 1e9) return (v / 1e9).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " bi";
+    if (v >= 1e6) return Math.round(v / 1e6).toLocaleString("pt-BR") + " mi";
+    return Math.round(v / 1e3).toLocaleString("pt-BR") + " mil";
+  };
   const escapar = (s) => String(s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   /** A cara do autor: foto quando é gente, monograma quando é bancada, comissão ou o relator. */
@@ -180,8 +187,15 @@
   }
 
   const raioGrupo = (g) => Math.max(R_MIN_GRUPO, raio(g.v));
-  const raioSolto = (d) => Math.max(R_MIN_BOLHA, raio(valorDe(d)));
   const comRosto = () => modoCara && caraCabe();
+  // De perto (ZOOM_MALHA em diante), o município sozinho vira rosto também, com o piso dos grupos:
+  // senão dois municípios minúsculos juntos ganhavam um retrato e Ribeirão Preto sozinha era um ponto.
+  const soltoComRosto = (k) => comRosto() && k >= ZOOM_MALHA;
+  const raioSolto = (d, k = d3.zoomTransform(svg.node()).k) =>
+    Math.max(soltoComRosto(k) ? R_MIN_GRUPO : R_MIN_BOLHA, raio(valorDe(d)));
+  /** O retrato de um município sozinho: o autor escolhido, ou o maior parlamentar dele com foto. */
+  const rostoDe = (d) => autorSel ? (caras[autorSel]?.foto ? "cara-autor" : null)
+    : (padraoDe((d.ap ?? []).find(([n]) => caras[n]?.foto)?.[0] ?? "") || null);
 
   /** Está dentro do palco (com folga)? Retratos e nomes só para esses: fora da tela seria foto baixada à toa. */
   function naVista(x, y, folga = 60) {
@@ -194,14 +208,17 @@
     // municípios sozinhos: a bolha de sempre, agora em px de tela
     const bolhas = gBolhas.selectAll("circle").data(soltos, (d) => d.ibge);
     bolhas.exit().remove();
-    const autorPadrao = comCara() ? "url(#cara-autor)" : null;
+    const kk = t.k;
     bolhas.enter().append("circle").attr("class", "bolha").call(ligarEventos).merge(bolhas)
       .attr("data-ibge", (d) => d.ibge)
-      .attr("r", raioSolto)
-      .classed("foto", !!autorPadrao)
+      .attr("r", (d) => raioSolto(d, kk))
       .classed("escolhida", (d) => munSel?.ibge === d.ibge)
-      .style("fill", autorPadrao)
-      .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("cx", x).attr("cy", y); });
+      .each(function (d) {
+        const [x, y] = t.apply(projecao(d.c));
+        // rosto: com autor escolhido, o dele (em qualquer zoom); senão, de perto e à vista, o do maior parlamentar
+        const padrao = comCara() ? "cara-autor" : (soltoComRosto(kk) && naVista(x, y) ? rostoDe(d) : null);
+        d3.select(this).attr("cx", x).attr("cy", y).classed("foto", !!padrao).style("fill", padrao ? `url(#${padrao})` : null);
+      });
 
     // de perto, o nome dos maiores municípios sozinhos à vista; e o município aberto pintado na malha
     const k = t.k;
@@ -209,7 +226,7 @@
       ? soltos.filter((d) => naVista(...t.apply(projecao(d.c)), 0)).sort((a, b) => valorDe(b) - valorDe(a)).slice(0, NOMES_MAX) : [];
     gNomes.selectAll("text").data(comNome, (d) => d.ibge).join("text")
       .text((d) => d.n)
-      .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
+      .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d, k) + 12); });
     if (malhaPronta) gMalha.selectAll("path").classed("escolhido", (f) => !!munSel && f.properties.id === munSel.ibge);
 
     // grupos: círculo com o retrato de quem mais mandou e o número de municípios
@@ -222,14 +239,20 @@
       .on("click", (ev, g) => { ev.stopPropagation(); esconder(true); aproximarGrupo(g); });
     novos.append("circle").attr("class", "fundo");
     novos.append("circle").attr("class", "aro");
+    novos.append("rect").attr("class", "selo").attr("rx", 9).attr("height", 18);
+    novos.append("text").attr("class", "selo-txt").attr("text-anchor", "middle").attr("dy", "0.35em");
     novos.merge(gs).each(function (g) {
       const r = raioGrupo(g), [x, y] = t.apply([g.px, g.py]);
       const padrao = comRosto() && g.dono && naVista(x, y) ? padraoDe(g.dono) : null;
-      // Sem número no grupo: ao lado de um retrato, qualquer número parecia ser do parlamentar. A cara
-      // diz quem, a área diz quanto; municípios e valor ficam no cartão do hover.
+      // Sem número no grupo, em geral: ao lado de um retrato, qualquer número parecia ser do parlamentar.
+      // Com um parlamentar escolhido o dinheiro é dele mesmo, e aí o selo mostra quanto.
       const sel = d3.select(this).attr("transform", `translate(${x},${y})`).classed("foto", !!padrao);
       sel.select(".fundo").attr("r", r).style("fill", padrao ? `url(#${padrao})` : null);
       sel.select(".aro").attr("r", r + 1);
+      const comSelo = !!autorSel;
+      const txt = sel.select(".selo-txt").attr("display", comSelo ? null : "none").attr("x", r * 0.62).attr("y", -r * 0.62).text(comSelo ? curto(g.v) : "");
+      const larg = comSelo ? Math.ceil(txt.node().getComputedTextLength()) + 12 : 0;
+      sel.select(".selo").attr("display", comSelo ? null : "none").attr("x", r * 0.62 - larg / 2).attr("y", -r * 0.62 - 9).attr("width", Math.max(1, larg));
     });
   }
 
@@ -399,6 +422,16 @@
     if (x > 40 && x < livre - 40 && y > 40 && y < m.height - 40) return;
     const alvoX = livre / 2, alvoY = m.height / 2;
     svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(t.x + alvoX - x, t.y + alvoY - y).scale(t.k));
+  }
+  /** Leva o mapa até caber um conjunto de municípios (o território de um parlamentar); sem conjunto, volta ao Brasil. */
+  function enquadrar(conjunto) {
+    const m = palco.getBoundingClientRect();
+    if (!conjunto || !conjunto.length) { svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity); return; }
+    const ps = conjunto.map((d) => projecao(d.c));
+    const [x0, x1] = d3.extent(ps, (p) => p[0]), [y0, y1] = d3.extent(ps, (p) => p[1]);
+    const k = Math.max(1, Math.min(12, 0.8 / Math.max((x1 - x0) / m.width, (y1 - y0) / m.height, 1e-9)));
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(m.width / 2 - k * cx, m.height / 2 - k * cy).scale(k));
   }
   function fecharMunicipio() {
     munSel = null; munDados = null;
@@ -641,6 +674,7 @@
     document.getElementById("tipo").closest(".cel").classList.toggle("inerte", !!nome);
     abrirPainel(false);
     refluir(); esconder();
+    enquadrar(nome ? emDesenho : null);
   }
 
   abre.onclick = () => abrirPainel(abre.getAttribute("aria-expanded") !== "true");
