@@ -200,13 +200,13 @@
   // senão dois municípios minúsculos juntos ganhavam um retrato e Ribeirão Preto sozinha era um ponto.
   // De perto, só os ROSTOS_MAX maiores municípios à vista ganham retrato (com um piso de tamanho);
   // os outros são pontos proporcionais ao valor — senão o Sudeste a 6× é uma parede de 2.000 rostos.
-  // A entrada no estado é progressiva: a 3,5× só as principais cidades, com retrato (ROSTOS_MIN);
-  // o número cresce com o zoom até ROSTOS_MAX, e os pontos dos municípios menores só aparecem a
-  // partir de ZOOM_TODOS, quando há espaço para eles. Senão, entrar num estado jogava tudo de uma vez.
-  const ROSTOS_MIN = 12, ROSTOS_MAX = 60, ZOOM_TODOS = 6;
-  const rostosEm = (k) => Math.round(Math.min(ROSTOS_MAX, Math.max(ROSTOS_MIN, ROSTOS_MIN + (k - ZOOM_MALHA) * 12)));
+  // O zoom é o botão de "mais detalhe": em qualquer escala a tela mostra só as principais cidades à
+  // vista, com retrato, e o número cresce com o zoom — a 3,5×, 12; a 7×, ~40; a 14×, ~130; nunca
+  // há um degrau em que tudo aparece. Pontos "só porque o município existe" não dizem nada.
+  const ROSTOS_MIN = 12, ROSTOS_MAX = 400;
+  const rostosEm = (k) => Math.round(Math.min(ROSTOS_MAX, ROSTOS_MIN * Math.pow(Math.max(k, ZOOM_MALHA) / ZOOM_MALHA, 1.7)));
   let comRostoAgora = new Set();
-  const raioSolto = (d) => Math.max(comRostoAgora.has(d.ibge) ? R_MIN_GRUPO : R_MIN_BOLHA, raio(valorDe(d)));
+  const raioSolto = (d) => Math.max(R_MIN_GRUPO, raio(valorDe(d)));   // tudo que aparece tem tamanho de rosto
   /** O retrato de um município sozinho: o autor escolhido, ou o maior parlamentar dele com foto. */
   const rostoDe = (d) => autorSel ? (caras[autorSel]?.foto ? "cara-autor" : null)
     : (padraoDe((d.ap ?? []).find(([n]) => caras[n]?.foto)?.[0] ?? "") || null);
@@ -224,7 +224,7 @@
     const aVista = soltos.filter((d) => naVista(...t.apply(projecao(d.c)), 0));
     const principais = new Set((autorSel ? aVista : [...aVista].sort((a, b) => valorDe(b) - valorDe(a)).slice(0, rostosEm(t.k))).map((d) => d.ibge));
     comRostoAgora = comRosto() ? principais : new Set();
-    const todosAparecem = t.k >= ZOOM_TODOS || !!autorSel || !!munSel;
+    const todosAparecem = !!autorSel;   // com um parlamentar escolhido, todo lugar dele à vista
     const bolhas = gBolhas.selectAll("circle").data(soltos, (d) => d.ibge);
     bolhas.exit().remove();
     bolhas.enter().append("circle").attr("class", "bolha").call(ligarEventos).merge(bolhas)
