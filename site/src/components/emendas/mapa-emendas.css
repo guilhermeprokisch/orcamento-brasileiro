@@ -11,13 +11,11 @@
 .mapa-emendas h1, .mapa-emendas h2 { letter-spacing: 0; }
 @media (max-width: 760px) { .mapa-emendas { height: auto; min-height: 0; } .mapa-emendas .palco-todo { min-height: 62vh; } }
 
-  .mapa-emendas header { display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
-           padding: 8px max(16px, env(safe-area-inset-right, 0px)) 9px max(16px, env(safe-area-inset-left, 0px));
-           border-bottom: 1px solid var(--regra); }
-  .mapa-emendas .titulo-mapa { flex: none; display: flex; flex-direction: column; gap: 1px; }
-  .mapa-emendas .selo a { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--texto-2); text-decoration: none; }
-  .mapa-emendas header h1 { margin: 0; font-family: var(--serifa); font-size: 19px; font-weight: 600; line-height: 1.1; }
-  .mapa-emendas .frase { flex: 1 1 auto; display: flex; align-items: flex-end; gap: 16px; min-width: 0; flex-wrap: wrap; }
+  /* Sem título visível: a aba "No mapa" já diz o que é. Os controles alinham com as abas (.wrap). */
+  .mapa-emendas header { display: flex; padding: 8px 0 9px; border-bottom: 1px solid var(--regra); }
+  .mapa-emendas .so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .mapa-emendas .frase { flex: 1 1 auto; display: flex; align-items: flex-end; gap: 16px; min-width: 0; flex-wrap: wrap;
+           box-sizing: border-box; width: 100%; max-width: 1280px; margin: 0 auto; padding: 0 var(--margem); }
   .mapa-emendas .cel { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .mapa-emendas .cel > span:first-child { font-family: var(--serifa); font-size: 13px; color: var(--texto-2); white-space: nowrap; }
   .mapa-emendas .cel.oque { flex: 0 1 250px; min-width: 170px; }
@@ -187,8 +185,6 @@
     .mapa-emendas #fundo-autor { background: rgba(0, 0, 0, .3); }
     .mapa-emendas .faixa { left: 10px; right: 10px; top: 10px; max-width: none; }
     .mapa-emendas header { gap: 10px 16px; padding-bottom: 10px; }
-    .mapa-emendas header h1 { font-size: 17px; }
-    .mapa-emendas .titulo-mapa { flex-basis: 100%; }
     .mapa-emendas .cartao { width: calc(100% - 20px); left: 10px !important; right: 10px; top: auto !important; bottom: 10px; }
   }
 
