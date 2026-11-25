@@ -40,9 +40,6 @@
   .mapa-emendas .cel.inerte { opacity: .4; }
   .mapa-emendas .cel.inerte .grupo { pointer-events: none; }
   .mapa-emendas .cel.inerte > span::after { content: " (não se aplica a um autor)"; }
-  .mapa-emendas header .total { flex: none; margin-left: auto; text-align: right; font-size: 11.5px; color: var(--texto-2); line-height: 1.3; }
-  .mapa-emendas header .total b { display: block; font-family: var(--serifa); font-size: 22px; font-weight: 700; color: var(--tinta); }
-  .mapa-emendas header .total.mun b { color: var(--verde); }
   .mapa-emendas .palco-todo { flex: 1; position: relative; min-height: 0; display: flex; }
   .mapa-emendas .palco { flex: 1 1 0; position: relative; min-width: 0; }
   .mapa-emendas #mapa { display: block; width: 100%; height: 100%; background: var(--papel); touch-action: none; cursor: grab; }
@@ -197,8 +194,6 @@
     .mapa-emendas header { gap: 10px 16px; padding-bottom: 10px; }
     .mapa-emendas header h1 { font-size: 17px; }
     .mapa-emendas .titulo-mapa { flex-basis: 100%; }
-    .mapa-emendas header .total { margin-left: 0; text-align: left; }
-    .mapa-emendas header .total b { font-size: 18px; }
     .mapa-emendas .cartao { width: calc(100% - 20px); left: 10px !important; right: 10px; top: auto !important; bottom: 10px; }
   }
 

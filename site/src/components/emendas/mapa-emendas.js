@@ -587,8 +587,11 @@
   });
   /** O número no alto é do que está em foco: o Brasil (ou o autor), ou o município aberto. */
   let totalGeral = { total: 0, n: 0 };
+  // O total saiu do cabeçalho (era um número parado tomando espaço): a cidade aberta tem o dela no
+  // painel e o autor escolhido tem o dele na faixa. A função fica para o caso de o elemento voltar.
   function pintarTotal() {
     const el = document.getElementById("total"), sub = document.getElementById("total-sub");
+    if (!el || !sub) return;
     el.parentElement.classList.toggle("mun", !!munSel);
     if (munSel) {
       const d = munSel;
