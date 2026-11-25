@@ -15,11 +15,24 @@
   // que chega — são 5.570 polígonos, e de longe seriam um borrão.
   const gMalha = g.append("g").attr("class", "malha-mun");
   const ZOOM_MALHA = 3.5, ZOOM_NOMES = 6, NOMES_MAX = 40;
+  // O território só responde ao mouse de perto (ZOOM_TOQUE): no nível do estado, passar por cima de
+  // cada municipiozinho acendendo tudo atrapalha; ali quem fala pelo município é a bolha.
+  const ZOOM_TOQUE = 12;
   let malhaPronta = false;
   function garantirMalha() {
     if (malhaPronta) return;
+    // De perto, o território também é porta de entrada: passar o mouse acende o município e mostra o
+    // rótulo dele; o clique entra na cidade, como o clique na bolha. Assim ninguém precisa adivinhar
+    // que é no retrato que se clica (o CSS liga os eventos só com #mapa.toca-mun).
+    const lugarDe = (f) => lugarPor.get(String(f.properties.id));
     gMalha.selectAll("path").data(mun.features).join("path").attr("d", caminho)
-      .attr("data-ibge", (f) => f.properties.id);
+      .attr("data-ibge", (f) => f.properties.id)
+      .classed("tem", (f) => !!lugarDe(f))
+      // Sem raise() aqui: mover o nó no DOM entre o toque e o solta engole o clique no celular.
+      .on("pointerenter", (ev, f) => { const d = lugarDe(f); if (d) mostrar(d, ev); })
+      .on("pointermove", (ev, f) => { const d = lugarDe(f); if (d) mostrar(d, ev); })
+      .on("pointerleave", (ev) => esconder(false, ev))
+      .on("click", (ev, f) => { const d = lugarDe(f); if (!d) return; ev.stopPropagation(); abrirMunicipio(d); });
     malhaPronta = true;
   }
   // Bolhas e grupos ficam fora do <g> do zoom, em coordenadas de tela: o tamanho do marcador é em
@@ -99,6 +112,7 @@
   const lugares = Object.entries(dados.mun)
     .map(([ibge, d]) => ({ ibge, ...d, c: centro.get(ibge) }))
     .filter((d) => d.c && Number.isFinite(d.c[0]));
+  const lugarPor = new Map(lugares.map((d) => [d.ibge, d]));
   const semCentro = Object.keys(dados.mun).length - lugares.length;
   if (semCentro) console.warn(`${semCentro} municípios sem centróide na malha`);
 
@@ -133,7 +147,7 @@
   const ligarEventos = (sel) => sel
     .on("pointerenter", (ev, d) => mostrar(d, ev))
     .on("pointermove", (ev, d) => mostrar(d, ev))
-    .on("pointerleave", () => esconder())
+    .on("pointerleave", (ev) => esconder(false, ev))
     .on("click", (ev, d) => { ev.stopPropagation(); abrirMunicipio(d); });
 
   /** Um <pattern> por parlamentar, criado na hora em que o primeiro grupo precisa dele. */
@@ -241,7 +255,7 @@
     // os que já estavam na tela e saíram (ou entraram) do grupo dos maiores mudam de tamanho junto
     gBolhas.selectAll("circle").attr("r", raioSolto);
     desenharDentro(t);
-    gBolhas.selectAll("circle").filter((d) => dentroAgora.has(d.ibge)).attr("display", "none");
+    gBolhas.selectAll("circle").filter((d) => !!munSel && d.ibge === munSel.ibge && dentroAgora.has(d.ibge)).attr("display", "none");
 
     // de perto, o nome dos maiores municípios sozinhos à vista; e o município aberto pintado na malha
     const k = t.k;
@@ -308,12 +322,19 @@
   }
   // o filtro de ano/tipo muda a conta: a cache vai embora com ele
   let chaveDentro = "";
+  // O pacote de rostos aparece na cidade aberta e, de passagem, na cidade sob o ponteiro: passar o
+  // mouse na bolha já mostra quem mais mandou, sem clicar — a bolha é a cidade, não o deputado.
+  let munHover = null;
   function largurasNaTela(t) {
-    if (!munSel) return [];
-    const f = feicaoMun.get(munSel.ibge);
-    if (!f) return [];
-    const b = caminho.bounds(f), larg = (b[1][0] - b[0][0]) * t.k, alt = (b[1][1] - b[0][1]) * t.k;
-    return [{ d: munSel, lado: Math.max(120, Math.min(larg, alt)) }];
+    const alvos = [];
+    for (const d of [munSel, munHover]) {
+      if (!d || alvos.some((a) => a.d.ibge === d.ibge)) continue;
+      const f = feicaoMun.get(d.ibge);
+      if (!f) continue;
+      const b = caminho.bounds(f), larg = (b[1][0] - b[0][0]) * t.k, alt = (b[1][1] - b[0][1]) * t.k;
+      alvos.push({ d, lado: Math.max(120, Math.min(larg, alt)) });
+    }
+    return alvos;
   }
   let dentroAgora = new Set();
   function desenharDentro(t) {
@@ -342,7 +363,7 @@
       const pn = ps.enter().append("g").attr("class", "pessoa")
         .on("pointerenter", (ev, p) => mostrarPessoa(d, p, ev))
         .on("pointermove", (ev, p) => mostrarPessoa(d, p, ev))
-        .on("pointerleave", () => esconder())
+        .on("pointerleave", (ev) => esconder(false, ev))
         .on("click", async (ev, p) => { ev.stopPropagation(); await carregarAutores(); if (porAutor.autores[p.nome]) escolher(p.nome); });
       pn.append("circle").attr("class", "fundo"); pn.append("circle").attr("class", "aro");
       pn.merge(ps).each(function (p) {
@@ -363,9 +384,7 @@
       <p class="dica">Clique para ver tudo que este parlamentar mandou, no mapa.</p>`;
     cartao.classList.remove("fixo");
     cartao.hidden = false;
-    const r = cartao.getBoundingClientRect(), m = palco.getBoundingClientRect();
-    cartao.style.left = Math.min(m.width - r.width - 10, Math.max(10, ev.clientX - m.left + 16)) + "px";
-    cartao.style.top = Math.min(m.height - r.height - 10, Math.max(10, ev.clientY - m.top + 14)) + "px";
+    posicionarCartao(ev);
   }
 
   /** Durante o gesto do zoom, só muda de lugar; os grupos são refeitos ao soltar. */
@@ -394,16 +413,12 @@
     const quem = g.quem.slice(0, 3);
     cartao.innerHTML = `
       <h2>${escapar(g.nome)} <span>${g.itens.length} municípios</span></h2>
-      <p class="val">${brl(g.v)}</p>
-      <p class="sub">pago em ${rotuloAno()} · maior: ${escapar(g.maior.n)}, ${brl(valorDe(g.maior))}</p>
-      ${quem.length ? `<dl><dt>Parlamentares que mais mandaram</dt><dd class="autores-cara">${quem.map(([nome, v]) =>
-        `<div>${cara(nome, "p")}<span><b>${escapar(nome)}</b> ${brl(v)}</span></div>`).join("")}</dd></dl>` : ""}
-      <p class="dica">Clique para aproximar e ver os municípios.</p>`;
+      <p class="val">${brl(g.v)} <small>em ${rotuloAno()}</small></p>
+      ${quem.length ? `<p class="quem-mini">${quem.map(([nome]) => cara(nome, "p")).join("")}<span>quem mais mandou</span></p>` : ""}
+      <p class="dica">Clique para entrar no estado.</p>`;
     cartao.classList.remove("fixo");
     cartao.hidden = false;
-    const r = cartao.getBoundingClientRect(), m = palco.getBoundingClientRect();
-    cartao.style.left = Math.min(m.width - r.width - 10, Math.max(10, ev.clientX - m.left + 16)) + "px";
-    cartao.style.top = Math.min(m.height - r.height - 10, Math.max(10, ev.clientY - m.top + 14)) + "px";
+    posicionarCartao(ev);
   }
 
   function recalcular() {
@@ -450,41 +465,52 @@
     }
   }
 
+  /** O cartão segue o ponteiro, dentro do palco; com uma cidade aberta no computador, só na parte livre. */
+  function posicionarCartao(ev) {
+    const r = cartao.getBoundingClientRect(), m = palco.getBoundingClientRect();
+    const livre = main.classList.contains("com-mun") && innerWidth > 1100
+      ? m.width - document.getElementById("mun").getBoundingClientRect().width : m.width;
+    cartao.style.left = Math.min(livre - r.width - 10, Math.max(10, ev.clientX - m.left + 16)) + "px";
+    cartao.style.top = Math.min(m.height - r.height - 10, Math.max(10, ev.clientY - m.top + 14)) + "px";
+  }
   let fixado = null;   // ibge do município com o cartão preso pelo clique
   function mostrar(d, ev, prender = false) {
+    if (munSel && munSel.ibge === d.ibge) return;          // a cidade aberta já está no painel
     if (fixado && !prender && fixado !== d.ibge) return;   // com cartão preso, o hover não manda
     if (prender) fixado = d.ibge;
+    if (munHover?.ibge !== d.ibge) { munHover = d; desenharMarcas(); }
     gBolhas.selectAll("circle").classed("acesa", (x) => x.ibge === d.ibge);
-    const total = d.s.reduce((a, b) => a + b, 0);
-    const lista = (arr) => arr.length
-      ? arr.map(([k, v]) => `${k} <span style="color:var(--texto-3)">${brl(v)}</span>`).join(" · ") : "—";
+    if (malhaPronta) gMalha.selectAll("path").classed("aceso", (f) => String(f.properties.id) === d.ibge);
+    // Rótulo curto, não tabela: o detalhe está no painel, a um clique, e quem mandou está no mapa.
     cartao.innerHTML = `
       <h2>${d.n} <span>${d.u}</span></h2>
-      <p class="val">${brl(valorDe(d))}</p>
-      <p class="sub">pago em ${rotuloAno()}${iAno === ANOS.length ? "" : ` · ${brl(total)} em 2014–2026`}</p>
-      <dl>
-        <dt>Áreas</dt><dd>${lista(d.ar)}</dd>
-        <dt>Quem mandou</dt><dd class="autores-cara">${d.au.length ? d.au.map(([nome, v]) =>
-          `<div data-autor="${escapar(nome)}">${cara(nome, "p")}
-             <span><b>${escapar(nome)}</b> ${brl(v)}</span></div>`).join("") : "—"}</dd>
-        <dt>Tipos</dt><dd>${lista(d.t)}</dd>
-      </dl>
-      <p class="sub" style="margin-top:7px">Áreas, autores e tipos: todo o período.</p>
-      <p class="dica">Clique para entrar na cidade: quem mandou, no território, e as emendas uma a uma.</p>`;
+      <p class="val">${brl(valorDe(d))} <small>em ${rotuloAno()}</small></p>
+      <p class="dica">Clique para entrar na cidade.</p>`;
     gGrupos.selectAll("g.marca-grupo").classed("acesa", false);
     cartao.classList.toggle("fixo", fixado === d.ibge);
     cartao.hidden = false;
-    const r = cartao.getBoundingClientRect(), m = palco.getBoundingClientRect();
-    cartao.style.left = Math.min(m.width - r.width - 10, Math.max(10, ev.clientX - m.left + 16)) + "px";
-    cartao.style.top = Math.min(m.height - r.height - 10, Math.max(10, ev.clientY - m.top + 14)) + "px";
+    posicionarCartao(ev);
   }
-  function esconder(forcar = false) {
+  /** O ponteiro continua "na cidade" se foi para a bolha, o território ou o pacote de rostos dela. */
+  function aindaNaCidade(ev, ibge) {
+    const el = ev?.relatedTarget;
+    if (!el || !el.closest) return false;
+    const pacote = el.closest("g.dentro");
+    if (pacote) return pacote.__data__?.d?.ibge === ibge;
+    if (el.matches("circle.bolha")) return el.__data__?.ibge === ibge;
+    if (el.matches(".malha-mun path")) return el.dataset.ibge === ibge;
+    return false;
+  }
+  function esconder(forcar = false, ev = null) {
     if (fixado && !forcar) return;
+    if (munHover && !forcar && aindaNaCidade(ev, munHover.ibge)) return;
     fixado = null;
+    if (munHover) { munHover = null; desenharMarcas(); }
     cartao.hidden = true;
     cartao.classList.remove("fixo");
     gBolhas.selectAll("circle").classed("acesa", false);
     gGrupos.selectAll("g.marca-grupo").classed("acesa", false);
+    if (malhaPronta) gMalha.selectAll("path").classed("aceso", false);
   }
 
   // No cartão preso: ✕ fecha, e um clique no autor leva o mapa para ele.
@@ -677,7 +703,7 @@
       const k = ev.transform.k;
       g.attr("transform", ev.transform);
       if (k >= ZOOM_MALHA) garantirMalha();
-      svg.classed("perto", k >= ZOOM_MALHA);
+      svg.classed("perto", k >= ZOOM_MALHA).classed("toca-mun", k >= ZOOM_TOQUE);
       gMalha.attr("stroke-width", 0.45 / k);
       reposicionar();
       gUf.attr("stroke-width", 0.6 / k);
