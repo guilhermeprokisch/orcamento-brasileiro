@@ -1,15 +1,22 @@
 # Instagram @orcamentobrasileiro
 
-- `posts/<nome>/`: um post por pasta, com as imagens (JPEG 1080×1350, na ordem do nome do
-  arquivo; de 1 a 10) ou um `.mp4` para Reel, e `legenda.txt`.
-- `publicar.py`: publica uma pasta pela API do Instagram. Sem `--postar`, só mostra.
-- `gera_perfil.py`: refaz `perfil.jpg`, a foto do perfil (o símbolo do site em fundo papel).
+As imagens dos posts não ficam no Git, só no bucket do espelho (dados.orcamentobrasileiro.com.br).
+Cada pasta `posts/<nome>/` guarda no Git a `legenda.txt` e o `midia.json` com os endereços das
+imagens; os JPEG (1080×1350, de 1 a 10, na ordem do nome) ou o `.mp4` do Reel ficam na mesma pasta
+só na máquina de quem fez o post.
 
-Publicar pelo GitHub (o token e a chave do bucket são segredos do repositório):
+1. Na máquina, com as imagens na pasta e a chave do B2 em `~/.config/orcamento-br/b2.env`:
 
-    gh workflow run instagram.yml -f post=<nome>                 # só confere
-    gh workflow run instagram.yml -f post=<nome> -f postar=true  # publica
+       uv run --no-project --script divulgacao/instagram/publicar.py divulgacao/instagram/posts/<nome> --enviar
 
-Ou na máquina, com os segredos em `~/.config/orcamento-br/*.env`:
+   Sobe as imagens para `social/<data>-<nome>/` e grava `midia.json`.
+2. Commit da `legenda.txt` e do `midia.json`, pull request, merge.
+3. Publicar pelo GitHub (o token do Instagram é segredo do repositório):
 
-    uv run --no-project --script divulgacao/instagram/publicar.py divulgacao/instagram/posts/<nome> [--postar]
+       gh workflow run instagram.yml -f post=<nome>                 # só confere
+       gh workflow run instagram.yml -f post=<nome> -f postar=true  # publica
+
+Para trocar uma imagem já enviada, use uma pasta com nome novo: a Cloudflare guarda cada endereço
+por 30 dias.
+
+`gera_perfil.py` refaz `perfil.jpg`, a foto do perfil (o símbolo do site em fundo papel).

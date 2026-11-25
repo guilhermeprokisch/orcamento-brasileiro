@@ -8,3 +8,9 @@ __pycache__/
 *.pyc
 .DS_Store
 site/src/gerado/
+
+# Instagram: as imagens dos posts ficam só no bucket (ver divulgacao/instagram/README.md)
+divulgacao/instagram/posts/**/*.jpg
+divulgacao/instagram/posts/**/*.jpeg
+divulgacao/instagram/posts/**/*.png
+divulgacao/instagram/posts/**/*.mp4

@@ -1,10 +1,11 @@
 name: Instagram
 
 # Publica um post do @orcamentobrasileiro a partir de uma pasta em divulgacao/instagram/posts/
-# (imagens ou um .mp4, e legenda.txt). Só roda à mão: Actions → Instagram → Run workflow, ou
+# (legenda.txt e midia.json; as imagens já estão no bucket, enviadas da máquina com --enviar).
+# Só roda à mão: Actions → Instagram → Run workflow, ou
 #   gh workflow run instagram.yml -f post=<pasta> -f postar=true
 # Sem "postar", só mostra o que seria publicado e confere o token.
-# Num pull request que mexe aqui, confere o token e todas as pastas de post, sem publicar.
+# Num pull request que mexe aqui, confere o token e se cada pasta tem legenda e midia.json.
 on:
   workflow_dispatch:
     inputs:
@@ -48,7 +49,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           for p in posts/*/; do
-            [ -d "$p" ] || continue
+            [ -f "$p/midia.json" ] || { echo "::error::$p sem midia.json (rode --enviar na máquina)"; exit 1; }
             uv run --no-project --script publicar.py "$p"
           done
 
@@ -57,6 +58,4 @@ jobs:
         env:
           POST: ${{ inputs.post }}
           POSTAR: ${{ inputs.postar && '--postar' || '' }}
-          B2_APPLICATION_KEY_ID: ${{ secrets.B2_KEY_ID }}
-          B2_APPLICATION_KEY: ${{ secrets.B2_APPLICATION_KEY }}
         run: uv run --no-project --script publicar.py "posts/$POST" $POSTAR
