@@ -8,6 +8,7 @@ dependencies = [
     "datasus-dbc>=0.1.3",
     "dbfread>=2.0.7",
     "duckdb>=1.1",
+    "numpy>=2.0",
     "openpyxl>=3.1.5",
 ]
 
@@ -65,6 +66,7 @@ supersalarios-estados = "orcamento_pipeline.supersalarios_estados:main"
 supersalarios-legislativo = "orcamento_pipeline.supersalarios_legislativo:main"
 supersalarios-municipios = "orcamento_pipeline.supersalarios_municipios:main"
 politicos = "orcamento_pipeline.politicos:main"
+analise-emendas-votos = "orcamento_pipeline.analise_emendas_votos:main"
 
 [build-system]
 requires = ["hatchling"]
