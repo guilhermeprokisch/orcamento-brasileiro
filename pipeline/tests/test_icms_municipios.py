@@ -59,13 +59,16 @@ class LerSP(unittest.TestCase):
         dados = m.ler_sp(arq)
         self.assertEqual(set(dados[2024]), {CUBATAO})
 
-    def test_meses_vazios_ou_ocultos_nao_quebram(self):
-        # Sigilo fiscal: a SEFAZ troca o valor por "******"; meses não numéricos são ignorados.
+    def test_mes_com_sigilo_deixa_cidade_sem_valor_oficial(self):
+        # Sigilo fiscal: um mês "******" torna o total do ano incompleto; a cidade fica de fora
+        # (o mapa volta à estimativa) em vez de publicar um número subestimado.
         arq = planilha([
-            (None, "CUBATAO", 50.0, "******", None, 50.0) + (0.0,) * 8,
+            ("DT-02 - LITORAL", "CUBATAO", 50.0, "******") + (50.0,) * 10,   # 11 meses numéricos
+            (None, "SAO PAULO") + (50.0,) * 12,                              # 12 meses: fica
         ])
         dados = m.ler_sp(arq)
-        self.assertEqual(dados[2024][CUBATAO], 100.0 * 1000)   # só os dois meses numéricos
+        self.assertNotIn(CUBATAO, dados[2024])
+        self.assertEqual(dados[2024][SAO_PAULO], 50.0 * 12 * 1000)
 
     def test_anos_anteriores_a_2013_ficam_de_fora(self):
         arq = planilha([("DT-02 - LITORAL", "CUBATAO") + (10.0,) * 12], ano=2012)

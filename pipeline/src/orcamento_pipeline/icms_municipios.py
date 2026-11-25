@@ -131,14 +131,17 @@ def ler_sp(arquivo: Path) -> dict[int, dict[str, float]]:
             nome = linha[1] if len(linha) > 1 else None
             if not isinstance(nome, str) or not nome.strip() or nome.strip().lower() in NAO_MUNICIPIO:
                 continue
-            meses = sum(v for v in linha[2:14] if isinstance(v, (int, float)))   # jan..dez, em reais mil
-            if meses <= 0:
+            meses = [v for v in linha[2:14] if isinstance(v, (int, float))]   # jan..dez, em reais mil
+            # Sigilo fiscal: a SEFAZ troca o valor por "******" em algum mês (sigilo de contribuinte). Somar só os
+            # meses numéricos daria um total subestimado, então deixamos a cidade-ano sem valor oficial, e o mapa
+            # volta à estimativa para ela — melhor que publicar um número oficial baixo demais.
+            if len(meses) < 12 or sum(meses) <= 0:
                 continue
             ibge = ibge_de(nome.strip(), "SP")
             if ibge is None:
-                sem_par[nome.strip()] = sem_par.get(nome.strip(), 0) + meses
+                sem_par[nome.strip()] = sem_par.get(nome.strip(), 0) + sum(meses)
                 continue
-            ano_doc[ibge] = ano_doc.get(ibge, 0) + meses * 1000   # reais mil -> reais
+            ano_doc[ibge] = ano_doc.get(ibge, 0) + sum(meses) * 1000   # reais mil -> reais
         saida[ano] = ano_doc
     if sem_par:
         maiores = sorted(sem_par.items(), key=lambda x: -x[1])[:10]
