@@ -11,9 +11,21 @@
     .attr("preserveAspectRatio", "xMidYMid slice");
 
   const gUf = g.append("g");
+  // A malha dos municípios: desenhada só quando o zoom chega perto (ZOOM_MALHA), e só na primeira vez
+  // que chega — são 5.570 polígonos, e de longe seriam um borrão.
+  const gMalha = g.append("g").attr("class", "malha-mun");
+  const ZOOM_MALHA = 3.5, ZOOM_NOMES = 6, NOMES_MAX = 40;
+  let malhaPronta = false;
+  function garantirMalha() {
+    if (malhaPronta) return;
+    gMalha.selectAll("path").data(mun.features).join("path").attr("d", caminho)
+      .attr("data-ibge", (f) => f.properties.id);
+    malhaPronta = true;
+  }
   // Bolhas e grupos ficam fora do <g> do zoom, em coordenadas de tela: o tamanho do marcador é em
   // pixels, e a cada passo do zoom eles só mudam de lugar; ao fim do gesto, os grupos são refeitos.
   const gBolhas = svg.append("g").attr("class", "camada-bolhas"), gGrupos = svg.append("g").attr("class", "camada-grupos");
+  const gNomes = svg.append("g").attr("class", "camada-nomes");   // nomes dos maiores municípios à vista, de perto
   const projecao = d3.geoMercator(), caminho = d3.geoPath(projecao);
   const cartao = document.getElementById("cartao");
 
@@ -183,6 +195,14 @@
       .style("fill", autorPadrao)
       .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("cx", x).attr("cy", y); });
 
+    // de perto, o nome dos maiores municípios sozinhos à vista; e o município aberto pintado na malha
+    const k = t.k;
+    const comNome = k >= ZOOM_NOMES ? [...soltos].sort((a, b) => valorDe(b) - valorDe(a)).slice(0, NOMES_MAX) : [];
+    gNomes.selectAll("text").data(comNome, (d) => d.ibge).join("text")
+      .text((d) => d.n)
+      .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
+    if (malhaPronta) gMalha.selectAll("path").classed("escolhido", (f) => !!munSel && f.properties.id === munSel.ibge);
+
     // grupos: círculo com o retrato de quem mais mandou e o número de municípios
     const gs = gGrupos.selectAll("g.marca-grupo").data(grupos, (g) => g.id);
     gs.exit().remove();
@@ -212,6 +232,7 @@
     const t = d3.zoomTransform(svg.node());
     gBolhas.selectAll("circle").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("cx", x).attr("cy", y); });
     gGrupos.selectAll("g.marca-grupo").attr("transform", (g) => { const [x, y] = t.apply([g.px, g.py]); return `translate(${x},${y})`; });
+    gNomes.selectAll("text").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
   }
 
   /** Clique num grupo: aproxima até ele se abrir. */
@@ -475,9 +496,13 @@
     .on("start", () => svg.classed("arrastando", true))
     .on("end", () => { svg.classed("arrastando", false); agrupar(); })
     .on("zoom", (ev) => {
+      const k = ev.transform.k;
       g.attr("transform", ev.transform);
+      if (k >= ZOOM_MALHA) garantirMalha();
+      svg.classed("perto", k >= ZOOM_MALHA);
+      gMalha.attr("stroke-width", 0.45 / k);
       reposicionar();
-      gUf.attr("stroke-width", 0.6 / ev.transform.k);
+      gUf.attr("stroke-width", 0.6 / k);
     });
   svg.call(zoom);
 
@@ -487,6 +512,7 @@
     svg.attr("viewBox", `0 0 ${m.width} ${m.height}`);
     projecao.fitExtent([[18, 18], [m.width - 18, m.height - 18]], uf);
     gUf.selectAll("path").data(uf.features).join("path").attr("class", "uf").attr("d", caminho);
+    if (malhaPronta) gMalha.selectAll("path").attr("d", caminho);
     recalcular();
     svg.call(zoom.transform, d3.zoomIdentity);
   }
