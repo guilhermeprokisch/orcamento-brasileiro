@@ -8,7 +8,9 @@ deputados estaduais.
 ele teve ali, o tamanho da cidade não acrescenta nada. Onde a emenda chegou, o deputado também se saiu melhor em 2026,
 mas os dados não permitem dizer que foi a emenda que trouxe o voto.
 
-Todos os números abaixo saem de `uv run analise-emendas-votos` e ficam em `data/analises/emendas-votos/resultados.json`.
+Todos os números abaixo saem de `uv run analise-emendas-votos` e ficam em [`resultados.json`](resultados.json), ao
+lado deste texto. A versão para quem não é da área está no site:
+[orcamentobrasileiro.com.br/analises/emendas-votos](https://orcamentobrasileiro.com.br/analises/emendas-votos).
 
 ## Resultados
 
