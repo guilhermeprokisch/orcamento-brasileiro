@@ -250,5 +250,6 @@
                                         paint-order: stroke; stroke: var(--papel); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
 .mapa-emendas .camada-dentro .pessoa { cursor: pointer; }
 .mapa-emendas .camada-dentro .fundo { fill: var(--bolha); fill-opacity: .5; stroke: var(--papel); stroke-width: 1.5px; }
+.mapa-emendas .camada-dentro .pessoa.foto .fundo { fill-opacity: 1; }
 .mapa-emendas .camada-dentro .aro { fill: none; stroke: var(--bolha-borda); stroke-width: 1px; stroke-opacity: .75; }
 .mapa-emendas .camada-dentro .pessoa:hover .aro { stroke: var(--verde); stroke-width: 2.6px; stroke-opacity: 1; }

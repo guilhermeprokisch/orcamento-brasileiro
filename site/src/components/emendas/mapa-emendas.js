@@ -282,7 +282,9 @@
   // Quando um município ocupa boa parte da tela (ZOOM_DENTRO e LARGURA_DENTRO), o retrato único dá
   // lugar aos parlamentares que mandaram para ele, espalhados dentro do território, cada um com o
   // tamanho do que mandou — a partir da lista completa de emendas do município (mun/<ibge>.json).
-  const ZOOM_DENTRO = 12, LARGURA_DENTRO = 240, PESSOAS_DENTRO = 14, DENTRO_MAX = 6;
+  // Só entra quando o município ocupa boa parte da TELA (FRACAO_DENTRO do lado menor do palco), não
+  // um tamanho fixo em pixels: senão município de área grande entrava enquanto a vista ainda era regional.
+  const ZOOM_DENTRO = 12, FRACAO_DENTRO = 0.55, PESSOAS_DENTRO = 14, DENTRO_MAX = 3;
   const feicaoMun = new Map(mun.features.map((f) => [f.properties.id, f]));
   const dentroCache = new Map();   // ibge → [{nome, v, n}] ou "carregando"
   function pessoasDentro(d) {
@@ -309,12 +311,13 @@
   function largurasNaTela(t) {
     const m = palco.getBoundingClientRect(), out = [];
     if (t.k < ZOOM_DENTRO) return out;
+    const minimo = FRACAO_DENTRO * Math.min(m.width, m.height);
     for (const d of emDesenho) {
       const f = feicaoMun.get(d.ibge); if (!f) continue;
       const [x, y] = t.apply(projecao(d.c));
       if (!naVista(x, y, 0)) continue;
       const b = caminho.bounds(f), larg = (b[1][0] - b[0][0]) * t.k, alt = (b[1][1] - b[0][1]) * t.k;
-      if (Math.min(larg, alt) >= LARGURA_DENTRO) out.push({ d, lado: Math.min(larg, alt) });
+      if (Math.min(larg, alt) >= minimo) out.push({ d, lado: Math.min(larg, alt) });
     }
     return out.sort((a, b) => b.lado - a.lado).slice(0, DENTRO_MAX);
   }
@@ -351,6 +354,7 @@
       pn.merge(ps).each(function (p) {
         const px = cx + (p.x - env.x) * fator, py = cy + (p.y - env.y) * fator, r = Math.max(7, p.r * fator), pad = padraoDe(p.nome);
         const s = d3.select(this);
+        s.classed("foto", !!pad);
         s.select(".fundo").attr("cx", px).attr("cy", py).attr("r", r).style("fill", pad ? `url(#${pad})` : null);
         s.select(".aro").attr("cx", px).attr("cy", py).attr("r", r + 1);
       });
