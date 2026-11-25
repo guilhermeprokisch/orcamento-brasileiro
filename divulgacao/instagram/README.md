@@ -1,6 +1,6 @@
 # Instagram @orcamentobrasileiro
 
-- `posts/<nome>/`: um post por pasta, com as imagens (1080×1350, na ordem do nome do
+- `posts/<nome>/`: um post por pasta, com as imagens (JPEG 1080×1350, na ordem do nome do
   arquivo; de 1 a 10) ou um `.mp4` para Reel, e `legenda.txt`.
 - `publicar.py`: publica uma pasta pela API do Instagram. Sem `--postar`, só mostra.
 - `gera_perfil.py`: refaz `perfil.jpg`, a foto do perfil (o símbolo do site em fundo papel).

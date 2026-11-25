@@ -10,7 +10,7 @@
     uv run --no-project --script publicar.py --teste
         só confere o token e a cota do dia
 
-Uma pasta de post tem as imagens (.png/.jpg, na ordem do nome) ou um .mp4, e legenda.txt.
+Uma pasta de post tem as imagens (JPEG, a API não aceita PNG; na ordem do nome) ou um .mp4, e legenda.txt.
 
 A API só busca mídia por URL pública: os arquivos sobem para o bucket do espelho, em
 social/<AAAA-MM-DD>-<nome>/, e o Instagram os lê em dados.orcamentobrasileiro.com.br. A Cloudflare
@@ -28,7 +28,7 @@ API = "https://graph.facebook.com/v21.0"
 CONTA = "17841464857738019"  # @orcamentobrasileiro; o token é endereçado pelo id, não por /me
 BUCKET = "orcamento-brasileiro-dados"
 PUBLICO = f"https://dados.orcamentobrasileiro.com.br/file/{BUCKET}"
-IMAGENS = {".jpg", ".jpeg", ".png"}
+IMAGENS = {".jpg", ".jpeg"}  # a API só aceita JPEG
 try:
     import certifi
     SSL = ssl.create_default_context(cafile=certifi.where())
@@ -85,7 +85,7 @@ def sobe(arquivos, pasta):
     urls = []
     for a in arquivos:
         nome = f"social/{pasta}/{a.name}"
-        tipo = {".mp4": "video/mp4", ".png": "image/png"}.get(a.suffix.lower(), "image/jpeg")
+        tipo = "video/mp4" if a.suffix.lower() == ".mp4" else "image/jpeg"
         subprocess.run(["uvx", "--from", "b2", "b2", "file", "upload", "--no-progress", "--quiet",
                         "--content-type", tipo, BUCKET, str(a), nome], env=amb, check=True,
                        stdout=subprocess.DEVNULL)
@@ -126,6 +126,8 @@ def le_post(pasta):
         sys.exit(f"Falta {pasta}/legenda.txt")
     if len(legenda) > 2200:
         sys.exit(f"Legenda com {len(legenda)} caracteres; o limite é 2200")
+    if list(pasta.glob("*.png")):
+        sys.exit("A API do Instagram só aceita JPEG: converta os .png")
     videos = sorted(pasta.glob("*.mp4"))
     imagens = sorted(p for p in pasta.iterdir() if p.suffix.lower() in IMAGENS)
     if videos and imagens or len(videos) > 1:
