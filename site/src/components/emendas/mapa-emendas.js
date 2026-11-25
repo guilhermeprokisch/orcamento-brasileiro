@@ -614,6 +614,9 @@
     return popDe;
   }
   const slugDe = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  // A página do político (/politicos/<uf>/<nome>), quando existe: o mapa autor → endereço vem pronto do build.
+  const paginaAutor = (() => { try { return JSON.parse(document.getElementById("politicos-autores")?.textContent || "{}"); } catch { return {}; } })();
+  const paginaDe = (nome) => paginaAutor[slugDe(nome)] ?? null;
 
   function pintarMunicipio() {
     const d = munSel; if (!d) return;
@@ -644,7 +647,9 @@
       <li>
         ${cara(autor)}
         <div style="min-width:0">
-          <div class="quem"><button type="button" data-autor="${escapar(autor)}">${escapar(autor)}</button></div>
+          <div class="quem">${paginaDe(autor)
+            ? `<a href="${paginaDe(autor)}" title="A página de ${escapar(autor)}: o que custa, a cota, as emendas">${escapar(autor)}</a>`
+            : escapar(autor)}</div>
           <div class="meta">${tipo} · ${a0 === a1 ? a0 : `${a0}–${a1}`}${num && num !== "Sem informação"
             ? ` · <a href="/emendas/buscar?emenda=${encodeURIComponent(num)}" title="A ficha desta emenda: todos os pagamentos, para quem e onde">nº ${escapar(num)} →</a> <a class="externo" href="https://portaldatransparencia.gov.br/emendas/detalhe?codigoEmenda=${encodeURIComponent(num)}&amp;ano=${escapar(String(num).slice(0, 4))}" target="_blank" rel="noopener" title="No Portal da Transparência">Portal ↗</a>`
             : " · sem número"}</div>
@@ -661,11 +666,6 @@
   elMun.busca.oninput = () => { munBusca = elMun.busca.value.trim(); munLimite = 60; pintarMunicipio(); };
   elMun.chips.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; munFiltro = b.dataset.t; munLimite = 60; pintarMunicipio(); };
   elMun.mais.onclick = () => { munLimite += 60; pintarMunicipio(); };
-  // o nome do autor na lista vira busca por ele, sem sair do município
-  elMun.lista.onclick = (ev) => {
-    const b = ev.target.closest("button[data-autor]"); if (!b) return;
-    munBusca = elMun.busca.value = b.dataset.autor; munLimite = 60; pintarMunicipio();
-  };
   document.getElementById("mun-csv").onclick = () => {
     if (!munSel || !munDados) return;
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -799,7 +799,7 @@
       const foto = caras[nome]?.foto;
       padraoImg.attr("href", foto || null);
       faixa.innerHTML = `${cara(nome, "g")}
-        <span><h2>${escapar(nome)}</h2><small>${escapar(legenda2(nome))}</small>
+        <span><h2>${escapar(nome)}</h2><small>${escapar(legenda2(nome))}${paginaDe(nome) ? ` · <a class="pagina" href="${paginaDe(nome)}">ver a página →</a>` : ""}</small>
           <span class="v" id="faixa-v"></span></span>
         ${foto ? `<button type="button" class="troca" id="troca-marca"></button>` : ""}
         <button type="button" id="limpa-autor" title="Ver todos os autores">✕</button>`;

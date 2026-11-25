@@ -73,8 +73,9 @@
   .mapa-emendas #mun-lista li { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; column-gap: 12px; padding: 10px 0;
                   border-top: 1px solid var(--regra); align-items: start; }
   .mapa-emendas #mun-lista .quem { font-family: var(--serifa); font-size: 15px; font-weight: 600; line-height: 1.2; }
-  .mapa-emendas #mun-lista .quem button { font: inherit; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; }
-  .mapa-emendas #mun-lista .quem button:hover { color: var(--verde); }
+  .mapa-emendas #mun-lista .quem a { color: inherit; text-decoration: none; }
+  .mapa-emendas #mun-lista .quem a:hover { color: var(--verde); text-decoration: underline; text-underline-offset: 3px; }
+  .mapa-emendas .faixa .pagina { color: var(--verde); }
   .mapa-emendas #mun-lista .meta { font-size: 11px; color: var(--texto-3); margin-top: 2px; }
   .mapa-emendas #mun-lista .meta a { color: var(--verde); }
   .mapa-emendas #mun-lista .meta a.externo { color: var(--texto-3); margin-left: 4px; }

@@ -14,12 +14,15 @@ import EmendasAbas from "../../components/emendas/EmendasAbas.astro";
 import html from "../../components/emendas/mapa-emendas.html?raw";
 import css from "../../components/emendas/mapa-emendas.css?raw";
 import js from "../../components/emendas/mapa-emendas.js?raw";
+import { mapaAutores } from "../../lib/politicos";
 
 interface Resumo { versao: string; base: string; anos: number[]; municipios: number; emendas: number; total_mil: number; fonte: string }
 const arquivos = import.meta.glob<Resumo>("../../../public/data/emendas-mapa/resumo.json", { eager: true, import: "default" });
 const r: Resumo | null = Object.values(arquivos)[0] ?? null;
 const base = r ? (import.meta.env.DEV ? `/data/emendas-mapa/${r.versao}` : r.base) : "";
 const anos = r ? `${r.anos[0]}–${r.anos.at(-1)}` : "";
+// slug do autor (como nas emendas) → /politicos/<uf>/<nome>, para o nome na lista levar à página da pessoa.
+const politicos = mapaAutores();
 ---
 
 <Base title="Emendas no mapa · Orçamento Brasileiro" description={`Para onde vão as emendas parlamentares: uma bolha por cidade, os parlamentares que mais mandam para cada região e as emendas de cada lugar, uma a uma (${anos}).`}>
@@ -43,5 +46,6 @@ const anos = r ? `${r.anos[0]}–${r.anos.at(-1)}` : "";
   .fonte a { color: var(--verde); }
 </style>
 
+<script type="application/json" id="politicos-autores" set:html={JSON.stringify(politicos)}></script>
 <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script is:inline set:html={js}></script>
