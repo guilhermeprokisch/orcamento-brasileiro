@@ -38,7 +38,7 @@ except ImportError:
 
 def segredo(nome):
     if os.environ.get(nome):
-        return os.environ[nome]
+        return os.environ[nome].strip()
     for arquivo in (Path.home() / ".config" / "orcamento-br").glob("*.env"):
         for linha in arquivo.read_text().splitlines():
             if linha.startswith(nome + "="):
@@ -47,7 +47,7 @@ def segredo(nome):
 
 
 def token():
-    t = segredo("INSTAGRAM_TOKEN")
+    t = segredo("INSTAGRAM_TOKEN").strip()  # o segredo pode vir com quebra de linha no fim
     if not t.startswith("EAA"):
         sys.exit("O INSTAGRAM_TOKEN não parece um token da Meta (EAA…)")
     return t
