@@ -57,6 +57,15 @@ const ini = info[inicial];
         svg.classList.add("com-escolha");
         svg.querySelectorAll<SVGElement>("[data-id]").forEach((el) => el.toggleAttribute("data-ligado", ligados.has(el.dataset.id!)));
       }
+      // No celular o painel fica embaixo do desenho: se a escolha deixou um dos dois fora da tela, rola para mostrar o
+      // desenho aceso com o começo do painel. Espera um quadro, porque a escolha pode trocar o desenho (o que deixa de entrar).
+      if (matchMedia("(max-width: 900px)").matches) requestAnimationFrame(() => {
+        const svg = svgs.find((s) => s.getBoundingClientRect().height > 0);
+        if (!svg) return;
+        const topo = svg.getBoundingClientRect().top, painelTopo = painel.getBoundingClientRect().top;
+        // (scrollTo, e não scrollIntoView: o Chrome ignora o scrollIntoView de um svg dentro de display: contents.)
+        if (topo < 0 || painelTopo > innerHeight - 160) scrollTo({ top: scrollY + topo - 8, behavior: "smooth" });
+      });
     };
     for (const svg of svgs) {
       svg.addEventListener("click", (e) => {

@@ -215,6 +215,11 @@ const descricao = doc && g
     .atalhos { padding-left: 0; }
     .liga-deixa { padding-left: 0; }
     .explorar-grade { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+    /* No celular, o painel vem logo embaixo do desenho, antes da série e das notas do que deixa de entrar. */
+    .explorar-grade > div, .desenho-sem-x:not([hidden]), .desenho-com-x:not([hidden]) { display: contents; }
+    .explorar-grade :global(.explorar-svg) { order: 1; }
+    .explorar-grade :global(.painel) { order: 2; }
+    .explorar-grade :global(.desenho-com-x > :not(svg)) { order: 3; }
     .pagina-impostos :global(.so-largo) { display: none !important; }
     .pagina-impostos :global(.so-estreito) { display: block !important; }
   }
