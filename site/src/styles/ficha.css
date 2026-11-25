@@ -89,7 +89,9 @@
 }
 /* mesmo corte do .so-largo (global.css), que esconde as colunas extras */
 @media (max-width: 640px) {
-  .ficha .areas .linha { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; }
+  .ficha .areas .linha { grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px 12px; }
+  /* no celular a barra (e o traço da mediana) vai numa segunda linha, na largura toda */
+  .ficha .areas .trilho { grid-column: 1 / -1; grid-row: 2; height: 8px; }
 }
 
 /* seletor de ano e o link para comparar, no topo da página */
