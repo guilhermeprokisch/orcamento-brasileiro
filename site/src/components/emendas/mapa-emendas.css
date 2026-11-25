@@ -53,8 +53,8 @@
                 border-left: 1px solid var(--regra); background: var(--papel); }
   .mapa-emendas .palco-todo.com-mun .painel-mun { display: flex; }
   .mapa-emendas .bolha.escolhida { fill-opacity: .95; stroke: var(--verde); stroke-width: 3px; stroke-opacity: 1; }
-  /* Com a cidade aberta, as vizinhas recuam; a aberta mostra os seus por dentro. */
-  .mapa-emendas .palco-todo.com-mun .camada-bolhas circle:not(.escolhida), .mapa-emendas .palco-todo.com-mun .camada-nomes text { opacity: .45; }
+  /* Com a cidade aberta, só ela fica no mapa: as bolhas e os nomes das outras somem, resta o contorno da malha. */
+  .mapa-emendas .palco-todo.com-mun .camada-bolhas circle:not(.escolhida), .mapa-emendas .palco-todo.com-mun .camada-nomes text { display: none; }
   .mapa-emendas .painel-mun .voltar { align-self: flex-start; font: inherit; font-size: 12.5px; padding: 6px 10px 6px 8px;
                         border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
   .mapa-emendas .painel-mun h2 { margin: 12px 0 0; font-family: var(--serifa); font-size: 25px; font-weight: 700; line-height: 1.1; }
