@@ -12,13 +12,13 @@
 @media (max-width: 760px) { .mapa-emendas { height: auto; min-height: 0; } .mapa-emendas .palco-todo { min-height: 62vh; } }
 
   /* Sem título visível: a aba "No mapa" já diz o que é. Os controles alinham com as abas (.wrap). */
-  .mapa-emendas header { display: flex; padding: 8px 0 9px; border-bottom: 1px solid var(--regra); }
+  .mapa-emendas header { position: relative; display: flex; padding: 8px 0 9px; border-bottom: 1px solid var(--regra); }
   .mapa-emendas .so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .mapa-emendas .frase { flex: 1 1 auto; display: flex; align-items: flex-end; gap: 16px; min-width: 0; flex-wrap: wrap;
            box-sizing: border-box; width: 100%; max-width: 1280px; margin: 0 auto; padding: 0 var(--margem); }
   .mapa-emendas .cel { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .mapa-emendas .cel > span:first-child { font-family: var(--serifa); font-size: 13px; color: var(--texto-2); white-space: nowrap; }
-  .mapa-emendas .cel.oque { flex: 0 1 250px; min-width: 170px; }
+  .mapa-emendas .cel.oque { flex: 0 1 215px; min-width: 170px; }
   .mapa-emendas select.tk { width: auto; min-width: 150px; padding-right: 28px; appearance: none; -webkit-appearance: none;
               background-image: linear-gradient(45deg, transparent 50%, var(--tinta) 50%), linear-gradient(135deg, var(--tinta) 50%, transparent 50%);
               background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
@@ -28,8 +28,21 @@
   .mapa-emendas .grupo button + button { border-left: 1px solid var(--tinta); }
   .mapa-emendas .grupo button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); font-weight: 600; }
   /* A linha do tempo: um botão por ano, mais apertado; "tudo" separado no fim. */
-  .mapa-emendas .grupo.anos button { padding: 0 7px; font-variant-numeric: tabular-nums; }
-  .mapa-emendas .grupo.anos button:last-child { border-left: 2px solid var(--tinta); font-style: italic; }
+  /* A linha do tempo é mais miúda que os outros grupos, para caber na mesma linha. */
+  .mapa-emendas .grupo.anos button { padding: 0 3px; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .mapa-emendas .grupo.anos button:last-child { border-left: 2px solid var(--tinta); font-style: italic; padding: 0 7px; }
+  /* O "?" no fim da linha, e a caixinha pendurada nele. */
+  .mapa-emendas #tipo button { padding: 0 7px; }
+  .mapa-emendas .ajuda { flex: none; margin-left: auto; width: 28px; height: 28px; margin-bottom: 2px; padding: 0; border-radius: 50%;
+             border: 1px solid var(--tinta); background: transparent; color: var(--tinta); font: 600 14px var(--sans); cursor: pointer; }
+  .mapa-emendas .ajuda:hover, .mapa-emendas .ajuda[aria-expanded="true"] { background: var(--tinta); color: var(--papel); }
+  .mapa-emendas .ajuda-caixa { position: absolute; z-index: 20; right: max(var(--margem), calc((100% - 1280px) / 2 + var(--margem))); top: calc(100% - 2px);
+                   width: min(400px, calc(100vw - 2 * var(--margem))); padding: 12px 14px; font-size: 12.5px; line-height: 1.5; color: var(--texto-2);
+                   background: var(--papel); border: 1px solid var(--tinta); box-shadow: 0 10px 26px var(--sombra); }
+  .mapa-emendas .ajuda-caixa p { margin: 0; }
+  .mapa-emendas .ajuda-caixa p + p { margin-top: 8px; }
+  .mapa-emendas .ajuda-caixa b { color: var(--tinta); }
+  .mapa-emendas .ajuda-caixa a { color: var(--verde); }
   .mapa-emendas .cel.inerte { opacity: .4; }
   .mapa-emendas .cel.inerte .grupo { pointer-events: none; }
   .mapa-emendas .cel.inerte > span::after { content: " (não se aplica a um autor)"; }
@@ -179,6 +192,8 @@
     .mapa-emendas #tipo::-webkit-scrollbar, .mapa-emendas #ano::-webkit-scrollbar { display: none; }
     .mapa-emendas #tipo button, .mapa-emendas #ano button { flex: none; }
     .mapa-emendas .cel:has(#tipo), .mapa-emendas .cel:has(#ano) { flex: 1 1 100%; min-width: 0; }
+    .mapa-emendas .ajuda { position: absolute; right: var(--margem); top: 8px; margin: 0; width: 26px; height: 26px; font-size: 13px; }
+    .mapa-emendas .cel.oque { padding-right: 36px; }
     .mapa-emendas .tk { height: 30px; font-size: 15px; }
     .mapa-emendas .palco-todo { min-height: 56vh; }
     .mapa-emendas #painel-autor { left: 0 !important; right: 0; top: auto !important; bottom: 0; width: auto;

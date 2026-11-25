@@ -32,18 +32,11 @@ const politicos = mapaAutores();
   {r
     ? <div class="mapa-emendas" data-base={base} data-versao={r.versao} set:html={html} />
     : <div class="wrap"><p class="sem-dados">Os dados do mapa ainda não foram gerados (<code>uv run emendas-mapa</code>).</p></div>}
-  <div class="wrap fonte">
-    <p>Como ler: de longe, um retrato por estado, o de quem mais mandou para ele; aproximando, as cidades, e quanto mais perto, mais municípios. Passe o mouse numa cidade para ver quem mandou para lá, cada um com o valor; clique nela para entrar e ler as emendas uma a uma. Bancada, comissão e relator são colegiados e aparecem como monograma.</p>
-    <p>Fonte: {r?.fonte ?? "Controladoria-Geral da União, Portal da Transparência"}. Cada bolha é o município de quem recebeu o pagamento, não o endereço da obra. Brasília fica fora porque concentra as entidades com sede lá: sozinha são R$ 112 bi, 40% de tudo, que não é dinheiro gasto no DF (<a href="#" id="ver-df">ver com Brasília</a>).</p>
-  </div>
 </Base>
 
 <style is:global set:html={css}></style>
 <style>
   .sem-dados { margin: 40px 0; color: var(--texto-3); }
-  .fonte p { margin: 14px 0 0; font-size: 12.5px; color: var(--texto-3); line-height: 1.5; }
-  .fonte p:last-child { margin-bottom: 28px; }
-  .fonte a { color: var(--verde); }
 </style>
 
 <script type="application/json" id="politicos-autores" set:html={JSON.stringify(politicos)}></script>

@@ -709,6 +709,13 @@
   }
   addEventListener("resize", dimensionar);
 
+  // O "?" abre a caixinha de como ler (com a fonte e a saída para ver Brasília); fecha no ✕, fora ou com Esc.
+  const ajuda = document.getElementById("ajuda"), ajudaCaixa = document.getElementById("ajuda-caixa");
+  const mostrarAjuda = (sim) => { ajudaCaixa.hidden = !sim; ajuda.ariaExpanded = String(sim); };
+  ajuda.onclick = (ev) => { ev.stopPropagation(); mostrarAjuda(ajudaCaixa.hidden); };
+  ajudaCaixa.onclick = (ev) => ev.stopPropagation();
+  document.addEventListener("click", () => { if (!ajudaCaixa.hidden) mostrarAjuda(false); });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !ajudaCaixa.hidden) mostrarAjuda(false); });
   // Os anos são uma linha do tempo, não um menu: um botão por ano, e "tudo" no fim.
   document.getElementById("ano").innerHTML = [
     ...ANOS.map((a, i) => `<button type="button" data-i="${i}" aria-pressed="${i === iAno}"${a === 2026 ? ' title="2026, até agora"' : ""}>${a}</button>`),
