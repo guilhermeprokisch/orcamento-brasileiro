@@ -50,7 +50,7 @@ URL = "https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/
 LEGISLATURAS = (55, 56, 57)   # 2015–2019, 2019–2023, 2023–2027
 PESSOA = ("Individual", "Pix")   # os tipos de emenda que têm um parlamentar por autor
 DF = "5300108"
-UA = {"User-Agent": "orcamento-brasileiro (github.com/guilhermeprokisch/orcamento-brasileiro)", "Accept": "application/json"}
+UA = {"User-Agent": "orcamento-brasileiro (github.com/orcamento-brasileiro/orcamento-brasileiro)", "Accept": "application/json"}
 
 
 def chave(nome: str) -> str:
