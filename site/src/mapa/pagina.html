@@ -529,6 +529,8 @@
   const porAno = {};
   const inssAno = {};   // benefícios do INSS pagos em cada município: {ibge: [total, aposentadorias, pensões]}
   const rfbMun = {};    // arrecadação federal em cada município (Receita Federal): {ibge: [total, IR de pessoas físicas | null]}
+  // ICMS oficial por município e ano, onde o estado publica o dado (hoje só SP): {ano: {ibge: ICMS em reais}}.
+  const icmsMun = await json("icms-mun.json").catch(() => ({}));
   // Imposto de renda pela cidade onde a pessoa mora (Grandes Números do IRPF): {anos: {ano: {ibge: [declarantes, imposto devido]}}}
   const irRes = await json("irpf-res.json").catch(() => ({ anos: {} }));
   /** O imposto de renda dos moradores no ano do mapa, ou no ano mais perto (até um de distância); null sem dado. */
@@ -657,8 +659,10 @@
   const autoresDe = (id) => (emendas?.autores?.[id] ?? []).map(([n, v]) => [emendas.nomesAutores[n], v]);
 
   // O que sai de uma cidade em impostos. À prefeitura e ao governo federal: medido (o governo federal pela Receita Federal,
-  // no município de quem recolhe). Ao estado: estimativa a partir das cotas que o estado devolve
-  // (IPVA: metade; ICMS: um quarto). Sem o dado da Receita, o governo federal volta a ser estimada pelo peso da cidade no ICMS.
+  // no município de quem recolhe). Ao estado: o ICMS é oficial onde o estado publica por município (FONTE_ICMS; o arquivo
+  // icms-mun/{ano}.json traz o valor em reais); sem isso, estimativa pela cota que o estado devolve (ICMS: um quarto). O IPVA
+  // é sempre estimativa (metade da cota). Sem o dado da Receita, o governo federal volta a ser estimado pelo peso no ICMS.
+  const FONTE_ICMS = { SP: "SEFAZ-SP" };   // estados com ICMS oficial por município (SP: Tabela 1.10 do Relatório da Receita Tributária)
   const somaIcms = {};
   function pesoNoEstado(id) {
     const ano = estado.ano;
@@ -673,9 +677,11 @@
     const r = doc.mun[id];
     if (!temReceita(r) || r.length <= I.cotaIpva) return null;
     const k = fator(), medido = rfbMun[estado.ano]?.[id];
+    const icmsOf = icmsMun[estado.ano]?.[id];   // ICMS oficial (SEFAZ) onde houver; senão a estimativa da cota × 4
     const pref = [["IPTU", r[I.iptu]], ["ISS (imposto sobre serviços)", r[I.iss]], ["ITBI (compra de imóveis)", r[I.itbi]], ["Taxas", r[I.taxas]],
       ["Iluminação pública", r[I.cosip]], ["Outros tributos", r[I.outrosTrib]]].map(([n, v]) => [n, v * k]).filter((x) => x[1] > 0);
-    return { pref, totalPref: d3.sum(pref, (x) => x[1]), ipva: r[I.cotaIpva] * 2 * k, icms: r[I.cotaIcms] * 4 * k,
+    return { pref, totalPref: d3.sum(pref, (x) => x[1]), ipva: r[I.cotaIpva] * 2 * k,
+      icms: (icmsOf != null ? icmsOf : r[I.cotaIcms] * 4) * k, icmsOficial: icmsOf != null,
       ...uniaoDe(id, medido, k) };
   }
   function uniaoDe(id, medido, k) {
@@ -1172,12 +1178,14 @@
       blocos.push(bloco("O que sai daqui em impostos", `${curto(total)}`, `
         <p class="bloco-nota">${porHab(total)}, somando o medido e o estimado.</p>
         <h4>Para a prefeitura <small>medido</small> · ${curto(sai.totalPref)}</h4>${linhas(sai.pref)}
-        <h4>Para o governo do estado <small>estimativa</small> · ${curto(sai.ipva + sai.icms)}</h4>
-        ${linhas([["IPVA dos veículos da cidade", sai.ipva], ["ICMS (imposto embutido nas compras)", sai.icms]])}
+        <h4>Para o governo do estado <small>${sai.icmsOficial ? "ICMS oficial · IPVA estimado" : "estimativa"}</small> · ${curto(sai.ipva + sai.icms)}</h4>
+        ${linhas([["IPVA dos veículos da cidade", sai.ipva], ["ICMS (imposto embutido nas compras)", sai.icms, null, sai.icmsOficial ? FONTE_ICMS[ufDe(id)] : null]])}
         <h4>Para o governo federal <small>${sai.uniaoMedida ? "medido" : "estimativa"}</small> · ${sai.uniao === null ? "—" : curto(sai.uniao)}</h4>
         ${linhas([[sai.uniaoMedida ? "Recolhido nesta cidade (empresas e moradores)" : "Imposto de renda, INSS, PIS/Cofins e outros", sai.uniao],
           ...(irMor ? [[`Imposto de renda de quem mora aqui, em ${irMor.ano}`, irMor.valor]] : [])])}
-        <p class="nota">Para o estado é estimativa: o estado devolve à prefeitura metade do IPVA e um quarto do ICMS, então multiplicamos essas cotas por 2 e por 4. ${sai.uniaoMedida
+        <p class="nota">${sai.icmsOficial
+          ? `O ICMS é o valor oficial que a ${FONTE_ICMS[ufDe(id)]} publica por município (Tabela 1.10 do Relatório da Receita Tributária), contado pelo município do estabelecimento que recolhe: cidades com sede de grandes empresas, ou que recolhem por substituição tributária, aparecem altas, e a parte do Simples Nacional não é distribuída por cidade. O IPVA é estimativa: o estado devolve à prefeitura metade do IPVA, então multiplicamos essa cota por 2.`
+          : `Para o estado é estimativa: o estado devolve à prefeitura metade do IPVA e um quarto do ICMS, então multiplicamos essas cotas por 2 e por 4.`} ${sai.uniaoMedida
           ? "Para o governo federal é o que a Receita Federal registra como recolhido na cidade. A empresa recolhe onde fica a sede, inclusive o imposto descontado do salário de quem mora em outra cidade: cidades com sedes de empresas aparecem altas e cidades-dormitório, baixas."
           : "Para o governo federal, sem o dado da Receita para esta cidade, repartimos o que ela arrecadou no estado pelo peso da cidade no ICMS: trate como ordem de grandeza."}${irMor
           ? ` As duas linhas do governo federal não se somam. O imposto de renda de quem mora aqui vem das declarações, pela cidade onde a pessoa mora, onde quer que ela trabalhe: é o descontado do salário mais o pago na declaração, menos o que volta na restituição (${irMor.declarantes.toLocaleString("pt-BR")} declarações).`
