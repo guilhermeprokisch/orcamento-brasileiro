@@ -385,7 +385,7 @@
     const ps = g.itens.map((d) => projecao(d.c));
     const [x0, x1] = d3.extent(ps, (p) => p[0]), [y0, y1] = d3.extent(ps, (p) => p[1]);
     const cabe = 0.85 / Math.max((x1 - x0) / m.width, (y1 - y0) / m.height, 1e-9);
-    const k = Math.min(40, Math.max(ZOOM_MALHA, cabe));
+    const k = Math.min(400, Math.max(ZOOM_MALHA, cabe));
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity.translate(m.width / 2 - k * cx, m.height / 2 - k * cy).scale(k));
   }
@@ -653,7 +653,8 @@
     a.click(); URL.revokeObjectURL(a.href);
   };
 
-  const zoom = d3.zoom().scaleExtent([1, 40])
+  // Até 400×: um município pequeno do interior só enche a tela lá por 100–200× do Brasil inteiro.
+  const zoom = d3.zoom().scaleExtent([1, 400])
     .on("start", () => svg.classed("arrastando", true))
     .on("end", () => {
       svg.classed("arrastando", false);
