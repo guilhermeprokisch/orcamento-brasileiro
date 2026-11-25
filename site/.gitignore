@@ -22,3 +22,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Estado local do wrangler pages dev (banco D1 de teste)
+.wrangler/

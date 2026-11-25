@@ -31,6 +31,7 @@ import { anosDe, fichaDe, pacoteDe } from "../../../lib/ficha";
 import { emendasPorAno } from "../../../lib/indicadores";
 import { areasHtml, contasHtml, fraseHtml, numerosHtml, type Contexto } from "../../../lib/ficha-html";
 import type { BaseDaPagina } from "../../../lib/troca-de-ano";
+import Seguir from "../../../components/Seguir.astro";
 import "../../../styles/ficha.css";
 
 export function getStaticPaths() {
@@ -96,6 +97,12 @@ const descricao = temDados
                 </label>
               )}
               {!ehDF && <a class="comparar-com" href={`/comparar?a=${c.ibge}`}><span aria-hidden="true">⇄</span> Comparar com outra cidade</a>}
+              <Seguir
+                nome={ehDF ? "o Distrito Federal" : c.nome}
+                alvos={ehDF
+                  ? [{ alvo: "uf-DF", nome: "Distrito Federal", papel: "o governo do DF", marcado: true }]
+                  : [{ alvo: `mun-${c.ibge}`, nome: c.nome, papel: "a prefeitura", marcado: true }, { alvo: `uf-${c.uf}`, nome: nomeUf, papel: "o governo do estado", marcado: false }]}
+              />
             </div>
             <div class="ficha" data-parte="frase" set:html={fraseHtml(ctx)} />
           </>
