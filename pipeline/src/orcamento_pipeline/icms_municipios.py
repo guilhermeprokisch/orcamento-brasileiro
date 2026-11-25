@@ -3,10 +3,10 @@
     uv run icms                 # usa a planilha já baixada, ou baixa da SEFAZ-SP
     uv run icms --forcar        # baixa a planilha de novo
 
-Hoje o mapa estima o ICMS de cada cidade multiplicando por 4 a cota-parte que a prefeitura
-recebe. A cota segue um índice (valor adicionado e critérios da lei estadual), não o imposto
-recolhido ali. Este módulo troca a estimativa pelo valor oficial, onde o estado publica o
-ICMS por município em formato aberto.
+O mapa estima o ICMS de cada cidade multiplicando por 4 a cota-parte que a prefeitura recebe
+(valor adicionado, uma aproximação do que a cidade produz). Onde o estado publica o ICMS
+recolhido por município, este módulo gera esse valor para o mapa mostrar numa linha à parte,
+ao lado da estimativa — é outra medida (pelo município do estabelecimento) e não a substitui.
 
 São Paulo: "Relatório da Receita Tributária", Tabela 1.10 — ICMS por Região e Município, da
 Secretaria da Fazenda e Planejamento (SEFAZ-SP). Um arquivo consolidado histórico, com uma aba
