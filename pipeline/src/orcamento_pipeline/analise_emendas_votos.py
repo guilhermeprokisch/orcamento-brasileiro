@@ -8,8 +8,8 @@ deputado federal em cada município (2022) × população, e a variação dos vo
 O texto da análise, com método e limites, está em analises/emendas-votos/README.md.
 
 Fontes (cache em data/raw):
-- Emendas pagas: data/publico/emendas-pagamentos.parquet (`uv run explorador-emendas`; no espelho em
-  explorador/emendas-pagamentos.parquet).
+- Emendas pagas: data/publico/emendas-pagamentos.parquet (`uv run explorador-emendas`), do qual sai o recorte
+  insumos/emendas-portal.parquet.
 - Saúde de 2023–24: o Portal da Transparência registra boa parte dessas emendas como pagas ao Banco do
   Brasil, em Brasília, sem a cidade. O Fundo Nacional de Saúde publica cada proposta, com o fundo de saúde de
   destino, o município e o parlamentar: uma planilha por UF e ano (consultafns.saude.gov.br, API pública
@@ -19,8 +19,10 @@ Fontes (cache em data/raw):
 - Deputados: Câmara, dados abertos, legislatura 57 (o mesmo cache do mapa das emendas).
 
 Saída em data/analises/emendas-votos/:
-- insumos/  votos-deputado-federal.parquet, fns-propostas.parquet, populacao-2022.csv, deputados.csv
-            (o que vai ao espelho, para quem quiser refazer sem baixar as fontes)
+- insumos/  emendas-portal.parquet (o recorte do Portal), fns-propostas.parquet, votos-deputado-federal.parquet,
+            populacao-2022.csv, deputados.csv: o que vai ao espelho, para refazer sem baixar as fontes
+No espelho, tudo fica em analises/emendas-votos/<versão>/, a versão vinda do conteúdo dos insumos; o
+repositório aponta a versão que o texto cita em analises/emendas-votos/espelho.json (gravado por --publicar).
 - painel.parquet         deputado × município do estado dele: emenda, votos de 2022 e de 2026, população
 - resultados.json        os números da análise (os que o texto cita)
 - preco-por-deputado.csv R$ de emenda por voto de cada deputado
@@ -54,6 +56,9 @@ PAGAMENTOS = c.RAIZ / "data" / "publico" / "emendas-pagamentos.parquet"
 BUCKET = "orcamento-brasileiro-dados"
 ESPELHO = f"https://dados.orcamentobrasileiro.com.br/file/{BUCKET}"
 PREFIXO = "analises/emendas-votos"
+PONTEIRO = c.RAIZ / "analises" / "emendas-votos" / "espelho.json"   # a versão dos dados que o texto cita
+ARQUIVOS_INSUMOS = ("emendas-portal.parquet", "fns-propostas.parquet", "votos-deputado-federal.parquet",
+                    "populacao-2022.csv", "deputados.csv")
 
 ANOS_EMENDA = (2023, 2026)
 ANOS_FNS = (2023, 2024)          # a partir de 2025 o Portal já registra o fundo municipal
@@ -120,17 +125,23 @@ def municipios_ibge() -> list[tuple[str, str, str, int]]:
     return linhas
 
 
-def deputados() -> list[tuple[str, str, str]]:
-    """(nome, uf, partido) dos deputados da legislatura 57, do mesmo cache que o mapa das emendas usa."""
+def deputados() -> list[tuple[str, str, str, bool]]:
+    """(nome, uf, partido, veterano) dos deputados da legislatura 57; veterano = esteve na 56 (2019–23).
+    Do mesmo cache que o mapa das emendas usa."""
     from .emendas_mapa import baixar_json
-    pag, url, saida = 1, "https://dadosabertos.camara.leg.br/api/v2/deputados?idLegislatura=57&itens=100", {}
-    while url:
-        doc = baixar_json(url, f"camara-57-{pag}.json")
-        for d in doc["dados"]:
-            saida[(d["nome"], d["siglaUf"])] = d.get("siglaPartido") or ""
-        url = next((l["href"] for l in doc["links"] if l["rel"] == "next"), None)
-        pag += 1
-    return [(n, uf, p) for (n, uf), p in sorted(saida.items())]
+
+    def legislatura(leg: int) -> list[dict]:
+        pag, url, saida = 1, f"https://dadosabertos.camara.leg.br/api/v2/deputados?idLegislatura={leg}&itens=100", []
+        while url:
+            doc = baixar_json(url, f"camara-{leg}-{pag}.json")
+            saida += doc["dados"]
+            url = next((l["href"] for l in doc["links"] if l["rel"] == "next"), None)
+            pag += 1
+        return saida
+
+    l56 = {(chave(d["nome"]), d["siglaUf"]) for d in legislatura(56)}
+    saida = {(d["nome"], d["siglaUf"]): d.get("siglaPartido") or "" for d in legislatura(57)}
+    return [(n, uf, p, (chave(n), uf) in l56) for (n, uf), p in sorted(saida.items())]
 
 
 def votos_tse(con: duckdb.DuckDBPyConnection, ano: int, ibge_por_nome: dict[tuple[str, str], str]) -> None:
@@ -221,8 +232,8 @@ def montar_insumos() -> None:
     con.executemany("INSERT INTO pop VALUES (?, ?, ?, ?)", mun)
     con.sql(f"COPY pop TO '{INSUMOS / 'populacao-2022.csv'}' (HEADER)")
 
-    con.sql("CREATE TABLE dep(nome VARCHAR, uf VARCHAR, partido VARCHAR)")
-    con.executemany("INSERT INTO dep VALUES (?, ?, ?)", deputados())
+    con.sql("CREATE TABLE dep(nome VARCHAR, uf VARCHAR, partido VARCHAR, veterano BOOLEAN)")
+    con.executemany("INSERT INTO dep VALUES (?, ?, ?, ?)", deputados())
     con.sql(f"COPY dep TO '{INSUMOS / 'deputados.csv'}' (HEADER)")
 
     con.sql("""CREATE TABLE votos(ano INT, uf VARCHAR, ibge VARCHAR, sq VARCHAR, nome VARCHAR, urna VARCHAR,
@@ -240,14 +251,30 @@ def montar_insumos() -> None:
     print(con.sql("SELECT ano, count(*) linhas, round(sum(pago) / 1e9, 2) bi_pagos, count(*) FILTER (ibge IS NULL) sem_ibge FROM fns GROUP BY 1 ORDER BY 1"))
     con.sql(f"COPY (SELECT * FROM fns ORDER BY ano, uf, proposta) TO '{INSUMOS / 'fns-propostas.parquet'}'")
 
+    # O recorte do Portal que a análise usa, congelado junto dos outros insumos (o parquet geral do explorador
+    # é refeito a cada publicação).
+    a0, a1 = ANOS_EMENDA
+    con.sql(f"""COPY (SELECT emenda, ano, mes, autor, tipo, favorecido, codigo, grupo, uf, municipio, ibge, area, valor
+                      FROM '{PAGAMENTOS}' WHERE tipo IN ('Individual', 'Pix') AND ano BETWEEN {a0} AND {a1}
+                      ORDER BY ano, mes, emenda, codigo) TO '{INSUMOS / 'emendas-portal.parquet'}'""")
+
+
+def versao_insumos() -> str:
+    """Versão = conteúdo dos insumos: dados novos vão para outra pasta no espelho, e o cache nunca mistura."""
+    from .fichas_emendas import versao
+    return versao(*(INSUMOS / n for n in ARQUIVOS_INSUMOS))
+
 
 def insumos_do_espelho() -> None:
-    for nome in ("votos-deputado-federal.parquet", "fns-propostas.parquet", "populacao-2022.csv", "deputados.csv"):
-        print(f"espelho: {nome}", flush=True)
-        baixar(f"{ESPELHO}/{PREFIXO}/insumos/{nome}", INSUMOS / nome)
-    if not PAGAMENTOS.exists():
-        print("espelho: emendas-pagamentos.parquet", flush=True)
-        baixar(f"{ESPELHO}/explorador/emendas-pagamentos.parquet", PAGAMENTOS)
+    """Baixa os insumos da versão que o repositório aponta (analises/emendas-votos/espelho.json)."""
+    v = json.loads(PONTEIRO.read_text(encoding="utf-8"))["versao"]
+    for nome in ARQUIVOS_INSUMOS:
+        print(f"espelho {v}: {nome}", flush=True)
+        if (INSUMOS / nome).exists():
+            (INSUMOS / nome).unlink()
+        baixar(f"{ESPELHO}/{PREFIXO}/{v}/insumos/{nome}", INSUMOS / nome)
+    if versao_insumos() != v:
+        sys.exit(f"os insumos baixados não batem com a versão {v} do espelho.json")
 
 
 # ---------------------------------------------------------------- painel
@@ -258,7 +285,7 @@ def casar_deputados(con: duckdb.DuckDBPyConnection) -> None:
     for uf, sq, urna, nome, sit, v in con.sql("SELECT uf, sq, urna, nome, situacao, sum(votos) FROM votos WHERE ano = 2022 GROUP BY ALL").fetchall():
         cand.setdefault(uf, []).append((sq, chave(urna), chave(nome), sit, v))
     pares, sem_par = [], []
-    for nome, uf in con.sql("SELECT nome, uf FROM dep").fetchall():
+    for nome, uf, veterano in con.sql("SELECT nome, uf, veterano FROM dep").fetchall():
         k, tk, melhor = chave(nome), tokens(chave(nome)), None
         for sq, ku, kn, sit, v in cand.get(uf, []):
             if k in (ku, kn):
@@ -272,11 +299,11 @@ def casar_deputados(con: duckdb.DuckDBPyConnection) -> None:
             candidato = (s, sit != "NÃO ELEITO", v, sq)
             melhor = max(melhor, candidato) if melhor else candidato
         if melhor and melhor[1]:
-            pares.append((k, uf, melhor[3]))
+            pares.append((k, uf, melhor[3], bool(veterano)))
         else:
             sem_par.append(f"{nome} ({uf})")
-    con.sql("CREATE OR REPLACE TABLE casados(k VARCHAR, uf VARCHAR, sq VARCHAR)")
-    con.executemany("INSERT INTO casados VALUES (?, ?, ?)", pares)
+    con.sql("CREATE OR REPLACE TABLE casados(k VARCHAR, uf VARCHAR, sq VARCHAR, veterano BOOLEAN)")
+    con.executemany("INSERT INTO casados VALUES (?, ?, ?, ?)", pares)
     print(f"deputados casados com o TSE: {len(pares)}; sem par: {len(sem_par)} {sem_par}", flush=True)
 
 
@@ -292,26 +319,36 @@ def montar_painel() -> duckdb.DuckDBPyConnection:
     fns_anos = ", ".join(map(str, ANOS_FNS))
     # Portal, menos o que o FNS cobre melhor (toda a saúde individual de 2023–24, e o que foi ao BB);
     # mais o FNS. Brasília fica fora: lá o pagamento vai a entidades com sede na capital.
+    # `estadual`: pago a governo ou fundo estadual. Aparece no município da sede (a capital), mas pode ser
+    # gasto em qualquer cidade do estado. No FNS, pelo nome da entidade.
     con.sql(f"""CREATE TABLE emendas AS
         WITH portal AS (
-            SELECT chave(autor) k, ibge, valor, CASE WHEN tipo = 'Pix' THEN valor ELSE 0 END pix, 0.0 fns
-            FROM '{PAGAMENTOS}'
+            SELECT chave(autor) k, ibge, ano, valor, CASE WHEN tipo = 'Pix' THEN valor ELSE 0 END pix, 0.0 fns,
+                   CASE WHEN grupo = 'Governo estadual' THEN valor ELSE 0 END est
+            FROM '{INSUMOS / "emendas-portal.parquet"}'
             WHERE tipo IN ('Individual', 'Pix') AND ano BETWEEN {a0} AND {a1}
               AND NOT (coalesce(codigo, '') = '{BB}' OR (tipo = 'Individual' AND area = 'Saúde' AND ano IN ({fns_anos})))
               AND coalesce(ibge, '') NOT IN ('', '{DF}')),
-        saude AS (SELECT chave(parlamentar) k, ibge, pago valor, 0.0 pix, pago fns FROM fns
-                  WHERE ano IN ({fns_anos}) AND ibge IS NOT NULL AND ibge <> '{DF}' AND pago > 0)
-        SELECT k, ibge, sum(valor) valor, sum(pix) pix, sum(fns) fns FROM (SELECT * FROM portal UNION ALL SELECT * FROM saude) GROUP BY ALL""")
-    con.sql("""CREATE TABLE painel AS
-        WITH d AS (SELECT DISTINCT sq, uf FROM casados),
-        em AS (SELECT c.sq, e.ibge, sum(e.valor) emenda, sum(e.pix) pix, sum(e.fns) fns FROM emendas e JOIN casados c USING (k) GROUP BY ALL),
+        saude AS (SELECT chave(parlamentar) k, ibge, ano, pago valor, 0.0 pix, pago fns,
+                         CASE WHEN entidade NOT ILIKE '%MUNIC%' AND (entidade ILIKE '%ESTAD%' OR entidade ILIKE 'FUNDO ESPECIAL DE SAUDE%')
+                              THEN pago ELSE 0 END est
+                  FROM fns WHERE ano IN ({fns_anos}) AND ibge IS NOT NULL AND ibge <> '{DF}' AND pago > 0)
+        SELECT k, ibge, ano, sum(valor) valor, sum(pix) pix, sum(fns) fns, sum(est) est
+        FROM (SELECT * FROM portal UNION ALL SELECT * FROM saude) GROUP BY ALL""")
+    anos = range(a0, a1 + 1)
+    por_ano = ", ".join(f"sum(e.valor) FILTER (e.ano = {a}) e{a}" for a in anos)
+    con.sql(f"""CREATE TABLE painel AS
+        WITH d AS (SELECT sq, any_value(uf) uf, bool_or(veterano) veterano FROM casados GROUP BY sq),
+        em AS (SELECT c.sq, e.ibge, sum(e.valor) emenda, sum(e.pix) pix, sum(e.fns) fns, sum(e.est) est, {por_ano}
+               FROM emendas e JOIN casados c USING (k) GROUP BY ALL),
         v22 AS (SELECT sq, ibge, sum(votos) votos FROM votos WHERE ano = 2022 GROUP BY ALL),
         val AS (SELECT ibge, sum(votos) validos FROM votos WHERE ano = 2022 GROUP BY 1),
         ponte AS (SELECT DISTINCT sq, uf, nome FROM votos WHERE ano = 2022),
         v26 AS (SELECT p.sq, v.ibge, sum(v.votos) votos26 FROM votos v JOIN ponte p ON p.uf = v.uf AND p.nome = v.nome
                 WHERE v.ano = 2026 GROUP BY ALL)
-        SELECT d.sq, d.uf, p.ibge, p.populacao, coalesce(val.validos, 0) validos, coalesce(v22.votos, 0) votos,
-               v26.votos26, coalesce(em.emenda, 0) emenda, coalesce(em.pix, 0) pix, coalesce(em.fns, 0) fns
+        SELECT d.sq, d.uf, d.veterano, p.ibge, p.populacao, coalesce(val.validos, 0) validos, coalesce(v22.votos, 0) votos,
+               v26.votos26, coalesce(em.emenda, 0) emenda, coalesce(em.pix, 0) pix, coalesce(em.fns, 0) fns,
+               coalesce(em.est, 0) est, {", ".join(f"coalesce(em.e{a}, 0) e{a}" for a in anos)}
         FROM d JOIN pop p ON p.uf = d.uf
         LEFT JOIN v22 ON v22.sq = d.sq AND v22.ibge = p.ibge LEFT JOIN val ON val.ibge = p.ibge
         LEFT JOIN em ON em.sq = d.sq AND em.ibge = p.ibge LEFT JOIN v26 ON v26.sq = d.sq AND v26.ibge = p.ibge
@@ -328,72 +365,176 @@ def montar_painel() -> duckdb.DuckDBPyConnection:
 # ---------------------------------------------------------------- estimativas
 
 def ppml(y: np.ndarray, X: np.ndarray, g: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Poisson com efeito fixo de grupo (verossimilhança concentrada); erros agrupados por grupo."""
+    """Poisson com efeito fixo de grupo (verossimilhança concentrada, com busca de passo); erros agrupados por grupo."""
+    X = X - X.mean(0)
     G = g.max() + 1
     Y = np.bincount(g, y, G)
-    n_g = np.bincount(g, minlength=G)
-    b = np.zeros(X.shape[1])
-    for _ in range(100):
+
+    def partes(b):
         eta = X @ b
-        eta -= (np.bincount(g, eta, G) / n_g)[g]
-        e = np.exp(eta)
-        p = e / np.bincount(g, e, G)[g]
+        m = np.full(G, -np.inf)
+        np.maximum.at(m, g, eta)
+        e = np.exp(eta - m[g])
+        S = np.bincount(g, e, G)
+        return e / S[g], np.sum(y * (eta - m[g] - np.log(S[g])))
+
+    b = np.zeros(X.shape[1])
+    p, ll = partes(b)
+    for _ in range(300):
         mu = Y[g] * p
         px = np.stack([np.bincount(g, p * X[:, j], G) for j in range(X.shape[1])], 1)
         Xc = X - px[g]
         H = (Xc * mu[:, None]).T @ Xc
-        passo = np.linalg.solve(H, (X * (y - mu)[:, None]).sum(0))
-        b += passo
-        if np.abs(passo).max() < 1e-9:
+        passo = np.linalg.solve(H + 1e-9 * np.eye(len(b)), (X * (y - mu)[:, None]).sum(0))
+        t = 1.0
+        while True:
+            p2, ll2 = partes(b + t * passo)
+            if ll2 >= ll - 1e-12 or t < 1e-6:
+                break
+            t /= 2
+        b, p, ll = b + t * passo, p2, ll2
+        if np.abs(t * passo).max() < 1e-9:
             break
+    mu = Y[g] * p
+    px = np.stack([np.bincount(g, p * X[:, j], G) for j in range(X.shape[1])], 1)
+    Xc = X - px[g]
+    H = (Xc * mu[:, None]).T @ Xc
     s = Xc * (y - mu)[:, None]
     sg = np.stack([np.bincount(g, s[:, j], G) for j in range(X.shape[1])], 1)
     Hi = np.linalg.inv(H)
     return b, np.sqrt(np.diag(Hi @ (sg.T @ sg) @ Hi))
 
 
-def mqo_dois_efeitos(y: np.ndarray, X: np.ndarray, g1: np.ndarray, g2: np.ndarray, it: int = 60) -> tuple[np.ndarray, np.ndarray]:
-    """Mínimos quadrados com efeito fixo de deputado e de município (projeções alternadas); erros por deputado."""
-    Z = np.column_stack([y, X]).astype(float)
-    n1, n2 = np.bincount(g1), np.bincount(g2)
-    for _ in range(it):
-        Z -= np.stack([np.bincount(g1, Z[:, j]) / n1 for j in range(Z.shape[1])], 1)[g1]
-        Z -= np.stack([np.bincount(g2, Z[:, j]) / n2 for j in range(Z.shape[1])], 1)[g2]
-    yy, XX = Z[:, 0], Z[:, 1:]
-    XtXi = np.linalg.inv(XX.T @ XX)
-    b = XtXi @ XX.T @ yy
-    e = yy - XX @ b
-    sg = np.stack([np.bincount(g1, XX[:, j] * e) for j in range(XX.shape[1])], 1)
-    return b, np.sqrt(np.diag(XtXi @ (sg.T @ sg) @ XtXi))
+def ppml_dois_efeitos(y: np.ndarray, X: np.ndarray, g1: np.ndarray, g2: np.ndarray) -> tuple[np.ndarray, np.ndarray, int]:
+    """Poisson com efeito fixo de deputado (g1) e de município (g2), por IRLS com projeções alternadas
+    ponderadas (o método do ppmlhdfe). Tira antes os grupos só com zero, que não informam nada.
+    Erros agrupados por deputado. Devolve também o número de observações usadas."""
+    ok = np.ones(len(y), bool)
+    while True:   # grupos só com zero saem; tirar uns pode zerar outros
+        antes = ok.sum()
+        for g in (g1, g2):
+            soma = np.bincount(g[ok], y[ok], g.max() + 1)
+            ok &= soma[g] > 0
+        if ok.sum() == antes:
+            break
+    y, X = y[ok], X[ok]
+    g1, g2 = grupos(g1[ok]), grupos(g2[ok])
+    k = X.shape[1]
+
+    def tirar_medias(M: np.ndarray, w: np.ndarray) -> np.ndarray:
+        M = M.copy()
+        w1, w2 = np.bincount(g1, w), np.bincount(g2, w)
+        for _ in range(500):
+            M0 = M.copy()
+            M -= np.stack([np.bincount(g1, w * M[:, j]) / w1 for j in range(M.shape[1])], 1)[g1]
+            M -= np.stack([np.bincount(g2, w * M[:, j]) / w2 for j in range(M.shape[1])], 1)[g2]
+            if np.abs(M - M0).max() < 1e-10:
+                break
+        return M
+
+    mu = (y + y.mean()) / 2
+    eta = np.log(mu)
+    desvio = np.inf
+    for _ in range(100):
+        z = eta + (y - mu) / mu
+        M = tirar_medias(np.column_stack([z, X]), mu)
+        zd, Xd = M[:, 0], M[:, 1:]
+        XtWX = (Xd * mu[:, None]).T @ Xd
+        b = np.linalg.solve(XtWX, (Xd * mu[:, None]).T @ zd)
+        resid = zd - Xd @ b
+        eta = z - resid
+        mu = np.exp(eta)
+        novo = 2 * np.sum(np.where(y > 0, y * np.log(np.where(y > 0, y, 1) / mu), 0) - (y - mu))
+        if abs(novo - desvio) / max(abs(novo), 1) < 1e-10:
+            break
+        desvio = novo
+    s = Xd * (mu * resid)[:, None]
+    sg = np.stack([np.bincount(g1, s[:, j]) for j in range(k)], 1)
+    Hi = np.linalg.inv(XtWX)
+    return b, np.sqrt(np.diag(Hi @ (sg.T @ sg) @ Hi)), int(ok.sum())
 
 
 def grupos(*cols: np.ndarray) -> np.ndarray:
     return np.unique(np.column_stack(cols) if len(cols) > 1 else cols[0], axis=0, return_inverse=True)[1].ravel()
 
 
+CAPITAIS = set("1100205 1200401 1302603 1400100 1501402 1600303 1721000 2111300 2211001 2304400 2408102 2507507 2611606 "
+               "2704302 2800308 2927408 3106200 3205309 3304557 3550308 4106902 4205407 4314902 5002704 5103403 5208707".split())
+
+
+def coef(rotulos, b, ep) -> dict:
+    return {k: {"coef": round(float(bi), 3), "ep": round(float(ei), 3)} for k, bi, ei in zip(rotulos, b, ep)}
+
+
 def estimar(con: duckdb.DuckDBPyConnection) -> dict:
     r: dict = {}
     q = lambda sql: con.sql(sql).fetchall()
-    [(n_dep, n_pares, bi, bi_fns)] = q("SELECT count(DISTINCT sq), count(*), sum(emenda) / 1e9, sum(fns) / 1e9 FROM painel")
-    r["painel"] = {"deputados": n_dep, "pares": n_pares, "emendas_bi": round(bi, 2), "das_quais_fns_bi": round(bi_fns, 2)}
+    [(n_dep, n_pares, bi, bi_fns, bi_est)] = q("SELECT count(DISTINCT sq), count(*), sum(emenda) / 1e9, sum(fns) / 1e9, sum(est) / 1e9 FROM painel")
+    r["painel"] = {"deputados": n_dep, "pares": n_pares, "emendas_bi": round(bi, 2), "das_quais_fns_bi": round(bi_fns, 2),
+                   "pagas_a_governo_estadual_bi": round(bi_est, 2)}
+    a0, a1 = ANOS_EMENDA
+    anos = list(range(a0, a1 + 1))
+    cols = ["sq", "ibge", "veterano", "emenda", "est", "votos", "populacao", "validos", "votos26", "v26_tot"] + [f"e{a}" for a in anos]
+    d = dict(zip(cols, (np.array(x) for x in zip(*q(f"SELECT {', '.join(cols)} FROM painel ORDER BY sq, ibge")))))
+    for k in cols[3:]:
+        d[k] = np.array([0 if v is None else v for v in d[k]], float)
+    g = grupos(d["sq"])
+    votos, pop, validos = d["votos"], d["populacao"], d["validos"]
+    lv, z, lp, lval = np.log1p(votos), (votos == 0).astype(float), np.log(pop), np.log1p(validos)
+    dom = np.where(validos > 0, votos / np.where(validos > 0, validos, 1), 0)
+    ldom = np.where(votos > 0, np.log(np.maximum(dom, 1e-9)), 0)
+    vet = d["veterano"].astype(bool)
+    cap = np.isin(d["ibge"], list(CAPITAIS))
 
-    # 1. Elasticidades (PPML, efeito fixo de deputado)
-    sq, emenda, votos, pop, validos = (np.array(x) for x in zip(*q("SELECT sq, emenda, votos, populacao, validos FROM painel")))
-    g = grupos(sq)
-    y = emenda.astype(float) / 1e6
-    lv, z, lp, lval = np.log1p(votos.astype(float)), (votos == 0).astype(float), np.log(pop.astype(float)), np.log1p(validos.astype(float))
-    modelos = {"so_votos": ([lv, z], ["votos", "zero_voto"]), "so_populacao": ([lp], ["populacao"]),
-               "votos_e_populacao": ([lv, z, lp], ["votos", "zero_voto", "populacao"]),
-               "votos_e_eleitorado": ([lv, z, lval], ["votos", "zero_voto", "votos_validos"])}
-    r["elasticidades"] = {}
-    for nome, (cols, rot) in modelos.items():
-        b, ep = ppml(y, np.column_stack(cols), g)
-        r["elasticidades"][nome] = {k: {"coef": round(float(bi_), 3), "ep": round(float(ei), 3)} for k, bi_, ei in zip(rot, b, ep)}
+    def modelo(yv, colunas, rotulos, m=None):
+        m = np.ones(len(yv), bool) if m is None else m
+        # só deputados que mandaram alguma emenda nesse recorte
+        tem = np.bincount(grupos(d["sq"][m]), yv[m]) > 0
+        mm = m.copy()
+        mm[m] = tem[grupos(d["sq"][m])]
+        b, ep = ppml(yv[mm] / 1e6, np.column_stack([c[mm] for c in colunas]), grupos(d["sq"][mm]))
+        return coef(rotulos, b, ep) | {"deputados": int(len(np.unique(d["sq"][mm]))), "emendas_bi": round(float(yv[mm].sum() / 1e9), 2)}
 
-    # 2. Concentração e margem extensiva
+    V, RV = [lv, z, lp], ["votos", "zero_voto", "populacao"]
+    em = d["emenda"]
+    # 1. Para onde vai a emenda: elasticidades (PPML, efeito fixo de deputado)
+    r["elasticidades"] = {
+        "so_votos": modelo(em, [lv, z], ["votos", "zero_voto"]),
+        "so_populacao": modelo(em, [lp], ["populacao"]),
+        "votos_e_populacao": modelo(em, V, RV),
+        "votos_e_eleitorado": modelo(em, [lv, z, lval], ["votos", "zero_voto", "votos_validos"]),
+        # votos = tamanho da cidade × força do deputado nela
+        "tamanho_e_forca_local": modelo(em, [lval, ldom, z], ["votos_validos", "fatia_local", "zero_voto"]),
+    }
+    r["robustez"] = {
+        "sem_pagamentos_estaduais": modelo(em - d["est"], V, RV),
+        "sem_capitais": modelo(em, V, RV, ~cap),
+        "veteranos": modelo(em, V, RV, vet),
+        "novatos": modelo(em, V, RV, ~vet),
+        "veteranos_por_ano_de_pagamento": {str(a): modelo(d[f"e{a}"], V, RV, vet) for a in anos},
+        "novatos_por_ano_de_pagamento": {str(a): modelo(d[f"e{a}"], V, RV, ~vet) for a in anos if d[f"e{a}"][~vet].sum() > 3e8},
+    }
+
+    # 2. O "dono do município": emenda por faixa da fatia local, entre cidades do mesmo tamanho (1–3% = 1)
+    cortes = [0, .01, .03, .05, .1, .2, .3, .5]
+    rot = ["zero voto", "menos de 1%", "1–3%", "3–5%", "5–10%", "10–20%", "20–30%", "30–50%", "mais de 50%"]
+    faixa = np.where(votos == 0, 0, 1 + np.searchsorted(cortes[1:], dom, side="left"))
+    faixa = np.minimum(faixa, len(rot) - 1)
+    dummies = [(faixa == i).astype(float) for i in range(len(rot)) if i != 2]
+    b, ep = ppml(em / 1e6, np.column_stack([lval] + dummies), g)
+    mult = dict(zip([x for i, x in enumerate(rot) if i != 2], b[1:]))
+    r["dono_do_municipio"] = [
+        {"fatia_local": x, "multiplicador": 1.0 if i == 2 else round(float(np.exp(mult[x])), 2),
+         "chance_receber": round(float((em[faixa == i] > 0).mean()), 3), "pares": int((faixa == i).sum()),
+         "emendas_bi": round(float(em[faixa == i].sum() / 1e9), 2)} for i, x in enumerate(rot)]
+
+    # 3. Distância das proporções e espalhamento
     con.sql("""CREATE OR REPLACE TABLE p2 AS SELECT *, emenda / em_tot s_em, votos / vot_tot s_vot, populacao / pop_tot s_pop,
-                 row_number() OVER (PARTITION BY sq ORDER BY votos DESC, ibge) posicao,
-                 CASE WHEN validos > 0 THEN votos / validos ELSE 0 END dominio FROM painel""")
+                 row_number() OVER (PARTITION BY sq ORDER BY votos DESC, ibge) posicao FROM painel""")
+    r["proporcionalidade"] = dict(zip(("emenda_mudaria_de_cidade_para_seguir_votos", "para_seguir_populacao"), map(lambda x: round(x, 3), q(
+        """SELECT median(dv), median(dp) FROM (SELECT sq, sum(abs(s_em - s_vot)) / 2 dv, sum(abs(s_em - s_pop)) / 2 dp FROM p2 GROUP BY sq)""")[0])))
+    [(rec, tot, fat)] = q("SELECT median(n), median(t), median(n / t) FROM (SELECT sq, count(*) FILTER (emenda > 0) n, count(*) t FROM p2 GROUP BY sq)")
+    r["espalhamento"] = {"municipios_que_recebem_mediana": rec, "municipios_do_estado_mediana": tot, "fatia_mediana": round(fat, 3)}
     r["concentracao"] = {f"top{k}": dict(zip(("emendas", "votos", "populacao"), map(lambda x: round(x, 3), q(
         f"SELECT sum(emenda) FILTER (posicao <= {k}) / sum(emenda), sum(votos) FILTER (posicao <= {k}) / sum(votos), "
         f"sum(populacao) FILTER (posicao <= {k}) / sum(populacao) FROM p2")[0]))) for k in (1, 5, 10, 20)}
@@ -401,66 +542,60 @@ def estimar(con: duckdb.DuckDBPyConnection) -> dict:
                                           sum(emenda) FILTER (votos = 0) / sum(emenda), avg((emenda = 0)::INT) FILTER (s_vot >= 0.01) FROM p2""")
     r["margem"] = {"chance_receber_sem_voto": round(p0, 3), "chance_receber_com_voto": round(p1, 3),
                    "fatia_emendas_sem_voto": round(sh0, 4), "municipios_base_sem_emenda": round(base_sem, 3)}
-    r["correlacao_dentro_do_deputado"] = dict(zip(("votos_mediana", "populacao_mediana", "fatia_deputados_votos_maior"), map(lambda x: round(x, 3), q(
-        """SELECT median(rv), median(rp), avg((rv > rp)::INT) FROM
-           (SELECT sq, corr(s_em, s_vot) rv, corr(s_em, s_pop) rp FROM p2 GROUP BY sq)""")[0])))
 
-    # 3. Tabelas por faixa
-    def faixas(expr: str, cortes: list[float], rotulos: list[str], onde: str = "TRUE") -> list[dict]:
-        caso = " ".join(f"WHEN {expr} <= {c_} THEN {i}" for i, c_ in enumerate(cortes)) + f" ELSE {len(cortes)}"
-        linhas = q(f"""SELECT CASE {caso} END f, count(*), avg((emenda > 0)::INT), sum(emenda), sum(votos), sum(populacao)
-                       FROM p2 WHERE {onde} GROUP BY 1 ORDER BY 1""")
-        return [{"faixa": rotulos[f], "pares": n, "chance_receber": round(p, 3), "emenda": round(e), "votos": int(v),
-                 "reais_por_voto": round(e / v) if v else None, "reais_por_habitante": round(e / h, 2)} for f, n, p, e, v, h in linhas]
-    r["por_fatia_dos_votos"] = faixas("s_vot", [0, 1e-4, 5e-4, 1e-3, 2.5e-3, 5e-3, 1e-2, 2e-2, 5e-2],
-        ["0", "até 0,01%", "0,01–0,05%", "0,05–0,1%", "0,1–0,25%", "0,25–0,5%", "0,5–1%", "1–2%", "2–5%", "mais de 5%"])
-    r["por_dominio_local"] = faixas("dominio", [0.01, 0.03, 0.05, 0.1, 0.2, 0.3, 0.5],
-        ["menos de 1%", "1–3%", "3–5%", "5–10%", "10–20%", "20–30%", "30–50%", "mais de 50%"], "votos > 0")
-    r["por_porte"] = faixas("populacao", [5e3, 1e4, 2e4, 5e4, 1e5, 5e5],
-        ["até 5 mil", "5–10 mil", "10–20 mil", "20–50 mil", "50–100 mil", "100–500 mil", "mais de 500 mil"], "votos > 0")
-
-    # 4. Preço médio do voto por deputado (mecânico: a cota é igual, os votos não)
+    # 4. Preço médio do voto por deputado: mecânico (a cota é igual, os votos não); só para consulta
     con.sql(f"""COPY (SELECT sq, any_value(uf) uf, round(any_value(em_tot)) emenda, any_value(vot_tot) votos,
                       round(any_value(em_tot) / any_value(vot_tot), 2) reais_por_voto FROM painel GROUP BY sq ORDER BY reais_por_voto)
                 TO '{SAIDA / 'preco-por-deputado.csv'}' (HEADER)""")
-    r["preco_por_deputado"] = dict(zip(("mediana", "p10", "p90"), map(round, q(
-        "SELECT median(x), quantile_cont(x, 0.1), quantile_cont(x, 0.9) FROM (SELECT any_value(em_tot) / any_value(vot_tot) x FROM painel GROUP BY sq)")[0])))
 
-    # 5. Votos em 2026 (quem concorreu de novo no mesmo estado)
-    [(conc,)] = q("SELECT count(DISTINCT sq) FROM painel WHERE v26_tot > 0")
-    d = q("SELECT sq, ibge, emenda, votos, coalesce(votos26, 0) FROM painel WHERE v26_tot > 0")
-    sq6, ib6, em6, v22, v26 = (np.array(x) for x in zip(*d))
-    em6, v22, v26 = em6.astype(float), v22.astype(float), v26.astype(float)
-    dlog, le, lv22 = np.log1p(v26) - np.log1p(v22), np.log1p(em6 / 1e3), np.log1p(v22)
-    g1, g2 = grupos(sq6), grupos(ib6)
-    b, ep = mqo_dois_efeitos(dlog, np.column_stack([le, lv22]), g1, g2)
-    m = v22 >= 50
-    b50, ep50 = mqo_dois_efeitos(dlog[m], np.column_stack([le[m], lv22[m]]), grupos(sq6[m]), grupos(ib6[m]))
-    r["votos_2026"] = {"deputados_que_concorreram": conc,
-                       "elasticidade_votos_a_emenda": {"coef": round(float(b[0]), 3), "ep": round(float(ep[0]), 3)},
-                       "elasticidade_com_50_votos_ou_mais": {"coef": round(float(b50[0]), 3), "ep": round(float(ep50[0]), 3)}}
-    quartis = q("""WITH b AS (SELECT *, emenda / votos rpv FROM painel WHERE v26_tot > 0 AND votos >= 50),
-                   r AS (SELECT *, CASE WHEN emenda = 0 THEN 'sem emenda'
-                         ELSE 'Q' || least(4, 1 + floor(4 * (percent_rank() OVER (PARTITION BY sq, emenda > 0 ORDER BY rpv))))::INT END grupo FROM b)
-                   SELECT grupo, count(*), sum(votos), sum(coalesce(votos26, 0)), sum(emenda) FROM r GROUP BY 1 ORDER BY 1""")
-    r["votos_2026"]["por_quartil_de_reais_por_voto"] = [
-        {"grupo": gr, "municipios": n, "votos_2022": int(a), "votos_2026": int(b_), "variacao": round(b_ / a - 1, 3),
-         "reais_por_voto_2022": round(e / a) if a else 0} for gr, n, a, b_, e in quartis]
+    # 5. Votos de 2026 de quem concorreu de novo no mesmo estado. Associação, não efeito: ver o texto.
+    c26 = d["v26_tot"] > 0
+    v26 = d["votos26"]
+    recebeu = em > 0
+    s = lambda m: float(v26[m].sum() / votos[m].sum() - 1)
+    r["votos_2026"] = {
+        "deputados": int(len(np.unique(d["sq"][c26]))),
+        "variacao_com_emenda": round(s(c26 & recebeu), 3), "variacao_sem_emenda": round(s(c26 & ~recebeu), 3),
+        "fatia_dos_votos_em_cidades_com_emenda": {"2022": round(float(votos[c26 & recebeu].sum() / votos[c26].sum()), 3),
+                                                  "2026": round(float(v26[c26 & recebeu].sum() / v26[c26].sum()), 3)},
+        "por_votos_de_2022": [],
+    }
+    for ini_, fim_, nome in ((1, 10, "1 a 10"), (11, 50, "11 a 50"), (51, 200, "51 a 200"), (201, 1000, "201 a 1.000"),
+                             (1001, 5000, "1.001 a 5.000"), (5001, 1e9, "mais de 5.000")):
+        f = c26 & (votos >= ini_) & (votos <= fim_)
+        r["votos_2026"]["por_votos_de_2022"].append({"faixa": nome, "pares_com_emenda": int((f & recebeu).sum()),
+            "pares_sem_emenda": int((f & ~recebeu).sum()), "com_emenda": round(s(f & recebeu), 3), "sem_emenda": round(s(f & ~recebeu), 3)})
+    # Poisson com efeito fixo de deputado e de município, controlando os votos de 2022 (corrige a volta à média):
+    # votos 2026 ~ recebeu + log(emenda) centrado entre quem recebeu + log(votos 2022)
+    m = c26 & (votos > 0)
+    lem = np.zeros(len(em))
+    lem[recebeu] = np.log(em[recebeu])
+    lem[recebeu & m] -= lem[recebeu & m].mean()
+    b, ep, n = ppml_dois_efeitos(v26[m], np.column_stack([recebeu[m].astype(float), lem[m], np.log(votos[m])]), g[m], grupos(d["ibge"])[m])
+    r["votos_2026"]["associacao"] = coef(["recebeu", "log_emenda", "log_votos_2022"], b, ep) | {
+        "pares": n, "recebeu_em_porcentagem": round(float(np.exp(b[0]) - 1), 3)}
+    rec_ano = [(d[f"e{a}"] > 0).astype(float) for a in anos]
+    b, ep, n = ppml_dois_efeitos(v26[m], np.column_stack([x[m] for x in rec_ano] + [np.log(votos[m])]), g[m], grupos(d["ibge"])[m])
+    r["votos_2026"]["associacao_por_ano_de_pagamento"] = {
+        str(a): {"coef": round(float(bi), 3), "ep": round(float(ei), 3), "em_porcentagem": round(float(np.exp(bi) - 1), 3)}
+        for a, bi, ei in zip(anos, b, ep)}
     return r
 
 
 # ---------------------------------------------------------------- publicação
 
 def publicar() -> None:
+    """Envia insumos e resultados para analises/emendas-votos/<versão>/ e grava o ponteiro no repositório."""
+    v = versao_insumos()
     comando = ["b2"] if shutil.which("b2") else ["uvx", "--from", "b2", "b2"]
-    for sub in ("insumos", ""):
-        origem = SAIDA / sub if sub else SAIDA
-        destino = f"b2://{BUCKET}/{PREFIXO}" + (f"/{sub}" if sub else "")
-        args = ["sync", "--compare-versions", "size", "--exclude-regex", r"(\.part|\.DS_Store)$"]
-        if not sub:
-            args += ["--exclude-dir-regex", "insumos"]
-        subprocess.run(comando + args + [str(origem), destino], check=True)
-    print(f"publicado em {ESPELHO}/{PREFIXO}/")
+    subprocess.run(comando + ["sync", "--compare-versions", "size", "--exclude-regex", r"(\.part|\.DS_Store)$",
+                              str(SAIDA), f"b2://{BUCKET}/{PREFIXO}/{v}"], check=True)
+    base = f"{ESPELHO}/{PREFIXO}/{v}"
+    PONTEIRO.write_text(json.dumps({"versao": v, "base": base,
+                                    "insumos": [f"insumos/{n}" for n in ARQUIVOS_INSUMOS],
+                                    "resultados": ["painel.parquet", "resultados.json", "preco-por-deputado.csv"]},
+                                   ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"publicado em {base}/ ; ponteiro em {PONTEIRO.relative_to(c.RAIZ)} (vai no commit)")
 
 
 def main() -> None:
