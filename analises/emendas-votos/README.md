@@ -1,14 +1,14 @@
 # Os deputados mandam as emendas para onde tiveram voto?
 
 Novembro de 2026. Cruzamos as emendas individuais e Pix pagas de 2023 a 2026 com os votos de cada deputado federal em
-cada município (2022 e 2026) e com a população de cada cidade.
+cada município (2018, 2022 e 2026), com a população de cada cidade, com os prefeitos eleitos em 2024 e com os votos dos
+deputados estaduais.
 
 **Resposta curta:** sim. Quanto mais forte o deputado numa cidade, mais emenda ela recebe dele. Sabendo quantos votos
 ele teve ali, o tamanho da cidade não acrescenta nada. Onde a emenda chegou, o deputado também se saiu melhor em 2026,
 mas os dados não permitem dizer que foi a emenda que trouxe o voto.
 
 Todos os números abaixo saem de `uv run analise-emendas-votos` e ficam em `data/analises/emendas-votos/resultados.json`.
-As exceções são os testes da revisão citados na seção 5 (votos de 2018, prefeitos de 2024 e dobradinhas), que ainda não estão no comando e por isso aparecem sem números.
 
 ## Resultados
 
@@ -86,25 +86,25 @@ Elasticidade a votos de 2022, por ano de pagamento:
 
 No começo do mandato, o deputado paga o mapa que o elegeu. Perto da eleição seguinte, espalha. Os novatos não aparecem
 em 2023 porque as emendas daquele ano foram indicadas pela legislatura anterior. A queda de 2024 para 2025 coincide com a
-posse dos prefeitos eleitos em 2024, mas isso é hipótese: não cruzamos com os prefeitos.
+posse dos prefeitos eleitos em 2024, e a seção 6 mostra que o dinheiro de fato acompanha o prefeito.
 
 Os veteranos dão peso maior aos votos (0,73 contra 0,60). Para eles, parte dos votos de 2022 já é fruto de emenda antiga,
 então o número "limpo", em que o voto vem antes de qualquer emenda, fica mais perto de 0,6.
 
 ### 5. E os votos de 2026?
 
-São 334 deputados do painel que concorreram de novo a deputado federal no mesmo estado.
+São 421 deputados do painel que concorreram de novo a deputado federal no mesmo estado.
 
-**Na soma, não há ganho visível.** Os votos deles cresceram 4,5% nas cidades para onde mandaram emenda e 6,3% nas outras.
-As cidades com emenda tinham 75,6% dos votos deles em 2022 e 75,3% em 2026.
+**Na soma, não há ganho visível.** Os votos deles cresceram 6,5% nas cidades para onde mandaram emenda e 6,9% nas outras.
+As cidades com emenda tinham 75,1% dos votos deles em 2022 e 75,0% em 2026.
 
 **Mas, entre cidades com o mesmo ponto de partida, as que receberam emenda foram bem melhor:**
 
 | votos do deputado na cidade em 2022 | variação até 2026, com emenda | sem emenda |
 |---|---|---|
-| 201 a 1.000 | +23% | −7% |
-| 1.001 a 5.000 | −8% | −23% |
-| mais de 5.000 | −10% | −27% |
+| 201 a 1.000 | +25% | −6% |
+| 1.001 a 5.000 | −6% | −22% |
+| mais de 5.000 | −8% | −29% |
 
 Os números de 2026 vêm de uma regressão de Poisson com efeito fixo de deputado e de município, que controla os votos de
 2022. A correção é necessária: o voto volta à média, e onde o deputado teve muito voto ele tende a perder. Nessa
@@ -113,48 +113,91 @@ quanto mais perto da eleição a emenda foi paga:
 
 | pago em | 2023 | 2024 | 2025 | 2026 |
 |---|---|---|---|---|
-| associação com os votos de 2026 | 0% | +22% | +52% | +65% |
+| associação com os votos de 2026 | +1% | +21% | +51% | +70% |
 
-**Por que isso não mostra que a emenda traz o voto.** O deputado manda emenda para onde a base é sólida (prefeito aliado,
-cabo eleitoral), e base sólida perde menos voto com ou sem emenda. Um teste com os votos de 2018 reforça essa leitura.
-Ele está na revisão do estudo e ainda não neste comando. No ciclo anterior (313 veteranos, votos de 2022 comparados aos
-de 2018), a emenda paga *depois* da eleição, em 2023–26, acompanha o ganho de votos mais do que a emenda paga *antes*,
-em 2019–22. O deputado manda dinheiro para onde cresceu. Os dados não separam "a emenda traz o voto" de "a emenda
-acompanha a aliança que traz o voto".
+**Isso não mostra que a emenda traz o voto.** O deputado pode mandar emenda justamente para onde tem um aliado, e é o
+aliado que traz o voto. A comparação também é entre cidades do mesmo deputado e não dá um total de votos ganhos. Por
+isso não há aqui "R$ por voto a mais".
 
-Por isso não há aqui "R$ por voto a mais". A comparação é entre cidades do mesmo deputado e não dá um total de votos
-ganhos.
+### 6. A emenda traz o voto ou acompanha a aliança?
 
-**Duas medidas de aliança.** A revisão testou duas medidas de aliança que ainda não estão neste comando.
-- **Prefeitos eleitos em 2024.** O dinheiro acompanha o prefeito: depois da posse, a cidade com prefeito do partido do
-  deputado passa a receber mais que o dobro. Mas o partido do prefeito não explica por que o deputado vai melhor onde
-  mandou emenda.
-- **Dobradinhas com deputados estaduais.** Onde o deputado federal mandou emenda, o parceiro estadual também foi melhor
-  em 2026, mas bem menos que o próprio federal. O ganho é do deputado, não do grupo. Esta medida vale só para os
-  deputados com um parceiro estável no estado inteiro, uma minoria do painel.
+Três medidas tentam separar as duas leituras. As três mostram que o dinheiro acompanha a aliança. Nenhuma explica a
+associação entre emenda e voto.
 
-As duas mostram que o dinheiro acompanha a aliança, mas nenhuma delas explica a associação entre emenda e voto. O canal
-mais provável é o apoio pessoal do prefeito ao deputado, e ele não tem fonte pública. A causa continua em aberto.
+**Votos de 2018: não é a base antiga.** Se a emenda só marcasse a base fiel do deputado, que os votos de 2022 medem com
+ruído, controlar também os votos de 2018 derrubaria a associação. Entre os 255 deputados que concorreram em 2018, 2022 e
+2026, ela não muda: o coeficiente vai de 0,60 para 0,61. A emenda de 2023–26 segue os votos de 2022 e quase ignora os de
+2018 (elasticidades de 0,70 e 0,03).
 
-**Próximos passos:**
-- as planilhas do FNS de 2019–22, porque metade das emendas individuais daqueles anos aparece no Portal sem a cidade;
-- levar para este comando os testes da revisão: votos de 2018, prefeitos de 2024 e dobradinhas;
-- as emendas de 2027 em diante, quando existirem.
+**Mas a emenda paga depois da eleição acompanha o ganho de votos mais do que a paga antes.** No mandato anterior, para os
+314 veteranos, olhamos os votos de 2022 dados os de 2018:
+
+| emenda considerada | votos de 2022 |
+|---|---|
+| só a paga em 2019–22, antes da eleição | +103% |
+| só a paga em 2023–26, depois da eleição | +161% |
+| as duas juntas: a de 2019–22 | +61% |
+| as duas juntas: a de 2023–26 | +130% |
+
+A emenda que veio depois da eleição não pode ter trazido aquele voto. Ela acompanha o ganho porque o deputado manda
+dinheiro para onde cresceu. O mesmo aparece entre os 26 novatos que tinham concorrido em 2018 sem mandato, e portanto
+sem emenda: a emenda de 2023–26 foi para onde eles tinham crescido (+28%). O calendário também se repete no mandato
+anterior: a emenda paga em 2019 e 2020 quase não tem relação com os votos de 2022 (0% e +13%), e a paga em 2021 e 2022
+tem (+62% e +72%).
+
+**Prefeitos eleitos em 2024: o dinheiro acompanha o prefeito.** Emenda recebida em relação a cidades onde o partido do
+deputado não teve candidato nem estava na coligação vencedora, com os mesmos votos de 2022 e a mesma população:
+
+| situação em 2024 | paga em 2023–24 | paga em 2025–26 |
+|---|---|---|
+| prefeito eleito é do partido do deputado | +65% | +133% |
+| partido do deputado na coligação vencedora | +31% | +54% |
+| partido disputou e perdeu | +3% | +10% |
+
+A cidade já recebia mais antes da eleição, sinal de que a aliança é anterior. Depois da posse, a diferença dobra. Nas
+cidades onde o partido do deputado disputou a prefeitura, comparando cada par deputado–cidade consigo mesmo, ganhar vem
+com 42% mais emenda em 2025–26 do que em 2023–24 (ep de 7 pontos). Perder não muda nada.
+
+O partido do prefeito, porém, não explica o voto. Onde o prefeito eleito é do partido do deputado, ele teve 53% mais
+votos em 2026 do que em cidades de mesmo ponto de partida. Com emenda e prefeito na mesma conta, o prefeito cai para
++28% e a emenda fica onde estava: de +84% para +82%.
+
+**Dobradinhas com deputado estadual: o ganho é do deputado, não do grupo.** Tratamos como parceiro o candidato a
+estadual cuja votação por cidade, em 2022, acompanha a do federal (a regra está em "Limites"). São 289 pares, para 143
+deputados; a lista está em `dobradinhas.csv`.
+- Com os mesmos votos e a mesma população, a cidade onde os parceiros tiveram 10% ou mais dos votos para estadual recebe
+  37% mais emenda do federal.
+- Entre os 85 deputados que concorreram de novo e têm parceiro que também concorreu, receber emenda vem com +45% de votos
+  em 2026. Controlando os votos dos parceiros em 2022 e em 2026, fica em +43%.
+- Onde o federal mandou emenda, os parceiros estaduais foram 13% melhor em 2026. O próprio federal, 45%. Se a emenda só
+  marcasse onde o grupo local está forte, o estadual do grupo ganharia junto na mesma medida.
+
+**O que fica.** As três medidas enfraquecem a leitura "a emenda só acompanha a aliança", mas não a derrubam. Nenhuma
+mede o apoio pessoal do prefeito ao deputado, que é o canal mais provável e não tem fonte pública. Os dados não separam
+"a emenda traz o voto" de "a emenda acompanha a aliança que traz o voto".
 
 ## Dados
 
 | o quê | fonte | recorte |
 |---|---|---|
-| Emendas pagas, por autor e município | CGU, Portal da Transparência (emendas parlamentares, pagamentos por favorecido) | Individuais e Pix, pagas de 2023 a 2026 |
-| Emendas de saúde de 2023–24 | Fundo Nacional de Saúde, consulta de propostas | Uma planilha por UF e ano, com destino, parlamentar e valor pago |
-| Votos por município | TSE, votação por candidato e município | Deputado federal, 2022 e 2026 |
+| Emendas pagas, por autor e município | CGU, Portal da Transparência (emendas parlamentares, pagamentos por favorecido) | Individuais e Pix, pagas de 2019 a 2026 (o painel usa 2023–26; 2019–22 entra só na seção 6) |
+| Emendas de saúde de 2019–24 | Fundo Nacional de Saúde, consulta de propostas | Uma planilha por UF e ano, com destino, parlamentar e valor pago |
+| Votos por município | TSE, votação por candidato e município | Deputado federal em 2018, 2022 e 2026; deputado estadual em 2022 e 2026 |
+| Prefeitos | TSE, candidatos de 2024 | Quem disputou a prefeitura: partido, coligação e resultado |
 | População | IBGE, Censo 2022 (tabela 4709) | Todos os municípios |
 | Deputados | Câmara dos Deputados, dados abertos | Legislatura 57 (2023–2027); veterano = também na 56 |
 
-**Por que o FNS.** No Portal, R$ 19,5 bi das emendas individuais de saúde de 2023–24 aparecem como pagos ao Banco do
-Brasil, em Brasília, sem a cidade. O FNS publica cada proposta com o fundo de saúde de destino, o município, o
-parlamentar e o valor pago. Os totais batem: R$ 10,1 bi contra R$ 10,0 bi em 2023, e R$ 12,3 bi contra R$ 12,0 bi em
-2024. Por isso trocamos toda a saúde individual de 2023–24 do Portal pela do FNS, sem contar nada duas vezes. A partir de
+**Por que o FNS.** Até 2024, o Portal registra quase toda emenda individual de saúde como paga ao Banco do Brasil, em
+Brasília, sem a cidade: R$ 19,0 bi de 2019 a 2022 e R$ 19,5 bi em 2023–24. O FNS publica cada proposta com o fundo de
+saúde de destino, o município, o parlamentar e o valor pago. Os totais dos dois ficam próximos:
+
+| emendas individuais de saúde, R$ bi | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 |
+|---|---|---|---|---|---|---|
+| FNS | 4,3 | 4,9 | 4,6 | 5,3 | 10,1 | 12,3 |
+| Portal | 5,0 | 5,2 | 4,9 | 5,8 | 10,5 | 12,0 |
+| do Portal, pago ao Banco do Brasil | 4,5 | 4,7 | 4,5 | 5,4 | 10,0 | 9,5 |
+
+Por isso trocamos toda a saúde individual de 2019 a 2024 do Portal pela do FNS, sem contar nada duas vezes. A partir de
 2025, o próprio Portal já registra o fundo municipal.
 
 **O painel.** Uma linha por deputado e município do estado dele: 559 deputados e 191 mil pares, somando R$ 58,1 bi em
@@ -164,6 +207,8 @@ capital.
 **Casamento de nomes.**
 - Deputados: cada um foi ligado ao candidato do TSE pelo nome e pela UF, e 656 dos 663 casaram. Ficaram sem par
   Augusto Puppio, Nivaldo Albuquerque, Paulo Folletto, Silvia Waiãpi, Sonize Barbosa, Yandra Moura e Zé Adriano.
+- A mesma pessoa em 2018, 2022 e 2026: pelo nome civil sem acento e pela UF, só quando o par é único. O TSE grafa o
+  mesmo nome com e sem acento conforme o ano; comparar com acento deixava de fora 87 deputados do painel que concorreram de novo.
 - Municípios do TSE: casados com o IBGE pelo nome. Os 13 com grafia diferente (16 contando 2026) vêm de uma tabela
   pública de códigos TSE→IBGE, consultada durante a carga e nunca copiada para o repositório.
 
@@ -179,6 +224,14 @@ capital.
    que continuam sem a cidade de destino.
 5. **Boa Esperança do Norte (MT) fica de fora.** O município foi criado depois do Censo 2022: tem votos em 2026, mas não
    tem população nem votos de 2022.
+6. **O partido do deputado é o de 2022.** Para comparar com o do prefeito de 2024 consideramos as fusões (PTB e Patriota
+   viraram PRD, PSC entrou no Podemos, PROS no Solidariedade) e as federações. Quem trocou de partido depois de 2022 fica
+   classificado pelo antigo. E partido é uma medida pobre de aliança: prefeito apoia deputado de outro partido.
+7. **A dobradinha é uma aproximação.** Parceiro é o candidato a estadual com 3 mil votos ou mais cuja fatia dos votos de
+   cada cidade, em 2022, tem correlação de 0,6 ou mais com a do federal, e de 0,5 ou mais mesmo sem as três cidades que
+   mais pesam (para não pegar quem só é da mesma cidade). A regra só enxerga parceria estável no estado inteiro: pega bem
+   família e igreja, e pega mal o deputado que tem um estadual diferente em cada região. Só 143 dos 559 deputados têm
+   parceiro por essa regra.
 
 ## Como refazer
 
@@ -188,15 +241,15 @@ De dentro de `pipeline/`, com o [uv](https://docs.astral.sh/uv/):
 uv run analise-emendas-votos --do-espelho
 ```
 
-Baixa do espelho os insumos já reduzidos e roda a análise. Leva cerca de um minuto.
+Baixa do espelho os insumos já reduzidos e roda a análise. Leva poucos minutos.
 
 ```bash
 uv run analise-emendas-votos
 ```
 
 Baixa tudo das fontes originais e roda:
-- uns 1 GB do TSE;
-- 54 planilhas do FNS, que levam minutos cada e baixam três por vez;
+- uns 1,5 GB do TSE (votos de 2018, 2022 e 2026 e candidatos de 2024);
+- 162 planilhas do FNS (27 UFs, de 2019 a 2024), que levam minutos cada e baixam três por vez: são horas;
 - o Censo do IBGE;
 - o cadastro da Câmara.
 
@@ -208,17 +261,20 @@ Arquivos em `data/analises/emendas-votos/`:
 
 | arquivo | o que tem |
 |---|---|
-| `insumos/emendas-portal.parquet` | o recorte do Portal da Transparência: emendas individuais e Pix pagas de 2023 a 2026 |
-| `insumos/votos-deputado-federal.parquet` | votos válidos de cada candidato a deputado federal, por município, em 2022 e 2026 |
-| `insumos/fns-propostas.parquet` | propostas de emenda individual do FNS de 2023–24, uma linha por proposta e parlamentar |
+| `insumos/emendas-portal.parquet` | o recorte do Portal da Transparência: emendas individuais e Pix pagas de 2019 a 2026 |
+| `insumos/votos-deputado-federal.parquet` | votos válidos de cada candidato a deputado federal, por município, em 2018, 2022 e 2026 |
+| `insumos/votos-deputado-estadual.parquet` | o mesmo para deputado estadual, em 2022 e 2026 |
+| `insumos/prefeitos-2024.csv` | quem disputou cada prefeitura em 2024: partido, coligação e resultado, sem nomes |
+| `insumos/fns-propostas.parquet` | propostas de emenda individual do FNS de 2019 a 2024, uma linha por proposta e parlamentar |
 | `insumos/populacao-2022.csv` | população do Censo 2022 por município |
 | `insumos/deputados.csv` | deputados da legislatura 57, com a marca de veterano |
-| `painel.parquet` | deputado × município: emenda (total, por ano, Pix, FNS, estadual), votos de 2022 e 2026, população |
-| `resultados.json` | todos os números deste texto, exceto o teste de 2018 |
+| `painel.parquet` | deputado × município: emenda (total, por ano, Pix, FNS, estadual), emenda de 2019–22, votos de 2018, 2022 e 2026, população, prefeito de 2024, votos dos parceiros estaduais |
+| `resultados.json` | todos os números deste texto |
 | `preco-por-deputado.csv` | R$ de emenda por voto de cada deputado (mecânico; ver a seção 3) |
+| `dobradinhas.csv` | os pares deputado federal × deputado estadual tratados como parceiros, com as correlações |
 
 No espelho, os arquivos ficam numa pasta com a versão dos dados, por exemplo
-`https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/analises/emendas-votos/91543d3e5f/`.
+`https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/analises/emendas-votos/f37d999678/`.
 A versão vem do conteúdo dos insumos. Dados novos vão para outra pasta, e a antiga continua lá. O arquivo
 [`espelho.json`](espelho.json), ao lado deste texto, diz qual versão o texto cita, e é a que o `--do-espelho` baixa. Ele
 confere se os arquivos baixados batem com essa versão.
