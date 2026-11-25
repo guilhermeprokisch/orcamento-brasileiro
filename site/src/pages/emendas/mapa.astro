@@ -27,7 +27,7 @@ const politicos = mapaAutores();
 
 <Base title="Emendas no mapa · Orçamento Brasileiro" description={`Para onde vão as emendas parlamentares: uma bolha por cidade, os parlamentares que mais mandam para cada região e as emendas de cada lugar, uma a uma (${anos}).`}>
   <div class="wrap">
-    <EmendasAbas ativa="mapa" />
+    <EmendasAbas ativa="mapa" compacto />
   </div>
   {r
     ? <div class="mapa-emendas" data-base={base} data-versao={r.versao} set:html={html} />

@@ -535,6 +535,9 @@
     // livre — como clicar no estado entra no estado. Ao fechar, a vista volta a ser a de antes.
     if (!main.classList.contains("com-mun")) antesDaCidade = d3.zoomTransform(svg.node());
     main.classList.add("com-mun");
+    // A lista da cidade não cruza com autor nem tipo do alto (tem os próprios filtros): em "todos", os
+    // dois campos saem do cabeçalho; com um autor ou tipo escolhido, ficam, que pintam o mapa.
+    raiz.classList.toggle("cidade-limpa", !autorSel && !filtroTipo);
     desenharMarcas();
     enquadrarCidade(d);
     if (trocou) { munDados = null; pintarMunicipio(); }
@@ -575,7 +578,7 @@
   }
   function fecharMunicipio() {
     munSel = null; munDados = null;
-    main.classList.remove("com-mun");
+    main.classList.remove("com-mun"); raiz.classList.remove("cidade-limpa");
     desenharMarcas();
     pintarTotal();
     if (antesDaCidade) { svg.transition().duration(600).call(zoom.transform, antesDaCidade); antesDaCidade = null; }
@@ -644,6 +647,8 @@
     // chips por tipo, com as contagens
     const porTipo = d3.rollup(todas, (v) => v.length, (l) => l[2]);
     const ordem = ["Individual", "Comissão", "Bancada", "Relator", "Pix"].filter((t) => porTipo.has(t));
+    // com um tipo só, "Todas" e ele seriam a mesma lista: não há o que escolher
+    elMun.chips.hidden = ordem.length < 2;
     elMun.chips.innerHTML = [["", `Todas · ${todas.length}`], ...ordem.map((t) => [t, `${t} · ${porTipo.get(t)}`])]
       .map(([t, r]) => `<button type="button" data-t="${t}" aria-pressed="${t === munFiltro}">${r}</button>`).join("");
     const f = munFiltradas();

@@ -5,8 +5,12 @@
  */
 import { ROTA } from "../../lib/emendas-panorama";
 
-interface Props { ativa: "inicio" | "explorar" | "busca" | "mapa" }
-const { ativa } = Astro.props;
+interface Props {
+  ativa: "inicio" | "explorar" | "busca" | "mapa";
+  /** Sem as dicas e com menos respiro: no mapa, cada linha acima dele é tela a menos. */
+  compacto?: boolean;
+}
+const { ativa, compacto = false } = Astro.props;
 const ABAS = [
   { id: "inicio", href: ROTA.inicio, nome: "O que são", curto: "O que são", dica: "a história, com os números" },
   { id: "explorar", href: ROTA.explorar, nome: "Explorar", curto: "Explorar", dica: "todas as listas, por quem, onde e para quê" },
@@ -15,7 +19,7 @@ const ABAS = [
 ] as const;
 ---
 
-<nav class="abas-emendas" aria-label="Emendas parlamentares">
+<nav class:list={["abas-emendas", { compacto }]} aria-label="Emendas parlamentares">
   <span class="rotulo">Emendas parlamentares</span>
   <ul>
     {ABAS.map((a) => (
@@ -34,6 +38,11 @@ const ABAS = [
   a:hover { color: var(--tinta); }
   .curto { display: none; }
   a[aria-current="page"] { color: var(--tinta); border-color: var(--tinta); background: var(--papel); }
+  .compacto { padding-top: 10px; }
+  .compacto .rotulo { padding-bottom: 8px; }
+  .compacto a { padding: 6px 12px 7px; }
+  .compacto a strong { font-size: 16px; }
+  .compacto a span { display: none; }
   @media (max-width: 900px) {
     .abas-emendas { padding-top: 14px; }
     .rotulo { display: none; }

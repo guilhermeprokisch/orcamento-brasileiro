@@ -43,6 +43,7 @@
   .mapa-emendas .ajuda-caixa p + p { margin-top: 8px; }
   .mapa-emendas .ajuda-caixa b { color: var(--tinta); }
   .mapa-emendas .ajuda-caixa a { color: var(--verde); }
+  .mapa-emendas.cidade-limpa .cel.oque, .mapa-emendas.cidade-limpa .tipo-cel { display: none; }
   .mapa-emendas .cel.inerte { opacity: .4; }
   .mapa-emendas .cel.inerte .grupo { pointer-events: none; }
   .mapa-emendas .cel.inerte > span::after { content: " (não se aplica a um autor)"; }
