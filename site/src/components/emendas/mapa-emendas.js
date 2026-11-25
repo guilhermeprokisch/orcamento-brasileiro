@@ -462,7 +462,7 @@
   }
   let fixado = null;   // ibge do município com o cartão preso pelo clique
   function mostrar(d, ev, prender = false) {
-    if (munSel && munSel.ibge === d.ibge) return;          // a cidade aberta já está no painel
+    if (munSel) return;   // com uma cidade aberta, só ela fica no mapa: as outras não acendem nem ao passar o mouse
     if (fixado && !prender && fixado !== d.ibge) return;   // com cartão preso, o hover não manda
     if (prender) fixado = d.ibge;
     // No toque não há hover: redesenhar as marcas entre o toque e o solta trocaria o nó sob o dedo
