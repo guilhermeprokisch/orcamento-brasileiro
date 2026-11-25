@@ -364,14 +364,26 @@
         .on("pointerenter", (ev, p) => mostrarPessoa(d, p, ev))
         .on("pointermove", (ev, p) => mostrarPessoa(d, p, ev))
         .on("pointerleave", (ev) => esconder(false, ev))
-        .on("click", async (ev, p) => { ev.stopPropagation(); await carregarAutores(); if (porAutor.autores[p.nome]) escolher(p.nome); });
+        .on("click", async (ev, p) => {
+          ev.stopPropagation();
+          // De passagem (hover), a bolha ainda é a cidade: o clique entra nela. Só na cidade aberta
+          // o clique no rosto leva ao parlamentar.
+          if (munSel?.ibge !== d.ibge) { abrirMunicipio(d); return; }
+          await carregarAutores(); if (porAutor.autores[p.nome]) escolher(p.nome);
+        });
       pn.append("circle").attr("class", "fundo"); pn.append("circle").attr("class", "aro");
+      pn.append("rect").attr("class", "selo").attr("rx", 8).attr("height", 16);
+      pn.append("text").attr("class", "selo-txt").attr("text-anchor", "middle").attr("dy", "0.35em");
       pn.merge(ps).each(function (p) {
         const px = cx + (p.x - env.x) * fator, py = cy + (p.y - env.y) * fator, r = Math.max(7, p.r * fator), pad = padraoDe(p.nome);
         const s = d3.select(this);
-        s.classed("foto", !!pad);
+        s.classed("foto", !!pad).classed("mini", r < 16);   // rosto pequeno: selo só ao passar o mouse
         s.select(".fundo").attr("cx", px).attr("cy", py).attr("r", r).style("fill", pad ? `url(#${pad})` : null);
         s.select(".aro").attr("cx", px).attr("cy", py).attr("r", r + 1);
+        // O valor que cada um mandou, num selo no canto do retrato — é o que a pessoa veio ver.
+        const txt = s.select(".selo-txt").attr("x", px + r * 0.7).attr("y", py - r * 0.7).text(curto(p.v));
+        const larg = Math.ceil(txt.node().getComputedTextLength()) + 10;
+        s.select(".selo").attr("x", px + r * 0.7 - larg / 2).attr("y", py - r * 0.7 - 8).attr("width", Math.max(1, larg));
       });
     });
   }
@@ -379,9 +391,8 @@
     if (fixado) return;
     cartao.innerHTML = `
       <h2>${escapar(p.nome)} <span>${escapar(legenda2(p.nome))}</span></h2>
-      <p class="val">${brl(p.v)}</p>
-      <p class="sub">para ${escapar(d.n)} em ${rotuloAno()} · ${p.n} emenda${p.n > 1 ? "s" : ""}</p>
-      <p class="dica">Clique para ver tudo que este parlamentar mandou, no mapa.</p>`;
+      <p class="sub">${brl(p.v)} para ${escapar(d.n)} em ${rotuloAno()} · ${p.n} emenda${p.n > 1 ? "s" : ""}</p>
+      <p class="dica">${munSel?.ibge === d.ibge ? "Clique para ver tudo que este parlamentar mandou, no mapa." : "Clique para entrar na cidade."}</p>`;
     cartao.classList.remove("fixo");
     cartao.hidden = false;
     posicionarCartao(ev);
@@ -478,18 +489,15 @@
     if (munSel && munSel.ibge === d.ibge) return;          // a cidade aberta já está no painel
     if (fixado && !prender && fixado !== d.ibge) return;   // com cartão preso, o hover não manda
     if (prender) fixado = d.ibge;
-    if (munHover?.ibge !== d.ibge) { munHover = d; desenharMarcas(); }
+    // No toque não há hover: redesenhar as marcas entre o toque e o solta trocaria o nó sob o dedo
+    // e engoliria o clique que abre a cidade.
+    if (ev?.pointerType !== "touch" && munHover?.ibge !== d.ibge) { munHover = d; desenharMarcas(); }
     gBolhas.selectAll("circle").classed("acesa", (x) => x.ibge === d.ibge);
     if (malhaPronta) gMalha.selectAll("path").classed("aceso", (f) => String(f.properties.id) === d.ibge);
-    // Rótulo curto, não tabela: o detalhe está no painel, a um clique, e quem mandou está no mapa.
-    cartao.innerHTML = `
-      <h2>${d.n} <span>${d.u}</span></h2>
-      <p class="val">${brl(valorDe(d))} <small>em ${rotuloAno()}</small></p>
-      <p class="dica">Clique para entrar na cidade.</p>`;
+    // Sem rótulo: o hover da cidade é o território aceso e os rostos de quem mandou, cada um com o
+    // valor no próprio selo. O nome e o total ficam para o painel, a um clique.
     gGrupos.selectAll("g.marca-grupo").classed("acesa", false);
-    cartao.classList.toggle("fixo", fixado === d.ibge);
-    cartao.hidden = false;
-    posicionarCartao(ev);
+    cartao.hidden = true;
   }
   /** O ponteiro continua "na cidade" se foi para a bolha, o território ou o pacote de rostos dela. */
   function aindaNaCidade(ev, ibge) {
