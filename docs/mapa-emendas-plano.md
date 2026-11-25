@@ -136,11 +136,15 @@ guardar as respostas. Não entra nas seis etapas; fica aqui para não se perder.
 
 ## 25/11/2026: de A para C
 
-Com o A no ar, a leitura foi "confuso, informação demais". O mapa passou ao desenho C: de longe, os
-municípios vizinhos viram um grupo (célula fixa em pixels, refeita a cada zoom), com o retrato de quem
-mais mandou para eles e o número de municípios; aproximar ou clicar abre o grupo até cada município
-ficar sozinho. As colunas de chamadas saíram, e com elas a única parte que não cabia no celular. O
-clique na cidade (D) continua igual.
+Com o A no ar, a leitura foi "confuso, informação demais". O mapa passou ao desenho C e, no mesmo dia,
+o C mudou de geometria para hierarquia: a grade de células (que mudava os grupos ao mover o mapa e
+juntava vizinhos mesmo com a malha à mostra) deu lugar a **dois níveis administrativos** — de longe,
+um círculo por **estado**, com o retrato de quem mais mandou para o estado; a partir de 3,5× (quando
+a malha municipal aparece), um círculo por **município**, e só os 60 maiores à vista levam retrato, o
+resto é ponto proporcional. Sem número nos círculos (ao lado de um retrato, qualquer número parecia
+do parlamentar); o valor só volta no selo quando há um parlamentar escolhido. O clique na cidade abre
+o painel por cima, sem mexer no mapa. As colunas de chamadas saíram, e com elas a única parte que
+não cabia no celular.
 
 ## O que o protótipo testou e foi descartado
 

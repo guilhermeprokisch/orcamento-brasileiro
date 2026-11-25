@@ -127,7 +127,7 @@
   // Uma escala só para tudo que está na tela: a área do círculo é o valor, seja de um município
   // sozinho, seja de um grupo. O domínio vai até o maior grupo da escala atual.
   let raio = d3.scaleSqrt().range([0, 46]);
-  const R_MIN_BOLHA = 3.5, R_MIN_GRUPO = 15, CELULA = 88;   // px
+  const R_MIN_BOLHA = 3.5, R_MIN_GRUPO = 15;   // px
 
   const ligarEventos = (sel) => sel
     .on("pointerenter", (ev, d) => mostrar(d, ev))
@@ -151,34 +151,42 @@
   // ---- Agrupamento: municípios vizinhos na escala atual viram um grupo ----------------------
   // A célula é fixa em pixels: ao aproximar, cabem menos municípios em cada uma e os grupos se
   // abrem, até sobrar um município por célula. Com uma cidade aberta não se agrupa nada.
-  // A grade é presa ao mapa, não à tela: a célula mede CELULA/k unidades da projeção, contadas a
-  // partir da origem do mapa. Mover o mapa no mesmo zoom não muda quem cai em cada célula — só o
-  // zoom refaz os grupos. Por isso os grupos são do país inteiro, não só do que está na tela.
-  let grupos = [], soltos = [], kAgrupado = null;
+  // Dois níveis, e são administrativos, não geométricos: de longe, um círculo por ESTADO — o
+  // retrato é de quem mais mandou para o estado, o tamanho é o total dele; quando a malha aparece
+  // (ZOOM_MALHA), cada MUNICÍPIO é o seu próprio círculo. Mover o mapa nunca refaz nada.
+  const NOME_UF = { 11: "Rondônia", 12: "Acre", 13: "Amazonas", 14: "Roraima", 15: "Pará", 16: "Amapá", 17: "Tocantins",
+    21: "Maranhão", 22: "Piauí", 23: "Ceará", 24: "Rio Grande do Norte", 25: "Paraíba", 26: "Pernambuco", 27: "Alagoas",
+    28: "Sergipe", 29: "Bahia", 31: "Minas Gerais", 32: "Espírito Santo", 33: "Rio de Janeiro", 35: "São Paulo",
+    41: "Paraná", 42: "Santa Catarina", 43: "Rio Grande do Sul", 50: "Mato Grosso do Sul", 51: "Mato Grosso",
+    52: "Goiás", 53: "Distrito Federal" };
+  // Centróide geográfico de cada estado (lon/lat); é projetado na hora de agrupar, porque a projeção só
+  // é ajustada ao palco em dimensionar() — projetar aqui, no carregamento, empilhava tudo num canto.
+  const centroUfGeo = new Map(uf.features.map((f) => [String(f.properties.id), d3.geoCentroid(f)]));
+  let grupos = [], soltos = [], nivelAgrupado = null;
+  const nivelDe = (k) => (k >= ZOOM_MALHA ? "mun" : "uf");
   function agrupar() {
     const t = d3.zoomTransform(svg.node());
-    kAgrupado = t.k;
-    const celula = CELULA / t.k;
-    const cels = new Map();
-    for (const d of emDesenho) {
-      const p = projecao(d.c);
-      const v = valorDe(d);
-      const chave = `${Math.floor(p[0] / celula)},${Math.floor(p[1] / celula)}`;
-      let g = cels.get(chave);
-      if (!g) cels.set(chave, (g = { itens: [], v: 0, sx: 0, sy: 0, por: new Map(), maior: d }));
-      g.itens.push(d); g.v += v; g.sx += p[0] * v; g.sy += p[1] * v;
-      if (valorDe(g.maior) < v) g.maior = d;
-      if (!autorSel) for (const [nome, val] of d.ap ?? []) g.por.set(nome, (g.por.get(nome) ?? 0) + val);
-    }
+    nivelAgrupado = nivelDe(t.k);
     grupos = []; soltos = [];
-    for (const g of cels.values()) {
-      if (g.itens.length === 1) { soltos.push(g.itens[0]); continue; }
-      g.px = g.sx / g.v; g.py = g.sy / g.v;
-      g.id = g.itens.map((d) => d.ibge).sort().join("|");
-      // quem mandou mais para o grupo, entre os parlamentares (não os colegiados), com foto
-      g.quem = autorSel ? [[autorSel, g.v]] : [...g.por.entries()].sort((a, b) => b[1] - a[1]);
-      g.dono = g.quem.find(([n]) => caras[n]?.foto)?.[0] ?? null;
-      grupos.push(g);
+    if (nivelAgrupado === "mun") {
+      soltos = emDesenho;
+    } else {
+      const porUf = new Map();
+      for (const d of emDesenho) {
+        const cod = d.ibge.slice(0, 2), v = valorDe(d);
+        let g = porUf.get(cod);
+        if (!g) porUf.set(cod, (g = { id: cod, nome: NOME_UF[cod] ?? d.u, sigla: d.u, itens: [], v: 0, por: new Map(), maior: d }));
+        g.itens.push(d); g.v += v;
+        if (valorDe(g.maior) < v) g.maior = d;
+        if (!autorSel) for (const [nome, val] of d.ap ?? []) g.por.set(nome, (g.por.get(nome) ?? 0) + val);
+      }
+      for (const g of porUf.values()) {
+        if (!(g.v > 0)) continue;
+        [g.px, g.py] = centroUfGeo.has(g.id) ? projecao(centroUfGeo.get(g.id)) : projecao(g.maior.c);
+        g.quem = autorSel ? [[autorSel, g.v]] : [...g.por.entries()].sort((a, b) => b[1] - a[1]);
+        g.dono = g.quem.find(([n]) => caras[n]?.foto)?.[0] ?? null;
+        grupos.push(g);
+      }
     }
     const maior = Math.max(d3.max(grupos, (g) => g.v) ?? 0, d3.max(soltos, valorDe) ?? 0, 1);
     raio.domain(escala === "raiz" ? [0, maior] : [Math.max(1, (d3.min(soltos, valorDe) ?? 1)), maior]);
@@ -190,9 +198,11 @@
   const comRosto = () => modoCara && caraCabe();
   // De perto (ZOOM_MALHA em diante), o município sozinho vira rosto também, com o piso dos grupos:
   // senão dois municípios minúsculos juntos ganhavam um retrato e Ribeirão Preto sozinha era um ponto.
-  const soltoComRosto = (k) => comRosto() && k >= ZOOM_MALHA;
-  const raioSolto = (d, k = d3.zoomTransform(svg.node()).k) =>
-    Math.max(soltoComRosto(k) ? R_MIN_GRUPO : R_MIN_BOLHA, raio(valorDe(d)));
+  // De perto, só os ROSTOS_MAX maiores municípios à vista ganham retrato (com um piso de tamanho);
+  // os outros são pontos proporcionais ao valor — senão o Sudeste a 6× é uma parede de 2.000 rostos.
+  const ROSTOS_MAX = 60;
+  let comRostoAgora = new Set();
+  const raioSolto = (d) => Math.max(comRostoAgora.has(d.ibge) ? R_MIN_GRUPO : R_MIN_BOLHA, raio(valorDe(d)));
   /** O retrato de um município sozinho: o autor escolhido, ou o maior parlamentar dele com foto. */
   const rostoDe = (d) => autorSel ? (caras[autorSel]?.foto ? "cara-autor" : null)
     : (padraoDe((d.ap ?? []).find(([n]) => caras[n]?.foto)?.[0] ?? "") || null);
@@ -206,27 +216,31 @@
   function desenharMarcas() {
     const t = d3.zoomTransform(svg.node());
     // municípios sozinhos: a bolha de sempre, agora em px de tela
+    // quem ganha rosto: com autor escolhido, todos os dele à vista; senão, os maiores à vista
+    const aVista = soltos.filter((d) => naVista(...t.apply(projecao(d.c)), 0));
+    comRostoAgora = new Set(comRosto()
+      ? (autorSel ? aVista : [...aVista].sort((a, b) => valorDe(b) - valorDe(a)).slice(0, ROSTOS_MAX)).map((d) => d.ibge)
+      : []);
     const bolhas = gBolhas.selectAll("circle").data(soltos, (d) => d.ibge);
     bolhas.exit().remove();
-    const kk = t.k;
     bolhas.enter().append("circle").attr("class", "bolha").call(ligarEventos).merge(bolhas)
       .attr("data-ibge", (d) => d.ibge)
-      .attr("r", (d) => raioSolto(d, kk))
       .classed("escolhida", (d) => munSel?.ibge === d.ibge)
       .each(function (d) {
         const [x, y] = t.apply(projecao(d.c));
-        // rosto: com autor escolhido, o dele (em qualquer zoom); senão, de perto e à vista, o do maior parlamentar
-        const padrao = comCara() ? "cara-autor" : (soltoComRosto(kk) && naVista(x, y) ? rostoDe(d) : null);
-        d3.select(this).attr("cx", x).attr("cy", y).classed("foto", !!padrao).style("fill", padrao ? `url(#${padrao})` : null);
+        const padrao = comRostoAgora.has(d.ibge) ? (comCara() ? "cara-autor" : rostoDe(d)) : null;
+        d3.select(this).attr("cx", x).attr("cy", y).attr("r", raioSolto(d))
+          .classed("foto", !!padrao).style("fill", padrao ? `url(#${padrao})` : null);
       });
+    // os que já estavam na tela e saíram (ou entraram) do grupo dos maiores mudam de tamanho junto
+    gBolhas.selectAll("circle").attr("r", raioSolto);
 
     // de perto, o nome dos maiores municípios sozinhos à vista; e o município aberto pintado na malha
     const k = t.k;
-    const comNome = k >= ZOOM_NOMES
-      ? soltos.filter((d) => naVista(...t.apply(projecao(d.c)), 0)).sort((a, b) => valorDe(b) - valorDe(a)).slice(0, NOMES_MAX) : [];
+    const comNome = k >= ZOOM_NOMES ? soltos.filter((d) => comRostoAgora.has(d.ibge)).slice(0, NOMES_MAX) : [];
     gNomes.selectAll("text").data(comNome, (d) => d.ibge).join("text")
       .text((d) => d.n)
-      .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d, k) + 12); });
+      .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
     if (malhaPronta) gMalha.selectAll("path").classed("escolhido", (f) => !!munSel && f.properties.id === munSel.ibge);
 
     // grupos: círculo com o retrato de quem mais mandou e o número de municípios
@@ -264,15 +278,15 @@
     gNomes.selectAll("text").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
   }
 
-  /** Clique num grupo: aproxima até ele se abrir. */
+  /** Clique num estado: enquadra o estado, já no nível dos municípios. */
   function aproximarGrupo(g) {
-    const m = palco.getBoundingClientRect(), t = d3.zoomTransform(svg.node());
+    const m = palco.getBoundingClientRect();
     const ps = g.itens.map((d) => projecao(d.c));
     const [x0, x1] = d3.extent(ps, (p) => p[0]), [y0, y1] = d3.extent(ps, (p) => p[1]);
-    const cabe = 0.6 / Math.max((x1 - x0) / m.width, (y1 - y0) / m.height, 1e-9);
-    const k = Math.min(40, Math.max(t.k * 2.4, Math.min(cabe, t.k * 8)));
+    const cabe = 0.85 / Math.max((x1 - x0) / m.width, (y1 - y0) / m.height, 1e-9);
+    const k = Math.min(40, Math.max(ZOOM_MALHA, cabe));
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-    svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity.translate(m.width / 2 - k * cx, m.height / 2 - k * cy).scale(k));
+    svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity.translate(m.width / 2 - k * cx, m.height / 2 - k * cy).scale(k));
   }
 
   function mostrarGrupo(g, ev) {
@@ -280,12 +294,12 @@
     gGrupos.selectAll("g.marca-grupo").classed("acesa", (x) => x.id === g.id);
     const quem = g.quem.slice(0, 3);
     cartao.innerHTML = `
-      <h2>${g.itens.length} municípios <span>juntos nesta escala</span></h2>
+      <h2>${escapar(g.nome)} <span>${g.itens.length} municípios</span></h2>
       <p class="val">${brl(g.v)}</p>
-      <p class="sub">pago em ${rotuloAno()} · maior: ${escapar(g.maior.n)} (${escapar(g.maior.u)}), ${brl(valorDe(g.maior))}</p>
+      <p class="sub">pago em ${rotuloAno()} · maior: ${escapar(g.maior.n)}, ${brl(valorDe(g.maior))}</p>
       ${quem.length ? `<dl><dt>Parlamentares que mais mandaram</dt><dd class="autores-cara">${quem.map(([nome, v]) =>
         `<div>${cara(nome, "p")}<span><b>${escapar(nome)}</b> ${brl(v)}</span></div>`).join("")}</dd></dl>` : ""}
-      <p class="dica">Clique para aproximar e abrir o grupo.</p>`;
+      <p class="dica">Clique para aproximar e ver os municípios.</p>`;
     cartao.classList.remove("fixo");
     cartao.hidden = false;
     const r = cartao.getBoundingClientRect(), m = palco.getBoundingClientRect();
@@ -543,8 +557,8 @@
     .on("end", () => {
       svg.classed("arrastando", false);
       const k = d3.zoomTransform(svg.node()).k;
-      if (kAgrupado === null || Math.abs(k - kAgrupado) > 1e-9) agrupar();   // mudou o zoom: refaz os grupos
-      else desenharMarcas();                                                 // só moveu: retratos e nomes do que entrou na tela
+      if (nivelAgrupado !== nivelDe(k)) agrupar();   // passou de estados para municípios, ou o contrário
+      else desenharMarcas();                         // só moveu ou mudou o zoom no mesmo nível: retratos e nomes do que está à vista
     })
     .on("zoom", (ev) => {
       const k = ev.transform.k;
