@@ -190,6 +190,9 @@ fila_mapa() {
   # Camadas do mapa: arrecadação federal por município, imposto de renda por residência, dinheiro
   # federal (o Portal da Transparência às vezes responde com CAPTCHA) e INSS.
   pipe pode-falhar "Arrecadação federal por município" rfb
+  # ICMS oficial por município (hoje só São Paulo, Tabela 1.10 da SEFAZ-SP). Se o portal da SEFAZ não responder,
+  # usa a cópia em pipeline/referencia/icms-mun.json. O cache de data/raw guarda a planilha entre as execuções.
+  pipe_ref "ICMS por município (SEFAZ-SP)" pipeline/referencia/icms-mun.json site/public/data/mapa/icms-mun.json icms
   pipe_ref "Imposto de renda por cidade de residência" pipeline/referencia/irpf-res.json site/public/data/mapa/irpf-res.json irpf
   pipe pode-falhar "Dinheiro federal" federal 2025
   pipe pode-falhar "INSS" inss
