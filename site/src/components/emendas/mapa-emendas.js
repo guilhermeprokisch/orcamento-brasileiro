@@ -309,7 +309,9 @@
       const soma = new Map();
       for (const l of linhas) {
         const [, autor, tipo, a0, a1, mil] = l;
-        if (!caras[autor]?.foto) continue;
+        // Gente com foto, e os colegiados (bancada, comissão, relator) como monograma: o dinheiro deles
+        // está no tamanho da bolha da cidade e precisa ter uma cara no pacote também.
+        if (!caras[autor]?.foto && !colegiado(autor)) continue;
         if (iAno !== ANOS.length && !(a0 <= ANOS[iAno] && ANOS[iAno] <= a1)) continue;
         if (filtroTipo && tipo !== filtroTipo) continue;
         const r = soma.get(autor) ?? { nome: autor, v: 0, n: 0 };
@@ -372,14 +374,17 @@
           await carregarAutores(); if (porAutor.autores[p.nome]) escolher(p.nome);
         });
       pn.append("circle").attr("class", "fundo"); pn.append("circle").attr("class", "aro");
+      pn.append("text").attr("class", "mono").attr("text-anchor", "middle").attr("dy", "0.35em");
       pn.append("rect").attr("class", "selo").attr("rx", 8).attr("height", 16);
       pn.append("text").attr("class", "selo-txt").attr("text-anchor", "middle").attr("dy", "0.35em");
       pn.merge(ps).each(function (p) {
         const px = cx + (p.x - env.x) * fator, py = cy + (p.y - env.y) * fator, r = Math.max(7, p.r * fator), pad = padraoDe(p.nome);
         const s = d3.select(this);
-        s.classed("foto", !!pad).classed("mini", r < 16);   // rosto pequeno: selo só ao passar o mouse
+        const mono = !pad && colegiado(p.nome);
+        s.classed("foto", !!pad).classed("colegiado", mono).classed("mini", r < 16);   // rosto pequeno: selo só ao passar o mouse
         s.select(".fundo").attr("cx", px).attr("cy", py).attr("r", r).style("fill", pad ? `url(#${pad})` : null);
         s.select(".aro").attr("cx", px).attr("cy", py).attr("r", r + 1);
+        s.select(".mono").attr("x", px).attr("y", py).style("font-size", `${Math.max(8, Math.round(r * 0.8))}px`).text(mono ? sigla(p.nome) : "");
         // O valor que cada um mandou, num selo no canto do retrato — é o que a pessoa veio ver.
         const txt = s.select(".selo-txt").attr("x", px + r * 0.7).attr("y", py - r * 0.7).text(curto(p.v));
         const larg = Math.ceil(txt.node().getComputedTextLength()) + 10;

@@ -231,6 +231,10 @@
 .mapa-emendas .camada-dentro .pessoa { cursor: pointer; }
 .mapa-emendas .camada-dentro .fundo { fill: var(--bolha); fill-opacity: .5; stroke: var(--papel); stroke-width: 1.5px; }
 .mapa-emendas .camada-dentro .pessoa.foto .fundo { fill-opacity: 1; }
+/* Colegiado (bancada, comissão, relator): monograma sobre fundo claro, com aro tracejado — não é uma pessoa. */
+.mapa-emendas .camada-dentro .pessoa.colegiado .fundo { fill: var(--papel-2); fill-opacity: 1; stroke: var(--tinta); stroke-width: 1px; stroke-dasharray: 3 2; }
+.mapa-emendas .camada-dentro .pessoa.colegiado .aro { stroke: none; }
+.mapa-emendas .camada-dentro .mono { fill: var(--tinta); font-family: var(--serifa); font-weight: 600; pointer-events: none; }
 .mapa-emendas .camada-dentro .aro { fill: none; stroke: var(--bolha-borda); stroke-width: 1px; stroke-opacity: .75; }
 .mapa-emendas .camada-dentro .pessoa:hover .aro { stroke: var(--verde); stroke-width: 2.6px; stroke-opacity: 1; }
 .mapa-emendas .camada-dentro .selo { fill: var(--tinta); stroke: var(--papel); stroke-width: 1.5px; pointer-events: none; }
