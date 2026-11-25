@@ -6,7 +6,7 @@
  */
 import Termo from "../Termo.astro";
 import { moedaCurta } from "../../lib/formato";
-import { artigo, docPrecos, formaRemedio, mesAno, nomeRemedio, plural, precoUnit, precosDe, quantidade, vezes } from "../../lib/precos";
+import { artigo, docPrecos, formaRemedio, mesAno, nomeRemedio, plural, precoUnit, precosDe, quantidadeDe, vezes } from "../../lib/precos";
 
 interface Props {
   ibge: number;
@@ -91,7 +91,7 @@ const MOSTRA = 6;
                   </div>
                   <p>
                     Pagou <strong>{precoUnit(preco)}</strong> {artigo(forma)}; compras parecidas saíram por {precoUnit(ref)}.
-                    {" "}{quantidade(qtd)} {plural(forma)}: <strong>{moedaCurta(aMais)} a mais</strong>, se comprar tudo.
+                    {" "}{quantidadeDe(qtd, forma)[0].toUpperCase() + quantidadeDe(qtd, forma).slice(1)}: <strong>{moedaCurta(aMais)} a mais</strong>, se comprar tudo.
                   </p>
                   {preco / ref >= 10 && <p class="erro">Uma diferença desse tamanho pode ser erro de digitação ou de unidade (o preço da caixa no lugar {forma === "comprimido" ? "do comprimido" : `da ${forma}`}). Confira na compra.</p>}
                   <small>

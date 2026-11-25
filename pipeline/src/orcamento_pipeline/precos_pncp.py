@@ -15,6 +15,7 @@ Três passos, cada um guardado em data/raw/precos/pncp/ para a próxima execuç�
    "farmácia"), em dias/{aaaammdd}.json.gz. É a parte lenta: umas 34 páginas por dia.
 2. **Os itens da compra** (`/api/pncp/v1/orgaos/{cnpj}/compras/{ano}/{seq}/itens`): a descrição livre de cada item é
    casada com a lista de remédios (`precos.casar`).
+   Só para as prefeituras que não vêm de outra fonte (`interessa`).
 3. **O resultado de cada item casado** (`…/itens/{n}/resultados`): o preço homologado, a quantidade e a empresa. O PNCP
    não tem resultado em lote: é uma chamada por item.
 
@@ -47,12 +48,12 @@ URL_PNCP = "https://pncp.gov.br/api/pncp/v1/orgaos"
 INICIO = dt.date(2025, 1, 1)
 REMEDIO = re.compile(r"MEDICAMENT|FARMAC|REMEDIO")
 NAO_REMEDIO = re.compile(r"VETERINAR")   # o resto (manipulação, equipamento) os itens tiram, no casamento
-LINHAS = 4
+LINHAS = 3
 PAUSA = 1.0   # segundos depois de cada pedido, em cada linha: com 12 linhas sem pausa, o portal respondeu 429
 _parar = threading.Event()
 
 
-def _get(url: str, tentativas: int = 8) -> dict | list | None:
+def _get(url: str, tentativas: int = 10) -> dict | list | None:
     """GET com espera crescente; 204 e 404 viram None. O portal limita os pedidos sem dizer quanto (429)."""
     for t in range(tentativas):
         try:
@@ -65,7 +66,7 @@ def _get(url: str, tentativas: int = 8) -> dict | list | None:
         except urllib.error.HTTPError as erro:
             if erro.code in (204, 404):
                 return None
-            time.sleep((30 if erro.code == 429 else 5) * (t + 1))
+            time.sleep((60 if erro.code == 429 else 5) * (t + 1))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, ConnectionError):
             time.sleep(5 * (t + 1))
     raise RuntimeError(f"sem resposta: {url}")
@@ -114,6 +115,13 @@ def lista_do_dia(dia: dt.date) -> list[dict]:
         return []   # interrompido: o dia não é guardado, e volta na próxima execução
     _gravar(arq, compras)
     return compras
+
+
+def interessa(x: dict) -> bool:
+    """Só vale buscar itens e preços das prefeituras que não vêm de outra fonte. As compras do Compras.gov.br já estão
+    na pesquisa de preço, as das prefeituras do RS vêm do LicitaCon, e os estados já têm o Compras.gov.br; numa amostra
+    de setembro, essas eram 35% e 37% dos pregões de remédio. Cada item casado custa uma chamada, e o portal limita."""
+    return x.get("esfera") == "M" and x.get("plataforma") != "Compras.gov.br" and x.get("uf") != "RS"
 
 
 def _arq_compra(x: dict):
@@ -199,14 +207,18 @@ def main() -> None:
         def dia_todo(d: dt.date) -> tuple[int, int]:
             if _parar.is_set():
                 return 0, 0
-            cs = lista_do_dia(d)
-            n = 0
-            for x in cs:
-                if _parar.is_set():
-                    break
-                if precisa_baixar(x, hoje):
-                    n += baixar_compra(x, hoje)
-            return len(cs), n
+            try:
+                cs = lista_do_dia(d)
+                n = 0
+                for x in cs:
+                    if _parar.is_set():
+                        break
+                    if interessa(x) and precisa_baixar(x, hoje):
+                        n += baixar_compra(x, hoje)
+                return len(cs), n
+            except RuntimeError as erro:   # o portal não respondeu nem depois de esperar: o dia volta na próxima execução
+                print(f"  {d}: {erro}", flush=True)
+                return 0, 0
         futuros = [ex.submit(dia_todo, d) for d in dias]
         for f in as_completed(futuros):
             n_compras, n_chamadas = f.result()

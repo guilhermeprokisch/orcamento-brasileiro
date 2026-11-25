@@ -264,3 +264,46 @@ texto conferido à mão e de um workflow como o dos contratos.
 - O workflow precos.yml roda todo dia 5 e abre um pull request com as cópias de referência; a publicação diária só copia
   (`--sem-baixar`).
 - Fica para a fase 2: os itens do PNCP (as outras ~5 mil cidades), e o número de empresas fora do RS.
+
+## Fase 2: os pregões do PNCP (23/11/2026)
+
+`uv run precos-pncp` (pipeline/src/orcamento_pipeline/precos_pncp.py) baixa, dia a dia, os pregões eletrônicos
+publicados no PNCP; o `precos` junta os de remédio às outras fontes.
+
+**Como a coleta foi desenhada, e por quê:**
+
+- A busca textual do portal (`/api/search`) daria só os pregões de remédio, 100 por página, mas começou a recusar a
+  conexão depois de umas dezenas de pedidos, e não dá para depender dela. A lista vem da API de consulta, que exige a
+  modalidade e devolve 50 compras por página em ~10 s: uns 1.700 pregões eletrônicos por dia útil, ou 34 páginas.
+- Com 12 downloads ao mesmo tempo e sem pausa, o portal respondeu 429 (muitos pedidos) por vários minutos. Com 4 e
+  1 s de pausa, passa.
+- Itens e resultados são rápidos (0,1 a 0,4 s), mas não há resultado em lote: uma chamada por item casado. Numa amostra
+  de três dias de setembro (233 pregões de remédio), deu uns 5 itens casados por pregão.
+- Tudo fica guardado em data/raw/precos/pncp/ (no Actions, no cache) e cada execução continua de onde parou. Compra
+  publicada há menos de 120 dias com item sem resultado é consultada de novo depois de 14 dias.
+
+**O que fica de fora:** as compras feitas no Compras.gov.br (já estão na pesquisa de preço), as das prefeituras do RS
+(vêm do LicitaCon), as dispensas e os pregões presenciais, e os pregões ainda sem resultado.
+
+**Erros que a amostra mostrou, e a regra para cada um:**
+
+- Preço homologado da caixa com o estimado por comprimido (Pains-MG: losartana estimada a R$ 0,04, homologada a
+  R$ 30,41; hidroclorotiazida, furosemida e amitriptilina no mesmo pregão). No pregão o preço final não pode passar do
+  estimado; acima de 3 vezes o estimado, a compra fica de fora.
+- Descrições que o casamento deixava passar: "AMOXICILINA CLAV." (com clavulanato), "OMEPRAZOL MAGNÉSIO… JUDICIAL
+  MARCA LOSEC MUPS" (compra de marca por ordem judicial), "AAS TAMPONADO" (outro código). Entraram nos testes.
+- O resto bate: na amostra, a razão típica do preço do PNCP sobre a mediana do Compras.gov.br foi 1,15 (as cidades que
+  compram por plataformas privadas pagam um pouco mais), sem nenhum preço abaixo de 0,3 vez a mediana.
+
+**Primeira carga (25/11/2026), com os pregões publicados de 24/06 a 22/11/2026.** O resto de 2026 está sendo baixado e
+2025 fica para o workflow semanal:
+
+- 8.521 compras do PNCP aceitas, de 464 cidades; 17 tiradas por passar de 3 vezes o estimado.
+- A comparação passa de 471 para 920 cidades com compra, e de 517 para 1.234 compras de prefeitura acima do dobro.
+- O casamento bate com o Compras.gov.br: a razão típica do preço do PNCP sobre a mediana do Compras.gov.br é 1,0, e
+  nenhum remédio fica com razão típica fora de 0,6 a 1,8.
+- Para ganhar tempo, só as prefeituras de fora do Compras.gov.br e do RS têm itens e preços baixados (`interessa`); a
+  lista de cada dia fica inteira, para buscar os órgãos estaduais depois. Mesmo assim, são uns 5 minutos por dia de
+  publicação, com 3 downloads ao mesmo tempo.
+- O Norte aparece mais caro nas compras destacadas (São Paulo de Olivença, Novo Aripuanã, Jutaí, Coari, no Amazonas):
+  é onde o frete pesa mais, e a mediana da região vai ao lado na página de cada remédio.
