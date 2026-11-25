@@ -26,8 +26,6 @@
   // pixels, e a cada passo do zoom eles só mudam de lugar; ao fim do gesto, os grupos são refeitos.
   const gBolhas = svg.append("g").attr("class", "camada-bolhas"), gGrupos = svg.append("g").attr("class", "camada-grupos");
   const gNomes = svg.append("g").attr("class", "camada-nomes");   // nomes dos maiores municípios à vista, de perto
-  const gMais = svg.append("g").attr("class", "camada-mais");     // o balão "+2" de quem tem mais de um parlamentar
-  const gFoco = svg.append("g").attr("class", "camada-foco");     // a cidade isolada, com os seus parlamentares lado a lado
   const projecao = d3.geoMercator(), caminho = d3.geoPath(projecao);
   const cartao = document.getElementById("cartao");
 
@@ -241,11 +239,6 @@
       });
     // os que já estavam na tela e saíram (ou entraram) do grupo dos maiores mudam de tamanho junto
     gBolhas.selectAll("circle").attr("r", raioSolto);
-    // com uma cidade isolada, só ela fica; o resto some
-    if (focoMun) gBolhas.selectAll("circle").attr("display", (d) => (d.ibge === focoMun.ibge ? null : "none"));
-    main.classList.toggle("com-foco", !!focoMun);
-    desenharMais(t, principais);
-    desenharFoco(t);
 
     // de perto, o nome dos maiores municípios sozinhos à vista; e o município aberto pintado na malha
     const k = t.k;
@@ -282,82 +275,12 @@
     });
   }
 
-  /** Os parlamentares de um município que dá para mostrar: os do topo com foto (o arquivo guarda até três). */
-  const pessoasDe = (d) => (d.ap ?? []).filter(([n]) => caras[n]?.foto);
-
-  /** O balão "+2" no canto do retrato: o município tem mais parlamentares além do que aparece. */
-  function desenharMais(t, principais) {
-    const com = (focoMun || autorSel || !comRosto()) ? []
-      : soltos.filter((d) => principais.has(d.ibge) && pessoasDe(d).length > 1);
-    const gs = gMais.selectAll("g.mais").data(com, (d) => d.ibge);
-    gs.exit().remove();
-    const novos = gs.enter().append("g").attr("class", "mais")
-      .on("click", (ev, d) => { ev.stopPropagation(); isolar(d); });
-    novos.append("rect").attr("rx", 9).attr("height", 18).attr("width", 26);
-    novos.append("text").attr("text-anchor", "middle").attr("dy", "0.35em");
-    novos.append("title");
-    novos.merge(gs).each(function (d) {
-      const [x, y] = t.apply(projecao(d.c)), r = raioSolto(d), n = pessoasDe(d).length - 1;
-      const sel = d3.select(this).attr("transform", `translate(${x + r * 0.72},${y - r * 0.72})`);
-      sel.select("rect").attr("x", -13).attr("y", -9);
-      sel.select("text").text(`+${n}`);
-      sel.select("title").text(`Mais ${n} parlamentar${n > 1 ? "es" : ""} mandaram para ${d.n}: clique para ver`);
-    });
-  }
-
-  /** A cidade isolada: os parlamentares dela lado a lado, com nome e valor, ligados ao ponto. */
-  let focoMun = null;
-  function isolar(d) {
-    focoMun = d; esconder(true);
-    desenharMarcas();
-  }
-  function desfazerIsolar() {
-    if (!focoMun) return;
-    focoMun = null;
-    desenharMarcas();
-  }
-  function desenharFoco(t) {
-    const d = focoMun;
-    const itens = d ? pessoasDe(d).slice(0, 3) : [];
-    const g = gFoco.selectAll("g.foco").data(d ? [d] : [], (d) => d.ibge);
-    g.exit().remove();
-    const novo = g.enter().append("g").attr("class", "foco");
-    novo.append("text").attr("class", "titulo").attr("text-anchor", "middle");
-    novo.merge(g).each(function (d) {
-      const m = palco.getBoundingClientRect(), [x, y] = t.apply(projecao(d.c)), r = raioSolto(d);
-      const acima = y > 190;                     // a fileira fica em cima, salvo quando não cabe
-      const fy = acima ? y - r - 86 : y + r + 86, passo = 160, R = 24;
-      const sel = d3.select(this);
-      const x0 = Math.min(Math.max(x - passo * (itens.length - 1) / 2, 80), m.width - 80 - passo * (itens.length - 1));
-      sel.select(".titulo").attr("x", x0 + passo * (itens.length - 1) / 2).attr("y", acima ? fy - R - 34 : fy + R + 44)
-        .text(`Quem mandou para ${d.n}`);
-      const ps = sel.selectAll("g.pessoa").data(itens, (p) => p[0]);
-      ps.exit().remove();
-      const pn = ps.enter().append("g").attr("class", "pessoa")
-        .on("click", async (ev, [nome]) => { ev.stopPropagation(); await carregarAutores(); if (porAutor.autores[nome]) { desfazerIsolar(); escolher(nome); } });
-      pn.append("line"); pn.append("circle").attr("class", "fundo"); pn.append("circle").attr("class", "aro");
-      pn.append("text").attr("class", "nome").attr("text-anchor", "middle");
-      pn.append("text").attr("class", "valor").attr("text-anchor", "middle");
-      pn.merge(ps).each(function ([nome, v], i) {
-        const px = x0 + i * passo, py = fy, pad = padraoDe(nome);
-        const s = d3.select(this);
-        s.select("line").attr("x1", x).attr("y1", y).attr("x2", px).attr("y2", py);
-        s.select(".fundo").attr("cx", px).attr("cy", py).attr("r", R).style("fill", pad ? `url(#${pad})` : null);
-        s.select(".aro").attr("cx", px).attr("cy", py).attr("r", R + 1.5);
-        s.select(".nome").attr("x", px).attr("y", py + (acima ? -R - 14 : R + 18)).text(nome);
-        s.select(".valor").attr("x", px).attr("y", py + (acima ? -R - 2 : R + 31)).text(brl(v));
-      });
-    });
-  }
-
   /** Durante o gesto do zoom, só muda de lugar; os grupos são refeitos ao soltar. */
   function reposicionar() {
     const t = d3.zoomTransform(svg.node());
     gBolhas.selectAll("circle").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("cx", x).attr("cy", y); });
     gGrupos.selectAll("g.marca-grupo").attr("transform", (g) => { const [x, y] = t.apply([g.px, g.py]); return `translate(${x},${y})`; });
     gNomes.selectAll("text").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
-    gMais.selectAll("g.mais").attr("transform", (d) => { const [x, y] = t.apply(projecao(d.c)), r = raioSolto(d); return `translate(${x + r * 0.72},${y - r * 0.72})`; });
-    desenharFoco(t);
   }
 
   /** Clique num estado: enquadra o estado, já no nível dos municípios. */
@@ -482,7 +405,7 @@
     escolher(nome);
   };
   // Clicar no vazio do mapa solta o cartão.
-  svg.on("click", () => { esconder(true); desfazerIsolar(); });
+  svg.on("click", () => esconder(true));
 
   // ---- Modo município: a bolha é a porta de entrada --------------------------------------
   // Clicou numa bolha: o mapa centra nela, o resto esmaece, e o painel lista as emendas do
@@ -496,7 +419,6 @@
   };
 
   async function abrirMunicipio(d) {
-    focoMun = null;
     const trocou = munSel?.ibge !== d.ibge;
     munSel = d; munFiltro = ""; munBusca = ""; munLimite = 60; elMun.busca.value = "";
     esconder(true);
@@ -781,7 +703,6 @@
   addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
     if (!painel.hidden) abrirPainel(false);
-    else if (focoMun) desfazerIsolar();
     else if (munSel) fecharMunicipio();
     else esconder(true);
   });

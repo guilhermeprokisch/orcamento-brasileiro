@@ -244,20 +244,3 @@
 .mapa-emendas .malha-mun path.escolhido { fill: var(--verde); fill-opacity: .16; stroke: var(--verde); }
 .mapa-emendas .camada-nomes text { font: 11px var(--sans); fill: var(--texto-2); text-anchor: middle; pointer-events: none;
                                     paint-order: stroke; stroke: var(--papel); stroke-width: 3px; stroke-linejoin: round; }
-
-/* ---- "+2": o município tem mais parlamentares; o clique isola a cidade e mostra os dela --------- */
-.mapa-emendas .camada-mais g { cursor: pointer; }
-.mapa-emendas .camada-mais rect { fill: var(--papel); stroke: var(--tinta); stroke-width: 1.2px; }
-.mapa-emendas .camada-mais text { fill: var(--tinta); font: 600 10.5px var(--sans); pointer-events: none; }
-.mapa-emendas .camada-mais g:hover rect { fill: var(--tinta); }
-.mapa-emendas .camada-mais g:hover text { fill: var(--papel); }
-.mapa-emendas .camada-foco .titulo { fill: var(--texto-2); font: 600 11px var(--sans); letter-spacing: .06em; text-transform: uppercase;
-                                      paint-order: stroke; stroke: var(--papel); stroke-width: 4px; stroke-linejoin: round; }
-.mapa-emendas .camada-foco .pessoa { cursor: pointer; }
-.mapa-emendas .camada-foco line { stroke: var(--texto-3); stroke-width: 1px; }
-.mapa-emendas .camada-foco .fundo { fill: var(--bolha); fill-opacity: .5; stroke: var(--papel); stroke-width: 2px; }
-.mapa-emendas .camada-foco .aro { fill: none; stroke: var(--bolha-borda); stroke-width: 1px; stroke-opacity: .75; }
-.mapa-emendas .camada-foco .pessoa:hover .aro { stroke: var(--verde); stroke-width: 2.6px; stroke-opacity: 1; }
-.mapa-emendas .camada-foco .nome { fill: var(--tinta); font: 600 12px var(--serifa); paint-order: stroke; stroke: var(--papel); stroke-width: 4px; stroke-linejoin: round; }
-.mapa-emendas .camada-foco .valor { fill: var(--texto-2); font: 11px var(--sans); paint-order: stroke; stroke: var(--papel); stroke-width: 4px; stroke-linejoin: round; }
-.mapa-emendas .palco-todo.com-foco .camada-grupos, .mapa-emendas .palco-todo.com-foco .camada-nomes { display: none; }
