@@ -200,7 +200,11 @@
   // senão dois municípios minúsculos juntos ganhavam um retrato e Ribeirão Preto sozinha era um ponto.
   // De perto, só os ROSTOS_MAX maiores municípios à vista ganham retrato (com um piso de tamanho);
   // os outros são pontos proporcionais ao valor — senão o Sudeste a 6× é uma parede de 2.000 rostos.
-  const ROSTOS_MAX = 60;
+  // A entrada no estado é progressiva: a 3,5× só as principais cidades, com retrato (ROSTOS_MIN);
+  // o número cresce com o zoom até ROSTOS_MAX, e os pontos dos municípios menores só aparecem a
+  // partir de ZOOM_TODOS, quando há espaço para eles. Senão, entrar num estado jogava tudo de uma vez.
+  const ROSTOS_MIN = 12, ROSTOS_MAX = 60, ZOOM_TODOS = 6;
+  const rostosEm = (k) => Math.round(Math.min(ROSTOS_MAX, Math.max(ROSTOS_MIN, ROSTOS_MIN + (k - ZOOM_MALHA) * 12)));
   let comRostoAgora = new Set();
   const raioSolto = (d) => Math.max(comRostoAgora.has(d.ibge) ? R_MIN_GRUPO : R_MIN_BOLHA, raio(valorDe(d)));
   /** O retrato de um município sozinho: o autor escolhido, ou o maior parlamentar dele com foto. */
@@ -218,9 +222,9 @@
     // municípios sozinhos: a bolha de sempre, agora em px de tela
     // quem ganha rosto: com autor escolhido, todos os dele à vista; senão, os maiores à vista
     const aVista = soltos.filter((d) => naVista(...t.apply(projecao(d.c)), 0));
-    comRostoAgora = new Set(comRosto()
-      ? (autorSel ? aVista : [...aVista].sort((a, b) => valorDe(b) - valorDe(a)).slice(0, ROSTOS_MAX)).map((d) => d.ibge)
-      : []);
+    const principais = new Set((autorSel ? aVista : [...aVista].sort((a, b) => valorDe(b) - valorDe(a)).slice(0, rostosEm(t.k))).map((d) => d.ibge));
+    comRostoAgora = comRosto() ? principais : new Set();
+    const todosAparecem = t.k >= ZOOM_TODOS || !!autorSel || !!munSel;
     const bolhas = gBolhas.selectAll("circle").data(soltos, (d) => d.ibge);
     bolhas.exit().remove();
     bolhas.enter().append("circle").attr("class", "bolha").call(ligarEventos).merge(bolhas)
@@ -230,6 +234,7 @@
         const [x, y] = t.apply(projecao(d.c));
         const padrao = comRostoAgora.has(d.ibge) ? (comCara() ? "cara-autor" : rostoDe(d)) : null;
         d3.select(this).attr("cx", x).attr("cy", y).attr("r", raioSolto(d))
+          .attr("display", todosAparecem || principais.has(d.ibge) || munSel?.ibge === d.ibge ? null : "none")
           .classed("foto", !!padrao).style("fill", padrao ? `url(#${padrao})` : null);
       });
     // os que já estavam na tela e saíram (ou entraram) do grupo dos maiores mudam de tamanho junto
