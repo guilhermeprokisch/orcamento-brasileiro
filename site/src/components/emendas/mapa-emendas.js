@@ -724,12 +724,13 @@
   };
   grupo("#tipo", (b) => { filtroTipo = b.dataset.t; if (porAutor) pintarLista(); });
   grupo("#ano", (b) => { iAno = +b.dataset.i; if (munSel) pintarMunicipio(); });
-  // Brasília não é um controle: é uma decisão de edição, explicada no aviso, com uma saída para quem quiser ver.
+  // Brasília não é um controle: é uma decisão de edição, explicada na nota de fonte embaixo do mapa
+  // (fora deste bloco, na página), com uma saída para quem quiser ver.
   const verDf = document.getElementById("ver-df");
-  verDf.onclick = (ev) => {
+  if (verDf) verDf.onclick = (ev) => {
     ev.preventDefault();
     semDF = !semDF;
-    verDf.textContent = semDF ? "Ver com Brasília" : "Esconder Brasília de novo";
+    verDf.textContent = semDF ? "ver com Brasília" : "esconder Brasília de novo";
     recalcular(); esconder();
   };
 
@@ -827,12 +828,6 @@
     else if (munSel) fecharMunicipio();
     else esconder(true);
   });
-
-  // No computador o aviso fica aberto; no celular, fechado, senão come a tela do mapa.
-  const aviso = document.getElementById("aviso");
-  // Começa fechado: o aviso é leitura de uma vez, e aberto comia a tela.
-  aviso.open = false;
-  aviso.ontoggle = () => requestAnimationFrame(dimensionar);
 
   dimensionar();
 })();
