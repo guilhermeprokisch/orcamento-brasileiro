@@ -623,14 +623,15 @@
     const saude = todas.filter((l) => l[7] === "Saúde").reduce((a, l) => a + l[5], 0);
     const somaLista = todas.reduce((a, l) => a + l[5], 0);
     const pop = popDe?.get(d.ibge);
-    const hab = pop ? ` · <b>${brl(total / pop)}</b> por habitante (${(pop / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} mil hab.)` : "";
-    const ficha = `/cidades/${d.u.toLowerCase()}/${slugDe(d.n)}/`;
-    elMun.nome.innerHTML = `${escapar(d.n)}<small>${escapar(d.u)}</small>
-      <a class="ficha" href="${ficha}" title="A ficha de ${escapar(d.n)} no Orçamento Brasileiro">Ficha da cidade →</a>`;
+    const hab = pop ? `${brl(total / pop)} por habitante (${(pop / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} mil hab.)` : "";
+    elMun.nome.innerHTML = `${escapar(d.n)}<small>${escapar(d.u)}</small>`;
+    document.getElementById("mun-ficha").href = `/cidades/${d.u.toLowerCase()}/${slugDe(d.n)}/`;
+    document.getElementById("mun-buscador").href = `/emendas/buscar?ente=${d.ibge}`;
+    // O valor em destaque, e embaixo, miúdo, o que ajuda a ler: a fatia da saúde e o por habitante.
+    const sub = [somaLista ? `${Math.round((100 * saude) / somaLista)}% para a saúde` : "", hab].filter(Boolean).join(" · ");
     elMun.resumo.innerHTML = munDados
-      ? `Recebeu <b>${brl(total)}</b> em <b>${todas.length.toLocaleString("pt-BR")} emendas</b> em ${rotuloAno()}`
-        + (somaLista ? ` · ${Math.round((100 * saude) / somaLista)}% para a saúde` : "") + hab
-        + ` · <a href="/emendas/buscar?ente=${d.ibge}">abrir no buscador de emendas</a>`
+      ? `<b class="grande">${brl(total)}</b> em ${todas.length.toLocaleString("pt-BR")} emendas · ${rotuloAno()}`
+        + (sub ? `<span class="sub">${sub}</span>` : "")
       : `Carregando as emendas…`;
     // chips por tipo, com as contagens
     const porTipo = d3.rollup(todas, (v) => v.length, (l) => l[2]);
@@ -643,13 +644,12 @@
       <li>
         ${cara(autor)}
         <div style="min-width:0">
-          <div class="quem"><button type="button" data-autor="${escapar(autor)}">${escapar(autor)}</button>
-            <small>${tipo} · ${a0 === a1 ? a0 : `${a0}–${a1}`}</small></div>
+          <div class="quem"><button type="button" data-autor="${escapar(autor)}">${escapar(autor)}</button></div>
+          <div class="meta">${tipo} · ${a0 === a1 ? a0 : `${a0}–${a1}`}${num && num !== "Sem informação"
+            ? ` · <a href="/emendas/buscar?emenda=${encodeURIComponent(num)}" title="A ficha desta emenda: todos os pagamentos, para quem e onde">nº ${escapar(num)} →</a> <a class="externo" href="https://portaldatransparencia.gov.br/emendas/detalhe?codigoEmenda=${encodeURIComponent(num)}&amp;ano=${escapar(String(num).slice(0, 4))}" target="_blank" rel="noopener" title="No Portal da Transparência">Portal ↗</a>`
+            : " · sem número"}</div>
           <div class="objeto${obj ? "" : " vazio"}">${obj ? escapar(obj) : "Sem objeto informado"}</div>
-          <div class="para">para <b>${escapar(fav ?? "—")}</b> · ${escapar(area ?? "—")}${num && num !== "Sem informação"
-            ? ` · <a href="/emendas/buscar?emenda=${encodeURIComponent(num)}" title="A ficha desta emenda: todos os pagamentos, para quem e onde">emenda ${escapar(num)} →</a>
-               <a class="externo" href="https://portaldatransparencia.gov.br/emendas/detalhe?codigoEmenda=${encodeURIComponent(num)}&amp;ano=${escapar(String(num).slice(0, 4))}" target="_blank" rel="noopener" title="No Portal da Transparência">Portal ↗</a>`
-            : " · sem número de emenda"}</div>
+          <div class="para">para <b>${escapar(fav ?? "—")}</b> · ${escapar(area ?? "—")}</div>
         </div>
         <div class="valor">${brl(mil)}</div>
       </li>`).join("")

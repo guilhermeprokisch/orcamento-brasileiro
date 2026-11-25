@@ -47,22 +47,23 @@
   .mapa-emendas .bolha.escolhida { fill-opacity: .95; stroke: var(--verde); stroke-width: 3px; stroke-opacity: 1; }
   /* Com a cidade aberta, só ela fica no mapa: as bolhas e os nomes das outras somem, resta o contorno da malha. */
   .mapa-emendas .palco-todo.com-mun .camada-bolhas circle:not(.escolhida), .mapa-emendas .palco-todo.com-mun .camada-nomes text { display: none; }
-  .mapa-emendas .painel-mun .voltar { align-self: flex-start; font: inherit; font-size: 12.5px; padding: 6px 10px 6px 8px;
-                        border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
-  .mapa-emendas .painel-mun h2 { margin: 12px 0 0; font-family: var(--serifa); font-size: 25px; font-weight: 700; line-height: 1.1; }
+  /* Cabeçalho do painel: o nome com o ✕ no canto, o valor em destaque, os links numa linha discreta. */
+  .mapa-emendas .cab-mun { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .mapa-emendas .painel-mun .voltar { flex: none; width: 30px; height: 30px; padding: 0; margin-top: 2px; font: inherit; font-size: 14px; line-height: 1;
+                        border: 1px solid var(--regra); background: transparent; color: var(--texto-2); cursor: pointer; }
+  .mapa-emendas .painel-mun .voltar:hover { border-color: var(--tinta); color: var(--tinta); }
+  .mapa-emendas .painel-mun h2 { margin: 4px 0 0; font-family: var(--serifa); font-size: 25px; font-weight: 700; line-height: 1.1; }
   .mapa-emendas .painel-mun h2 small { font-family: var(--sans); font-size: 14px; font-weight: 400; color: var(--texto-2); margin-left: 6px; }
-  .mapa-emendas .painel-mun h2 .ficha { float: right; font-family: var(--sans); font-size: 12px; font-weight: 400; color: var(--verde); margin-top: 8px; }
-  .mapa-emendas .painel-mun .resumo a { color: var(--verde); }
-  .mapa-emendas .painel-mun .resumo { margin: 6px 0 0; font-size: 13px; color: var(--texto-2); line-height: 1.45; }
-  .mapa-emendas .painel-mun .resumo b { color: var(--tinta); font-weight: 600; }
-  .mapa-emendas .busca-linha { display: flex; gap: 10px; align-items: stretch; margin-top: 12px; }
-  .mapa-emendas .busca-linha label { flex: 1; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px;
+  .mapa-emendas .painel-mun .resumo { margin: 8px 0 0; font-size: 13px; color: var(--texto-2); line-height: 1.45; }
+  .mapa-emendas .painel-mun .resumo .grande { font-family: var(--serifa); font-size: 22px; font-weight: 700; color: var(--tinta); margin-right: 2px; }
+  .mapa-emendas .painel-mun .resumo .sub { display: block; font-size: 12px; color: var(--texto-3); }
+  .mapa-emendas .painel-mun .acoes { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; font-size: 12px; }
+  .mapa-emendas .painel-mun .acoes a, .mapa-emendas .painel-mun .acoes button { font: inherit; padding: 0; border: 0; background: none;
+                        color: var(--verde); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  .mapa-emendas .busca-linha { display: flex; align-items: center; gap: 8px; height: 36px; margin-top: 12px; padding: 0 10px;
                        border: 1px solid var(--regra); background: var(--papel-2); color: var(--texto-2); }
   .mapa-emendas .busca-linha input { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 13px;
                        color: var(--tinta); outline: none; }
-  .mapa-emendas .busca-linha button { font: inherit; font-size: 12px; padding: 0 11px; border: 1px solid var(--regra);
-                        background: transparent; color: var(--texto-2); cursor: pointer; white-space: nowrap; }
-  .mapa-emendas .busca-linha button:hover { border-color: var(--tinta); color: var(--tinta); }
   .mapa-emendas .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .mapa-emendas .chips button { font: inherit; font-size: 12px; padding: 4px 10px; border: 1px solid var(--regra);
                   background: transparent; color: var(--tinta); cursor: pointer; }
@@ -76,13 +77,13 @@
   .mapa-emendas #mun-lista .quem { font-family: var(--serifa); font-size: 15px; font-weight: 600; line-height: 1.2; }
   .mapa-emendas #mun-lista .quem button { font: inherit; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; text-align: left; }
   .mapa-emendas #mun-lista .quem button:hover { color: var(--verde); }
-  .mapa-emendas #mun-lista .quem small { font-family: var(--sans); font-size: 11px; font-weight: 400; color: var(--texto-3); margin-left: 4px; }
+  .mapa-emendas #mun-lista .meta { font-size: 11px; color: var(--texto-3); margin-top: 2px; }
+  .mapa-emendas #mun-lista .meta a { color: var(--verde); }
+  .mapa-emendas #mun-lista .meta a.externo { color: var(--texto-3); margin-left: 4px; }
   .mapa-emendas #mun-lista .objeto { font-size: 12.5px; margin-top: 3px; line-height: 1.4; }
   .mapa-emendas #mun-lista .objeto.vazio { color: var(--texto-3); font-style: italic; }
-  .mapa-emendas #mun-lista .para { font-size: 11.5px; color: var(--texto-2); margin-top: 2px; }
+  .mapa-emendas #mun-lista .para { font-size: 11.5px; color: var(--texto-2); margin-top: 3px; }
   .mapa-emendas #mun-lista .para b { font-weight: 600; }
-  .mapa-emendas #mun-lista .para a { color: var(--verde); }
-  .mapa-emendas #mun-lista .para a.externo { color: var(--texto-3); margin-left: 4px; }
   .mapa-emendas #mun-lista .valor { font-family: var(--serifa); font-size: 16px; font-weight: 700; white-space: nowrap; text-align: right; }
   .mapa-emendas #mun-lista .nada { padding: 24px 0; color: var(--texto-3); font-size: 13px; text-align: center; }
   .mapa-emendas #mun-mais { margin: 8px 0 12px; font: inherit; font-size: 12.5px; padding: 8px; border: 1px solid var(--regra);
@@ -167,7 +168,6 @@
                                max-height: 64vh; border-left: 0; border-top: 2px solid var(--tinta);
                                padding: 12px 14px 0; box-shadow: 0 -8px 22px var(--sombra); }
     .mapa-emendas .painel-mun h2 { font-size: 20px; }
-    .mapa-emendas .busca-linha button { display: none; }
   }
   @media (max-width: 760px) {
     .mapa-emendas header { gap: 8px 14px; padding-top: 8px; }

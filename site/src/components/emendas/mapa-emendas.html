@@ -31,16 +31,20 @@
     <div class="cartao" id="cartao" hidden></div>
   </div>
   <aside class="painel-mun" id="mun" aria-label="Emendas do município escolhido">
-    <button type="button" class="voltar" id="mun-voltar">✕ Fechar</button>
-    <h2 id="mun-nome"></h2>
-    <p class="resumo" id="mun-resumo"></p>
-    <div class="busca-linha">
-      <label>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
-        <input type="search" id="mun-busca" placeholder="Buscar por autor, favorecido ou objeto — por exemplo, “UPA”" autocomplete="off">
-      </label>
-      <button type="button" id="mun-csv">Baixar CSV</button>
+    <div class="cab-mun">
+      <h2 id="mun-nome"></h2>
+      <button type="button" class="voltar" id="mun-voltar" aria-label="Fechar" title="Fechar">✕</button>
     </div>
+    <p class="resumo" id="mun-resumo"></p>
+    <p class="acoes">
+      <a id="mun-ficha" href="#">Ficha da cidade →</a>
+      <a id="mun-buscador" href="#">No buscador de emendas →</a>
+      <button type="button" id="mun-csv">Baixar CSV ↓</button>
+    </p>
+    <label class="busca-linha">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <input type="search" id="mun-busca" placeholder="Buscar por autor, favorecido ou objeto — por exemplo, “UPA”" autocomplete="off">
+    </label>
     <div class="chips" id="mun-chips"></div>
     <div class="cab-lista"><span>Emendas, da maior para a menor</span><span id="mun-conta"></span></div>
     <ol id="mun-lista"></ol>
