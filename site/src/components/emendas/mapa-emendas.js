@@ -207,30 +207,9 @@
   const rostosEm = (k) => Math.round(Math.min(ROSTOS_MAX, ROSTOS_MIN * Math.pow(Math.max(k, ZOOM_MALHA) / ZOOM_MALHA, 1.7)));
   let comRostoAgora = new Set();
   const raioSolto = (d) => Math.max(R_MIN_GRUPO, raio(valorDe(d)));   // tudo que aparece tem tamanho de rosto
-  /** Os parlamentares de um município que dá para mostrar: os do topo com foto (o arquivo guarda até três). */
-  const pessoasDe = (d) => (d.ap ?? []).filter(([n]) => caras[n]?.foto).slice(0, 3);
-  // Com mais de um parlamentar, os retratos ficam em roda em volta do ponto da cidade (o círculo não
-  // aparece, só os rostos): cada um um pouco menor, começando por cima, no sentido horário.
-  function rostosDe(d) {
-    if (comCara()) return [{ nome: autorSel, padrao: "cara-autor" }];
-    const ps = comRosto() ? pessoasDe(d) : [];
-    if (!ps.length) return [{ nome: null, padrao: null }];
-    return ps.map(([nome]) => ({ nome, padrao: padraoDe(nome) }));
-  }
-  function facesDe(d) {
-    const rostos = rostosDe(d), k = rostos.length, r = raioSolto(d);
-    return rostos.map((f, i) => {
-      const face = Object.assign(Object.create(d), f, { i, k });   // herda ibge, c, s… do município
-      if (k === 1) { face.dx = 0; face.dy = 0; face.r = r; }
-      else {
-        const ang = -Math.PI / 2 + (i * 2 * Math.PI) / k, anel = r * 0.9;   // os rostos se tocam, sem se cobrir
-        face.dx = anel * Math.cos(ang); face.dy = anel * Math.sin(ang); face.r = r * 0.74;
-      }
-      return face;
-    });
-  }
-  /** Até onde a cidade se estende na tela (para pôr o nome embaixo). */
-  const alcance = (d) => { const k = pessoasDe(d).length; const r = raioSolto(d); return comCara() || k < 2 ? r : r * 0.9 + r * 0.74; };
+  /** O retrato de um município sozinho: o autor escolhido, ou o maior parlamentar dele com foto. */
+  const rostoDe = (d) => autorSel ? (caras[autorSel]?.foto ? "cara-autor" : null)
+    : (padraoDe((d.ap ?? []).find(([n]) => caras[n]?.foto)?.[0] ?? "") || null);
 
   /** Está dentro do palco (com folga)? Retratos e nomes só para esses: fora da tela seria foto baixada à toa. */
   function naVista(x, y, folga = 60) {
@@ -246,28 +225,27 @@
     const principais = new Set((autorSel ? aVista : [...aVista].sort((a, b) => valorDe(b) - valorDe(a)).slice(0, rostosEm(t.k))).map((d) => d.ibge));
     comRostoAgora = comRosto() ? principais : new Set();
     const todosAparecem = !!autorSel;   // com um parlamentar escolhido, todo lugar dele à vista
-    // só o que aparece entra no desenho: as principais à vista, os lugares do autor, a cidade aberta
-    const mostrados = soltos.filter((d) => todosAparecem || principais.has(d.ibge) || munSel?.ibge === d.ibge);
-    const cidades = gBolhas.selectAll("g.cidade").data(mostrados, (d) => d.ibge);
-    cidades.exit().remove();
-    cidades.enter().append("g").attr("class", "cidade").merge(cidades)
+    const bolhas = gBolhas.selectAll("circle").data(soltos, (d) => d.ibge);
+    bolhas.exit().remove();
+    bolhas.enter().append("circle").attr("class", "bolha").call(ligarEventos).merge(bolhas)
       .attr("data-ibge", (d) => d.ibge)
+      .classed("escolhida", (d) => munSel?.ibge === d.ibge)
       .each(function (d) {
         const [x, y] = t.apply(projecao(d.c));
-        const faces = gBolhas.select(() => this).selectAll("circle").data(facesDe(d), (f) => `${f.ibge}:${f.i}`);
-        faces.exit().remove();
-        faces.enter().append("circle").attr("class", "bolha").call(ligarEventos).merge(faces)
-          .attr("cx", (f) => x + f.dx).attr("cy", (f) => y + f.dy).attr("r", (f) => f.r)
-          .classed("escolhida", (f) => munSel?.ibge === f.ibge)
-          .classed("foto", (f) => !!f.padrao).style("fill", (f) => (f.padrao ? `url(#${f.padrao})` : null));
+        const padrao = comRostoAgora.has(d.ibge) ? (comCara() ? "cara-autor" : rostoDe(d)) : null;
+        d3.select(this).attr("cx", x).attr("cy", y).attr("r", raioSolto(d))
+          .attr("display", todosAparecem || principais.has(d.ibge) || munSel?.ibge === d.ibge ? null : "none")
+          .classed("foto", !!padrao).style("fill", padrao ? `url(#${padrao})` : null);
       });
+    // os que já estavam na tela e saíram (ou entraram) do grupo dos maiores mudam de tamanho junto
+    gBolhas.selectAll("circle").attr("r", raioSolto);
 
     // de perto, o nome dos maiores municípios sozinhos à vista; e o município aberto pintado na malha
     const k = t.k;
     const comNome = k >= ZOOM_NOMES ? soltos.filter((d) => comRostoAgora.has(d.ibge)).slice(0, NOMES_MAX) : [];
     gNomes.selectAll("text").data(comNome, (d) => d.ibge).join("text")
       .text((d) => d.n)
-      .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + alcance(d) + 12); });
+      .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
     if (malhaPronta) gMalha.selectAll("path").classed("escolhido", (f) => !!munSel && f.properties.id === munSel.ibge);
 
     // grupos: círculo com o retrato de quem mais mandou e o número de municípios
@@ -300,9 +278,9 @@
   /** Durante o gesto do zoom, só muda de lugar; os grupos são refeitos ao soltar. */
   function reposicionar() {
     const t = d3.zoomTransform(svg.node());
-    gBolhas.selectAll("circle").each(function (f) { const [x, y] = t.apply(projecao(f.c)); d3.select(this).attr("cx", x + f.dx).attr("cy", y + f.dy); });
+    gBolhas.selectAll("circle").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("cx", x).attr("cy", y); });
     gGrupos.selectAll("g.marca-grupo").attr("transform", (g) => { const [x, y] = t.apply([g.px, g.py]); return `translate(${x},${y})`; });
-    gNomes.selectAll("text").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + alcance(d) + 12); });
+    gNomes.selectAll("text").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
   }
 
   /** Clique num estado: enquadra o estado, já no nível dos municípios. */
