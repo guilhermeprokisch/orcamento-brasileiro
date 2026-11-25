@@ -1,16 +1,19 @@
 {
- "versao": "91543d3e5f",
- "base": "https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/analises/emendas-votos/91543d3e5f",
+ "versao": "f37d999678",
+ "base": "https://dados.orcamentobrasileiro.com.br/file/orcamento-brasileiro-dados/analises/emendas-votos/f37d999678",
  "insumos": [
   "insumos/emendas-portal.parquet",
   "insumos/fns-propostas.parquet",
   "insumos/votos-deputado-federal.parquet",
+  "insumos/votos-deputado-estadual.parquet",
+  "insumos/prefeitos-2024.csv",
   "insumos/populacao-2022.csv",
   "insumos/deputados.csv"
  ],
  "resultados": [
   "painel.parquet",
   "resultados.json",
-  "preco-por-deputado.csv"
+  "preco-por-deputado.csv",
+  "dobradinhas.csv"
  ]
 }

@@ -10,28 +10,32 @@ O texto da análise, com método e limites, está em analises/emendas-votos/READ
 Fontes (cache em data/raw):
 - Emendas pagas: data/publico/emendas-pagamentos.parquet (`uv run explorador-emendas`), do qual sai o recorte
   insumos/emendas-portal.parquet.
-- Saúde de 2023–24: o Portal da Transparência registra boa parte dessas emendas como pagas ao Banco do
+- Saúde de 2019–24: o Portal da Transparência registra boa parte dessas emendas como pagas ao Banco do
   Brasil, em Brasília, sem a cidade. O Fundo Nacional de Saúde publica cada proposta, com o fundo de saúde de
   destino, o município e o parlamentar: uma planilha por UF e ano (consultafns.saude.gov.br, API pública
   recursos/proposta/planilha). Cada planilha leva minutos; baixam três por vez.
-- Votos: TSE, votação por candidato e município, 2022 e 2026 (cdn.tse.jus.br, uns 1 GB os dois).
+- Votos: TSE, votação por candidato e município (cdn.tse.jus.br, uns 1,4 GB os três): deputado federal em 2018,
+  2022 e 2026; deputado estadual em 2022 e 2026 (para as dobradinhas).
+- Prefeitos: TSE, candidatos de 2024 (consulta_cand): partido, coligação e resultado de quem disputou a prefeitura.
 - População: IBGE, Censo 2022 (tabela 4709).
 - Deputados: Câmara, dados abertos, legislatura 57 (o mesmo cache do mapa das emendas).
 
 Saída em data/analises/emendas-votos/:
 - insumos/  emendas-portal.parquet (o recorte do Portal), fns-propostas.parquet, votos-deputado-federal.parquet,
-            populacao-2022.csv, deputados.csv: o que vai ao espelho, para refazer sem baixar as fontes
+            votos-deputado-estadual.parquet, prefeitos-2024.csv, populacao-2022.csv, deputados.csv: o que vai ao
+            espelho, para refazer sem baixar as fontes
 No espelho, tudo fica em analises/emendas-votos/<versão>/, a versão vinda do conteúdo dos insumos; o
 repositório aponta a versão que o texto cita em analises/emendas-votos/espelho.json (gravado por --publicar).
-- painel.parquet         deputado × município do estado dele: emenda, votos de 2022 e de 2026, população
+- painel.parquet         deputado × município do estado dele: emenda (2023–26 e 2019–22), votos de 2018, 2022 e 2026,
+                         população, prefeito eleito em 2024 e votos dos parceiros estaduais
 - resultados.json        os números da análise (os que o texto cita)
 - preco-por-deputado.csv R$ de emenda por voto de cada deputado
+- dobradinhas.csv        os pares deputado federal × deputado estadual que a análise trata como parceiros
 """
 
 from __future__ import annotations
 
 import argparse
-import io
 import json
 import re
 import shutil
@@ -58,20 +62,27 @@ ESPELHO = f"https://dados.orcamentobrasileiro.com.br/file/{BUCKET}"
 PREFIXO = "analises/emendas-votos"
 PONTEIRO = c.RAIZ / "analises" / "emendas-votos" / "espelho.json"   # a versão dos dados que o texto cita
 ARQUIVOS_INSUMOS = ("emendas-portal.parquet", "fns-propostas.parquet", "votos-deputado-federal.parquet",
-                    "populacao-2022.csv", "deputados.csv")
+                    "votos-deputado-estadual.parquet", "prefeitos-2024.csv", "populacao-2022.csv", "deputados.csv")
+ARQUIVOS_RESULTADOS = ("painel.parquet", "resultados.json", "preco-por-deputado.csv", "dobradinhas.csv")
 
 ANOS_EMENDA = (2023, 2026)
-ANOS_FNS = (2023, 2024)          # a partir de 2025 o Portal já registra o fundo municipal
+ANOS_ANTES = (2019, 2022)        # o mandato anterior: a emenda que veio antes da eleição de 2022
+ANOS_FNS = (2019, 2020, 2021, 2022, 2023, 2024)   # a partir de 2025 o Portal já registra o fundo municipal
 BB = "00000000000191"            # Banco do Brasil: o favorecido sem cidade
 DF = "5300108"                   # Brasília: o pagamento vai a entidades com sede lá
 UFS = "AC AL AM AP BA CE DF ES GO MA MG MS MT PA PB PE PI PR RJ RN RO RR RS SC SE SP TO".split()
 TSE = "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_candidato_munzona/votacao_candidato_munzona_{ano}.zip"
+TSE_CANDIDATOS = "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_{ano}.zip"
 FNS = "https://consultafns.saude.gov.br/recursos/proposta/planilha"
 IBGE = "https://servicodados.ibge.gov.br/api/v3/agregados/4709/periodos/2022/variaveis/93?localidades=N6[all]"
 # Reserva para os poucos municípios cujo nome no TSE difere do IBGE (repositório público sem licença:
 # só consultado, nunca copiado para cá).
 TSE_IBGE_RESERVA = "https://raw.githubusercontent.com/betafcc/Municipios-Brasileiros-TSE/master/municipios_brasileiros_tse.csv"
 # Títulos e partículas ignorados ao casar o nome do deputado com o nome de urna.
+# O partido do deputado é o de 2022. Fusões até 2024 e federações, para comparar com o do prefeito de 2024.
+FUSOES = {"PTB": "PRD", "PATRIOTA": "PRD", "PSC": "PODE", "PROS": "SOLIDARIEDADE", "PMN": "MOBILIZA"}
+FEDERACOES = {"PT": "PT+PCdoB+PV", "PC do B": "PT+PCdoB+PV", "PV": "PT+PCdoB+PV", "PSDB": "PSDB+CIDADANIA",
+              "CIDADANIA": "PSDB+CIDADANIA", "PSOL": "PSOL+REDE", "REDE": "PSOL+REDE"}
 TITULOS = set("dr dra pr pra pastor pastora delegado delegada coronel capitao general sargento cabo professor professora prof "
               "junior jr filho neto da de do das dos e missionario irmao tenente major subtenente bispo padre doutor doutora "
               "enfermeira enfermeiro".split())
@@ -144,22 +155,19 @@ def deputados() -> list[tuple[str, str, str, bool]]:
     return [(n, uf, p, (chave(n), uf) in l56) for (n, uf), p in sorted(saida.items())]
 
 
-def votos_tse(con: duckdb.DuckDBPyConnection, ano: int, ibge_por_nome: dict[tuple[str, str], str]) -> None:
-    """Votos válidos de cada candidato a deputado federal, por município (somadas as zonas), na tabela votos."""
-    zip_ = baixar(TSE.format(ano=ano), RAW / "tse" / f"votacao_candidato_munzona_{ano}.zip", timeout=3600)
-    pasta = RAW / "tse" / f"_csv_{ano}"
+def csvs_do_tse(zip_: Path, pasta: Path) -> Path:
+    """Extrai os CSVs por UF (não o do Brasil inteiro) de um zip do TSE para uma pasta temporária."""
     pasta.mkdir(exist_ok=True)
     with zipfile.ZipFile(zip_) as z:
         for nome in z.namelist():
             if re.search(r"_[A-Z]{2}\.csv$", nome) and not nome.endswith("_BR.csv") and not (pasta / nome).exists():
                 z.extract(nome, pasta)
-    con.sql(f"""CREATE OR REPLACE TEMP TABLE tse AS
-                SELECT SG_UF uf, CD_MUNICIPIO::INT cd, NM_MUNICIPIO mun, SQ_CANDIDATO sq, NM_CANDIDATO nome, NM_URNA_CANDIDATO urna,
-                       SG_PARTIDO partido, DS_SIT_TOT_TURNO situacao, sum(QT_VOTOS_NOMINAIS_VALIDOS::BIGINT) votos
-                FROM read_csv('{pasta}/*.csv', delim=';', encoding='latin-1', header=true, all_varchar=true)
-                WHERE CD_CARGO = '6' GROUP BY ALL""")
-    shutil.rmtree(pasta)
-    # Município do TSE → IBGE pelo nome; a reserva só para o que não casar.
+    return pasta
+
+
+def casar_municipios(con: duckdb.DuckDBPyConnection, rotulo: str, ibge_por_nome: dict[tuple[str, str], str]) -> None:
+    """Município do TSE → IBGE pelo nome; a reserva só para o que não casar. Lê a tabela temporária `tse`
+    (uf, cd, mun) e grava `tse_ibge` (uf, cd, ibge)."""
     nomes = {(uf, cd): chave(mun) for uf, cd, mun in con.sql("SELECT DISTINCT uf, cd, mun FROM tse").fetchall()}
     faltam = {k for k, kmun in nomes.items() if (k[0], kmun) not in ibge_por_nome}
     reserva: dict[tuple[str, int], str] = {}
@@ -168,7 +176,7 @@ def votos_tse(con: duckdb.DuckDBPyConnection, ano: int, ibge_por_nome: dict[tupl
         for linha in txt.splitlines()[1:]:
             cod_tse, uf, _, _, ibge = linha.split(",")
             reserva[(uf, int(cod_tse))] = ibge
-        print(f"  TSE {ano}: {len(faltam)} municípios com nome diferente do IBGE, casados pela tabela de reserva: "
+        print(f"  TSE {rotulo}: {len(faltam)} municípios com nome diferente do IBGE, casados pela tabela de reserva: "
               f"{sorted(nomes[k] + '/' + k[0] for k in faltam)}", flush=True)
     pares = [(uf, cd, ibge_por_nome.get((uf, k)) or reserva.get((uf, cd))) for (uf, cd), k in nomes.items()]
     # A grafia do TSE passa a valer também para as outras fontes (o FNS usa a mesma grafia antiga).
@@ -177,8 +185,40 @@ def votos_tse(con: duckdb.DuckDBPyConnection, ano: int, ibge_por_nome: dict[tupl
             ibge_por_nome.setdefault((uf, k), ibge)
     con.sql("CREATE OR REPLACE TEMP TABLE tse_ibge(uf VARCHAR, cd INT, ibge VARCHAR)")
     con.executemany("INSERT INTO tse_ibge VALUES (?, ?, ?)", pares)
-    con.sql(f"""INSERT INTO votos SELECT {ano}, t.uf, m.ibge, sq, nome, urna, partido, situacao, votos
-                FROM tse t LEFT JOIN tse_ibge m USING (uf, cd)""")
+
+
+def votos_tse(con: duckdb.DuckDBPyConnection, ano: int, ibge_por_nome: dict[tuple[str, str], str], estaduais: bool) -> None:
+    """Votos válidos de cada candidato a deputado federal, por município (somadas as zonas), na tabela votos;
+    com `estaduais`, também os de deputado estadual, na tabela votos_est."""
+    zip_ = baixar(TSE.format(ano=ano), RAW / "tse" / f"votacao_candidato_munzona_{ano}.zip", timeout=3600)
+    pasta = csvs_do_tse(zip_, RAW / "tse" / f"_csv_{ano}")
+    cargos = "'6', '7'" if estaduais else "'6'"   # 6 = deputado federal, 7 = deputado estadual
+    con.sql(f"""CREATE OR REPLACE TEMP TABLE tse AS
+                SELECT CD_CARGO::INT cargo, SG_UF uf, CD_MUNICIPIO::INT cd, NM_MUNICIPIO mun, SQ_CANDIDATO sq, NM_CANDIDATO nome,
+                       NM_URNA_CANDIDATO urna, SG_PARTIDO partido, DS_SIT_TOT_TURNO situacao, sum(QT_VOTOS_NOMINAIS_VALIDOS::BIGINT) votos
+                FROM read_csv('{pasta}/*.csv', delim=';', encoding='latin-1', header=true, all_varchar=true)
+                WHERE CD_CARGO IN ({cargos}) GROUP BY ALL""")
+    shutil.rmtree(pasta)
+    casar_municipios(con, str(ano), ibge_por_nome)
+    for cargo, tabela in ((6, "votos"), (7, "votos_est")):
+        con.sql(f"""INSERT INTO {tabela} SELECT {ano}, t.uf, m.ibge, sq, nome, urna, partido, situacao, votos
+                    FROM tse t LEFT JOIN tse_ibge m USING (uf, cd) WHERE cargo = {cargo}""")
+
+
+def prefeitos_2024(con: duckdb.DuckDBPyConnection, ibge_por_nome: dict[tuple[str, str], str]) -> None:
+    """Quem disputou a prefeitura em 2024: partido, coligação e resultado, na tabela prefeitos. Do arquivo de
+    candidatos do TSE saem só essas colunas; CPF, título e e-mail não são lidos."""
+    zip_ = baixar(TSE_CANDIDATOS.format(ano=2024), RAW / "tse" / "consulta_cand_2024.zip", timeout=3600)
+    pasta = csvs_do_tse(zip_, RAW / "tse" / "_csv_cand_2024")
+    con.sql(f"""CREATE OR REPLACE TEMP TABLE tse AS
+                SELECT SG_UF uf, SG_UE::INT cd, NM_UE mun, NR_TURNO::INT turno, SG_PARTIDO partido,
+                       DS_COMPOSICAO_COLIGACAO coligacao, DS_SIT_TOT_TURNO resultado
+                FROM read_csv('{pasta}/*.csv', delim=';', encoding='latin-1', header=true, all_varchar=true)
+                WHERE CD_CARGO = '11' AND CD_TIPO_ELEICAO = '2'""")   # prefeito, eleição ordinária
+    shutil.rmtree(pasta)
+    casar_municipios(con, "2024 (prefeitos)", ibge_por_nome)
+    con.sql("""CREATE TABLE prefeitos AS SELECT t.uf, m.ibge, turno, partido, coligacao, resultado
+               FROM tse t JOIN tse_ibge m USING (uf, cd) WHERE m.ibge IS NOT NULL""")
 
 
 def planilhas_fns() -> list[Path]:
@@ -236,27 +276,35 @@ def montar_insumos() -> None:
     con.executemany("INSERT INTO dep VALUES (?, ?, ?, ?)", deputados())
     con.sql(f"COPY dep TO '{INSUMOS / 'deputados.csv'}' (HEADER)")
 
-    con.sql("""CREATE TABLE votos(ano INT, uf VARCHAR, ibge VARCHAR, sq VARCHAR, nome VARCHAR, urna VARCHAR,
-                                  partido VARCHAR, situacao VARCHAR, votos BIGINT)""")
-    for ano in (2022, 2026):
+    for tabela in ("votos", "votos_est"):
+        con.sql(f"""CREATE TABLE {tabela}(ano INT, uf VARCHAR, ibge VARCHAR, sq VARCHAR, nome VARCHAR, urna VARCHAR,
+                                         partido VARCHAR, situacao VARCHAR, votos BIGINT)""")
+    for ano in (2018, 2022, 2026):
         print(f"TSE {ano}", flush=True)
-        votos_tse(con, ano, por_nome)
+        votos_tse(con, ano, por_nome, estaduais=ano != 2018)
     sem = con.sql("SELECT count(*) FROM votos WHERE ibge IS NULL").fetchall()[0][0]
     print(f"  votos sem município IBGE: {sem} linhas", flush=True)
-    con.sql(f"COPY (SELECT * FROM votos ORDER BY ano, uf, sq, ibge) TO '{INSUMOS / 'votos-deputado-federal.parquet'}'")
+    # ORDER BY ALL em tudo o que vai para os insumos: sem empates na ordem, os arquivos saem iguais byte a byte
+    # a cada rodada, e a versão (o hash deles) só muda quando os dados mudam.
+    con.sql(f"COPY (SELECT ano, uf, sq, ibge, nome, urna, partido, situacao, votos FROM votos ORDER BY ALL) TO '{INSUMOS / 'votos-deputado-federal.parquet'}'")
+    con.sql(f"""COPY (SELECT ano, uf, sq, ibge, nome, urna, partido, situacao, votos FROM votos_est WHERE ibge IS NOT NULL ORDER BY ALL)
+                TO '{INSUMOS / 'votos-deputado-estadual.parquet'}'""")
+    print("TSE 2024 (prefeitos)", flush=True)
+    prefeitos_2024(con, por_nome)
+    con.sql(f"COPY (SELECT * FROM prefeitos ORDER BY ALL) TO '{INSUMOS / 'prefeitos-2024.csv'}' (HEADER)")
 
     con.sql("""CREATE TABLE fns(proposta VARCHAR, ano INT, uf VARCHAR, ibge VARCHAR, municipio VARCHAR, entidade VARCHAR,
                                 tipo VARCHAR, parlamentar VARCHAR, partido VARCHAR, pago DOUBLE)""")
     con.executemany("INSERT INTO fns VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", propostas_fns(por_nome))
     print(con.sql("SELECT ano, count(*) linhas, round(sum(pago) / 1e9, 2) bi_pagos, count(*) FILTER (ibge IS NULL) sem_ibge FROM fns GROUP BY 1 ORDER BY 1"))
-    con.sql(f"COPY (SELECT * FROM fns ORDER BY ano, uf, proposta) TO '{INSUMOS / 'fns-propostas.parquet'}'")
+    con.sql(f"COPY (SELECT ano, uf, proposta, ibge, municipio, entidade, tipo, parlamentar, partido, pago FROM fns ORDER BY ALL) TO '{INSUMOS / 'fns-propostas.parquet'}'")
 
     # O recorte do Portal que a análise usa, congelado junto dos outros insumos (o parquet geral do explorador
     # é refeito a cada publicação).
-    a0, a1 = ANOS_EMENDA
+    a0, a1 = ANOS_ANTES[0], ANOS_EMENDA[1]
     con.sql(f"""COPY (SELECT emenda, ano, mes, autor, tipo, favorecido, codigo, grupo, uf, municipio, ibge, area, valor
                       FROM '{PAGAMENTOS}' WHERE tipo IN ('Individual', 'Pix') AND ano BETWEEN {a0} AND {a1}
-                      ORDER BY ano, mes, emenda, codigo) TO '{INSUMOS / 'emendas-portal.parquet'}'""")
+                      ORDER BY ALL) TO '{INSUMOS / 'emendas-portal.parquet'}'""")
 
 
 def versao_insumos() -> str:
@@ -307,17 +355,102 @@ def casar_deputados(con: duckdb.DuckDBPyConnection) -> None:
     print(f"deputados casados com o TSE: {len(pares)}; sem par: {len(sem_par)} {sem_par}", flush=True)
 
 
+def bloco(partido: str) -> str:
+    """Partido de 2022 ou de 2024 → o partido (ou a federação) em que ele estava em 2024."""
+    p = FUSOES.get(partido, partido)
+    return FEDERACOES.get(p, p)
+
+
+def blocos_da_coligacao(coligacao: str) -> set[str]:
+    """'PP / MDB / Federação PSDB CIDADANIA (45-PSDB / 23-CIDADANIA)' → os partidos, já como blocos."""
+    pedacos = [re.sub(r"^\d+-", "", x.strip()) for x in re.split(r"/|\(|\)", str(coligacao))]
+    return {bloco(x) for x in pedacos if x and not x.startswith("Federa") and x != "#NULO"}
+
+
+def marcar_prefeitos(con: duckdb.DuckDBPyConnection) -> None:
+    """Tabelas por município: o bloco do prefeito eleito em 2024, os blocos da coligação dele e os que disputaram."""
+    eleitos, coligados, disputaram = {}, set(), set()
+    for ibge, turno, partido, coligacao, resultado in con.sql(
+            "SELECT ibge, turno, partido, coligacao, resultado FROM prefeitos ORDER BY ibge, turno").fetchall():
+        if turno == 1:
+            disputaram.add((ibge, bloco(partido)))
+        if resultado == "ELEITO":   # o do 2º turno, quando houve, vem depois e fica
+            eleitos[ibge] = (bloco(partido), blocos_da_coligacao(coligacao))
+    for ibge, (b, col) in eleitos.items():
+        coligados |= {(ibge, x) for x in col if x != b}
+    con.sql("CREATE TABLE pref_eleito(ibge VARCHAR, bloco VARCHAR); CREATE TABLE pref_colig(ibge VARCHAR, bloco VARCHAR); "
+            "CREATE TABLE pref_disputou(ibge VARCHAR, bloco VARCHAR)")
+    con.executemany("INSERT INTO pref_eleito VALUES (?, ?)", [(i, b) for i, (b, _) in eleitos.items()])
+    con.executemany("INSERT INTO pref_colig VALUES (?, ?)", sorted(coligados))
+    con.executemany("INSERT INTO pref_disputou VALUES (?, ?)", sorted(disputaram))
+    con.sql("CREATE TABLE dep_bloco(sq VARCHAR, bloco VARCHAR)")
+    con.executemany("INSERT INTO dep_bloco VALUES (?, ?)", [(sq, bloco(p)) for sq, p in con.sql(
+        "SELECT sq, any_value(partido) FROM votos WHERE ano = 2022 AND sq IN (SELECT sq FROM casados) GROUP BY sq").fetchall()])
+
+
+def achar_dobradinhas(con: duckdb.DuckDBPyConnection) -> None:
+    """Parceiro de um deputado federal = candidato a estadual em 2022, com 3 mil votos ou mais, cuja fatia dos votos de
+    cada cidade tem correlação de 0,6 ou mais com a do federal, e de 0,5 ou mais mesmo sem as três cidades que mais
+    pesam (para não pegar quem só é da mesma cidade). Grava a tabela dobradinhas e o arquivo dobradinhas.csv.
+    sq_est26 é a candidatura do mesmo parceiro a estadual em 2026 (mesmo nome civil, mesmo estado, par único)."""
+    pares = []
+    fed = con.sql("SELECT uf, sq, ibge, votos::DOUBLE votos, validos::DOUBLE validos FROM painel ORDER BY uf, sq, ibge").fetchnumpy()
+    est = con.sql("""SELECT uf, sq, ibge, votos::DOUBLE votos FROM votos_est WHERE ano = 2022 AND uf <> 'DF' AND sq IN
+                     (SELECT sq FROM votos_est WHERE ano = 2022 GROUP BY sq HAVING sum(votos) >= 3000)""").fetchnumpy()
+    tot = con.sql("SELECT ibge, sum(votos)::DOUBLE v FROM votos_est WHERE ano = 2022 GROUP BY 1").fetchnumpy()
+    total_est = dict(zip(tot["ibge"], tot["v"]))
+    for uf in sorted(set(fed["uf"])):
+        f = fed["uf"] == uf
+        muns, im = np.unique(fed["ibge"][f], return_inverse=True)
+        deps, idp = np.unique(fed["sq"][f], return_inverse=True)
+        F = np.zeros((len(muns), len(deps)))
+        F[im, idp] = np.where(fed["validos"][f] > 0, fed["votos"][f] / np.maximum(fed["validos"][f], 1), 0)
+        e = (est["uf"] == uf) & np.isin(est["ibge"], muns)
+        cands, ic = np.unique(est["sq"][e], return_inverse=True)
+        S = np.zeros((len(muns), len(cands)))
+        S[np.searchsorted(muns, est["ibge"][e]), ic] = est["votos"][e]
+        S /= np.maximum(np.array([total_est.get(m, 0) for m in muns], float), 1)[:, None]
+        zf, zs = (F - F.mean(0)) / np.maximum(F.std(0), 1e-12), (S - S.mean(0)) / np.maximum(S.std(0), 1e-12)
+        corr = zf.T @ zs / len(muns)
+        for i, j in zip(*np.where(corr >= 0.6)):
+            x, y = F[:, i], S[:, j]
+            resto = np.argsort(-(x - x.mean()) * (y - y.mean()))[3:]
+            if len(resto) > 2 and x[resto].std() > 0 and y[resto].std() > 0:
+                sem3 = float(np.corrcoef(x[resto], y[resto])[0, 1])
+                if sem3 >= 0.5:
+                    pares.append((uf, str(deps[i]), str(cands[j]), round(float(corr[i, j]), 2), round(sem3, 2)))
+    con.sql("CREATE TABLE pares_dob(uf VARCHAR, sq VARCHAR, sq_est VARCHAR, correlacao DOUBLE, correlacao_sem_3_cidades DOUBLE)")
+    con.executemany("INSERT INTO pares_dob VALUES (?, ?, ?, ?, ?)", pares)
+    con.sql("""CREATE TABLE dobradinhas AS
+        WITH e22 AS (SELECT sq, any_value(uf) uf, any_value(nome) nome, any_value(urna) urna, any_value(partido) partido
+                     FROM votos_est WHERE ano = 2022 AND sq IN (SELECT sq_est FROM pares_dob) GROUP BY sq),
+        e26 AS (SELECT uf, chave(nome) kn, any_value(sq) sq FROM (SELECT DISTINCT uf, nome, sq FROM votos_est WHERE ano = 2026)
+                GROUP BY ALL HAVING count(*) = 1),
+        f22 AS (SELECT sq, any_value(urna) urna, any_value(partido) partido FROM votos WHERE ano = 2022 GROUP BY sq)
+        SELECT p.uf, p.sq, f22.urna deputado, f22.partido, p.sq_est, e22.urna estadual, e22.partido partido_estadual,
+               p.correlacao, p.correlacao_sem_3_cidades, e26.sq sq_est26
+        FROM pares_dob p JOIN e22 ON e22.sq = p.sq_est JOIN f22 ON f22.sq = p.sq
+        LEFT JOIN e26 ON e26.uf = e22.uf AND e26.kn = chave(e22.nome)""")
+    con.sql(f"COPY (SELECT * FROM dobradinhas ORDER BY correlacao DESC, uf, deputado, estadual) TO '{SAIDA / 'dobradinhas.csv'}' (HEADER)")
+    n, nd = con.sql("SELECT count(*), count(DISTINCT sq) FROM dobradinhas").fetchall()[0]
+    print(f"dobradinhas: {n} pares, {nd} deputados com parceiro", flush=True)
+
+
 def montar_painel() -> duckdb.DuckDBPyConnection:
     con = duckdb.connect()
     con.create_function("chave", chave, ["VARCHAR"], "VARCHAR")
     con.sql(f"CREATE TABLE votos AS SELECT * FROM '{INSUMOS / 'votos-deputado-federal.parquet'}'")
+    con.sql(f"CREATE TABLE votos_est AS SELECT * FROM '{INSUMOS / 'votos-deputado-estadual.parquet'}'")
+    con.sql(f"CREATE TABLE prefeitos AS SELECT * FROM read_csv('{INSUMOS / 'prefeitos-2024.csv'}', types={{'ibge': 'VARCHAR'}})")
     con.sql(f"CREATE TABLE fns AS SELECT * FROM '{INSUMOS / 'fns-propostas.parquet'}'")
     con.sql(f"CREATE TABLE pop AS SELECT * FROM read_csv('{INSUMOS / 'populacao-2022.csv'}', types={{'ibge': 'VARCHAR'}})")
     con.sql(f"CREATE TABLE dep AS SELECT * FROM read_csv('{INSUMOS / 'deputados.csv'}')")
     casar_deputados(con)
+    marcar_prefeitos(con)
     a0, a1 = ANOS_EMENDA
+    b0, b1 = ANOS_ANTES
     fns_anos = ", ".join(map(str, ANOS_FNS))
-    # Portal, menos o que o FNS cobre melhor (toda a saúde individual de 2023–24, e o que foi ao BB);
+    # Portal, menos o que o FNS cobre melhor (toda a saúde individual até 2024, e o que foi ao BB);
     # mais o FNS. Brasília fica fora: lá o pagamento vai a entidades com sede na capital.
     # `estadual`: pago a governo ou fundo estadual. Aparece no município da sede (a capital), mas pode ser
     # gasto em qualquer cidade do estado. No FNS, pelo nome da entidade.
@@ -326,7 +459,7 @@ def montar_painel() -> duckdb.DuckDBPyConnection:
             SELECT chave(autor) k, ibge, ano, valor, CASE WHEN tipo = 'Pix' THEN valor ELSE 0 END pix, 0.0 fns,
                    CASE WHEN grupo = 'Governo estadual' THEN valor ELSE 0 END est
             FROM '{INSUMOS / "emendas-portal.parquet"}'
-            WHERE tipo IN ('Individual', 'Pix') AND ano BETWEEN {a0} AND {a1}
+            WHERE tipo IN ('Individual', 'Pix') AND ano BETWEEN {b0} AND {a1}
               AND NOT (coalesce(codigo, '') = '{BB}' OR (tipo = 'Individual' AND area = 'Saúde' AND ano IN ({fns_anos})))
               AND coalesce(ibge, '') NOT IN ('', '{DF}')),
         saude AS (SELECT chave(parlamentar) k, ibge, ano, pago valor, 0.0 pix, pago fns,
@@ -335,29 +468,63 @@ def montar_painel() -> duckdb.DuckDBPyConnection:
                   FROM fns WHERE ano IN ({fns_anos}) AND ibge IS NOT NULL AND ibge <> '{DF}' AND pago > 0)
         SELECT k, ibge, ano, sum(valor) valor, sum(pix) pix, sum(fns) fns, sum(est) est
         FROM (SELECT * FROM portal UNION ALL SELECT * FROM saude) GROUP BY ALL""")
-    anos = range(a0, a1 + 1)
-    por_ano = ", ".join(f"sum(e.valor) FILTER (e.ano = {a}) e{a}" for a in anos)
+    # A candidatura do mesmo deputado em 2018 e em 2026: mesmo nome civil, mesmo estado, par único.
+    for ano in (2018, 2026):
+        con.sql(f"""CREATE TABLE ponte{ano} AS
+            SELECT a.sq, b.sq sq_outro
+            FROM (SELECT sq, uf, chave(nome) kn FROM (SELECT DISTINCT sq, uf, nome FROM votos WHERE ano = 2022 AND sq IN (SELECT sq FROM casados))) a
+            JOIN (SELECT sq, uf, chave(nome) kn FROM (SELECT DISTINCT sq, uf, nome FROM votos WHERE ano = {ano})) b USING (uf, kn)
+            QUALIFY count(*) OVER (PARTITION BY a.sq) = 1 AND count(*) OVER (PARTITION BY b.sq) = 1""")
+    anos, antes = range(a0, a1 + 1), range(b0, b1 + 1)
+    por_ano = ", ".join(f"sum(e.valor) FILTER (e.ano = {a}) e{a}" for a in list(antes) + list(anos))
     con.sql(f"""CREATE TABLE painel AS
         WITH d AS (SELECT sq, any_value(uf) uf, bool_or(veterano) veterano FROM casados GROUP BY sq),
-        em AS (SELECT c.sq, e.ibge, sum(e.valor) emenda, sum(e.pix) pix, sum(e.fns) fns, sum(e.est) est, {por_ano}
+        em AS (SELECT c.sq, e.ibge, sum(e.valor) FILTER (e.ano >= {a0}) emenda, sum(e.pix) FILTER (e.ano >= {a0}) pix,
+                      sum(e.fns) FILTER (e.ano >= {a0}) fns, sum(e.est) FILTER (e.ano >= {a0}) est,
+                      sum(e.valor) FILTER (e.ano <= {b1}) emenda_antes, {por_ano}
                FROM emendas e JOIN casados c USING (k) GROUP BY ALL),
         v22 AS (SELECT sq, ibge, sum(votos) votos FROM votos WHERE ano = 2022 GROUP BY ALL),
         val AS (SELECT ibge, sum(votos) validos FROM votos WHERE ano = 2022 GROUP BY 1),
-        ponte AS (SELECT DISTINCT sq, uf, nome FROM votos WHERE ano = 2022),
-        v26 AS (SELECT p.sq, v.ibge, sum(v.votos) votos26 FROM votos v JOIN ponte p ON p.uf = v.uf AND p.nome = v.nome
-                WHERE v.ano = 2026 GROUP BY ALL)
+        v18 AS (SELECT p.sq, v.ibge, sum(v.votos) votos18 FROM votos v JOIN ponte2018 p ON p.sq_outro = v.sq WHERE v.ano = 2018 GROUP BY ALL),
+        v26 AS (SELECT p.sq, v.ibge, sum(v.votos) votos26 FROM votos v JOIN ponte2026 p ON p.sq_outro = v.sq WHERE v.ano = 2026 GROUP BY ALL)
         SELECT d.sq, d.uf, d.veterano, p.ibge, p.populacao, coalesce(val.validos, 0) validos, coalesce(v22.votos, 0) votos,
-               v26.votos26, coalesce(em.emenda, 0) emenda, coalesce(em.pix, 0) pix, coalesce(em.fns, 0) fns,
-               coalesce(em.est, 0) est, {", ".join(f"coalesce(em.e{a}, 0) e{a}" for a in anos)}
-        FROM d JOIN pop p ON p.uf = d.uf
+               CASE WHEN d.sq IN (SELECT sq FROM ponte2018) THEN coalesce(v18.votos18, 0) END votos18,
+               CASE WHEN d.sq IN (SELECT sq FROM ponte2026) THEN coalesce(v26.votos26, 0) END votos26,
+               coalesce(em.emenda, 0) emenda, coalesce(em.pix, 0) pix, coalesce(em.fns, 0) fns, coalesce(em.est, 0) est,
+               {", ".join(f"coalesce(em.e{a}, 0) e{a}" for a in anos)},
+               coalesce(em.emenda_antes, 0) emenda_antes, {", ".join(f"coalesce(em.e{a}, 0) e{a}" for a in antes)},
+               -- prefeito eleito em 2024 (NULL onde o TSE não traz eleito na eleição ordinária)
+               CASE WHEN pe.ibge IS NOT NULL THEN (pe.bloco = b.bloco)::INT END prefeito_do_partido,
+               CASE WHEN pe.ibge IS NOT NULL THEN (pc.ibge IS NOT NULL)::INT END partido_na_coligacao,
+               CASE WHEN pe.ibge IS NOT NULL THEN (pd.ibge IS NOT NULL AND pe.bloco <> b.bloco)::INT END partido_disputou_e_perdeu
+        FROM d JOIN pop p ON p.uf = d.uf LEFT JOIN dep_bloco b ON b.sq = d.sq
         LEFT JOIN v22 ON v22.sq = d.sq AND v22.ibge = p.ibge LEFT JOIN val ON val.ibge = p.ibge
-        LEFT JOIN em ON em.sq = d.sq AND em.ibge = p.ibge LEFT JOIN v26 ON v26.sq = d.sq AND v26.ibge = p.ibge
+        LEFT JOIN em ON em.sq = d.sq AND em.ibge = p.ibge
+        LEFT JOIN v18 ON v18.sq = d.sq AND v18.ibge = p.ibge LEFT JOIN v26 ON v26.sq = d.sq AND v26.ibge = p.ibge
+        LEFT JOIN pref_eleito pe ON pe.ibge = p.ibge
+        LEFT JOIN pref_colig pc ON pc.ibge = p.ibge AND pc.bloco = b.bloco
+        LEFT JOIN pref_disputou pd ON pd.ibge = p.ibge AND pd.bloco = b.bloco
         WHERE d.uf <> 'DF'""")
     # Só deputados com emenda e voto no estado; concorreu em 2026 = teve algum voto em 2026.
     con.sql("""CREATE OR REPLACE TABLE painel AS SELECT *,
                  sum(emenda) OVER w em_tot, sum(votos) OVER w vot_tot, sum(populacao) OVER w pop_tot,
                  sum(votos26) OVER w v26_tot FROM painel WINDOW w AS (PARTITION BY sq)""")
     con.sql("DELETE FROM painel WHERE em_tot = 0 OR vot_tot = 0")
+    # Dobradinhas: os votos dos parceiros estaduais em cada cidade. `parceiros22` soma todos os parceiros;
+    # `parceiros22_ambos` e `parceiros26` só os que concorreram de novo a estadual em 2026 (NULL se nenhum concorreu).
+    achar_dobradinhas(con)
+    con.sql("""CREATE OR REPLACE TABLE painel AS
+        WITH tem AS (SELECT sq, count(sq_est26) n26 FROM dobradinhas GROUP BY sq),
+        v AS (SELECT d.sq, e.ibge, sum(e.votos) parceiros22, sum(e.votos) FILTER (d.sq_est26 IS NOT NULL) ambos
+              FROM dobradinhas d JOIN votos_est e ON e.sq = d.sq_est AND e.ano = 2022 GROUP BY ALL),
+        w AS (SELECT d.sq, e.ibge, sum(e.votos) parceiros26 FROM dobradinhas d JOIN votos_est e ON e.sq = d.sq_est26 AND e.ano = 2026 GROUP BY ALL),
+        t AS (SELECT ibge, sum(votos) estaduais22 FROM votos_est WHERE ano = 2022 GROUP BY 1)
+        SELECT p.*, coalesce(t.estaduais22, 0) estaduais22,
+               CASE WHEN tem.sq IS NOT NULL THEN coalesce(v.parceiros22, 0) END parceiros22,
+               CASE WHEN tem.n26 > 0 THEN coalesce(v.ambos, 0) END parceiros22_ambos,
+               CASE WHEN tem.n26 > 0 THEN coalesce(w.parceiros26, 0) END parceiros26
+        FROM painel p LEFT JOIN tem USING (sq) LEFT JOIN v ON v.sq = p.sq AND v.ibge = p.ibge
+        LEFT JOIN w ON w.sq = p.sq AND w.ibge = p.ibge LEFT JOIN t ON t.ibge = p.ibge""")
     con.sql(f"COPY (SELECT * EXCLUDE (em_tot, vot_tot, pop_tot, v26_tot) FROM painel ORDER BY sq, ibge) TO '{SAIDA / 'painel.parquet'}'")
     return con
 
@@ -405,10 +572,12 @@ def ppml(y: np.ndarray, X: np.ndarray, g: np.ndarray) -> tuple[np.ndarray, np.nd
     return b, np.sqrt(np.diag(Hi @ (sg.T @ sg) @ Hi))
 
 
-def ppml_dois_efeitos(y: np.ndarray, X: np.ndarray, g1: np.ndarray, g2: np.ndarray) -> tuple[np.ndarray, np.ndarray, int]:
+def ppml_dois_efeitos(y: np.ndarray, X: np.ndarray, g1: np.ndarray, g2: np.ndarray,
+                      agrupar: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray, int]:
     """Poisson com efeito fixo de deputado (g1) e de município (g2), por IRLS com projeções alternadas
     ponderadas (o método do ppmlhdfe). Tira antes os grupos só com zero, que não informam nada.
-    Erros agrupados por deputado. Devolve também o número de observações usadas."""
+    Erros agrupados por `agrupar` (por g1, o deputado, se não vier). Devolve também o número de observações usadas."""
+    agrupar = g1 if agrupar is None else agrupar
     ok = np.ones(len(y), bool)
     while True:   # grupos só com zero saem; tirar uns pode zerar outros
         antes = ok.sum()
@@ -418,7 +587,7 @@ def ppml_dois_efeitos(y: np.ndarray, X: np.ndarray, g1: np.ndarray, g2: np.ndarr
         if ok.sum() == antes:
             break
     y, X = y[ok], X[ok]
-    g1, g2 = grupos(g1[ok]), grupos(g2[ok])
+    g1, g2, agrupar = grupos(g1[ok]), grupos(g2[ok]), grupos(agrupar[ok])
     k = X.shape[1]
 
     def tirar_medias(M: np.ndarray, w: np.ndarray) -> np.ndarray:
@@ -449,7 +618,7 @@ def ppml_dois_efeitos(y: np.ndarray, X: np.ndarray, g1: np.ndarray, g2: np.ndarr
             break
         desvio = novo
     s = Xd * (mu * resid)[:, None]
-    sg = np.stack([np.bincount(g1, s[:, j]) for j in range(k)], 1)
+    sg = np.stack([np.bincount(agrupar, s[:, j]) for j in range(k)], 1)
     Hi = np.linalg.inv(XtWX)
     return b, np.sqrt(np.diag(Hi @ (sg.T @ sg) @ Hi)), int(ok.sum())
 
@@ -472,11 +641,26 @@ def estimar(con: duckdb.DuckDBPyConnection) -> dict:
     [(n_dep, n_pares, bi, bi_fns, bi_est)] = q("SELECT count(DISTINCT sq), count(*), sum(emenda) / 1e9, sum(fns) / 1e9, sum(est) / 1e9 FROM painel")
     r["painel"] = {"deputados": n_dep, "pares": n_pares, "emendas_bi": round(bi, 2), "das_quais_fns_bi": round(bi_fns, 2),
                    "pagas_a_governo_estadual_bi": round(bi_est, 2)}
+    # O FNS confere com o Portal? Emendas individuais de saúde, por ano: o que o FNS diz que pagou, o que o Portal
+    # registra, e quanto disso o Portal mostra como pago ao Banco do Brasil, sem a cidade.
+    r["fns_x_portal_bi"] = {str(ano): {"fns": round(f, 2), "portal_saude": round(p, 2), "portal_pago_ao_banco_do_brasil": round(bb, 2)}
+                            for ano, f, p, bb in q(f"""
+        SELECT f.ano, f.bi, p.bi, p.bb FROM (SELECT ano, sum(pago) / 1e9 bi FROM fns GROUP BY 1) f
+        JOIN (SELECT ano, sum(valor) / 1e9 bi, sum(valor) FILTER (coalesce(codigo, '') = '{BB}') / 1e9 bb
+              FROM '{INSUMOS / "emendas-portal.parquet"}' WHERE tipo = 'Individual' AND area = 'Saúde' GROUP BY 1) p USING (ano)
+        ORDER BY 1""")}
     a0, a1 = ANOS_EMENDA
     anos = list(range(a0, a1 + 1))
-    cols = ["sq", "ibge", "veterano", "emenda", "est", "votos", "populacao", "validos", "votos26", "v26_tot"] + [f"e{a}" for a in anos]
-    d = dict(zip(cols, (np.array(x) for x in zip(*q(f"SELECT {', '.join(cols)} FROM painel ORDER BY sq, ibge")))))
-    for k in cols[3:]:
+    antes = list(range(ANOS_ANTES[0], ANOS_ANTES[1] + 1))
+    cols = (["sq", "ibge", "veterano", "emenda", "est", "votos", "populacao", "validos", "votos26", "v26_tot"] + [f"e{a}" for a in anos]
+            + ["votos18", "emenda_antes"] + [f"e{a}" for a in antes]
+            + ["prefeito_do_partido", "partido_na_coligacao", "partido_disputou_e_perdeu", "estaduais22", "parceiros22", "parceiros22_ambos", "parceiros26"])
+    # as colunas que podem faltar (o deputado não concorreu em 2018, a cidade não tem prefeito no arquivo, o deputado
+    # não tem parceiro) ganham uma marca à parte, porque abaixo o que falta vira zero
+    marcas = {"tem18": "votos18", "tem_pref": "prefeito_do_partido", "tem_par": "parceiros22", "tem_par26": "parceiros26"}
+    sel = cols + [f"({v} IS NOT NULL)::INT {k}" for k, v in marcas.items()]
+    d = dict(zip(cols + list(marcas), (np.array(x) for x in zip(*q(f"SELECT {', '.join(sel)} FROM painel ORDER BY sq, ibge")))))
+    for k in cols[3:] + list(marcas):
         d[k] = np.array([0 if v is None else v for v in d[k]], float)
     g = grupos(d["sq"])
     votos, pop, validos = d["votos"], d["populacao"], d["validos"]
@@ -579,6 +763,118 @@ def estimar(con: duckdb.DuckDBPyConnection) -> dict:
     r["votos_2026"]["associacao_por_ano_de_pagamento"] = {
         str(a): {"coef": round(float(bi), 3), "ep": round(float(ei), 3), "em_porcentagem": round(float(np.exp(bi) - 1), 3)}
         for a, bi, ei in zip(anos, b, ep)}
+
+    # ---- Os testes que tentam separar "a emenda traz o voto" de "a emenda acompanha a aliança". Associação, sempre.
+    gi = grupos(d["ibge"])
+    pct = lambda x: round(float(np.exp(x) - 1), 3)
+
+    def recebeu_e_valor(m, valor=em):
+        """Recebeu (0/1) e log do valor, centrado entre quem recebeu dentro do recorte m."""
+        rec = valor > 0
+        le = np.zeros(len(valor))
+        le[rec] = np.log(valor[rec])
+        le[rec & m] -= le[rec & m].mean()
+        return rec.astype(float), le
+
+    def dois(yv, colunas, rotulos, m, em_pct=()):
+        """Poisson com efeito fixo de deputado e de município, no recorte m."""
+        b, ep, n = ppml_dois_efeitos(yv[m], np.column_stack([c_[m] for c_ in colunas]), g[m], gi[m])
+        saida = coef(rotulos, b, ep) | {"pares": n, "deputados": int(len(np.unique(d["sq"][m])))}
+        for k in em_pct:
+            saida[k]["em_porcentagem"] = pct(saida[k]["coef"])
+        return saida
+
+    def um(yv, colunas, rotulos, m, em_pct=()):
+        saida = modelo(yv, colunas, rotulos, m)
+        for k in em_pct:
+            saida[k]["em_porcentagem"] = pct(saida[k]["coef"])
+        return saida
+
+    lv22 = np.log(np.maximum(votos, 1))
+
+    # 6. Votos de 2018: a base antiga explica? E o ciclo anterior: emenda paga antes × depois da eleição de 2022.
+    tem18, v18 = d["tem18"] > 0, d["votos18"]
+    l18, z18, lv18 = np.log1p(v18), (v18 == 0).astype(float), np.log(np.maximum(v18, 1))
+    m = c26 & tem18 & (votos > 0)
+    R, L = recebeu_e_valor(m)
+    rot3 = ["recebeu", "log_emenda", "log_votos_2022"]
+    antes_em = d["emenda_antes"]
+    rec_antes, rec_depois = (antes_em > 0).astype(float), recebeu.astype(float)
+    mv = tem18 & vet & (v18 > 0)
+    mn = tem18 & ~vet
+    r["votos_2018"] = {
+        "deputados_com_candidatura_em_2018": int(len(np.unique(d["sq"][tem18]))),
+        "votos_2026_sem_controlar_2018": dois(v26, [R, L, lv22], rot3, m, ["recebeu"]),
+        "votos_2026_controlando_2018": dois(v26, [R, L, lv22, l18, z18], rot3 + ["log_votos_2018", "zero_voto_2018"], m, ["recebeu"]),
+        "destino_da_emenda_dados_2022_e_2018": um(em, [lv, z, l18, z18, lp], ["votos_2022", "zero_voto_2022", "votos_2018", "zero_voto_2018", "populacao"], tem18),
+        # veteranos, votos de 2022 dados os de 2018: a emenda paga no próprio mandato (2019–22) e a paga depois (2023–26)
+        "ciclo_anterior": {
+            "emenda_2019_22_no_painel_bi": round(float(antes_em[vet].sum() / 1e9), 2),
+            "so_a_paga_antes_da_eleicao": dois(votos, [rec_antes, lv18], ["recebeu_2019_22", "log_votos_2018"], mv, ["recebeu_2019_22"]),
+            "so_a_paga_depois_da_eleicao": dois(votos, [rec_depois, lv18], ["recebeu_2023_26", "log_votos_2018"], mv, ["recebeu_2023_26"]),
+            "as_duas_juntas": dois(votos, [rec_antes, rec_depois, lv18], ["recebeu_2019_22", "recebeu_2023_26", "log_votos_2018"], mv,
+                                   ["recebeu_2019_22", "recebeu_2023_26"]),
+            "por_ano_de_pagamento": dois(votos, [(d[f"e{a}"] > 0).astype(float) for a in antes] + [lv18],
+                                         [str(a) for a in antes] + ["log_votos_2018"], mv, [str(a) for a in antes]),
+        },
+        # quem concorreu em 2018 sem mandato não tinha emenda: a de 2023–26 foi para onde ele tinha crescido?
+        "novatos_sem_mandato_em_2018": um(votos, [rec_depois, l18, z18, lval], ["recebeu_2023_26", "votos_2018", "zero_voto_2018", "votos_validos"],
+                                          mn, ["recebeu_2023_26"]) if mn.any() else None,
+    }
+
+    # 7. Prefeitos eleitos em 2024: o dinheiro acompanha o prefeito? O partido do prefeito explica o voto?
+    tp = d["tem_pref"] > 0
+    pref, colig, perdeu = d["prefeito_do_partido"], d["partido_na_coligacao"], d["partido_disputou_e_perdeu"]
+    e2324, e2526 = d["e2023"] + d["e2024"], d["e2025"] + d["e2026"]
+    rotp = ["prefeito_do_partido", "partido_na_coligacao", "partido_disputou_e_perdeu"]
+    # onde o partido do deputado disputou a prefeitura: emenda depois da posse × antes, ganhou × perdeu,
+    # cada par deputado–cidade comparado consigo mesmo (efeitos fixos de par e de deputado × período)
+    qd = tp & ((pref > 0) | (perdeu > 0))
+    n = int(qd.sum())
+    b, ep, nobs = ppml_dois_efeitos(np.concatenate([e2324[qd], e2526[qd]]) / 1e6, np.concatenate([np.zeros(n), pref[qd]])[:, None],
+                                    np.concatenate([np.arange(n), np.arange(n)]), np.concatenate([g[qd], g[qd] + g.max() + 1]),
+                                    agrupar=np.concatenate([g[qd], g[qd]]))
+    m = c26 & tp & (votos > 0)
+    R, L = recebeu_e_valor(m)
+    r["prefeitos_2024"] = {
+        "pares": int(tp.sum()),
+        "fatia_dos_pares": {k: round(float(x[tp].mean()), 3) for k, x in zip(rotp, (pref, colig, perdeu))},
+        "destino_da_emenda_2023_24": um(e2324, [pref, colig, perdeu, lv, z, lp], rotp + RV, tp, rotp),
+        "destino_da_emenda_2025_26": um(e2526, [pref, colig, perdeu, lv, z, lp], rotp + RV, tp, rotp),
+        "ganhar_a_prefeitura_depois_x_antes": {"coef": round(float(b[0]), 3), "ep": round(float(ep[0]), 3), "em_porcentagem": pct(b[0]),
+                                               "observacoes": nobs, "pares_onde_o_partido_disputou": n},
+        "votos_2026": {
+            "so_emenda": dois(v26, [R, L, lv22], rot3, m, ["recebeu"]),
+            "so_prefeito": dois(v26, [pref, colig, perdeu, lv22], rotp + ["log_votos_2022"], m, rotp),
+            "emenda_e_prefeito": dois(v26, [R, L, pref, colig, perdeu, lv22], rot3[:2] + rotp + ["log_votos_2022"], m, ["recebeu"] + rotp),
+        },
+    }
+
+    # 8. Dobradinhas com deputado estadual: o grupo local explica o voto? O ganho é do deputado ou do grupo?
+    tpar, tpar26 = d["tem_par"] > 0, d["tem_par26"] > 0
+    forte = (d["parceiros22"] / np.maximum(d["estaduais22"], 1) >= 0.10).astype(float)
+    p22, p26 = d["parceiros22_ambos"], d["parceiros26"]
+    m = c26 & tpar26 & (votos > 0)
+    R, L = recebeu_e_valor(m)
+    mp = c26 & tpar26 & (p22 > 0)
+    Rp, Lp = recebeu_e_valor(mp)
+    [(n_pares, n_dep, mesmo, voltou)] = q("""SELECT count(*), count(DISTINCT sq), avg((partido = partido_estadual)::INT), avg((sq_est26 IS NOT NULL)::INT) FROM dobradinhas""")
+    r["dobradinhas"] = {
+        "pares_federal_estadual": n_pares, "deputados_com_parceiro": n_dep, "fatia_do_mesmo_partido": round(mesmo, 3),
+        "fatia_dos_parceiros_que_concorreram_em_2026": round(voltou, 3),
+        "destino_da_emenda": um(em, [forte, lv, z, lp], ["parceiros_com_10_por_cento_ou_mais_da_cidade"] + RV, tpar,
+                                ["parceiros_com_10_por_cento_ou_mais_da_cidade"]),
+        "votos_2026": {
+            "so_emenda": dois(v26, [R, L, lv22], rot3, m, ["recebeu"]),
+            "controlando_parceiros_em_2022": dois(v26, [R, L, lv22, np.log1p(p22)], rot3 + ["log_votos_dos_parceiros_2022"], m, ["recebeu"]),
+            "controlando_parceiros_em_2022_e_2026": dois(v26, [R, L, lv22, np.log1p(p22), np.log1p(p26)],
+                                                         rot3 + ["log_votos_dos_parceiros_2022", "log_votos_dos_parceiros_2026"], m, ["recebeu"]),
+        },
+        # o voto dos parceiros em 2026, dado o deles em 2022: foi melhor onde o federal mandou emenda?
+        "votos_dos_parceiros_2026": dois(p26, [Rp, Lp, np.log(np.maximum(p22, 1))], ["recebeu", "log_emenda", "log_votos_dos_parceiros_2022"], mp, ["recebeu"]),
+        "votos_dos_parceiros_2026_dados_os_do_deputado": dois(p26, [Rp, Lp, np.log(np.maximum(p22, 1)), lv, z],
+            ["recebeu", "log_emenda", "log_votos_dos_parceiros_2022", "log_votos_do_deputado_2022", "zero_voto_do_deputado"], mp, ["recebeu"]),
+    }
     return r
 
 
@@ -593,7 +889,7 @@ def publicar() -> None:
     base = f"{ESPELHO}/{PREFIXO}/{v}"
     PONTEIRO.write_text(json.dumps({"versao": v, "base": base,
                                     "insumos": [f"insumos/{n}" for n in ARQUIVOS_INSUMOS],
-                                    "resultados": ["painel.parquet", "resultados.json", "preco-por-deputado.csv"]},
+                                    "resultados": list(ARQUIVOS_RESULTADOS)},
                                    ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"publicado em {base}/ ; ponteiro em {PONTEIRO.relative_to(c.RAIZ)} (vai no commit)")
 
