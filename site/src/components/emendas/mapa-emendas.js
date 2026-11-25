@@ -144,17 +144,19 @@
   // ---- Agrupamento: municípios vizinhos na escala atual viram um grupo ----------------------
   // A célula é fixa em pixels: ao aproximar, cabem menos municípios em cada uma e os grupos se
   // abrem, até sobrar um município por célula. Com uma cidade aberta não se agrupa nada.
-  let grupos = [], soltos = [];
+  // A grade é presa ao mapa, não à tela: a célula mede CELULA/k unidades da projeção, contadas a
+  // partir da origem do mapa. Mover o mapa no mesmo zoom não muda quem cai em cada célula — só o
+  // zoom refaz os grupos. Por isso os grupos são do país inteiro, não só do que está na tela.
+  let grupos = [], soltos = [], kAgrupado = null;
   function agrupar() {
     const t = d3.zoomTransform(svg.node());
-    const m = palco.getBoundingClientRect();
-    const celula = munSel ? 0 : CELULA;
+    kAgrupado = t.k;
+    const celula = CELULA / t.k;
     const cels = new Map();
     for (const d of emDesenho) {
-      const p = projecao(d.c), [x, y] = t.apply(p);
-      if (x < -CELULA || y < -CELULA || x > m.width + CELULA || y > m.height + CELULA) continue;
+      const p = projecao(d.c);
       const v = valorDe(d);
-      const chave = celula ? `${Math.floor(x / celula)},${Math.floor(y / celula)}` : d.ibge;
+      const chave = `${Math.floor(p[0] / celula)},${Math.floor(p[1] / celula)}`;
       let g = cels.get(chave);
       if (!g) cels.set(chave, (g = { itens: [], v: 0, sx: 0, sy: 0, por: new Map(), maior: d }));
       g.itens.push(d); g.v += v; g.sx += p[0] * v; g.sy += p[1] * v;
@@ -181,6 +183,12 @@
   const raioSolto = (d) => Math.max(R_MIN_BOLHA, raio(valorDe(d)));
   const comRosto = () => modoCara && caraCabe();
 
+  /** Está dentro do palco (com folga)? Retratos e nomes só para esses: fora da tela seria foto baixada à toa. */
+  function naVista(x, y, folga = 60) {
+    const m = palco.getBoundingClientRect();
+    return x > -folga && y > -folga && x < m.width + folga && y < m.height + folga;
+  }
+
   function desenharMarcas() {
     const t = d3.zoomTransform(svg.node());
     // municípios sozinhos: a bolha de sempre, agora em px de tela
@@ -197,7 +205,8 @@
 
     // de perto, o nome dos maiores municípios sozinhos à vista; e o município aberto pintado na malha
     const k = t.k;
-    const comNome = k >= ZOOM_NOMES ? [...soltos].sort((a, b) => valorDe(b) - valorDe(a)).slice(0, NOMES_MAX) : [];
+    const comNome = k >= ZOOM_NOMES
+      ? soltos.filter((d) => naVista(...t.apply(projecao(d.c)), 0)).sort((a, b) => valorDe(b) - valorDe(a)).slice(0, NOMES_MAX) : [];
     gNomes.selectAll("text").data(comNome, (d) => d.ibge).join("text")
       .text((d) => d.n)
       .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
@@ -217,7 +226,7 @@
     novos.append("text").attr("class", "selo-txt").attr("text-anchor", "middle").attr("dy", "0.35em");
     novos.merge(gs).each(function (g) {
       const r = raioGrupo(g), [x, y] = t.apply([g.px, g.py]);
-      const padrao = comRosto() && g.dono ? padraoDe(g.dono) : null;
+      const padrao = comRosto() && g.dono && naVista(x, y) ? padraoDe(g.dono) : null;
       const n = String(g.itens.length), larg = 12 + 7 * n.length;
       const sel = d3.select(this).attr("transform", `translate(${x},${y})`).classed("foto", !!padrao);
       sel.select(".fundo").attr("r", r).style("fill", padrao ? `url(#${padrao})` : null);
@@ -374,24 +383,31 @@
     const trocou = munSel?.ibge !== d.ibge;
     munSel = d; munFiltro = ""; munBusca = ""; munLimite = 60; elMun.busca.value = "";
     esconder(true);
-    if (!main.classList.contains("com-mun")) { main.classList.add("com-mun"); dimensionar(); }
-    focarMunicipio(d);
+    // O painel abre por cima do mapa, à direita: o mapa não muda de tamanho, de zoom nem de lugar.
+    // Só se a bolha clicada ficaria escondida atrás do painel é que o mapa desliza, sem mudar o zoom.
+    main.classList.add("com-mun");
+    desenharMarcas();
+    garantirVisivel(d);
     if (trocou) { munDados = null; pintarMunicipio(); }
     const [dados] = await Promise.all([d3.json(`${BASE}/mun/${d.ibge}.json`).catch(() => []), carregarPop()]);
     if (munSel !== d) return;
     munDados = dados;
     pintarMunicipio();
   }
-  function focarMunicipio(d) {
-    agrupar();   // sem grupos: a cidade aberta e as vizinhas aparecem uma a uma
-    const m = palco.getBoundingClientRect(), [x, y] = projecao(d.c), k = 7;
-    svg.transition().duration(650).call(zoom.transform,
-      d3.zoomIdentity.translate(m.width / 2 - k * x, m.height / 2 - k * y).scale(k));
+  function garantirVisivel(d) {
+    const m = palco.getBoundingClientRect(), t = d3.zoomTransform(svg.node());
+    const painel = document.getElementById("mun").getBoundingClientRect();
+    const livre = innerWidth > 1100 ? m.width - painel.width : m.width;   // no celular o painel é uma folha embaixo
+    const [x, y] = t.apply(projecao(d.c));
+    if (x > 40 && x < livre - 40 && y > 40 && y < m.height - 40) return;
+    const alvoX = livre / 2, alvoY = m.height / 2;
+    svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity.translate(t.x + alvoX - x, t.y + alvoY - y).scale(t.k));
   }
   function fecharMunicipio() {
     munSel = null; munDados = null;
     main.classList.remove("com-mun");
-    dimensionar();
+    desenharMarcas();
+    pintarTotal();
   }
   // Uma emenda paga em mais de um ano entra no ano escolhido se o pagamento passou por ele; o valor
   // mostrado é o total dela (o arquivo não reparte por ano), e o texto do resumo avisa.
@@ -494,7 +510,12 @@
 
   const zoom = d3.zoom().scaleExtent([1, 40])
     .on("start", () => svg.classed("arrastando", true))
-    .on("end", () => { svg.classed("arrastando", false); agrupar(); })
+    .on("end", () => {
+      svg.classed("arrastando", false);
+      const k = d3.zoomTransform(svg.node()).k;
+      if (kAgrupado === null || Math.abs(k - kAgrupado) > 1e-9) agrupar();   // mudou o zoom: refaz os grupos
+      else desenharMarcas();                                                 // só moveu: retratos e nomes do que entrou na tela
+    })
     .on("zoom", (ev) => {
       const k = ev.transform.k;
       g.attr("transform", ev.transform);
