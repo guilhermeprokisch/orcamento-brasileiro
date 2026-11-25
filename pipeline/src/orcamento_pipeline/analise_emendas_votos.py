@@ -891,7 +891,9 @@ def publicar() -> None:
                                     "insumos": [f"insumos/{n}" for n in ARQUIVOS_INSUMOS],
                                     "resultados": list(ARQUIVOS_RESULTADOS)},
                                    ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    print(f"publicado em {base}/ ; ponteiro em {PONTEIRO.relative_to(c.RAIZ)} (vai no commit)")
+    # A página do site (site/src/lib/analises.ts) lê os números desta cópia, que vai no commit com o ponteiro.
+    shutil.copyfile(SAIDA / "resultados.json", PONTEIRO.parent / "resultados.json")
+    print(f"publicado em {base}/ ; ponteiro e resultados.json em {PONTEIRO.parent.relative_to(c.RAIZ)}/ (vão no commit)")
 
 
 def main() -> None:

@@ -1,0 +1,150 @@
+---
+/**
+ * Análises: a entrada da seção. Cada análise é uma pergunta, com a resposta curta logo abaixo.
+ * Para publicar outra: um item em ANALISES (lib/analises.ts) e a página dela em pages/analises/.
+ */
+import Base from "../../layouts/Base.astro";
+import { ANALISES, EMENDAS_VOTOS as d, GITHUB_ANALISES, dataPorExtenso, porcento } from "../../lib/analises";
+
+const lista = [...ANALISES].sort((a, b) => b.data.localeCompare(a.data));
+// O resumo em números ao lado de cada análise.
+const meio = d.dono.find((f) => f.faixa === "1–3%")!;
+const RESUMOS: Record<string, { titulo: string; linhas: { nome: string; valor: number; fraco?: boolean }[] }> = {
+  "emendas-votos": {
+    titulo: "Chance de a cidade receber emenda do deputado",
+    linhas: [
+      { nome: "ele teve zero voto", valor: d.chanceSemVoto, fraco: true },
+      { nome: "1–3% dos votos", valor: meio.chance },
+      { nome: "mais da metade", valor: d.chanceMaisDaMetade },
+    ],
+  },
+};
+---
+
+<Base title="Análises · Orçamento Brasileiro" description="Perguntas sobre o dinheiro público, respondidas com dados que você pode refazer.">
+  <div class="wrap pagina">
+    <section class="abre">
+      <div class="apresenta">
+        <span class="sobretitulo verde">Análises</span>
+        <h1>Perguntas sobre o dinheiro público, respondidas com dados que você pode refazer</h1>
+        <p>
+          Cada análise começa com uma pergunta, mostra o que os dados respondem e o que eles não respondem, e deixa as
+          contas abertas para qualquer pessoa refazer.
+        </p>
+      </div>
+      <div class="traz">
+        <p class="rotulo">Toda análise traz</p>
+        <ol>
+          <li><strong>A resposta curta</strong>, no alto</li>
+          <li><strong>Os números</strong>, com a fonte de cada um</li>
+          <li><strong>Os limites</strong>: o que não dá para concluir</li>
+          <li><strong>Como refazer</strong>: tudo aberto no GitHub</li>
+        </ol>
+      </div>
+    </section>
+
+    <section aria-labelledby="publicadas">
+      <div class="cabeca">
+        <h2 id="publicadas">Publicadas</h2>
+        <span>{lista.length} {lista.length === 1 ? "análise" : "análises"} · mais recente primeiro</span>
+      </div>
+      {lista.map((a) => {
+        const resumo = RESUMOS[a.slug];
+        return (
+          <article class="item">
+            <div class="texto">
+              <p class="meta"><span>{dataPorExtenso(a.data)}</span>{a.temas.map((t) => <span>{t}</span>)}</p>
+              <h3><a href={`/analises/${a.slug}`}>{a.titulo}</a></h3>
+              <p class="resumo"><strong>{a.resposta}</strong> {a.resumo}</p>
+              <p class="acoes">
+                <a class="botao" href={`/analises/${a.slug}`}>Ler a análise</a>
+                <span>Fontes: {a.fontes}</span>
+              </p>
+            </div>
+            {resumo && (
+              <div class="numeros" aria-label="Resumo em números">
+                <p class="rotulo">{resumo.titulo}</p>
+                {resumo.linhas.map((l) => (
+                  <div class="linha">
+                    <span>{l.nome}</span>
+                    <span class="barra"><i class:list={{ fraco: l.fraco }} style={`width: ${Math.max(l.valor * 86, 3).toFixed(1)}%`}></i><strong class="num">{porcento(l.valor)}</strong></span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+        );
+      })}
+    </section>
+
+    <section class="refazer" aria-labelledby="como">
+      <div>
+        <h2 id="como">Como refazer qualquer análise</h2>
+        <p class="menor">O código e os dados de cada análise ficam abertos, para quem quiser conferir ou apontar um erro.</p>
+      </div>
+      <div class="convite">
+        <p>
+          Não precisa acreditar na gente. Cada análise tem uma página no GitHub com o método, os dados usados e o passo a
+          passo para refazer as contas.
+        </p>
+        <p><a class="botao-linha" href={GITHUB_ANALISES}>Ver as análises no GitHub →</a></p>
+      </div>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .pagina { padding-top: 56px; padding-bottom: 80px; display: flex; flex-direction: column; gap: 56px; }
+  .rotulo { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+
+  .abre { display: flex; flex-wrap: wrap; gap: 40px 64px; align-items: flex-end; }
+  .apresenta { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+  .apresenta h1 { font-size: 52px; line-height: 1.08; max-width: 20ch; }
+  .apresenta p { margin: 0; font-family: var(--serifa); font-size: 21px; line-height: 1.5; color: var(--texto-2); max-width: 60ch; }
+  .traz { flex: 1 1 300px; min-width: 0; border-top: 2px solid var(--tinta); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .traz ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.45; color: var(--texto-2); }
+  .traz strong { color: var(--tinta); }
+
+  .cabeca { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--tinta); padding-bottom: 10px; }
+  .cabeca h2 { font-size: 26px; }
+  .cabeca span { font-size: 14px; color: var(--texto-3); }
+
+  .item { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; padding: 32px 0; border-bottom: 1px solid var(--regra-leve); }
+  .item .texto { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  .meta { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--texto-3); }
+  .item h3 { font-size: 32px; line-height: 1.15; }
+  .item h3 a { color: var(--tinta); text-decoration: none; }
+  .item h3 a:hover { text-decoration: underline; text-decoration-thickness: 2px; }
+  .resumo { margin: 0; font-size: 17px; line-height: 1.55; color: var(--texto-2); max-width: 62ch; }
+  .resumo strong { color: var(--tinta); }
+  .acoes { margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; font-size: 13px; color: var(--texto-3); }
+  .acoes .botao { height: 44px; padding: 0 18px; font-size: 15px; }
+
+  .numeros { min-width: 0; align-self: start; display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; background: #efeadf; }
+  .linha { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 14px; color: var(--texto-2); }
+  .barra { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--tinta); }
+  .barra i { display: block; height: 18px; background: var(--verde); flex: none; }
+  .barra i.fraco { background: #a8461f; }
+
+  .refazer { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px; border-top: 2px solid var(--tinta); padding-top: 24px; }
+  .refazer h2 { font-size: 26px; line-height: 1.2; }
+  .refazer .menor { margin: 12px 0 0; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
+  .convite { display: flex; flex-direction: column; gap: 12px; }
+  .convite p { margin: 0; font-size: 17px; line-height: 1.55; color: var(--texto-2); }
+  .botao-linha {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px;
+    border: 1px solid var(--tinta); color: var(--tinta); text-decoration: none; font-weight: 600; font-size: 15px;
+  }
+  .botao-linha:hover { background: var(--tinta); color: var(--papel); }
+
+  @media (max-width: 900px) {
+    .item, .refazer { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .pagina { padding-top: 32px; padding-bottom: 56px; gap: 40px; }
+    .apresenta h1 { font-size: 36px; }
+    .apresenta p { font-size: 18px; }
+    .item h3 { font-size: 26px; }
+    .linha { grid-template-columns: 112px minmax(0, 1fr); }
+  }
+</style>
