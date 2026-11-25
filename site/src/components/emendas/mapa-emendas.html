@@ -1,10 +1,12 @@
 <details class="aviso" id="aviso">
   <summary>Como ler este mapa</summary>
-  <p>Pagamentos de emendas do Portal da Transparência, 2014–2026, por município favorecido. De longe, um círculo por estado, com o retrato de quem
-    mais mandou para o estado; aproximando, as principais cidades à vista aparecem no centróide da malha do IBGE,
-    com o retrato de quem mais mandou para elas, e quanto mais perto, mais <b>municípios</b> entram. O lugar é o do favorecido que recebeu
-    o pagamento, não o endereço da obra. Os dados
-    não têm endereço nem coordenada. A cara vem do cadastro da Câmara e do Senado; bancada, comissão e
+  <p>Pagamentos de emendas do Portal da Transparência, 2014–2026, por município favorecido; a área de cada
+    bolha é o valor pago. De longe, um círculo por <b>estado</b>, com o retrato de quem mais mandou para ele;
+    clique para entrar no estado. Aproximando, as principais cidades à vista aparecem no centróide da malha
+    do IBGE, com o retrato de quem mais mandou para elas, e quanto mais perto, mais <b>municípios</b> entram.
+    Passe o mouse numa cidade para ver quem mandou para lá, cada um com o valor; clique nela para entrar: os
+    retratos ficam dentro do território e as emendas, listadas ao lado. O lugar é o do favorecido que recebeu
+    o pagamento, não o endereço da obra. A cara vem do cadastro da Câmara e do Senado; bancada, comissão e
     relator são colegiados e aparecem como monograma.</p>
   <p><b>Brasília</b> fica fora do mapa. Sozinha são R$ 112 bi, 40% de tudo — não é dinheiro gasto no
     DF: quando o pagamento vai para uma entidade ou empresa com sede em Brasília, o "município favorecido"
@@ -27,8 +29,8 @@
         <button type="button" data-t="Comissão">comissão</button>
         <button type="button" data-t="Pix">Pix</button>
       </div></div>
-    <label class="cel ano"><span>pagas em</span>
-      <select class="tk" id="ano" aria-label="Ano das emendas"></select></label>
+    <div class="cel ano"><span>pagas em</span>
+      <div class="grupo anos" id="ano" aria-label="Ano das emendas"></div></div>
   </div>
   <p class="total"><b id="total">—</b><span id="total-sub">—</span></p>
 </header>
@@ -42,25 +44,6 @@
 <div class="palco-todo" id="main">
   <div class="palco" id="palco">
     <svg id="mapa" role="img" aria-label="Emendas parlamentares por município: grupos de municípios vizinhos, que o zoom abre"></svg>
-    <div class="legenda">
-      <span>Valor pago</span>
-      <svg id="legenda" aria-hidden="true"></svg>
-      <div class="grupo escala" id="escala" aria-label="Escala das bolhas">
-        <button type="button" data-e="raiz" aria-pressed="true">área ∝ valor</button>
-        <button type="button" data-e="log">log</button>
-      </div>
-      <p class="nota-cara" id="nota-cara" hidden><span class="so-tela-grande">De longe, um círculo por
-        <b>estado</b>: o retrato é do parlamentar que mais mandou para lá, o tamanho é quanto foi pago. Clique
-        para entrar no estado. De perto, as principais cidades à vista, com o retrato de quem mais
-        mandou para elas — e quanto mais você aproxima, mais <b>municípios</b> aparecem. Clique numa cidade para
-        entrar nela: os parlamentares que mandaram para lá aparecem dentro do território, cada um do tamanho do
-        que mandou, e as emendas ficam listadas ao lado.</span>
-        <button type="button" id="marca-todos"></button></p>
-    </div>
-    <div class="ranking">
-      <span>Maiores do ano</span>
-      <ol id="top"></ol>
-    </div>
     <div class="faixa" id="faixa" hidden></div>
     <div class="cartao" id="cartao" hidden></div>
   </div>

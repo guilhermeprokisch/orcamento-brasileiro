@@ -116,7 +116,8 @@
   const semCentro = Object.keys(dados.mun).length - lugares.length;
   if (semCentro) console.warn(`${semCentro} municípios sem centróide na malha`);
 
-  let iAno = ANOS.length, escala = "raiz", semDF = true;   // iAno === ANOS.length ⇒ todos os anos
+  // Começa no último ano (2026, em andamento); "tudo" (iAno === ANOS.length) soma 2014–2026.
+  let iAno = ANOS.length - 1, semDF = true;
   let autorSel = null, serieAutor = null;   // serieAutor: Map ibge → série anual só desse autor
   let filtroTipo = "";                      // "" = todos os tipos de emenda
   // Com um autor escolhido vale a série dele; sem autor, a do tipo pedido (d.st) ou a soma (d.s).
@@ -204,9 +205,8 @@
       }
     }
     const maior = Math.max(d3.max(grupos, (g) => g.v) ?? 0, d3.max(soltos, valorDe) ?? 0, 1);
-    raio.domain(escala === "raiz" ? [0, maior] : [Math.max(1, (d3.min(soltos, valorDe) ?? 1)), maior]);
+    raio.domain([0, maior]);
     desenharMarcas();
-    desenharLegenda(maior);
   }
 
   const raioGrupo = (g) => Math.max(R_MIN_GRUPO, raio(g.v));
@@ -438,7 +438,7 @@
       .sort((a, b) => valorDe(b) - valorDe(a));
     const vals = visiveis.map(valorDe);
     const rMax = Math.min(46, Math.max(26, (window.innerWidth || 900) / 26));
-    raio = (escala === "raiz" ? d3.scaleSqrt() : d3.scaleLog().clamp(true)).range(escala === "raiz" ? [0, rMax] : [2, rMax]);
+    raio = d3.scaleSqrt().range([0, rMax]);
     emDesenho = visiveis;
 
     const total = d3.sum(vals);
@@ -447,34 +447,10 @@
     const fv = document.getElementById("faixa-v");
     if (fv) fv.textContent = `${brl(total)} em ${visiveis.length} municípios`;
 
-    document.getElementById("top").innerHTML = visiveis.slice(0, 10).map((d) =>
-      `<li data-ibge="${d.ibge}"><span><b>${escapar(d.n)}</b><small>${escapar(d.u)}</small>
-         <i>${brl(valorDe(d))}</i></span></li>`).join("");
-
-    const nota = document.getElementById("nota-cara");
-    nota.hidden = !!autorSel || !caraCabe();
-    document.getElementById("marca-todos").textContent = modoCara ? "esconder os retratos" : "mostrar os retratos";
-
     agrupar();
   }
 
   function rotuloAno() { return iAno === ANOS.length ? "2014–2026" : String(ANOS[iAno]); }
-
-  function desenharLegenda(max) {
-    const l = d3.select("#legenda"); l.selectAll("*").remove();
-    const passos = [max, max / 4, max / 25].filter((v) => v > 0);
-    const rBase = Math.max(6, raio(passos[0]) || 1);
-    // A caixa acompanha a maior bolha: com altura fixa o rótulo de cima saía cortado.
-    const alt = 2 * rBase + 12, larg = 2 * rBase + 86;
-    l.attr("viewBox", `0 0 ${larg} ${alt}`).attr("width", larg).attr("height", alt)
-     .style("width", larg + "px").style("height", alt + "px");
-    const cx = rBase + 2;
-    for (const v of passos) {
-      const r = Math.max(1.4, raio(v));
-      l.append("circle").attr("cx", cx).attr("cy", alt - 4 - r).attr("r", r);
-      l.append("text").attr("x", cx + rBase + 7).attr("y", alt - 4 - 2 * r).attr("dy", "0.35em").text(brl(v));
-    }
-  }
 
   /** O cartão segue o ponteiro, dentro do palco; com uma cidade aberta no computador, só na parte livre. */
   function posicionarCartao(ev) {
@@ -730,11 +706,12 @@
   }
   addEventListener("resize", dimensionar);
 
-  const seletorAno = document.getElementById("ano");
-  seletorAno.innerHTML = [`<option value="${ANOS.length}">2014–2026, tudo</option>`,
-    ...ANOS.map((a, i) => `<option value="${i}">${a}${a === 2026 ? " (até agora)" : ""}</option>`).reverse()].join("");
-  seletorAno.value = String(ANOS.length);
-  seletorAno.onchange = () => { iAno = +seletorAno.value; recalcular(); esconder(); if (munSel) pintarMunicipio(); };
+  // Os anos são uma linha do tempo, não um menu: um botão por ano, e "tudo" no fim.
+  document.getElementById("ano").innerHTML = [
+    ...ANOS.map((a, i) => `<button type="button" data-i="${i}" aria-pressed="${i === iAno}"${a === 2026 ? ' title="2026, até agora"' : ""}>${a}</button>`),
+    `<button type="button" data-i="${ANOS.length}" aria-pressed="${iAno === ANOS.length}" title="2014–2026 somados">tudo</button>`].join("");
+  // No celular a linha rola: começa mostrando o fim, onde está o ano escolhido.
+  { const el = document.getElementById("ano"); el.scrollLeft = el.scrollWidth; }
   const grupo = (sel, aplicar) => {
     for (const b of document.querySelectorAll(`${sel} button`)) b.onclick = () => {
       aplicar(b);
@@ -742,9 +719,8 @@
       refluir(); esconder();
     };
   };
-  document.getElementById("marca-todos").onclick = () => { modoCara = !modoCara; refluir(); };
   grupo("#tipo", (b) => { filtroTipo = b.dataset.t; if (porAutor) pintarLista(); });
-  grupo("#escala", (b) => { escala = b.dataset.e; });
+  grupo("#ano", (b) => { iAno = +b.dataset.i; if (munSel) pintarMunicipio(); });
   // Brasília não é um controle: é uma decisão de edição, explicada no aviso, com uma saída para quem quiser ver.
   const verDf = document.getElementById("ver-df");
   verDf.onclick = (ev) => {
@@ -848,12 +824,6 @@
     else if (munSel) fecharMunicipio();
     else esconder(true);
   });
-  document.getElementById("top").onpointerover = (ev) => {
-    const li = ev.target.closest("li"); if (!li) return;
-    const d = lugares.find((x) => x.ibge === li.dataset.ibge);
-    if (d) mostrar(d, { clientX: li.getBoundingClientRect().left - 16, clientY: li.getBoundingClientRect().top });
-  };
-  document.getElementById("top").onpointerleave = esconder;
 
   // No computador o aviso fica aberto; no celular, fechado, senão come a tela do mapa.
   const aviso = document.getElementById("aviso");
