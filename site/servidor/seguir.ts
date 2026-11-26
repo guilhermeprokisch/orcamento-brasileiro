@@ -154,7 +154,7 @@ export function emailConfirmacao(nomes: string[], link: string): { assunto: stri
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#e9e4d8;"><tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#f7f4ec;border-top:4px solid #0e6b3b;">
 <tr><td style="padding:32px 32px 28px;font-family:Inter,Arial,sans-serif;color:#191919;">
-<p style="margin:0 0 20px;font-family:Georgia,serif;font-size:20px;font-weight:700;">Orçamento Brasileiro</p>
+<p style="margin:0 0 20px;font-family:Georgia,serif;font-size:20px;font-weight:700;"><img src="${SITE}/email/marca.png" width="35" height="24" alt="" style="vertical-align:-4px;margin-right:10px;border:0;">Orçamento Brasileiro</p>
 <h1 style="margin:0 0 20px;font-family:Georgia,serif;font-size:28px;line-height:1.2;">Falta um clique para seguir ${l}</h1>
 <p style="margin:0 0 24px;font-size:16px;line-height:1.55;color:#3d3a33;">Alguém (esperamos que você) pediu para receber por este e-mail as novidades das contas de <strong style="color:#191919;">${l}</strong>. Confirme no botão abaixo.</p>
 <p style="margin:0 0 24px;"><a href="${escapar(link)}" style="display:inline-block;padding:15px 26px;background:#0e6b3b;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;">Confirmar e seguir</a></p>

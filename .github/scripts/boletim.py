@@ -192,7 +192,7 @@ def montar(pessoa: dict, blocos: list[tuple[dict, list[dict], bool]]) -> EmailMe
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#f7f4ec;font-family:Inter,Arial,sans-serif;">
 <tr><td style="background:#191919;padding:20px 28px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-<td style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:#f7f4ec;">Orçamento Brasileiro</td>
+<td style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:#f7f4ec;"><img src="{SITE}/email/marca.png" width="35" height="24" alt="" style="vertical-align:-4px;margin-right:10px;border:0;">Orçamento Brasileiro</td>
 <td align="right" style="font-size:13px;color:#ddd6c6;">{mes}</td></tr></table></td></tr>
 <tr><td style="padding:32px 28px 0;">{corpo}</td></tr>
 </table>
