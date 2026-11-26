@@ -101,6 +101,42 @@ mudar (por exemplo, depois de o ramo ser mesclado), troque o caminho no plist. P
 `--direto` envia sem a pergunta de confirmação, nos formulários sem CAPTCHA e sem etapas desconhecidas (hoje, TCE-SE e
 ALERR). Nos outros, o comando recusa a opção.
 
+## Para continuar (estado em 26/11/2026)
+
+Os pedidos de 23/11/2026 sobre o custo dos mandatos (`custo-dos-mandatos.md`, textos em `textos/custo-dos-mandatos/`)
+vencem em **13/12/2026** (23/12 com prorrogação). `lai prazos` mostra cada um; `lai caixa` lê as respostas no
+Homerow; o resumo das 8h30 manda por e-mail o que mudou (seção "Toda manhã").
+
+O que falta enviar, e só anda com o Guilherme:
+
+- **TCE-PR:** confirmar se o envio de 23/11 terminou. Travou na verificação de imagens da etapa 2 e nenhuma
+  confirmação chegou. Se não saiu, refazer com `lai enviar TCE-PR`: o script preenche a identificação; na etapa 2,
+  colar o texto e passar pela verificação.
+- **TCE-RN:** a ouvidoria pediu o Fala.BR (login gov.br). Reenviar o mesmo texto por lá.
+- **ALETO:** o e-mail volta (caixa cheia). O SIC (`al.to.leg.br/loginExterno/sic`) pede conta com CPF e senha: criar a
+  conta, depois escrever o adaptador.
+- **ALESE:** o servidor deles recusa o do inout.email e o formulário do e-SIC está quebrado. Mandar de outro e-mail ou
+  ligar.
+- **ALPB:** esperar a ouvidora registrar o pedido que foi na resposta ao e-mail dela. O portal tem CAPTCHA quebrado; se
+  ela insistir no portal, o argumento é o art. 10, § 2º (o órgão tem de viabilizar o pedido pelo site).
+- **TCE-SC:** conferir se o download de "Movimentações Funcionais" (Pessoal On-line, no Farol) traz a remuneração por
+  pessoa. Se não, recurso.
+- **Formulários com login, ainda sem adaptador:** TCM-BA, TCM-GO (o cadastro na ouvidoria serve também para pedir o
+  token do web service), TCE-AM (SEI, usuário externo com análise de documentos), ALRS (gov.br), ALEAL e ALAP. Para
+  cada um: o Guilherme faz o login no navegador do script (o perfil guarda a sessão), `lai inspecionar` a página e se
+  escreve o adaptador em `formularios.py`.
+
+Quando chegar resposta:
+
+- Anotar no `registro.csv` a situação, o protocolo e o resumo da resposta, sem dado pessoal (algumas respostas citam o
+  formulário com CPF e endereço).
+- Resposta com dados: guardar em `data/raw/` e seguir a ordem da seção 5 de `docs/levantamento-mandatos-locais.md`.
+- Negativa, resposta que não atende ou prazo vencido sem resposta: recurso em 10 dias (art. 15), pelo mesmo canal.
+
+O que o site pode fazer sem esperar as respostas (seção 5 do levantamento): "Quanto custa a Câmara" em todas as
+cidades, pelo Siconfi; o salário de prefeitos e vereadores no ES, PB, CE e MA; a verba dos vereadores de São Paulo,
+Fortaleza, Manaus e Natal; as páginas de deputado estadual, começando por CLDF, ALEPE e ALEGO.
+
 ## Escrever um formulário novo
 
 1. `uv run --extra lai lai inspecionar <URL>` lista os campos da página.
