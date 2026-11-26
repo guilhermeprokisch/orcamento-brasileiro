@@ -19,6 +19,7 @@ CAB = ("CPF_CNPJ;TIPO_PESSOA;TIPO_DEVEDOR;NOME_DEVEDOR;UF_DEVEDOR;UNIDADE_RESPON
 CPF_MASCARADO = "XXX982247XX"
 PESSOA = "MARIA DA SILVA"
 MEI = "JOSE SOUZA 52998224725"
+PRODUTOR = "ANTONIO LAVRADOR E OUTRO"   # produtor rural pessoa física com CNPJ (natureza 412-0)
 
 
 def linha(doc, pessoa, devedor, nome, sit, aj, valor, uf="PB"):
@@ -33,6 +34,7 @@ LINHAS = [
     linha(CPF_MASCARADO, "Pessoa física", "PRINCIPAL", PESSOA, "Em cobrança", "NAO", "300"),
     linha("11.222.333/0001-81", "Pessoa jurídica", "PRINCIPAL", MEI, "Garantia", "SIM", "5000"),
     linha("44.555.666/0001-00", "Pessoa jurídica", "PRINCIPAL", "MUNICIPIO DE CAMPINA", "Suspenso por decisão judicial", "NAO", "700"),
+    linha("55.666.777/0001-60", "Pessoa jurídica", "PRINCIPAL", PRODUTOR, "Em cobrança", "NAO", "400"),
     linha("77.888.999/0001-11", "Pessoa jurídica", "PRINCIPAL", "EMPRESA SEM CADASTRO SA", "Em cobrança", "NAO", "50"),
 ]
 
@@ -45,7 +47,7 @@ class DividaAtiva(unittest.TestCase):
             z.writestr("arquivo_lai_SIDA_1_202609.csv", "\n".join([CAB, *LINHAS]).encode("latin-1"))
         # Cadastro já em cache: cnpj; município SIAFI; ativa; natureza jurídica.
         (self.tmp / "cadastro-2026-11.csv").write_text(
-            "35992959000135;2051;1;2062\n11222333000181;2051;0;2135\n44555666000100;2051;1;1244\n77888999000111;0;-1;\n",
+            "35992959000135;2051;1;2062\n11222333000181;2051;0;2135\n44555666000100;2051;1;1244\n55666777000160;2051;1;4120\n77888999000111;0;-1;\n",
             encoding="utf-8")
 
     def montar(self) -> dict:
@@ -58,21 +60,22 @@ class DividaAtiva(unittest.TestCase):
     def test_somas(self) -> None:
         doc = self.montar()
         b = doc["brasil"]
-        self.assertEqual(b["total"], round(1000.5 + 200 + 5000 + 700 + 50) + 300)  # sem o corresponsável
+        self.assertEqual(b["total"], round(1000.5 + 200 + 5000 + 700 + 400 + 50) + 300)  # sem o corresponsável
+        self.assertEqual(b["individuais"], 5000 + 400)   # o MEI e o produtor rural: pessoas com CNPJ
         self.assertEqual(b["pessoas"], [300, 1])
         self.assertEqual(b["sem_cidade"], [50, 1])
         total, tipos, sit, empresas, publico, fechadas, maiores = doc["mun"]["2504009"]
-        self.assertEqual(total, round(1000.5 + 200 + 5000 + 700))
-        self.assertEqual(empresas, 3)
+        self.assertEqual(total, round(1000.5 + 200 + 5000 + 700 + 400))
+        self.assertEqual(empresas, 4)
         self.assertEqual(publico, 700)
         self.assertEqual(fechadas, 5000)
-        self.assertEqual(sit, [1000, 0, 200, 5000, 700])
+        self.assertEqual(sit, [1000, 400, 200, 5000, 700])
         self.assertEqual(doc["uf"]["PB"][1:3], [300, 1])
         self.assertEqual(doc["posicao"], "09/2026")
 
     def test_privacidade(self) -> None:
         texto = json.dumps(self.montar(), ensure_ascii=False)
-        for proibido in (CPF_MASCARADO, "982247", PESSOA, "SOCIO", "JOSE SOUZA", "52998224725"):
+        for proibido in (CPF_MASCARADO, "982247", PESSOA, "SOCIO", "JOSE SOUZA", "52998224725", PRODUTOR, "55.666.777"):
             self.assertNotIn(proibido, texto)
         nomes = [m[0] for m in json.loads(texto)["mun"]["2504009"][6]]
         self.assertEqual(nomes, ["CONSTRUTORA BOA OBRA LTDA", "MUNICIPIO DE CAMPINA"])

@@ -1,0 +1,207 @@
+---
+/**
+ * Saiu daqui, voltou: o imposto federal que saiu de uma cidade ou de um estado (recolhido pela Receita e estimado
+ * pelo PIB) e o que voltou da União (repasses, benefícios, INSS e gasto dos órgãos federais), em 2025.
+ * Ver lib/saiu-voltou.ts e docs/levantamento-saiu-voltou.md.
+ */
+import Termo from "../Termo.astro";
+import { moedaCompleta, moedaExtenso } from "../../lib/formato";
+import { RAMPA } from "../../lib/cores";
+import { porPessoa } from "../../lib/cidades";
+import { saiuVoltou } from "../../lib/saiu-voltou";
+
+interface Props {
+  esfera: "mun" | "uf";
+  /** Código do IBGE da cidade (o DF é 53) ou sigla do estado. */
+  chave: string;
+  /** "de São Paulo", "do Piauí", "do Distrito Federal" */
+  deOnde: string;
+  /** "em São Paulo", "no Piauí", "no Distrito Federal" */
+  onde: string;
+}
+const { esfera, chave, deOnde, onde } = Astro.props;
+const s = await saiuVoltou(esfera, chave);
+const ehDF = chave === "53" || chave === "DF";
+const ehRio = chave === "3304557";
+const estado = esfera === "uf";
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const deCem = (r: number) => `R$ ${nf0.format(r * 100)}`;
+const pm = (v: number) => porPessoa(v / (s?.pop || 1));
+
+const r = s?.razao ?? null;
+const re = s?.razaoEstimada ?? null;
+const baixo = r !== null && re !== null ? Math.min(r, re) : r;
+const alto = r !== null && re !== null ? Math.max(r, re) : r;
+// Recolhido aqui contra gerado aqui: acima de 1, há sedes; abaixo, o imposto daqui é recolhido em outro lugar.
+const sede = s?.estimado ? s.saiu / s.estimado : null;
+const topo = s?.partes.slice(0, 3) ?? [];
+const listaFrase = topo.map((p) => `${pm(p.valor)} ${p.frase}`);
+const frasePartes = listaFrase.length > 1 ? `${listaFrase.slice(0, -1).join(", ")} e ${listaFrase.at(-1)}` : listaFrase[0];
+const barras = s
+  ? [
+      { nome: "Saiu: o que a Receita recolheu aqui", valor: s.saiu, tipo: "saiu" },
+      ...(s.estimado ? [{ nome: "Saiu: se o imposto seguisse a riqueza produzida aqui", valor: s.estimado, tipo: "estimado" }] : []),
+      { nome: "Voltou da União", valor: s.voltou, tipo: "voltou" },
+    ]
+  : [];
+const maior = Math.max(1, ...barras.map((b) => b.valor));
+---
+
+{s && r !== null && (
+  <section class="saiu-voltou">
+    <div class="texto">
+      <span class="sobretitulo">O caminho dos impostos</span>
+      <h2>Saiu daqui, voltou</h2>
+      <p class="manchete">
+        De cada R$ 100 em impostos federais que saíram {deOnde} em {s.ano}, voltaram{" "}
+        {re !== null && baixo !== alto && Math.round(baixo! * 100) !== Math.round(alto! * 100)
+          ? <strong>entre {deCem(baixo!)} e {deCem(alto!)}</strong>
+          : <strong>{deCem(r)}</strong>}.
+      </p>
+      <p>
+        {baixo! > 1
+          ? "Chega mais do que sai: a diferença vem dos lugares que mandam mais do que recebem."
+          : alto! < 1
+            ? "Sai mais do que chega: a diferença vai para lugares que recebem mais do que mandam e para o que não tem endereço numa cidade."
+            : r > 1
+              ? "Pelo imposto recolhido aqui, chega mais do que sai. Se o imposto seguisse a riqueza produzida aqui, sairia mais do que chega."
+              : "Pelo imposto recolhido aqui, sai mais do que chega. Se o imposto seguisse a riqueza produzida aqui, chegaria mais do que sai."}{" "}
+        No Brasil, voltam {deCem(s.brasil.razao)} de cada R$ 100 {estado ? "para alguma cidade ou para os governos estaduais" : "para alguma cidade"}.
+      </p>
+
+      <h3>Saiu</h3>
+      <p>
+        A Receita Federal recolheu {onde} <strong>{moedaExtenso(s.saiu)}</strong> em impostos federais, contando o INSS, ou{" "}
+        {pm(s.saiu)} por morador.{" "}
+        {ehDF
+          ? "Aqui o governo federal recolhe o imposto de renda e o INSS descontados de todos os servidores federais do país, e ficam as sedes dos bancos públicos."
+          : sede !== null && sede > 1.25
+            ? `Parte disso foi gerada em outros lugares: as empresas recolhem o imposto ${estado ? "no estado" : "na cidade"} da sede, inclusive o das filiais e o descontado do salário de quem trabalha em outro lugar.`
+            : sede !== null && sede < 0.8
+              ? `É menos do que se gera aqui: o imposto embutido no que se compra aqui é recolhido onde ficam as fábricas e os atacadistas, e o de quem trabalha numa empresa de ${estado ? "outro estado" : "outra cidade"} fica lá.`
+              : ""}
+        {s.estimado && (
+          <> Se o imposto seguisse a riqueza produzida aqui (a parte {deOnde} no <Termo id="pib" /> do país), seriam{" "}
+          <strong>{pm(s.estimado)} por morador</strong>.</>
+        )}
+      </p>
+
+      <h3>Voltou</h3>
+      <p>
+        A União pôs {onde} <strong>{moedaExtenso(s.voltou)}</strong>, ou {pm(s.voltou)} por morador: {frasePartes}.
+        {s.emendas > 0 && <> As <Termo id="emenda-parlamentar">emendas parlamentares</Termo> somam {moedaExtenso(s.emendas)} desse total.</>}
+      </p>
+      {ehDF && (
+        <p class="menor">
+          Do que os órgãos federais gastaram aqui, só o Fundo Constitucional do DF ({moedaExtenso(s.brasil.fcdf)}), que paga a
+          polícia e parte da saúde e da educação do DF, entra na conta. Os outros {moedaExtenso(s.brasil.fora_brasilia)} pagam
+          salários, compras e obras do país inteiro.
+        </p>
+      )}
+      {ehRio && (
+        <p class="menor">
+          Não entra a folha da Marinha e da Aeronáutica paga daqui a militares do país todo ({moedaExtenso(s.brasil.fora_rio)}).
+        </p>
+      )}
+    </div>
+
+    <div class="dados">
+      <p class="unidade">Por morador, {s.ano}</p>
+      <ul class="comparacao">
+        {barras.map((b) => (
+          <li class={b.tipo}>
+            <span class="lb-linha"><span>{b.nome}</span><strong class="num" title={moedaCompleta(b.valor)}>{pm(b.valor)}</strong></span>
+            <span class="trilho">
+              {b.tipo === "voltou"
+                ? s.partes.map((p, k) => <span class="pedaco" style={`width:${(p.valor / maior) * 100}%;background:${RAMPA[Math.min(k, RAMPA.length - 1)]}`}></span>)
+                : <span class="pedaco" style={`width:${(b.valor / maior) * 100}%`}></span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <ul class="partes">
+        {s.partes.map((p, k) => (
+          <li>
+            <i style={`background:${RAMPA[Math.min(k, RAMPA.length - 1)]}`}></i>
+            <span><strong>{p.nome}</strong>{p.nota && <small>{p.nota}</small>}</span>
+            <span class="num" title={moedaCompleta(p.valor)}>{pm(p.valor)}</span>
+          </li>
+        ))}
+      </ul>
+
+      <div class="nao-diz">
+        <h3>O que esta conta não diz</h3>
+        <ul>
+          <li>
+            <strong>Onde o imposto foi gerado.</strong> A Receita registra o imposto onde ele é recolhido. As empresas recolhem na
+            sede, e o imposto embutido nos preços é pago pela fábrica e pelo atacadista. São Paulo, Rio e Brasília recolhem metade
+            do imposto federal do país. A conta pelo <Termo id="pib" /> é uma estimativa: quem ganha mais paga mais imposto de
+            renda, e a economia informal paga menos.
+          </li>
+          <li>
+            <strong>Tudo o que a União gasta aqui.</strong> Metade do que os órgãos federais gastam fica registrada em Brasília,
+            onde estão as sedes: a folha da Polícia Federal, do INSS e da Receita, os remédios e vacinas do Ministério da Saúde e
+            as obras do DNIT.
+          </li>
+          <li>
+            <strong>Onde mora quem se aposentou.</strong> O INSS fica na cidade da agência que paga. Quem mora numa cidade sem
+            agência aparece na cidade vizinha.
+          </li>
+          <li>
+            <strong>O que não tem cidade.</strong> As aposentadorias dos servidores federais, o seguro-desemprego, o abono, os juros
+            da dívida e os subsídios ao crédito rural não têm dado por cidade.{!estado && " O que a União repassa ao governo do estado (o FPE, por exemplo) também ajuda a pagar escolas e polícia aqui, mas aparece só na página do estado."}
+          </li>
+        </ul>
+      </div>
+
+      <p class="fonte">
+        Para onde vai cada imposto: <a href="/impostos#siga-o-seu-imposto">o caminho dos impostos</a>. Fontes: {s.fonte}, {s.ano};
+        PIB de {s.anoPib}, usado só para repartir o imposto do país. Repasses e gasto direto: valor pago no ano.
+        INSS: valor líquido dos benefícios.
+      </p>
+    </div>
+  </section>
+)}
+
+<style>
+  .saiu-voltou { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 32px; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto h3 { margin: 10px 0 0; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .manchete { font-family: var(--serifa); font-size: 22px; line-height: 1.4; color: var(--tinta); }
+  .texto .manchete strong { background: var(--marca-texto-fundo); font-weight: 600; }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .dados { grid-column: span 7; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .unidade { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  h3 { margin: 0; font-family: var(--sans, inherit); font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .comparacao { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .comparacao li { display: flex; flex-direction: column; gap: 5px; }
+  .lb-linha { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .lb-linha > span { min-width: 0; font-weight: 600; }
+  .lb-linha strong { white-space: nowrap; font-weight: 600; }
+  .trilho { display: flex; height: 14px; }
+  .pedaco { display: block; height: 100%; min-width: 2px; }
+  .saiu .pedaco { background: var(--areia); }
+  .estimado .pedaco { background: repeating-linear-gradient(135deg, var(--areia) 0 4px, var(--areia-clara) 4px 8px); }
+  .estimado .lb-linha > span { font-weight: 400; color: var(--texto-2); }
+  .voltou .pedaco + .pedaco { min-width: 0; }
+  .partes { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .partes li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; }
+  .partes i { width: 12px; height: 12px; align-self: center; }
+  .partes strong { font-weight: 600; }
+  .partes small { display: block; font-size: 13px; color: var(--texto-3); }
+  .partes .num { white-space: nowrap; font-weight: 600; }
+  .nao-diz { background: var(--papel-escuro); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .nao-diz ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+  .nao-diz li { font-size: 14px; line-height: 1.55; color: var(--texto-2); }
+  .nao-diz strong { color: var(--tinta); font-weight: 600; }
+  .fonte { margin: 0; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .saiu-voltou { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 28px; line-height: 1.1; }
+    .texto .manchete { font-size: 19px; }
+  }
+</style>

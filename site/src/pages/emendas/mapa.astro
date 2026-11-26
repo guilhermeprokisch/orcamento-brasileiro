@@ -1,0 +1,44 @@
+---
+/**
+ * O mapa das emendas: uma bolha por município (área ∝ valor pago), retratos dos parlamentares que mais
+ * mandaram para o que está na tela, e o clique na cidade abrindo as emendas dela uma a uma.
+ *
+ * A marcação, o CSS e o script vêm de components/emendas/mapa-emendas.{html,css,js}: um bloco autônomo
+ * (d3 do CDN), no espírito de src/mapa/pagina.html, dentro do layout do site e das abas das emendas.
+ * Os dados são a pasta versionada que `uv run emendas-mapa` grava e `uv run espelho` leva ao bucket;
+ * o resumo (site/public/data/emendas-mapa/resumo.json) diz qual versão está no ar. No servidor de
+ * desenvolvimento a mesma pasta é servida por um link simbólico em /data/emendas-mapa/<versão>.
+ */
+import Base from "../../layouts/Base.astro";
+import EmendasAbas from "../../components/emendas/EmendasAbas.astro";
+import html from "../../components/emendas/mapa-emendas.html?raw";
+import css from "../../components/emendas/mapa-emendas.css?raw";
+import js from "../../components/emendas/mapa-emendas.js?raw";
+import { mapaAutores } from "../../lib/politicos";
+
+interface Resumo { versao: string; base: string; anos: number[]; municipios: number; emendas: number; total_mil: number; fonte: string }
+const arquivos = import.meta.glob<Resumo>("../../../public/data/emendas-mapa/resumo.json", { eager: true, import: "default" });
+const r: Resumo | null = Object.values(arquivos)[0] ?? null;
+const base = r ? (import.meta.env.DEV ? `/data/emendas-mapa/${r.versao}` : r.base) : "";
+const anos = r ? `${r.anos[0]}–${r.anos.at(-1)}` : "";
+// slug do autor (como nas emendas) → /politicos/<uf>/<nome>, para o nome na lista levar à página da pessoa.
+const politicos = mapaAutores();
+---
+
+<Base title="Emendas no mapa · Orçamento Brasileiro" description={`Para onde vão as emendas parlamentares: uma bolha por cidade, os parlamentares que mais mandam para cada região e as emendas de cada lugar, uma a uma (${anos}).`}>
+  <div class="wrap">
+    <EmendasAbas ativa="mapa" compacto />
+  </div>
+  {r
+    ? <div class="mapa-emendas" data-base={base} data-versao={r.versao} set:html={html} />
+    : <div class="wrap"><p class="sem-dados">Os dados do mapa ainda não foram gerados (<code>uv run emendas-mapa</code>).</p></div>}
+</Base>
+
+<style is:global set:html={css}></style>
+<style>
+  .sem-dados { margin: 40px 0; color: var(--texto-3); }
+</style>
+
+<script type="application/json" id="politicos-autores" set:html={JSON.stringify(politicos)}></script>
+<script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script is:inline set:html={js}></script>

@@ -51,7 +51,7 @@ cidadãos, e serão publicadas apenas de forma agregada por município.
 
 | Estado | Enviado em | Protocolo | Prazo | Resposta |
 |---|---|---|---|---|
-| São Paulo | 19/11/2026 (Fala SP, Secretaria da Fazenda e Planejamento; o site pôs o serviço "Atendimento SEFAZ") | 2026111920372156 | 09/12/2026 (até 19/12/2026 com prorrogação) | |
+| São Paulo | 19/11/2026 (Fala SP, Secretaria da Fazenda e Planejamento; o site pôs o serviço "Atendimento SEFAZ") | 2026111920372156 | 09/12/2026 (até 19/12/2026 com prorrogação) | **Concluído (25/11/2026)**: a SEFAZ-SP indicou a Tabela 1.10 — ICMS por Região e Município, do "Relatório da Receita Tributária" (portal da Fazenda, dados abertos). Arquivo consolidado 2009–2025, ICMS por município do estabelecimento, em reais mil. Incorporado ao mapa (`uv run icms`, ver [plano-de-melhorias.md](../plano-de-melhorias.md) item 6) |
 | Minas Gerais | 19/11/2026 (e-SIC MG, Secretaria de Estado de Fazenda – SEF; resposta pelo sistema, com aviso por e-mail) | 01190.000278/2026-05 | 09/12/2026 (até 19/12/2026 com prorrogação) | |
 | Rio de Janeiro | | | | |
 | Bahia | | | | |

@@ -1,0 +1,69 @@
+name: Boletim
+
+# O e-mail mensal de quem segue uma cidade ou um estado (.github/scripts/boletim.py).
+# Só manda para quem tem novidade desde o último e-mail; sem novidade, ninguém recebe nada.
+# Roda no dia 27, depois das cargas mensais (supersalários até o dia 25, bimestral no dia 1º e 31).
+on:
+  schedule:
+    - cron: "0 13 27 * *"
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "ensaio (monta e guarda os e-mails, não envia) ou enviar"
+        type: choice
+        options: [ensaio, enviar]
+        default: ensaio
+      teste_para:
+        description: "Opcional: manda só um exemplo para este endereço, sem usar o banco"
+        required: false
+      teste_alvos:
+        description: "Lugares do exemplo (mun-<IBGE> ou uf-<UF>, separados por vírgula)"
+        default: "mun-4205407,uf-SC"
+
+concurrency:
+  group: boletim
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  boletim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: vars.SEGUIR_LIGADO == '1' || github.event_name == 'workflow_dispatch'
+    env:
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_D1_TOKEN: ${{ secrets.CF_D1_TOKEN }}
+      D1_SEGUIR_ID: ${{ secrets.D1_SEGUIR_ID }}
+      SMTP_SENHA: ${{ secrets.BOLETIM_SMTP_SENHA }}
+      SMTP_USUARIO: ${{ vars.BOLETIM_SMTP_USUARIO }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Exemplo para um endereço
+        if: inputs.teste_para != ''
+        run: python3 .github/scripts/boletim.py --teste-para "$PARA" --teste-alvos "$ALVOS"
+        env:
+          PARA: ${{ inputs.teste_para }}
+          ALVOS: ${{ inputs.teste_alvos }}
+
+      - name: Ensaio
+        if: inputs.teste_para == '' && inputs.modo == 'ensaio'
+        run: python3 .github/scripts/boletim.py --ensaio --saida boletim-ensaio
+
+      - name: Guardar o ensaio
+        if: inputs.teste_para == '' && inputs.modo == 'ensaio'
+        uses: actions/upload-artifact@v4
+        with:
+          name: boletim-ensaio
+          path: boletim-ensaio
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Enviar
+        if: github.event_name == 'schedule' || (inputs.teste_para == '' && inputs.modo == 'enviar')
+        run: python3 .github/scripts/boletim.py

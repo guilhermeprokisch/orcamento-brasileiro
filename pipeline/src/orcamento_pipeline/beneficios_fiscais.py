@@ -21,8 +21,9 @@ Fontes:
 
 Regras de privacidade (as mesmas da dívida ativa):
 
-- Os arquivos não trazem CPF. Empresário individual e MEI (natureza 213-5) são pessoas: entram nos totais, nunca
-  pelo nome, e ficam fora dos arquivos por empresa. Um nome com um número de 11 dígitos (um CPF) também.
+- Os arquivos não trazem CPF. Quem tem CNPJ mas é pessoa entra nos totais, nunca pelo nome, e fica fora dos arquivos
+  por empresa: empresário individual e MEI (natureza 213-5) e o grupo 4 das naturezas, o das pessoas físicas
+  (produtor rural, empresa individual imobiliária, candidato…). Um nome com um número de 11 dígitos (um CPF) também.
 - As empresas com restrição judicial já vêm sem nome nem CNPJ e aparecem assim.
 
 Saídas:
@@ -52,8 +53,8 @@ from pathlib import Path
 import duckdb
 
 from .cidades import RAIZ
-from .divida_ativa import (EMPRESARIO_INDIVIDUAL, PASTA as PASTA_PGFN, S as SIT, TIPOS as TIPOS_PGFN, URL_RECEITA,
-                           _abrir, _baixar, _pode_nomear, arquivos_pgfn, situacao, ultimo_mes_receita, ultimo_trimestre)
+from .divida_ativa import (PASTA as PASTA_PGFN, S as SIT, TIPOS as TIPOS_PGFN, URL_RECEITA,
+                           _abrir, _baixar, _pode_nomear, arquivos_pgfn, e_pessoa, situacao, ultimo_mes_receita, ultimo_trimestre)
 
 PASTA = RAIZ / "data" / "raw" / "receita-federal"
 PASTA_DIRBI = PASTA / "dirbi"
@@ -506,8 +507,8 @@ def main() -> None:
 
     mes = args.receita or ultimo_mes_receita()
     nat, cnaes = natureza_e_cnaes(raizes, mes)
-    print(f"  cadastro de CNPJ {mes}: natureza de {len(nat):,} empresas; {sum(1 for v in nat.values() if v == EMPRESARIO_INDIVIDUAL):,} "
-          "empresários individuais", flush=True)
+    print(f"  cadastro de CNPJ {mes}: natureza de {len(nat):,} empresas; {sum(1 for v in nat.values() if e_pessoa(v)):,} "
+          "pessoas com CNPJ (empresário individual, MEI, produtor rural…)", flush=True)
     div, posicao_pgfn = divida(raizes, args.trimestre)
     ultimo_fechado = con.execute("SELECT max(ano) FROM m WHERE meses = 12").fetchone()[0] or max(anos)
     ano_ct, _ = contratos_e_emendas(con, ultimo_fechado)
@@ -520,7 +521,7 @@ def main() -> None:
         destino.write_text(texto, encoding="utf-8")
     bi = lambda v: f"R$ {v / 1e9:,.1f} bi".replace(",", "X").replace(".", ",").replace("X", ".")  # noqa: E731
     print(f"{ano}: {bi(doc['total'])} de {doc['empresas']:,} empresas; as 100 maiores com "
-          f"{doc['concentracao']['top100'] / doc['total']:.0%}; {doc['ocultas'][0]:,} sem nome (empresário individual) com "
+          f"{doc['concentracao']['top100'] / doc['total']:.0%}; {doc['ocultas'][0]:,} sem nome (pessoas com CNPJ) com "
           f"{bi(doc['ocultas'][1])}; {doc['restricao'][0]} com restrição judicial ({bi(doc['restricao'][1])})")
     c = doc["cruzamentos"]
     print(f"  devem à União (em cobrança, PGFN {posicao_pgfn}): {c['devem'][0]:,} empresas, {bi(c['devem'][1])} de benefício, "

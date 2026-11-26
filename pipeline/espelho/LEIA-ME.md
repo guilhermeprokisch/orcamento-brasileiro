@@ -4,7 +4,7 @@ Cópia pública de tudo o que o site [orcamentobrasileiro.com.br](https://orcame
 
 Tudo aqui é cópia de dados abertos publicados pelo governo. **A fonte oficial manda**: se um órgão corrigir ou retirar um registro, a versão dele é a que vale. Cada arquivo guarda a data em que foi baixado (a data de modificação no bucket). Ao usar, cite a fonte original e, se quiser, o Orçamento Brasileiro.
 
-O código que baixa e trata tudo está em [github.com/guilhermeprokisch/orcamento-brasileiro](https://github.com/guilhermeprokisch/orcamento-brasileiro), na pasta `pipeline/`.
+O código que baixa e trata tudo está em [github.com/orcamento-brasileiro/orcamento-brasileiro](https://github.com/orcamento-brasileiro/orcamento-brasileiro), na pasta `pipeline/`.
 
 ## Como baixar
 

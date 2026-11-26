@@ -19,7 +19,10 @@ import Diagrama from "../components/impostos/Diagrama.astro";
 import Painel from "../components/impostos/Painel.astro";
 import SigaImposto from "../components/impostos/SigaImposto.astro";
 import { bi, biExtenso, docCaminho as doc, partesInteiras, porMorador, totalPago } from "../lib/caminho-impostos";
+import { brasilSaiuVoltou } from "../lib/saiu-voltou";
+import { caminhoEstado, NOMES_UF } from "../lib/cidades";
 
+const volta = await brasilSaiuVoltou();
 const deixa = doc?.deixa?.uniao ? { uniao: doc.deixa.uniao.total, estados: doc.deixa.estados?.total ?? 0 } : null;
 const total = doc ? totalPago(doc) : 0;
 const g = doc?.governos;
@@ -106,6 +109,19 @@ const descricao = doc && g
           <div><h2>Siga o seu imposto</h2><p>Para onde vai cada imposto que você paga. Escolha onde você paga, ou clique num imposto.</p></div>
         </div>
         <SigaImposto doc={doc} />
+        {volta && (
+          <aside class="na-sua-cidade">
+            <h3>E na sua cidade?</h3>
+            <p>
+              Quanto saiu de cada cidade e de cada estado em impostos federais em {volta.ano}, e quanto voltou da União em repasses,
+              aposentadorias, benefícios e gasto dos órgãos federais. No Brasil, de cada R$ 100, voltam R$ {Math.round(volta.razao * 100)} para
+              alguma cidade. <a href="/cidades">Procure a sua cidade</a> ou escolha um estado:
+            </p>
+            <ul>
+              {Object.entries(NOMES_UF).map(([uf, nome]) => <li><a href={`${caminhoEstado(uf)}#saiu-voltou`} title={nome}>{uf}</a></li>)}
+            </ul>
+          </aside>
+        )}
 
         <section class="fontes" id="fontes">
           <h2>De onde vêm os números</h2>
@@ -167,6 +183,12 @@ const descricao = doc && g
   .explorar-grade { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 32px; align-items: start; }
   .pagina-impostos :global(.so-estreito) { display: none; }
   #siga-o-seu-imposto { border-top: 2px solid var(--tinta); }
+  .na-sua-cidade { margin: 28px 0 8px; padding: 18px 20px; border: 1px solid var(--tinta); display: flex; flex-direction: column; gap: 10px; max-width: 880px; }
+  .na-sua-cidade h3 { font-size: 22px; }
+  .na-sua-cidade p { margin: 0; font-size: 16px; line-height: 1.55; color: var(--texto-2); }
+  .na-sua-cidade ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .na-sua-cidade li a { display: block; min-width: 40px; padding: 4px 8px; border: 1px solid var(--regra); text-align: center; font-size: 14px; text-decoration: none; color: var(--tinta); }
+  .na-sua-cidade li a:hover { border-color: var(--tinta); }
 
   .fontes { border-top: 2px solid var(--tinta); padding: 32px 0 0; display: flex; flex-direction: column; gap: 12px; max-width: 880px; }
   .fontes h2 { font-size: 26px; }
@@ -193,6 +215,11 @@ const descricao = doc && g
     .atalhos { padding-left: 0; }
     .liga-deixa { padding-left: 0; }
     .explorar-grade { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+    /* No celular, o painel vem logo embaixo do desenho, antes da série e das notas do que deixa de entrar. */
+    .explorar-grade > div, .desenho-sem-x:not([hidden]), .desenho-com-x:not([hidden]) { display: contents; }
+    .explorar-grade :global(.explorar-svg) { order: 1; }
+    .explorar-grade :global(.painel) { order: 2; }
+    .explorar-grade :global(.desenho-com-x > :not(svg)) { order: 3; }
     .pagina-impostos :global(.so-largo) { display: none !important; }
     .pagina-impostos :global(.so-estreito) { display: block !important; }
   }

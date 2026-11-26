@@ -66,6 +66,10 @@ fila_siconfi() {
   # Gasto com pessoal (RGF, Anexo 1): estados pela API; prefeituras como a dívida (rgf-a01-mun.tar).
   pipe pode-falhar "Gasto com pessoal dos estados" pessoal
   pipe pode-falhar "Gasto com pessoal das prefeituras" pessoal --prefeituras --max-chamadas 0
+  # Mínimo em saúde e em educação (RREO, Anexo 14, 6º bimestre), para os avisos das páginas: estados pela API;
+  # prefeituras como o pessoal (rreo-a14.tar do release e a cópia em pipeline/referencia/minimos-prefeituras.json).
+  pipe pode-falhar "Mínimos de saúde e educação dos estados" minimos
+  pipe pode-falhar "Mínimos de saúde e educação das prefeituras" minimos --prefeituras --max-chamadas 0
   # Dívida pública federal (/divida): Tesouro, Banco Central e o RGF dos 27 estados. Se o download
   # falhar, usa a cópia em pipeline/referencia/divida-federal.json.
   pipe pode-falhar "Dívida federal" divida-federal
@@ -92,6 +96,9 @@ fila_independente() {
   pipe pode-falhar "Saneamento (Censo 2022)" saneamento
   # Os Parquet dos exploradores ficam no bucket e são gerados à mão; aqui só os resumos.
   pipe pode-falhar "Explorador de emendas" explorador-emendas --sem-baixar
+  # O mapa das emendas (/emendas/mapa): a pasta versionada é gerada à mão (uv run emendas-mapa) e vive no bucket;
+  # aqui só o resumo, que diz à página qual versão está no ar.
+  pipe pode-falhar "Mapa das emendas" emendas-mapa --sem-baixar
   pipe pode-falhar "Receitas da União" receitas-uniao --sem-baixar
   # As contas fecham? (/contas): resultado primário e nominal (Banco Central) e despesas obrigatórias e
   # discricionárias (Resultado do Tesouro). Se o download falhar, usa pipeline/referencia/contas-federal.json.
@@ -110,10 +117,19 @@ fila_independente() {
   # feita à mão (uv run divida-ativa; ~1,5 GB da PGFN e ~6,7 GB da Receita, lidos e apagados), uma vez por
   # trimestre. Aqui só a cópia de referência.
   pipe pode-falhar "Dívida ativa da União" divida-ativa --sem-baixar
+  # Obras paradas (/obras-paradas e as páginas das cidades e dos estados): a lista do Painel de Obras Paralisadas do
+  # TCU, um Power BI sem arquivo para baixar. Cada data-base é exportada à mão do painel e lida por uv run obras-paradas
+  # (ver o começo de obras_paradas.py), uma vez por ano. Aqui, a cópia de referência com os valores dos convênios
+  # atualizados pelo arquivo de hoje do Transferegov (~18 MB); se o Transferegov não responder, fica a cópia como está.
+  pipe pode-falhar "Obras paradas (TCU e Transferegov)" obras-paradas --atualizar
   # Benefícios fiscais por empresa (/impostos/empresas): a Dirbi da Receita (~1,6 GB por três anos), o cadastro de CNPJ
   # (natureza jurídica, ~1,3 GB) e a dívida ativa, numa carga à mão (uv run beneficios-fiscais), a cada atualização
   # semestral da Dirbi. Os Parquet ficam no bucket; aqui só a cópia de referência do resumo.
   pipe pode-falhar "Benefícios fiscais por empresa" beneficios-fiscais --sem-baixar
+  # BNDES e estatais (/bndes e a seção da cidade): as operações do BNDES (~1,2 GB), o cadastro de CNPJ (~1,3 GB), o
+  # Orçamento de Subsídios, o Resultado do Tesouro e a SEST, numa carga à mão (uv run bndes) quando o BNDES atualiza
+  # (todo mês). Aqui só as cópias de referência.
+  pipe pode-falhar "BNDES e estatais" bndes --sem-baixar
   # Juízes e promotores acima do teto (DadosJusBr): o supersalarios.yml baixa os meses novos todo dia 20 e abre um
   # pull request com a cópia de referência; aqui só essa cópia.
   pipe pode-falhar "Acima do teto (DadosJusBr)" supersalarios --sem-baixar
@@ -134,6 +150,13 @@ fila_independente() {
   # O preço dos remédios (Compras.gov.br, PNCP e LicitaCon do TCE-RS): o precos.yml baixa toda segunda e abre um pull request
   # com as cópias de referência; aqui só essas cópias.
   pipe pode-falhar "Preço dos remédios" precos --sem-baixar
+  # Políticos (deputados federais e senadores: cota, gabinete, emendas e TSE): o politicos.yml baixa todo dia 5 e abre
+  # um pull request com a cópia de referência; aqui só essa cópia.
+  pipe pode-falhar "Políticos" politicos --sem-baixar
+  # Emendas dos deputados estaduais (a seção da cidade e "Para onde mandou emendas" em /politicos): cada estado publica
+  # de um jeito, e alguns portais só respondem do Brasil; a carga é à mão (uv run emendas-estaduais, docs/rodar-a-mao.md).
+  # Aqui, a cópia de referência.
+  pipe pode-falhar "Emendas dos deputados estaduais" emendas-estaduais --sem-baixar
 }
 
 # Espera um passo da fila SICONFI (ou a fila acabar: aí os passos seguintes usam o que houver).
@@ -170,6 +193,9 @@ fila_mapa() {
   # Camadas do mapa: arrecadação federal por município, imposto de renda por residência, dinheiro
   # federal (o Portal da Transparência às vezes responde com CAPTCHA) e INSS.
   pipe pode-falhar "Arrecadação federal por município" rfb
+  # ICMS oficial por município (hoje só São Paulo, Tabela 1.10 da SEFAZ-SP). Se o portal da SEFAZ não responder,
+  # usa a cópia em pipeline/referencia/icms-mun.json. O cache de data/raw guarda a planilha entre as execuções.
+  pipe_ref "ICMS por município (SEFAZ-SP)" pipeline/referencia/icms-mun.json site/public/data/mapa/icms-mun.json icms
   pipe_ref "Imposto de renda por cidade de residência" pipeline/referencia/irpf-res.json site/public/data/mapa/irpf-res.json irpf
   pipe pode-falhar "Dinheiro federal" federal 2025
   pipe pode-falhar "INSS" inss
@@ -181,6 +207,10 @@ fila_independente & PID_INDEP=$!
 fila_cidades & PID_CIDADES=$!
 fila_mapa & PID_MAPA=$!
 wait "$PID_SICONFI" "$PID_INDEP" "$PID_CIDADES" "$PID_MAPA"
+# Saiu daqui, voltou: junta o que três filas gravaram (imposto recolhido, dinheiro federal e INSS na do mapa, emendas
+# também; gasto federal direto na independente) com o PIB do IBGE. Por isso vem depois de todas. Se faltar uma
+# entrada, usa pipeline/referencia/saiu-voltou.json.
+pipe pode-falhar "Saiu daqui, voltou" saiu-voltou
 
 falhou=0
 for st in "$LOGS"/*.status; do
