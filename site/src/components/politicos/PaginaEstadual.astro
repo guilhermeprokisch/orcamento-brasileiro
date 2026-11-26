@@ -7,7 +7,8 @@
 import Termo from "../Termo.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import { anoPadrao, caminhoCidadeNome, docPoliticos, nomePartido, type Ano, type Politico } from "../../lib/politicos";
-import { caminhoEstado } from "../../lib/cidades";
+import { caminhoCidade, caminhoEstado } from "../../lib/cidades";
+import { cidadeDoIbge, cotaDoEstado, docEmendasEstaduais, emendasDoDeputado, estadosComEmendas } from "../../lib/emendas-estaduais";
 
 interface Props { p: Politico }
 const { p } = Astro.props;
@@ -131,6 +132,15 @@ function verbaSemDado() {
   if (ales?.frase) return `${CasaCurta} ${ales.frase}. Por isso não há números aqui.`;
   return "Ainda não temos esses dados.";
 }
+// As emendas ao orçamento do estado (emendas_estaduais.py), onde o estado publica com o deputado e a cidade.
+const emEst = governo ? null : emendasDoDeputado(p.chave, p.uf);
+const estEmendas = docEmendasEstaduais?.estados[p.uf];
+const estadoTemEmendas = estadosComEmendas().includes(p.uf);
+const nomeCurto = p.nome;
+const listaEstados = (() => {
+  const xs = estadosComEmendas().map((u) => doc.ufs[u] ?? u).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  return xs.length > 1 ? `${xs.slice(0, -1).join(", ")} e ${xs.at(-1)}` : xs[0] ?? "";
+})();
 const dataSaida = p.saida?.data ? new Date(p.saida.data + "T12:00:00") : null;
 const fraseSaida = p.saida
   ? `Governou de janeiro de 2023 ${dataSaida ? `até ${dataSaida.getDate()} de ${MESES[dataSaida.getMonth()]} de ${dataSaida.getFullYear()}` : "até 2026"}, quando deixou o cargo. ${p.saida.frase}`
@@ -273,12 +283,74 @@ const fraseSaida = p.saida
         </section>
       )}
 
-      {!governo && (
-        <section>
-          <h2>Emendas ao orçamento do estado</h2>
-          <p class="texto">Deputados {distrital ? "distritais" : "estaduais"} também indicam emendas, mas ao orçamento do {distrital ? "Distrito Federal" : "estado"}, não ao federal. Ainda não temos esses dados.</p>
-        </section>
-      )}
+      {!governo && (() => {
+        const em = emEst?.anos[ano];
+        const orcamento = distrital ? "do Distrito Federal" : deEstado;
+        if (!em) return (
+          <section>
+            <h2>Para onde mandou emendas</h2>
+            <p class="texto">
+              {estadoTemEmendas
+                ? (estEmendas && Number(ano) < estEmendas.anos[0]
+                    ? <>{mais(deEstado.replace(/^(de|do|da) /, (m) => ({ "de ": "", "do ": "o ", "da ": "a " } as Record<string, string>)[m]))} só publica as emendas com o nome do deputado a partir de {estEmendas.anos[0]}.</>
+                    : <>Nos dados de emendas {orcamento}, não há emendas em nome {dela} em {ano}.</>)
+                : <>Deputados {distrital ? "distritais" : "estaduais"} também indicam <Termo id="emenda-estadual">emendas</Termo>, ao orçamento {orcamento}. Ainda não temos as emendas {deEstado}: cada estado publica de um jeito, e por enquanto a conta tem {listaEstados}.</>}
+            </p>
+          </section>
+        );
+        const cota = cotaDoEstado(p.uf, ano);
+        const maxCid = em.cid[0]?.[1] ?? 1;
+        const g = em.g;
+        const maxG = g ? Math.max(...g, 1) : 1;
+        return (
+          <section>
+            <h2>Para onde mandou emendas</h2>
+            <p class="texto">
+              {quando(ano)}, {nomeCurto} indicou <strong>{milhoes(em.i)}</strong> em <Termo id="emenda-estadual">emendas</Termo> ao orçamento {orcamento}.{" "}
+              {em.p !== null
+                ? <>O governo {distrital ? "do Distrito Federal" : "do estado"} já pagou <strong>{milhoes(em.p)}</strong> dessas emendas{!distrital && em.nc > 0 && <>, para {em.nc} {em.nc === 1 ? "cidade" : "cidades"}</>}.</>
+                : <>{emEst!.estado.pago ? "Os dados do estado não trazem o pago completo desse ano." : "O governo do estado não publica quanto já pagou."}{!distrital && em.nc > 0 && <> As emendas foram para {em.nc} {em.nc === 1 ? "cidade" : "cidades"}.</>}</>}
+              {em.pix && em.pix > 0 && <> {mais(moedaCurta(em.pix))} foram por transferência especial, a <Termo id="emenda-pix">emenda Pix</Termo>, que cai direto no caixa da prefeitura.</>}
+              {em.est > 0 && !distrital && <> {mais(moedaCurta(em.est))} foram para o estado inteiro, sem uma cidade.</>}
+            </p>
+            {cota && (cota.igual
+              ? <p class="nota">{({ do: "No", da: "Na", de: "Em" } as Record<string, string>)[PREP[p.uf] ?? "de"]} {estado}, cada deputado tem quase a mesma cota de emendas, perto de {moedaCurta(cota.mediana)} no ano. O que muda é para onde manda.</p>
+              : <p class="nota">A mediana dos {colegas} foi {moedaCurta(cota.mediana)} indicados no ano.</p>)}
+            <div class="tres">
+              {!distrital && em.cid.length > 0 && (
+                <div>
+                  <h3>As cidades que mais receberam</h3>
+                  <div class="barras">
+                    {em.cid.map(([ibge, x]) => {
+                      const cid = cidadeDoIbge(ibge);
+                      return <div class="lin">{cid ? <a href={caminhoCidade(cid)}>{cid.nome}</a> : <span>{ibge}</span>}<i style={largura(x, maxCid)}></i><b>{moedaCurta(x)}</b></div>;
+                    })}
+                  </div>
+                  {em.nc > em.cid.length && <p class="nota">E mais {em.nc - em.cid.length} {em.nc - em.cid.length === 1 ? "cidade" : "cidades"}.</p>}
+                </div>
+              )}
+              {g && !distrital && (
+                <div>
+                  <h3>Para quem</h3>
+                  <div class="barras">
+                    {([["Prefeituras", g[0]], ["Entidades", g[1]], ["Órgãos do estado", g[2]]] as [string, number][]).filter(([, x]) => x > 0).map(([n, x]) => <div class="lin"><span>{n}</span><i class="areia" style={largura(x, maxG)}></i><b>{moedaCurta(x)}</b></div>)}
+                  </div>
+                  <p class="nota">Prefeituras inclui os fundos municipais; entidades são associações, caixas escolares e outras sem fins lucrativos.</p>
+                </div>
+              )}
+              {em.areas.length > 0 && (
+                <div>
+                  <h3>Para quê</h3>
+                  <div class="barras">
+                    {em.areas.map(([n, x]) => <div class="lin"><span>{n}</span><i class="azul" style={largura(x, em.areas[0][1])}></i><b>{moedaCurta(x)}</b></div>)}
+                  </div>
+                </div>
+              )}
+            </div>
+            <p class="nota">{em.p !== null ? "Os valores das cidades e das áreas são os já pagos." : "Os valores das cidades e das áreas são os indicados."} Fonte: <a href={emEst!.estado.url} rel="noopener">{emEst!.estado.fonte}</a>.{emEst!.estado.nota && <> {emEst!.estado.nota}</>}</p>
+          </section>
+        );
+      })()}
     </div>
   );
 })}
@@ -352,6 +424,8 @@ const fraseSaida = p.saida
         <li>Gastar muito da verba não é ilegal, e gastar pouco não quer dizer que trabalhou mais ou menos. O que vale olhar é em que foi gasto.</li>
         <li>Cada Assembleia tem regras próprias: o teto, o que a verba paga e o que é publicado mudam de um estado para outro. Por isso só comparamos deputados do mesmo estado.</li>
         <li>O salário do ano é aproximado. O número de assessores é o de hoje, não o de cada ano.</li>
+        {emEst && <li>A emenda é uma indicação: só vira dinheiro quando o governo {distrital ? "do Distrito Federal" : "do estado"} paga, e pode ser paga no ano seguinte. Emendas de blocos e bancadas, indicadas em grupo, não entram na conta de um deputado só.</li>}
+        {emEst && <li>O lugar da emenda é o de quem recebeu. Cada estado publica as emendas de um jeito; por enquanto a conta tem {listaEstados}.</li>}
       </>
     )}
     <li>Os bens são os que {ela} declarou ao TSE em 2022, pelo valor declarado, que em geral é o de compra.</li>

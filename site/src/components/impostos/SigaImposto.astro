@@ -89,9 +89,9 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
   .liga { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; }
   .grade-rotas { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 32px; align-items: start; }
   .lista-rotas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-  .lista-rotas button { width: 100%; display: grid; grid-template-columns: 200px minmax(0, 1fr) 76px; gap: 12px; align-items: center; padding: 4px 0; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; color: var(--tinta); }
-  .lista-rotas button:hover .lr-nome, .lista-rotas button[aria-pressed="true"] .lr-nome { text-decoration: underline; }
-  .lista-rotas button[aria-pressed="true"] .lr-barra { outline: 2px solid var(--tinta); outline-offset: 2px; }
+  .lista-rotas li > button { width: 100%; display: grid; grid-template-columns: 200px minmax(0, 1fr) 76px; gap: 12px; align-items: center; padding: 4px 0; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; color: var(--tinta); }
+  .lista-rotas li > button:hover .lr-nome, .lista-rotas li > button[aria-pressed="true"] .lr-nome { text-decoration: underline; }
+  .lista-rotas li > button[aria-pressed="true"] .lr-barra { outline: 2px solid var(--tinta); outline-offset: 2px; }
   .lista-rotas :global(li[data-apagado]) { opacity: 0.28; }
   .lr-nome { font-size: 15px; }
   .lr-barra { display: flex; height: 20px; gap: 1px; }
@@ -114,11 +114,17 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
 
   @media (max-width: 900px) {
     .grade-rotas { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
-    .lista-rotas button { grid-template-columns: 96px minmax(0, 1fr) 62px; gap: 8px; }
+    .lista-rotas li > button { grid-template-columns: 96px minmax(0, 1fr) 62px; gap: 8px; }
     .lr-nome { font-size: 13px; }
     .lr-valor { font-size: 12px; }
     .rota-info { position: static; }
+    /* O detalhe abre embaixo do imposto tocado (o script o move para dentro do item da lista). */
+    .lista-rotas .rota-info { margin: 6px 0 12px; }
+    /* Quem segura o lugar do que foi tocado é o script; sem isto, o Chrome também compensa e a lista pula. */
+    .lista-rotas { overflow-anchor: none; }
     .lista-rotas :global(li[data-apagado]) { display: none; }
+    /* A legenda das cores sobe para antes da lista. */
+    .grade-rotas, .nota { order: 1; }
   }
 </style>
 
@@ -127,7 +133,20 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
   document.querySelectorAll<HTMLElement>(".siga").forEach((raiz) => {
     const dados = JSON.parse(raiz.querySelector(".rotas-dados")!.textContent!) as Record<string, Info>;
     const aside = raiz.querySelector<HTMLElement>(".rota-info")!;
-    const botoes = [...raiz.querySelectorAll<HTMLButtonElement>(".lista-rotas button")];
+    const botoes = [...raiz.querySelectorAll<HTMLButtonElement>(".lista-rotas li > button")];
+    const grade = raiz.querySelector<HTMLElement>(".grade-rotas")!;
+    const celular = matchMedia("(max-width: 900px)");
+    // No computador o detalhe fica ao lado da lista; no celular, logo embaixo do imposto escolhido, sem mexer na
+    // posição do que a pessoa tocou (o detalhe sai de cima dele e a página compensa).
+    const posicionar = () => {
+      const b = botoes.find((x) => x.dataset.imposto === escolhido);
+      if (!celular.matches || !b) { if (aside.parentElement !== grade) grade.append(aside); return; }
+      const antes = b.getBoundingClientRect().top;
+      b.closest("li")!.append(aside);
+      const depois = b.getBoundingClientRect().top;
+      if (depois !== antes) scrollBy(0, depois - antes);
+    };
+    celular.addEventListener("change", posicionar);
     let escolhido = "";
     const escolher = (id: string) => {
       const i = dados[id];
@@ -142,6 +161,7 @@ const programas = soma(doc, (f) => f.tipo === "programa" && f.de === "c-uniao") 
         li.append(document.createTextNode(`${d.n} (${d.v})`), Object.assign(document.createElement("span"), { textContent: d.p }));
         return li;
       }));
+      posicionar();
     };
     botoes.forEach((b) => b.addEventListener("click", () => escolher(b.dataset.imposto!)));
     escolher(botoes[0].dataset.imposto!);

@@ -1,0 +1,129 @@
+---
+/**
+ * Emendas dos deputados estaduais que chegaram à cidade no último ano fechado: o total, por morador, para quem foi,
+ * quem mandou e para quê, e a série ano a ano. Fica ao lado das emendas federais (EmendasResultado). Só alguns estados
+ * publicam esses dados de um jeito que dá para ler (pipeline/…/emendas_estaduais.py); nos outros, uma linha diz isso.
+ */
+import Termo from "../Termo.astro";
+import SerieAnos from "./SerieAnos.astro";
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { NOMES_UF, porPessoa, type Cidade } from "../../lib/cidades";
+import { anoDaConta, docEmendasEstaduais, emendasEstaduaisDe, estadosComEmendas } from "../../lib/emendas-estaduais";
+
+interface Props { cidade: Cidade }
+const { cidade: c } = Astro.props;
+const df = c.ibge === 53;
+const e = emendasEstaduaisDe(c);
+const doc = docEmendasEstaduais;
+const estado = doc?.estados[c.uf];
+const nomeUf = NOMES_UF[c.uf] ?? c.uf;
+const PREP: Record<string, string> = { AC: "do", AL: "de", AM: "do", AP: "do", BA: "da", CE: "do", DF: "do", ES: "do", GO: "de", MA: "do", MG: "de", MS: "de", MT: "de", PA: "do", PB: "da", PE: "de", PI: "do", PR: "do", RJ: "do", RN: "do", RO: "de", RR: "de", RS: "do", SC: "de", SE: "de", SP: "de", TO: "do" };
+const deUf = `${PREP[c.uf] ?? "de"} ${nomeUf}`;
+const deputados = df ? "deputados distritais" : "deputados estaduais";
+const paraOnde = df ? "" : ` para ${c.nome}`;
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const cobertos = estadosComEmendas().map((u) => NOMES_UF[u] ?? u).sort((a, b) => a.localeCompare(b, "pt-BR"));
+const listaCobertos = cobertos.length > 1 ? `${cobertos.slice(0, -1).join(", ")} e ${cobertos.at(-1)}` : cobertos[0] ?? "";
+const frente = e && e.mediana ? e.porHab / e.mediana - 1 : null;
+const g = e?.item.g;
+const partes = g ? [
+  g[0] > 0 ? `${moedaCurta(g[0])} para a prefeitura (inclusive os fundos municipais)` : null,
+  g[1] > 0 ? `${moedaCurta(g[1])} para entidades da cidade (associações, caixas escolares e outras)` : null,
+  g[2] > 0 ? `${moedaCurta(g[2])} para órgãos do governo do estado e consórcios, em obras e serviços aqui` : null,
+].filter(Boolean) as string[] : [];
+const juntar = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} e ${xs.at(-1)}` : xs[0]);
+const temGrupo = e?.autores.some((a) => a.coletiva);
+---
+
+{e ? (
+  <section class="emendas-est">
+    <div class="texto">
+      <span class="sobretitulo">O que chega do governo {df ? "do Distrito Federal" : "do estado"}</span>
+      <h2>Emendas dos {deputados}</h2>
+      <p>
+        {e.pago
+          ? <>Em {e.ano}{e.andamento && ", até agora"}, o governo {deUf} pagou <strong>{moedaExtenso(e.item.v)}</strong> em <Termo id="emenda-estadual">emendas</Termo> dos {deputados}{paraOnde}{!df && <>, ou <strong>{porPessoa(e.porHab)} por morador</strong></>}. O valor indicado foi {moedaCurta(e.item.i)}.</>
+          : <>Em {e.ano}{e.andamento && ", até agora"}, {deputados} indicaram <strong>{moedaExtenso(e.item.v)}</strong> em <Termo id="emenda-estadual">emendas</Termo> do orçamento {deUf}{paraOnde}{!df && <>, ou <strong>{porPessoa(e.porHab)} por morador</strong></>}. {e.estado.pago ? "Os dados do estado não trazem o pago completo desse ano." : "O governo do estado não publica quanto já pagou."}</>}
+        {e.mediana !== null && <> A mediana das cidades {deUf} do mesmo tamanho é {porPessoa(e.mediana)} por morador{frente !== null && Math.abs(frente) >= 0.1 && <> ({nf0.format(Math.abs(frente) * 100)}% {frente > 0 ? "acima" : "abaixo"})</>}.</>}
+      </p>
+      {partes.length > 0 && <p>Foram {juntar(partes)}.</p>}
+      {e.item.pix && e.item.pix > 0 && (
+        <p>
+          Desse total, {moedaCurta(e.item.pix)} foram por transferência especial, a <Termo id="emenda-pix">emenda Pix</Termo>: o
+          dinheiro cai direto no caixa da prefeitura, sem um convênio que diga antes em que será gasto.
+        </p>
+      )}
+      <p class="menor">
+        A emenda é uma indicação: o deputado diz para onde quer que vá uma parte do orçamento {df ? "do Distrito Federal" : "do estado"}, e
+        o governo é quem paga. {e.pago ? `Aqui entra o que já foi pago das emendas de ${e.ano}` : "Aqui entra o valor indicado"}, pelo lugar
+        de quem recebeu.{e.andamento && <> O ano ainda está em andamento: o número vai mudar até dezembro.</>}{e.estado.nota && <> {e.estado.nota}</>}
+      </p>
+    </div>
+    <div class="lado">
+      {e.autores.length > 0 && (
+        <div class="lista">
+          <h3>Quem mandou mais{e.item.nAut > e.autores.filter((a) => !a.coletiva).length && <span class="de"> · {e.item.nAut} {df ? "deputados distritais" : "deputados"} no total</span>}</h3>
+          <ol>
+            {e.autores.map((a) => <li><span>{a.href ? <a href={a.href}>{a.nome}</a> : a.nome}</span><strong class="num">{moedaCurta(a.valor)}</strong></li>)}
+          </ol>
+          {temGrupo && <p class="nota">Emendas em grupo são as de blocos, bancadas ou de mais de um deputado.</p>}
+        </div>
+      )}
+      {e.item.areas.length > 0 && (
+        <div class="lista">
+          <h3>Para quê</h3>
+          <ol>
+            {e.item.areas.map(([area, valor]) => <li><span>{area}</span><strong class="num">{moedaCurta(valor)}</strong></li>)}
+          </ol>
+        </div>
+      )}
+      {e.serie.length > 1 && <SerieAnos titulo="Ano a ano, em R$ milhões" serie={e.serie} casas={1} notaPreliminar={e.estado.pago ? "Ano em andamento: o que foi pago até agora." : "Ano em andamento: o que foi indicado até agora."} notaMarca="Valor indicado: o estado não publica o pago completo desse ano." />}
+    </div>
+    <div class="nao-diz">
+      <h3>O que esta conta não diz</h3>
+      <ul>
+        <li>A emenda só vira dinheiro quando o governo {df ? "do Distrito Federal" : "do estado"} paga. Uma emenda indicada num ano pode ser paga no seguinte, ou não ser paga.</li>
+        <li>Cada estado publica de um jeito, e muitos ainda não publicam com a cidade. Por enquanto a conta tem {listaCobertos}.</li>
+        <li>O lugar é o de quem recebeu. Uma entidade daqui pode usar o dinheiro em outro lugar; e o que foi para o estado inteiro, sem uma cidade, não entra.</li>
+        <li>Estas são as emendas ao orçamento {df ? "do Distrito Federal" : "do estado"}. As de deputados federais e senadores estão na seção acima.</li>
+      </ul>
+    </div>
+    <p class="fonte">Fonte: <a href={e.estado.url} rel="noopener">{e.estado.fonte}</a>. Nomes de quem recebeu não são guardados, só os totais.</p>
+  </section>
+) : (
+  <section class="emendas-est curta">
+    <span class="sobretitulo">O que chega do governo {df ? "do Distrito Federal" : "do estado"}</span>
+    <h2>Emendas dos {deputados}</h2>
+    <p>
+      {estado
+        ? <>Nas emendas {deUf} {estado.pago ? "pagas" : "indicadas"} de {anoDaConta(estado)}{(anoDaConta(estado) ?? 0) >= new Date().getFullYear() && " até agora"}, nenhuma tem {c.nome} como destino.</>
+        : <>Ainda não temos as emendas dos deputados estaduais {deUf}. Cada estado publica de um jeito, e por enquanto a conta tem {listaCobertos}.</>}
+    </p>
+  </section>
+)}
+
+<style>
+  .emendas-est { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .emendas-est.curta { display: flex; flex-direction: column; gap: 8px; padding: 24px 0; }
+  .emendas-est.curta h2 { font-size: 22px; }
+  .emendas-est.curta p { margin: 0; font-size: 15px; color: var(--texto-3); }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2, .emendas-est h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .lado { grid-column: span 6; display: flex; flex-direction: column; gap: 24px; }
+  .lista h3, .nao-diz h3 { margin: 0 0 6px; font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  .lista h3 .de { font-weight: 400; color: var(--texto-3); }
+  .lista ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .lista li { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--regra); font-size: 15px; }
+  .lista .nota { margin: 6px 0 0; font-size: 12px; color: var(--texto-3); }
+  .nao-diz { grid-column: 1 / -1; }
+  .nao-diz ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.5; color: var(--texto-3); }
+  .fonte { grid-column: 1 / -1; margin: 0; font-size: 13px; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .emendas-est { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .emendas-est h2, .texto h2 { font-size: 26px; }
+  }
+</style>

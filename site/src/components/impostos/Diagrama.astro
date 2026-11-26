@@ -24,6 +24,8 @@ const o = largo
   ? { largura: L, altura: H - 2 * topo, vao: 7, barra: 10, colunas: [170, 400, 700] }
   : { largura: L, altura: H - 2 * topo, vao: 8, barra: 8, colunas: [92, 150, 270] };
 const larguraCaixa = largo ? 118 : 70;
+// No celular, os nomes mais longos ("IPTU, ITBI e taxas") passam da borda esquerda do desenho: a margem os põe para dentro.
+const margemEsq = largo ? 0 : 18;
 /** Nomes curtos para caber ao lado das barras. */
 const ROTULO: Record<string, string> = {
   "t-royalties": "Royalties", "t-itcmd": "Heranças e doações", "t-taxas": "Taxas", "t-outros-federais": "Outros federais",
@@ -118,7 +120,7 @@ const presentes = new Set([...dd.fluxos.map((f) => f.id), ...dd.nos.map((n) => n
 const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((id) => [id, { t: todas[id].titulo, v: todas[id].valor, x: todas[id].texto }]));
 ---
 
-<svg class={`diagrama ${forma} ${classe}`} viewBox={`0 0 ${L} ${H + alturaDeixa}`} role="img"
+<svg class={`diagrama ${forma} ${classe}`} viewBox={`${-margemEsq} 0 ${L + margemEsq} ${H + alturaDeixa}`} role="img"
   aria-label={`Diagrama: o que se pagou de impostos em ${doc.ano}, quem cobrou e quem ficou com o dinheiro.`} data-historia={historia ? "" : undefined}>
   <g class="fluxos">
     {fluxos.map((f) => (

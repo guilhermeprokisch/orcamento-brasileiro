@@ -26,6 +26,7 @@ Todos os comandos rodam da raiz do repositório.
 | [Postos e hospitais](#postos-e-hospitais) | uma vez por ano | `uv run --project pipeline unidades-saude` |
 | [Caminho dos impostos](#caminho-dos-impostos) | uma vez por ano | `uv run --project pipeline caminho-impostos` |
 | [Políticos: a parte das eleições](#políticos-a-parte-das-eleições-pr-142) | depois de cada eleição | `uv run --project pipeline politicos --tse` |
+| [Emendas dos deputados estaduais](#emendas-dos-deputados-estaduais) | a cada 3 meses | `uv run --project pipeline emendas-estaduais` |
 | [Histórico do FINBRA](#histórico-do-finbra) | raramente | `uv run --project pipeline finbra ~/Downloads/finbra` |
 | [Enviar ao bucket](#enviar-ao-bucket-espelho) | depois das cargas que gravam Parquet | `uv run --project pipeline espelho` |
 
@@ -228,6 +229,28 @@ uv run --project pipeline politicos --tse
 - **Natureza jurídica dos fornecedores (`--natureza`, ~1,3 GB da Receita):** não roda à mão. O workflow já roda
   em janeiro, abril, julho e outubro. Fora disso, dá para pedir no botão "Run workflow" do `politicos.yml`, com a
   opção marcada. Se a Receita falhar, a carga segue com o cache.
+
+## Emendas dos deputados estaduais
+
+```bash
+uv run --project pipeline emendas-estaduais
+uv run --project pipeline emendas-estaduais --uf MG ES   # só alguns; os outros ficam como estavam
+```
+
+- **O que baixa:** as emendas de MG, ES, AC, PA, RJ, DF, MS, SC, SP, PE, AL, MA e SE, cada uma do portal do próprio estado
+  (docs/levantamento-emendas-estaduais.md). Guarda só os totais por cidade, por deputado e por área; nenhum nome de
+  quem recebeu e nenhum CPF.
+- **Quando:** a cada 3 meses, e em janeiro, quando os estados fecham o ano anterior.
+- **Cuidados:** o PA lê uma chave pública do JavaScript da página, e o AC, uma planilha Google publicada pela Seplan;
+  se um dos dois mudar, o estado falha e fica como estava na cópia de referência (o comando sai com erro, para avisar).
+  O RJ troca o nome dos arquivos a cada publicação: o comando acha os links na página. SC e SP saem dos painéis Power BI
+  (powerbi.py, a mesma API que a página usa); SP tem um painel por ano: quando sair o de 2026, a chave dele (o "k" do
+  link app.powerbi.com/view?r=…, em base64) entra em `PAINEIS_SP`. PE, AL e MA só publicam o ano corrente: rodar em janeiro
+  guarda o ano que fechou (depois o portal passa a mostrar só o novo). O painel de 2026 de SE é de uma empresa
+  contratada (plataformatarget); o portal oficial indica o link. Depois de uma eleição, a
+  ligação com /politicos precisa da base nova do TSE (`politicos --tse`) e de conferir os nomes sem ligação que o
+  comando lista (a tabela APELIDOS, em `emendas_estaduais.py`).
+- **Depois:** commit de `pipeline/referencia/emendas-estaduais.json`.
 
 ## Histórico do FINBRA
 

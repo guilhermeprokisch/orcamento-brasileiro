@@ -19,7 +19,7 @@ Atualizado em 23/11/2026.
 | 3 | Conciliar o dinheiro federal: Portal da Transparência x prefeituras | Feito ([conciliacao-federal.md](conciliacao-federal.md)) |
 | 4 | Bolsa Família e BPC de outros anos | Depende de download manual (o Portal pede captcha); hoje só 2025 |
 | 5 | Gasto do estado em cada cidade | Feito para Paraíba, Minas Gerais, Paraná e Santa Catarina. Demais estados: ver o item H |
-| 6 | ICMS medido por cidade (hoje estimado pela cota-parte × 4) | Nenhum estado pesquisado publica em formato aberto e atualizado. Pedidos de LAI enviados a SP e MG em 19/11/2026 ([pedidos-lai/icms-por-municipio.md](pedidos-lai/icms-por-municipio.md)); resposta até 09/12/2026 |
+| 6 | ICMS medido por cidade (o total segue estimado pela cota-parte × 4) | **São Paulo: feito** — o ICMS recolhido por município pela SEFAZ-SP (Tabela 1.10 do Relatório da Receita Tributária, 2013–2025), gerado por `uv run icms` em `icms-mun.json`, aparece no mapa numa linha à parte ("ICMS recolhido pelas empresas daqui"), ao lado da estimativa, sem somar — é outra medida (município do estabelecimento), como o IR de moradores. Minas Gerais e os outros seguem sem resposta à LAI ([pedidos-lai/icms-por-municipio.md](pedidos-lai/icms-por-municipio.md)); o caminho fica pronto para somar ao mesmo arquivo quando o dado vier |
 | 7 | Obras paradas com dinheiro federal (bloco 3) | Pronto para revisão (#139): página `/obras-paradas` e seção nas cidades e nos estados, pela lista do TCU ([levantamento-obras-paradas.md](levantamento-obras-paradas.md)) |
 | 8 | Preço pago comparado (bloco 3) | Começou em 23/11/2026: levantamento (Banco de Preços em Saúde, itens do PNCP, Painel de Preços) e proposta antes de construir |
 | 9 | Acima do teto: Executivo do Ceará e das prefeituras | CE, AL e PI rodam numa máquina de casa (#134), primeira carga automática em 24/11/2026. Pedido de LAI à AGU sobre os honorários ([pedidos-lai/honorarios-agu-teto.md](pedidos-lai/honorarios-agu-teto.md)); resposta até 14/12/2026 |
@@ -292,6 +292,22 @@ Nacional (Resultado do Tesouro Nacional) e Receita Federal (arrecadação mensal
 Fontes: Tesouro Nacional (Relatório Mensal da Dívida e os dados abertos no Tesouro
 Transparente, com a tabela de detentores) e Banco Central (dívida bruta do governo geral e
 juros nominais).
+
+### M. Emendas no mapa: bolhas, retratos e o clique na cidade
+
+**Primeiro passo feito em 24/11/2026:** o mapa das emendas entrou como página própria da seção de emendas
+(`/emendas/mapa/`), com os dados de `uv run emendas-mapa` no bucket. O que segue é a etapa seguinte, de
+juntar isso ao `/mapa/` — quando for a hora.
+
+Levar ao `/mapa/` o que o protótipo de novembro de 2026 decidiu: na pergunta "Emendas", "no total" vira
+bolhas por município; retratos dos parlamentares que mais mandaram para o que está na tela, em chamadas
+laterais ligadas ao município; e o clique na cidade abre as emendas dela uma a uma, lidas da ficha por
+lugar que o buscador já usa. Seis etapas pequenas, cada uma um PR, em
+[mapa-emendas-plano.md](mapa-emendas-plano.md). Pede antes: fotos dos parlamentares no pipeline
+(Câmara e Senado) e a série por tipo no `emendas.json`.
+
+É o primeiro passo da ideia de o mapa virar uma seção própria, com mais de uma visualização
+("para onde está indo, quem manda, por onde"), e não uma página presa ao recorte estados e cidades.
 
 ## Para depois
 

@@ -1,4 +1,11 @@
-# Orçamento Brasileiro
+<h1 align="center">
+  <a href="https://orcamentobrasileiro.com.br">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset=".github/marca/logo-escuro.svg">
+      <img src="site/public/logo.svg" alt="Orçamento Brasileiro" width="480">
+    </picture>
+  </a>
+</h1>
 
 De onde vem e para onde vai o dinheiro público da sua cidade, do seu estado e do país: impostos, repasses, gastos, dívidas e o que eles produzem.
 

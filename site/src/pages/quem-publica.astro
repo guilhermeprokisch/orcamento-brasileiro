@@ -9,7 +9,7 @@ import { caminhoEstado, deUf, NOMES_UF } from "../lib/cidades";
 import { MAPA_ESTADOS } from "../lib/mapa-estados";
 import { FAIXAS, PESQUISA, PREFEITURAS, QUEM_PUBLICA, porFaixa, type Estado } from "../lib/quem-publica";
 
-const REPO = "https://github.com/guilhermeprokisch/orcamento-brasileiro/blob/main/docs";
+const REPO = "https://github.com/orcamento-brasileiro/orcamento-brasileiro/blob/main/docs";
 
 // Sem o contorno dos estados (gerado pelo pipeline do mapa), uma grade com a forma aproximada do país: [sigla, coluna, linha].
 const GRADE: [string, number, number][] = [
@@ -185,7 +185,7 @@ const mapas: { id: string; titulo: string; classe: (e: Estado) => string; noSite
         <li>
           <strong>Os detalhes</strong>, com os endereços de cada arquivo e o que foi conferido: <a href={`${REPO}/gasto-estadual-por-municipio.md`}>o gasto
           dos estados por município</a> e <a href={`${REPO}/levantamento-pagamentos-tce.md`}>os pagamentos das prefeituras</a>.
-          Achou um dado que não está aqui? <a href="https://github.com/guilhermeprokisch/orcamento-brasileiro/issues">Conte para a gente</a>.
+          Achou um dado que não está aqui? <a href="https://github.com/orcamento-brasileiro/orcamento-brasileiro/issues">Conte para a gente</a>.
         </li>
       </ul>
     </section>

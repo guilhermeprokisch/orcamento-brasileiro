@@ -11,7 +11,7 @@
 #   ENVIAR=0 ~/bin/supersalarios-ce-al-pi.sh   # roda sem subir nada (teste)
 set -euo pipefail
 
-REPO=guilhermeprokisch/orcamento-brasileiro
+REPO=orcamento-brasileiro/orcamento-brasileiro
 RELEASE=dados-supersalarios-estados
 DIR="$HOME/orcamento-brasileiro"
 UFS="ce al pi"

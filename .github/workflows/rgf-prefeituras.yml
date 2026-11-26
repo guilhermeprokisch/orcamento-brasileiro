@@ -1,13 +1,14 @@
 name: Dívida e pessoal das prefeituras
 
 # Baixa o Relatório de Gestão Fiscal (RGF) do fim do ano de todas as prefeituras: Anexo 2 (dívida,
-# `uv run divida --prefeituras`) e Anexo 1 (gasto com pessoal, `uv run pessoal --prefeituras`). Guarda o
-# cache no release "dados-siconfi" (rgf-a02-mun.tar e rgf-a01-mun.tar) e manda publicar o site. Na
-# publicação, `semente aplicar` traz esse cache e os dois comandos, com --max-chamadas 0, montam a saída
-# só a partir dele, sem consultar a API.
+# `uv run divida --prefeituras`) e Anexo 1 (gasto com pessoal, `uv run pessoal --prefeituras`), e o
+# RREO Anexo 14 do 6º bimestre (mínimo em saúde e em educação, `uv run minimos --prefeituras`), que tem o
+# mesmo calendário. Guarda o cache no release "dados-siconfi" (rgf-a02-mun.tar, rgf-a01-mun.tar e
+# rreo-a14.tar) e manda publicar o site. Na publicação, `semente aplicar` traz esse cache e os três
+# comandos, com --max-chamadas 0, montam a saída só a partir dele, sem consultar a API.
 #
 # Por que é um workflow à parte: a API do SICONFI aceita uma consulta por segundo e responde uma
-# prefeitura por vez. Os dois anexos rodam em dois runners ao mesmo tempo (cada um com o seu endereço).
+# prefeitura por vez. Os anexos rodam em runners separados ao mesmo tempo (cada um com o seu endereço).
 #
 # O ano é o último fechado, que vira em março (o RGF do fim do ano é entregue até 30 de janeiro). Na
 # primeira execução de março o ano novo não tem cache: são ~5.570 prefeituras, 1 ou 2 consultas cada,
@@ -46,6 +47,7 @@ jobs:
         include:
           - { comando: divida, anexo: rgf-a02-mun }
           - { comando: pessoal, anexo: rgf-a01-mun }
+          - { comando: minimos, anexo: rreo-a14 }
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}

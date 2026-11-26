@@ -1,0 +1,196 @@
+---
+/**
+ * "Seguir <cidade>": o botão no topo da página da cidade ou do estado e o quadro com o e-mail.
+ * Manda para /api/seguir (functions/api/seguir.ts), que guarda o pedido e pede confirmação por e-mail.
+ * Visual do mock aprovado no Claude Design em 26/11/2026: quadro ao lado do título no computador,
+ * folha que sobe de baixo no celular.
+ *
+ * Só aparece com PUBLIC_SEGUIR=1 no build (a variável SEGUIR_LIGADO do repositório), para o botão
+ * não ir ao ar antes do banco e do e-mail estarem prontos.
+ */
+interface Alvo { alvo: string; nome: string; papel: string; marcado: boolean }
+interface Props { nome: string; alvos: Alvo[] }
+const { nome, alvos } = Astro.props;
+const ligado = import.meta.env.PUBLIC_SEGUIR === "1";
+---
+
+{ligado && (
+  <div class="seguir" data-seguir>
+    <button type="button" class="seguir-botao" aria-expanded="false" aria-controls="seguir-painel">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"></rect><path d="m3 7 9 6 9-6"></path></svg>
+      Seguir {nome}
+    </button>
+    <div class="seguir-fundo" hidden></div>
+    <section id="seguir-painel" class="seguir-painel" aria-labelledby="seguir-titulo" hidden>
+      <div class="seguir-cabeca">
+        <h2 id="seguir-titulo">Receba por e-mail quando sair dado novo de {nome}</h2>
+        <button type="button" class="seguir-fechar" aria-label="Fechar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+        </button>
+      </div>
+      <form class="seguir-form" novalidate>
+        <p class="seguir-explica">No máximo um e-mail por mês, com o que mudou: contas novas, contratos, emendas, a nota do Tesouro. Se nada mudou, não mandamos nada.</p>
+        {alvos.length > 1 ? (
+          <fieldset>
+            <legend>O que você quer seguir</legend>
+            {alvos.map((a) => (
+              <label class="seguir-opcao">
+                <input type="checkbox" name="alvo" value={a.alvo} checked={a.marcado} />
+                <span><strong>{a.nome}</strong> <span class="seguir-papel">· {a.papel}</span></span>
+              </label>
+            ))}
+          </fieldset>
+        ) : (
+          <input type="hidden" name="alvo" value={alvos[0].alvo} />
+        )}
+        <div class="seguir-campo">
+          <label for="seguir-email">Seu e-mail</label>
+          <div class="seguir-linha">
+            <input id="seguir-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="voce@exemplo.com.br" required />
+            <button type="submit" class="seguir-enviar">Seguir</button>
+          </div>
+        </div>
+        <label class="seguir-mel" aria-hidden="true">Não preencha <input type="text" name="site" tabindex="-1" autocomplete="off" /></label>
+        <p class="seguir-erro" role="alert" hidden></p>
+        <p class="seguir-letras">Vamos mandar um e-mail para você confirmar. Usamos o endereço só para isso, não passamos para ninguém, e você sai com um clique em qualquer e-mail.</p>
+      </form>
+      <div class="seguir-pronto" hidden>
+        <p class="seguir-pronto-titulo">Confira seu e-mail</p>
+        <p>Mandamos um link para <strong class="seguir-para"></strong>. Clique nele para confirmar. Se não aparecer em alguns minutos, olhe no spam.</p>
+      </div>
+    </section>
+  </div>
+)}
+
+<script>
+  for (const raiz of document.querySelectorAll<HTMLElement>("[data-seguir]")) {
+    const botao = raiz.querySelector<HTMLButtonElement>(".seguir-botao")!;
+    const painel = raiz.querySelector<HTMLElement>(".seguir-painel")!;
+    const fundo = raiz.querySelector<HTMLElement>(".seguir-fundo")!;
+    const form = raiz.querySelector<HTMLFormElement>(".seguir-form")!;
+    const erro = raiz.querySelector<HTMLElement>(".seguir-erro")!;
+    const enviar = raiz.querySelector<HTMLButtonElement>(".seguir-enviar")!;
+    const email = raiz.querySelector<HTMLInputElement>("#seguir-email")!;
+
+    const abrir = (sim: boolean) => {
+      painel.hidden = !sim;
+      fundo.hidden = !sim;
+      botao.setAttribute("aria-expanded", String(sim));
+      if (sim) email.focus();
+      else botao.focus();
+    };
+    botao.addEventListener("click", () => abrir(!!painel.hidden));
+    raiz.querySelector(".seguir-fechar")!.addEventListener("click", () => abrir(false));
+    fundo.addEventListener("click", () => abrir(false));
+    painel.addEventListener("keydown", (ev) => { if (ev.key === "Escape") abrir(false); });
+    // Link direto para o formulário aberto: /cidades/sc/florianopolis#seguir
+    if (location.hash === "#seguir") abrir(true);
+
+    const mostrarErro = (msg: string) => { erro.textContent = msg; erro.hidden = false; };
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      erro.hidden = true;
+      const dados = new FormData(form);
+      const alvos = dados.getAll("alvo").map(String);
+      const end = String(dados.get("email") ?? "").trim();
+      if (!alvos.length) return mostrarErro("Marque o que você quer seguir.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(end)) return mostrarErro("Confira o e-mail: parece que falta alguma coisa.");
+      enviar.disabled = true;
+      enviar.textContent = "Enviando…";
+      try {
+        const r = await fetch("/api/seguir", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: end, alvos, site: dados.get("site") }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.erro || "Não deu certo agora. Tente de novo em alguns minutos.");
+        form.hidden = true;
+        raiz.querySelector<HTMLElement>(".seguir-para")!.textContent = end;
+        raiz.querySelector<HTMLElement>(".seguir-pronto")!.hidden = false;
+      } catch (e) {
+        mostrarErro(e instanceof Error && e.message !== "Failed to fetch" ? e.message : "Sem conexão. Tente de novo.");
+      } finally {
+        enviar.disabled = false;
+        enviar.textContent = "Seguir";
+      }
+    });
+  }
+</script>
+
+<style>
+  .seguir-botao {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 14px;
+    background: var(--tinta); color: #fff; border: 1.5px solid var(--tinta);
+    font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .seguir-botao:hover, .seguir-botao[aria-expanded="true"] { background: #000; }
+
+  /* No computador: quadro logo abaixo do botão, alinhado pela direita dele. */
+  .seguir { position: relative; }
+  .seguir-painel {
+    position: absolute; z-index: 20; top: calc(100% + 12px); right: 0; width: 440px;
+    background: #fff; border: 1px solid var(--tinta); box-shadow: 6px 6px 0 var(--tinta);
+    padding: 28px; display: flex; flex-direction: column; gap: 18px; text-align: left;
+  }
+  .seguir-painel[hidden], .seguir-fundo[hidden], .seguir-form[hidden], .seguir-pronto[hidden], .seguir-erro[hidden] { display: none; }
+  .seguir-fundo { display: none; }
+  .seguir-cabeca { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .seguir-cabeca h2 { font-size: 26px; line-height: 1.2; }
+  .seguir-fechar {
+    flex: 0 0 40px; width: 40px; height: 40px; margin: -6px -8px 0 0; border: 0; background: transparent;
+    color: var(--texto-2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .seguir-form { display: flex; flex-direction: column; gap: 18px; }
+  .seguir-explica { margin: 0; font-size: 15px; color: var(--texto-2); }
+  fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  legend {
+    padding: 0; margin-bottom: 8px; font-size: 13px; font-weight: 600; color: var(--texto-2);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .seguir-opcao {
+    display: flex; gap: 12px; align-items: center; min-height: 44px; padding: 0 14px;
+    border: 1px solid var(--regra); cursor: pointer;
+  }
+  .seguir-opcao:has(input:checked) { border: 2px solid var(--verde); padding: 0 13px; background: #f2f7f3; }
+  .seguir-opcao input { width: 18px; height: 18px; margin: 0; accent-color: var(--verde); }
+  .seguir-papel { color: var(--texto-3); }
+  .seguir-campo { display: flex; flex-direction: column; gap: 6px; }
+  .seguir-campo label { font-size: 14px; font-weight: 600; }
+  .seguir-linha { display: flex; }
+  .seguir-linha input {
+    flex: 1 1 0; min-width: 0; height: 50px; padding: 0 14px; border: 1px solid var(--tinta); border-right: 0;
+    font: inherit; background: #fff; color: var(--tinta); border-radius: 0;
+  }
+  .seguir-enviar {
+    height: 50px; padding: 0 22px; background: var(--verde); color: #fff; border: 0;
+    font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .seguir-enviar:hover { background: var(--verde-escuro); }
+  .seguir-enviar:disabled { opacity: 0.6; cursor: wait; }
+  .seguir-mel { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .seguir-erro { margin: 0; padding: 10px 12px; background: #fdecea; border: 1px solid #b3261e; color: #8c1d18; font-size: 14px; }
+  .seguir-letras { margin: 0; font-size: 13px; line-height: 1.45; color: var(--texto-3); }
+  .seguir-pronto { display: flex; flex-direction: column; gap: 8px; font-size: 15px; color: var(--texto-2); }
+  .seguir-pronto p { margin: 0; }
+  .seguir-pronto-titulo { font-family: var(--serifa); font-size: 20px; font-weight: 700; color: var(--tinta); }
+  .seguir-pronto strong { color: var(--tinta); word-break: break-all; }
+
+  /* Tela estreita: folha que sobe de baixo, com fundo escurecido. */
+  @media (max-width: 1100px) {
+    .seguir-fundo:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 40; background: rgba(25, 25, 25, 0.45); }
+    .seguir-painel {
+      position: fixed; z-index: 41; top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 92vh; overflow-y: auto;
+      border: 0; border-top: 2px solid var(--tinta); box-shadow: none; padding: 22px 20px 28px; gap: 16px;
+    }
+    .seguir-cabeca h2 { font-size: 23px; }
+    .seguir-fechar { width: 44px; height: 44px; flex-basis: 44px; }
+    .seguir-opcao { min-height: 48px; }
+  }
+  @media (max-width: 480px) {
+    .seguir-linha { flex-direction: column; gap: 12px; }
+    .seguir-linha input { flex: none; height: 50px; border-right: 1px solid var(--tinta); }
+    .seguir-enviar { height: 52px; }
+  }
+</style>
