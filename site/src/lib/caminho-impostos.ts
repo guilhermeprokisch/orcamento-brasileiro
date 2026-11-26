@@ -124,7 +124,7 @@ export interface OpcoesDesenho {
   extra?: Record<string, number>;
 }
 
-const ORDEM_PADRAO = [
+export const ORDEM_PADRAO = [
   "t-ir", "t-inss", "t-cofins", "t-csll", "t-importacao", "t-ipi", "t-iof", "t-outros-federais", "t-royalties",
   "t-icms", "t-ipva", "t-itcmd", "t-taxas", "t-iss", "t-iptu", "t-itbi",
   "c-uniao", "c-estados", "c-prefeituras", "f-uniao", "f-fundos", "f-estados", "f-prefeituras",
