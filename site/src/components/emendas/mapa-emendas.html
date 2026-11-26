@@ -1,0 +1,65 @@
+<header>
+  <h1 class="so-leitor">Para onde as emendas vão</h1>
+  <div class="frase" aria-label="O que o mapa mostra">
+    <div class="cel oque"><span>Mostre as emendas de</span>
+      <button type="button" class="tk" id="abre-autor" aria-expanded="false">
+        <span id="autor-rotulo">todos os autores</span><i aria-hidden="true">▾</i></button></div>
+    <div class="cel tipo-cel"><span>do tipo</span>
+      <div class="grupo" id="tipo">
+        <button type="button" data-t="" aria-pressed="true">todos</button>
+        <button type="button" data-t="Individual">individual</button>
+        <button type="button" data-t="Bancada">bancada</button>
+        <button type="button" data-t="Relator">relator</button>
+        <button type="button" data-t="Comissão">comissão</button>
+        <button type="button" data-t="Pix">Pix</button>
+      </div></div>
+    <div class="cel ano"><span>pagas em</span>
+      <div class="grupo anos" id="ano" aria-label="Ano das emendas"></div></div>
+    <button type="button" class="ajuda" id="ajuda" aria-label="Como ler este mapa" title="Como ler este mapa" aria-expanded="false">?</button>
+  </div>
+  <div class="ajuda-caixa" id="ajuda-caixa" hidden>
+    <p><b>Como ler.</b> De longe, um retrato por estado: o de quem mais mandou para ele. Aproximando, as
+      cidades, e quanto mais perto, mais municípios. Passe o mouse numa cidade para ver quem mandou para lá,
+      cada um com o valor; clique nela para entrar e ler as emendas uma a uma. Bancada, comissão e relator
+      são colegiados e aparecem como monograma.</p>
+    <p><b>Brasília</b> fica fora: concentra as entidades com sede lá — sozinha são R$ 112 bi, 40% de tudo,
+      que não é dinheiro gasto no DF. <a href="#" id="ver-df">ver com Brasília</a></p>
+    <p><b>Fonte.</b> Controladoria-Geral da União, Portal da Transparência: emendas parlamentares, pagamentos
+      por favorecido. Cada bolha é o município de quem recebeu o pagamento, não o endereço da obra. Fotos e
+      dados dos parlamentares: Câmara dos Deputados e Senado Federal (dados abertos).</p>
+  </div>
+</header>
+
+<div id="fundo-autor" hidden></div>
+<div id="painel-autor" hidden>
+  <input type="search" id="busca-autor" placeholder="Deputado, senador, bancada ou comissão…" autocomplete="off">
+  <ul id="lista-autor"></ul>
+</div>
+
+<div class="palco-todo" id="main">
+  <div class="palco" id="palco">
+    <svg id="mapa" role="img" aria-label="Emendas parlamentares por município: grupos de municípios vizinhos, que o zoom abre"></svg>
+    <div class="faixa" id="faixa" hidden></div>
+    <div class="cartao" id="cartao" hidden></div>
+  </div>
+  <aside class="painel-mun" id="mun" aria-label="Emendas do município escolhido">
+    <div class="cab-mun">
+      <h2 id="mun-nome"></h2>
+      <button type="button" class="voltar" id="mun-voltar" aria-label="Fechar" title="Fechar">✕</button>
+    </div>
+    <p class="resumo" id="mun-resumo"></p>
+    <p class="acoes">
+      <a id="mun-ficha" href="#">Ficha da cidade →</a>
+      <a id="mun-buscador" href="#">No buscador de emendas →</a>
+      <button type="button" id="mun-csv">Baixar CSV ↓</button>
+    </p>
+    <label class="busca-linha">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <input type="search" id="mun-busca" placeholder="Buscar por autor, favorecido ou objeto — por exemplo, “UPA”" autocomplete="off">
+    </label>
+    <div class="chips" id="mun-chips"></div>
+    <div class="cab-lista"><span>Emendas, da maior para a menor</span><span id="mun-conta"></span></div>
+    <ol id="mun-lista"></ol>
+    <button type="button" id="mun-mais" hidden>Mostrar mais</button>
+  </aside>
+</div>

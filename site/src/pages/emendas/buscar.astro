@@ -350,6 +350,12 @@ const TIPOS: [string, string, string][] = [
     trilha.passo({ valor: `${curto(s.valor)} · ${s.emendas === 1 ? "1 emenda" : `${nf0.format(s.emendas)} emendas`}`, v: s.valor, base: "pagamentos", ano: String(ano) });
     topo(a, `Em ${ano}, foram pagos <strong>${curto(s.valor)}</strong> em ${nf0.format(s.emendas)} ${s.emendas === 1 ? "emenda" : "emendas"}, para <strong>${nf0.format(s.lugares)} ${s.lugares === 1 ? "lugar" : "lugares"}</strong>${s.pix > 0 ? `, ${curto(s.pix)} deles por emenda Pix` : ""}.`,
       coletivo ? "Emendas coletivas" : "Parlamentar");
+    // A página do político (/politicos/…): o salário, a cota, os assessores e a eleição. O mapa vem do build.
+    if (!coletivo) fetch("/data/politicos/autores.json").then((r) => (r.ok ? r.json() : {})).then((m) => {
+      const href = m[slug(a)];
+      const p = document.querySelector("[data-frase]");
+      if (href && p && !p.querySelector("[data-pagina-politico]")) p.insertAdjacentHTML("beforeend", ` <a data-pagina-politico href="${esc(href)}">Ver a página de ${esc(a)}: salário, cota parlamentar e eleição ›</a>`);
+    }).catch(() => {});
     saida.innerHTML = `
       ${botoesAno(anos, ano, `/emendas/buscar?autor=${encodeURIComponent(a)}`)}
       <div class="tres">

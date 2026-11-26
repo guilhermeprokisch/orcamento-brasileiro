@@ -49,17 +49,22 @@ const GRUPOS: { nome: string; itens: ItemMenu[] }[] = [
       { href: "/emendas", nome: "O que são", desc: "a história, com os números" },
       { href: "/emendas/explorar", nome: "Explorar", desc: "todas as listas, por quem, onde e para quê" },
       { href: "/emendas/buscar", nome: "Buscar emenda por emenda", desc: "por lugar, parlamentar ou assunto" },
+      { href: "/emendas/mapa", nome: "No mapa", desc: "para onde vai e quem manda" },
     ] },
+    { href: "/obras-paradas", nome: "Obras paradas", desc: "As obras com dinheiro federal que não andam: onde estão, quanto custariam e há quanto tempo." },
   ] },
-  { nome: "Servidores", itens: [
+  { nome: "Políticos e servidores", itens: [
+    { href: "/politicos", nome: "Políticos eleitos", desc: "Governadores, senadores e deputados: quanto custa cada um, em que gasta a verba e para onde manda emendas." },
     { href: "/supersalarios", nome: "Acima do teto", desc: "Juízes, promotores e servidores que recebem mais que o teto, órgão por órgão, e quanto isso custa." },
   ] },
   { nome: "Impostos", itens: [
     { href: "/impostos", nome: "Para quem vai o seu imposto", desc: "Quem cobra cada imposto, o que é repassado a estados e prefeituras e quem fica com o dinheiro." },
     { href: "/impostos/empresas", nome: "Quem deixa de pagar", desc: "As empresas que declaram benefícios fiscais: quanto cada uma deixa de pagar e com o quê." },
+    { href: "/bndes", nome: "BNDES e estatais", desc: "Quem pega empréstimo do BNDES, com que juro, quanto custa o subsídio e o que entra e sai das estatais." },
   ] },
   { nome: "Aprenda", itens: [
     { href: "/aprenda", nome: "Lições", desc: "Como funciona o orçamento e como ler os números." },
+    { href: "/analises", nome: "Análises", desc: "Perguntas sobre o dinheiro público, respondidas com dados que você pode refazer." },
     { href: "/glossario", nome: "Glossário", desc: "O que querem dizer empenho, dotação e outros termos." },
     { href: "/dados", nome: "Os dados", desc: "Baixe os arquivos das fontes oficiais e os dados já tratados." },
   ] },
@@ -137,14 +142,20 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
             </details>
           ))}
           <Busca client:idle />
-          <a class="gh" href="https://github.com/guilhermeprokisch/orcamento-brasileiro" aria-label="O código do site no GitHub" title="O código é aberto: veja no GitHub">
+          <a class="gh" href="https://github.com/orcamento-brasileiro/orcamento-brasileiro" aria-label="O código do site no GitHub" title="O código é aberto: veja no GitHub">
             <svg width="22" height="22" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" /></svg>
+          </a>
+          <a class="gh" href="https://www.instagram.com/orcamentobrasileiro/" aria-label="O Orçamento Brasileiro no Instagram" title="Siga no Instagram: @orcamentobrasileiro">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg>
           </a>
         </nav>
         <div class="nav-celular so-celular">
           <Busca client:idle compacto />
-          <a class="gh" href="https://github.com/guilhermeprokisch/orcamento-brasileiro" aria-label="O código do site no GitHub" title="O código é aberto: veja no GitHub">
+          <a class="gh" href="https://github.com/orcamento-brasileiro/orcamento-brasileiro" aria-label="O código do site no GitHub" title="O código é aberto: veja no GitHub">
             <svg width="22" height="22" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" /></svg>
+          </a>
+          <a class="gh" href="https://www.instagram.com/orcamentobrasileiro/" aria-label="O Orçamento Brasileiro no Instagram" title="Siga no Instagram: @orcamentobrasileiro">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" /></svg>
           </a>
           <details class="menu">
             <summary aria-label="Menu">
@@ -165,7 +176,8 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
                   ) : <a class="menu-item" href={i.href} aria-current={ativo(i.href)}>{i.nome}</a>)}
                 </>
               ))}
-              <a class="menu-codigo" href="https://github.com/guilhermeprokisch/orcamento-brasileiro">O código no GitHub</a>
+              <a class="menu-codigo" href="https://github.com/orcamento-brasileiro/orcamento-brasileiro">O código no GitHub</a>
+              <a class="menu-codigo" href="https://www.instagram.com/orcamentobrasileiro/">No Instagram</a>
             </nav>
           </details>
         </div>
@@ -186,7 +198,8 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
     <div class="wrap">
       <footer class="rodape">
         <span>Dados abertos do Tesouro, da CGU, da Receita, do IBGE, do DATASUS e de outras fontes oficiais. <a href="/dados">Baixe todos os dados</a>.</span>
-        <span>Projeto independente, sem vínculo com o Governo Federal. O código é aberto: <a href="https://github.com/guilhermeprokisch/orcamento-brasileiro">veja no GitHub</a>.</span>
+        <span>Projeto independente, sem vínculo com o Governo Federal. O código é aberto: <a href="https://github.com/orcamento-brasileiro/orcamento-brasileiro">veja no GitHub</a>.</span>
+        <span>Siga no Instagram: <a href="https://www.instagram.com/orcamentobrasileiro/">@orcamentobrasileiro</a>.</span>
       </footer>
     </div>
     <script>
@@ -326,11 +339,11 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
   .rodape a { color: var(--texto-3); }
 
   .nav-celular { display: flex; align-items: center; gap: 4px; }
-  /* O ícone do GitHub: o código do site é aberto. */
+  /* Os ícones do GitHub (o código é aberto) e do Instagram. */
   .gh { width: 40px; height: 40px; display: grid; place-items: center; color: var(--tinta); flex: none; }
   .gh:hover, .gh:focus-visible { color: var(--verde); }
   .nav .gh { width: 28px; }
-  /* No celular estreito não cabe ao lado da busca e do menu: vai para dentro do menu. */
+  /* No celular estreito não cabem ao lado da busca e do menu: vão para dentro do menu. */
   .menu .menu-codigo { display: none; border-top: 1px solid var(--regra-leve); }
   @media (max-width: 420px) {
     .nav-celular .gh { display: none; }
@@ -363,9 +376,9 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
 
   /* Entre o celular e a tela larga o menu completo não cabe ao lado da marca: fica o menu
      recolhido, como no celular (as classes so-largo e so-celular trocam em 640px). A marca, os
-     seis grupos e a busca pedem ~1.230px; com folga, uma tela de 1.400px (com cinco grupos era 1.280px;
-     o grupo "Servidores" acrescentou ~90px). Páginas novas entram dentro dos grupos e não mudam essa
-     conta; um grupo novo muda. */
+     seis grupos e a busca pedem ~1.330px; com folga, uma tela de 1.400px ("Políticos e servidores"
+     num grupo só ocupa uns 30px a menos que os dois grupos separados). Páginas novas entram dentro
+     dos grupos e não mudam essa conta; um grupo novo, ou um nome de grupo mais longo, muda. */
   @media (min-width: 641px) and (max-width: 1400px) {
     .topo .nav.so-largo { display: none !important; }
     .topo .nav-celular.so-celular { display: flex !important; }

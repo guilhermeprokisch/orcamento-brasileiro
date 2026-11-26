@@ -76,6 +76,10 @@ jobs:
 
       - name: Gerar o site
         working-directory: site
+        env:
+          # "1" mostra o botão "Seguir" nas páginas de cidade e estado (src/components/Seguir.astro).
+          # Ligar só depois do banco D1 e do e-mail prontos (docs/seguir.md).
+          PUBLIC_SEGUIR: ${{ vars.SEGUIR_LIGADO }}
         run: npm run build
 
       - name: Publicar no Cloudflare Pages

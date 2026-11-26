@@ -1,0 +1,936 @@
+{
+ "painel": {
+  "deputados": 559,
+  "pares": 190970,
+  "emendas_bi": 58.06,
+  "das_quais_fns_bi": 13.72,
+  "pagas_a_governo_estadual_bi": 4.2
+ },
+ "fns_x_portal_bi": {
+  "2019": {
+   "fns": 4.3,
+   "portal_saude": 4.96,
+   "portal_pago_ao_banco_do_brasil": 4.45
+  },
+  "2020": {
+   "fns": 4.89,
+   "portal_saude": 5.18,
+   "portal_pago_ao_banco_do_brasil": 4.7
+  },
+  "2021": {
+   "fns": 4.62,
+   "portal_saude": 4.89,
+   "portal_pago_ao_banco_do_brasil": 4.48
+  },
+  "2022": {
+   "fns": 5.28,
+   "portal_saude": 5.8,
+   "portal_pago_ao_banco_do_brasil": 5.37
+  },
+  "2023": {
+   "fns": 10.08,
+   "portal_saude": 10.47,
+   "portal_pago_ao_banco_do_brasil": 9.99
+  },
+  "2024": {
+   "fns": 12.27,
+   "portal_saude": 11.96,
+   "portal_pago_ao_banco_do_brasil": 9.47
+  }
+ },
+ "elasticidades": {
+  "so_votos": {
+   "votos": {
+    "coef": 0.716,
+    "ep": 0.01
+   },
+   "zero_voto": {
+    "coef": 0.795,
+    "ep": 0.112
+   },
+   "deputados": 559,
+   "emendas_bi": 58.06
+  },
+  "so_populacao": {
+   "populacao": {
+    "coef": 0.693,
+    "ep": 0.014
+   },
+   "deputados": 559,
+   "emendas_bi": 58.06
+  },
+  "votos_e_populacao": {
+   "votos": {
+    "coef": 0.687,
+    "ep": 0.013
+   },
+   "zero_voto": {
+    "coef": 0.718,
+    "ep": 0.114
+   },
+   "populacao": {
+    "coef": 0.053,
+    "ep": 0.014
+   },
+   "deputados": 559,
+   "emendas_bi": 58.06
+  },
+  "votos_e_eleitorado": {
+   "votos": {
+    "coef": 0.681,
+    "ep": 0.013
+   },
+   "zero_voto": {
+    "coef": 0.7,
+    "ep": 0.114
+   },
+   "votos_validos": {
+    "coef": 0.064,
+    "ep": 0.015
+   },
+   "deputados": 559,
+   "emendas_bi": 58.06
+  },
+  "tamanho_e_forca_local": {
+   "votos_validos": {
+    "coef": 0.739,
+    "ep": 0.012
+   },
+   "fatia_local": {
+    "coef": 0.67,
+    "ep": 0.013
+   },
+   "zero_voto": {
+    "coef": -4.99,
+    "ep": 0.123
+   },
+   "deputados": 559,
+   "emendas_bi": 58.06
+  }
+ },
+ "robustez": {
+  "sem_pagamentos_estaduais": {
+   "votos": {
+    "coef": 0.699,
+    "ep": 0.013
+   },
+   "zero_voto": {
+    "coef": 0.611,
+    "ep": 0.112
+   },
+   "populacao": {
+    "coef": -0.061,
+    "ep": 0.013
+   },
+   "deputados": 559,
+   "emendas_bi": 53.86
+  },
+  "sem_capitais": {
+   "votos": {
+    "coef": 0.698,
+    "ep": 0.013
+   },
+   "zero_voto": {
+    "coef": 0.606,
+    "ep": 0.112
+   },
+   "populacao": {
+    "coef": -0.066,
+    "ep": 0.014
+   },
+   "deputados": 559,
+   "emendas_bi": 49.82
+  },
+  "veteranos": {
+   "votos": {
+    "coef": 0.73,
+    "ep": 0.014
+   },
+   "zero_voto": {
+    "coef": 0.872,
+    "ep": 0.131
+   },
+   "populacao": {
+    "coef": 0.02,
+    "ep": 0.016
+   },
+   "deputados": 324,
+   "emendas_bi": 38.34
+  },
+  "novatos": {
+   "votos": {
+    "coef": 0.598,
+    "ep": 0.024
+   },
+   "zero_voto": {
+    "coef": 0.465,
+    "ep": 0.202
+   },
+   "populacao": {
+    "coef": 0.139,
+    "ep": 0.027
+   },
+   "deputados": 235,
+   "emendas_bi": 19.72
+  },
+  "veteranos_por_ano_de_pagamento": {
+   "2023": {
+    "votos": {
+     "coef": 0.889,
+     "ep": 0.023
+    },
+    "zero_voto": {
+     "coef": 0.876,
+     "ep": 0.261
+    },
+    "populacao": {
+     "coef": -0.085,
+     "ep": 0.024
+    },
+    "deputados": 318,
+    "emendas_bi": 9.69
+   },
+   "2024": {
+    "votos": {
+     "coef": 0.764,
+     "ep": 0.021
+    },
+    "zero_voto": {
+     "coef": 1.083,
+     "ep": 0.189
+    },
+    "populacao": {
+     "coef": 0.039,
+     "ep": 0.025
+    },
+    "deputados": 313,
+    "emendas_bi": 9.35
+   },
+   "2025": {
+    "votos": {
+     "coef": 0.669,
+     "ep": 0.016
+    },
+    "zero_voto": {
+     "coef": 0.624,
+     "ep": 0.145
+    },
+    "populacao": {
+     "coef": 0.071,
+     "ep": 0.019
+    },
+    "deputados": 316,
+    "emendas_bi": 10.23
+   },
+   "2026": {
+    "votos": {
+     "coef": 0.618,
+     "ep": 0.017
+    },
+    "zero_voto": {
+     "coef": 0.656,
+     "ep": 0.18
+    },
+    "populacao": {
+     "coef": 0.036,
+     "ep": 0.019
+    },
+    "deputados": 310,
+    "emendas_bi": 9.07
+   }
+  },
+  "novatos_por_ano_de_pagamento": {
+   "2024": {
+    "votos": {
+     "coef": 0.679,
+     "ep": 0.037
+    },
+    "zero_voto": {
+     "coef": 0.711,
+     "ep": 0.304
+    },
+    "populacao": {
+     "coef": 0.107,
+     "ep": 0.037
+    },
+    "deputados": 217,
+    "emendas_bi": 6.47
+   },
+   "2025": {
+    "votos": {
+     "coef": 0.573,
+     "ep": 0.029
+    },
+    "zero_voto": {
+     "coef": 0.247,
+     "ep": 0.227
+    },
+    "populacao": {
+     "coef": 0.175,
+     "ep": 0.031
+    },
+    "deputados": 223,
+    "emendas_bi": 6.97
+   },
+   "2026": {
+    "votos": {
+     "coef": 0.544,
+     "ep": 0.027
+    },
+    "zero_voto": {
+     "coef": 0.358,
+     "ep": 0.201
+    },
+    "populacao": {
+     "coef": 0.135,
+     "ep": 0.034
+    },
+    "deputados": 225,
+    "emendas_bi": 6.18
+   }
+  }
+ },
+ "dono_do_municipio": [
+  {
+   "fatia_local": "zero voto",
+   "multiplicador": 0.19,
+   "chance_receber": 0.047,
+   "pares": 23046,
+   "emendas_bi": 0.47
+  },
+  {
+   "fatia_local": "menos de 1%",
+   "multiplicador": 0.39,
+   "chance_receber": 0.149,
+   "pares": 115351,
+   "emendas_bi": 15.62
+  },
+  {
+   "fatia_local": "1–3%",
+   "multiplicador": 1.0,
+   "chance_receber": 0.356,
+   "pares": 26390,
+   "emendas_bi": 11.21
+  },
+  {
+   "fatia_local": "3–5%",
+   "multiplicador": 1.7,
+   "chance_receber": 0.5,
+   "pares": 8913,
+   "emendas_bi": 5.68
+  },
+  {
+   "fatia_local": "5–10%",
+   "multiplicador": 2.56,
+   "chance_receber": 0.592,
+   "pares": 8395,
+   "emendas_bi": 7.24
+  },
+  {
+   "fatia_local": "10–20%",
+   "multiplicador": 4.83,
+   "chance_receber": 0.684,
+   "pares": 5082,
+   "emendas_bi": 6.32
+  },
+  {
+   "fatia_local": "20–30%",
+   "multiplicador": 9.61,
+   "chance_receber": 0.812,
+   "pares": 1825,
+   "emendas_bi": 4.04
+  },
+  {
+   "fatia_local": "30–50%",
+   "multiplicador": 18.51,
+   "chance_receber": 0.946,
+   "pares": 1563,
+   "emendas_bi": 5.52
+  },
+  {
+   "fatia_local": "mais de 50%",
+   "multiplicador": 30.77,
+   "chance_receber": 0.983,
+   "pares": 405,
+   "emendas_bi": 1.95
+  }
+ ],
+ "proporcionalidade": {
+  "emenda_mudaria_de_cidade_para_seguir_votos": 0.497,
+  "para_seguir_populacao": 0.684
+ },
+ "espalhamento": {
+  "municipios_que_recebem_mediana": 62.0,
+  "municipios_do_estado_mediana": 246.0,
+  "fatia_mediana": 0.266
+ },
+ "concentracao": {
+  "top1": {
+   "emendas": 0.159,
+   "votos": 0.269,
+   "populacao": 0.145
+  },
+  "top5": {
+   "emendas": 0.303,
+   "votos": 0.445,
+   "populacao": 0.262
+  },
+  "top10": {
+   "emendas": 0.403,
+   "votos": 0.549,
+   "populacao": 0.326
+  },
+  "top20": {
+   "emendas": 0.53,
+   "votos": 0.671,
+   "populacao": 0.407
+  }
+ },
+ "margem": {
+  "chance_receber_sem_voto": 0.047,
+  "chance_receber_com_voto": 0.255,
+  "fatia_emendas_sem_voto": 0.0082,
+  "municipios_base_sem_emenda": 0.231
+ },
+ "votos_2026": {
+  "deputados": 421,
+  "variacao_com_emenda": 0.065,
+  "variacao_sem_emenda": 0.069,
+  "fatia_dos_votos_em_cidades_com_emenda": {
+   "2022": 0.751,
+   "2026": 0.75
+  },
+  "por_votos_de_2022": [
+   {
+    "faixa": "1 a 10",
+    "pares_com_emenda": 3827,
+    "pares_sem_emenda": 40775,
+    "com_emenda": 27.143,
+    "sem_emenda": 3.261
+   },
+   {
+    "faixa": "11 a 50",
+    "pares_com_emenda": 5638,
+    "pares_sem_emenda": 29477,
+    "com_emenda": 6.663,
+    "sem_emenda": 1.074
+   },
+   {
+    "faixa": "51 a 200",
+    "pares_com_emenda": 8147,
+    "pares_sem_emenda": 17168,
+    "com_emenda": 1.47,
+    "sem_emenda": 0.329
+   },
+   {
+    "faixa": "201 a 1.000",
+    "pares_com_emenda": 10607,
+    "pares_sem_emenda": 9604,
+    "com_emenda": 0.252,
+    "sem_emenda": -0.055
+   },
+   {
+    "faixa": "1.001 a 5.000",
+    "pares_com_emenda": 5311,
+    "pares_sem_emenda": 1991,
+    "com_emenda": -0.063,
+    "sem_emenda": -0.216
+   },
+   {
+    "faixa": "mais de 5.000",
+    "pares_com_emenda": 977,
+    "pares_sem_emenda": 88,
+    "com_emenda": -0.081,
+    "sem_emenda": -0.291
+   }
+  ],
+  "associacao": {
+   "recebeu": {
+    "coef": 0.612,
+    "ep": 0.03
+   },
+   "log_emenda": {
+    "coef": 0.213,
+    "ep": 0.012
+   },
+   "log_votos_2022": {
+    "coef": 0.527,
+    "ep": 0.014
+   },
+   "pares": 133610,
+   "recebeu_em_porcentagem": 0.843
+  },
+  "associacao_por_ano_de_pagamento": {
+   "2023": {
+    "coef": 0.008,
+    "ep": 0.025,
+    "em_porcentagem": 0.008
+   },
+   "2024": {
+    "coef": 0.19,
+    "ep": 0.021,
+    "em_porcentagem": 0.21
+   },
+   "2025": {
+    "coef": 0.414,
+    "ep": 0.025,
+    "em_porcentagem": 0.513
+   },
+   "2026": {
+    "coef": 0.53,
+    "ep": 0.027,
+    "em_porcentagem": 0.699
+   }
+  }
+ },
+ "votos_2018": {
+  "deputados_com_candidatura_em_2018": 340,
+  "votos_2026_sem_controlar_2018": {
+   "recebeu": {
+    "coef": 0.603,
+    "ep": 0.038,
+    "em_porcentagem": 0.828
+   },
+   "log_emenda": {
+    "coef": 0.215,
+    "ep": 0.015
+   },
+   "log_votos_2022": {
+    "coef": 0.534,
+    "ep": 0.018
+   },
+   "pares": 87718,
+   "deputados": 255
+  },
+  "votos_2026_controlando_2018": {
+   "recebeu": {
+    "coef": 0.609,
+    "ep": 0.038,
+    "em_porcentagem": 0.839
+   },
+   "log_emenda": {
+    "coef": 0.21,
+    "ep": 0.015
+   },
+   "log_votos_2022": {
+    "coef": 0.447,
+    "ep": 0.016
+   },
+   "log_votos_2018": {
+    "coef": 0.117,
+    "ep": 0.009
+   },
+   "zero_voto_2018": {
+    "coef": 0.229,
+    "ep": 0.123
+   },
+   "pares": 87718,
+   "deputados": 255
+  },
+  "destino_da_emenda_dados_2022_e_2018": {
+   "votos_2022": {
+    "coef": 0.701,
+    "ep": 0.017
+   },
+   "zero_voto_2022": {
+    "coef": 0.704,
+    "ep": 0.132
+   },
+   "votos_2018": {
+    "coef": 0.026,
+    "ep": 0.011
+   },
+   "zero_voto_2018": {
+    "coef": 0.103,
+    "ep": 0.082
+   },
+   "populacao": {
+    "coef": 0.015,
+    "ep": 0.017
+   },
+   "deputados": 340,
+   "emendas_bi": 38.86
+  },
+  "ciclo_anterior": {
+   "emenda_2019_22_no_painel_bi": 13.98,
+   "so_a_paga_antes_da_eleicao": {
+    "recebeu_2019_22": {
+     "coef": 0.707,
+     "ep": 0.046,
+     "em_porcentagem": 1.028
+    },
+    "log_votos_2018": {
+     "coef": 0.594,
+     "ep": 0.019
+    },
+    "pares": 100152,
+    "deputados": 314
+   },
+   "so_a_paga_depois_da_eleicao": {
+    "recebeu_2023_26": {
+     "coef": 0.961,
+     "ep": 0.051,
+     "em_porcentagem": 1.614
+    },
+    "log_votos_2018": {
+     "coef": 0.591,
+     "ep": 0.017
+    },
+    "pares": 100152,
+    "deputados": 314
+   },
+   "as_duas_juntas": {
+    "recebeu_2019_22": {
+     "coef": 0.475,
+     "ep": 0.035,
+     "em_porcentagem": 0.608
+    },
+    "recebeu_2023_26": {
+     "coef": 0.832,
+     "ep": 0.044,
+     "em_porcentagem": 1.298
+    },
+    "log_votos_2018": {
+     "coef": 0.544,
+     "ep": 0.019
+    },
+    "pares": 100152,
+    "deputados": 314
+   },
+   "por_ano_de_pagamento": {
+    "2019": {
+     "coef": 0.003,
+     "ep": 0.03,
+     "em_porcentagem": 0.003
+    },
+    "2020": {
+     "coef": 0.12,
+     "ep": 0.026,
+     "em_porcentagem": 0.127
+    },
+    "2021": {
+     "coef": 0.481,
+     "ep": 0.033,
+     "em_porcentagem": 0.618
+    },
+    "2022": {
+     "coef": 0.541,
+     "ep": 0.033,
+     "em_porcentagem": 0.718
+    },
+    "log_votos_2018": {
+     "coef": 0.567,
+     "ep": 0.018
+    },
+    "pares": 100152,
+    "deputados": 314
+   }
+  },
+  "novatos_sem_mandato_em_2018": {
+   "recebeu_2023_26": {
+    "coef": 0.244,
+    "ep": 0.077,
+    "em_porcentagem": 0.276
+   },
+   "votos_2018": {
+    "coef": 0.633,
+    "ep": 0.075
+   },
+   "zero_voto_2018": {
+    "coef": 0.086,
+    "ep": 0.201
+   },
+   "votos_validos": {
+    "coef": 0.283,
+    "ep": 0.049
+   },
+   "deputados": 26,
+   "emendas_bi": 0.0
+  }
+ },
+ "prefeitos_2024": {
+  "pares": 188967,
+  "fatia_dos_pares": {
+   "prefeito_do_partido": 0.106,
+   "partido_na_coligacao": 0.202,
+   "partido_disputou_e_perdeu": 0.169
+  },
+  "destino_da_emenda_2023_24": {
+   "prefeito_do_partido": {
+    "coef": 0.5,
+    "ep": 0.053,
+    "em_porcentagem": 0.649
+   },
+   "partido_na_coligacao": {
+    "coef": 0.273,
+    "ep": 0.04,
+    "em_porcentagem": 0.314
+   },
+   "partido_disputou_e_perdeu": {
+    "coef": 0.03,
+    "ep": 0.047,
+    "em_porcentagem": 0.03
+   },
+   "votos": {
+    "coef": 0.766,
+    "ep": 0.017
+   },
+   "zero_voto": {
+    "coef": 0.969,
+    "ep": 0.154
+   },
+   "populacao": {
+    "coef": 0.02,
+    "ep": 0.018
+   },
+   "deputados": 543,
+   "emendas_bi": 25.41
+  },
+  "destino_da_emenda_2025_26": {
+   "prefeito_do_partido": {
+    "coef": 0.844,
+    "ep": 0.053,
+    "em_porcentagem": 1.326
+   },
+   "partido_na_coligacao": {
+    "coef": 0.434,
+    "ep": 0.038,
+    "em_porcentagem": 0.543
+   },
+   "partido_disputou_e_perdeu": {
+    "coef": 0.099,
+    "ep": 0.044,
+    "em_porcentagem": 0.104
+   },
+   "votos": {
+    "coef": 0.586,
+    "ep": 0.013
+   },
+   "zero_voto": {
+    "coef": 0.461,
+    "ep": 0.118
+   },
+   "populacao": {
+    "coef": 0.106,
+    "ep": 0.015
+   },
+   "deputados": 548,
+   "emendas_bi": 32.29
+  },
+  "ganhar_a_prefeitura_depois_x_antes": {
+   "coef": 0.351,
+   "ep": 0.065,
+   "em_porcentagem": 0.421,
+   "observacoes": 31394,
+   "pares_onde_o_partido_disputou": 51966
+  },
+  "votos_2026": {
+   "so_emenda": {
+    "recebeu": {
+     "coef": 0.611,
+     "ep": 0.03,
+     "em_porcentagem": 0.842
+    },
+    "log_emenda": {
+     "coef": 0.213,
+     "ep": 0.012
+    },
+    "log_votos_2022": {
+     "coef": 0.527,
+     "ep": 0.014
+    },
+    "pares": 132295,
+    "deputados": 421
+   },
+   "so_prefeito": {
+    "prefeito_do_partido": {
+     "coef": 0.425,
+     "ep": 0.031,
+     "em_porcentagem": 0.53
+    },
+    "partido_na_coligacao": {
+     "coef": 0.171,
+     "ep": 0.022,
+     "em_porcentagem": 0.186
+    },
+    "partido_disputou_e_perdeu": {
+     "coef": 0.163,
+     "ep": 0.023,
+     "em_porcentagem": 0.177
+    },
+    "log_votos_2022": {
+     "coef": 0.684,
+     "ep": 0.011
+    },
+    "pares": 132295,
+    "deputados": 421
+   },
+   "emenda_e_prefeito": {
+    "recebeu": {
+     "coef": 0.598,
+     "ep": 0.03,
+     "em_porcentagem": 0.818
+    },
+    "log_emenda": {
+     "coef": 0.205,
+     "ep": 0.012
+    },
+    "prefeito_do_partido": {
+     "coef": 0.244,
+     "ep": 0.026,
+     "em_porcentagem": 0.276
+    },
+    "partido_na_coligacao": {
+     "coef": 0.094,
+     "ep": 0.019,
+     "em_porcentagem": 0.099
+    },
+    "partido_disputou_e_perdeu": {
+     "coef": 0.143,
+     "ep": 0.022,
+     "em_porcentagem": 0.154
+    },
+    "log_votos_2022": {
+     "coef": 0.523,
+     "ep": 0.014
+    },
+    "pares": 132295,
+    "deputados": 421
+   }
+  }
+ },
+ "dobradinhas": {
+  "pares_federal_estadual": 289,
+  "deputados_com_parceiro": 143,
+  "fatia_do_mesmo_partido": 0.388,
+  "fatia_dos_parceiros_que_concorreram_em_2026": 0.533,
+  "destino_da_emenda": {
+   "parceiros_com_10_por_cento_ou_mais_da_cidade": {
+    "coef": 0.315,
+    "ep": 0.113,
+    "em_porcentagem": 0.37
+   },
+   "votos": {
+    "coef": 0.598,
+    "ep": 0.035
+   },
+   "zero_voto": {
+    "coef": 0.047,
+    "ep": 0.258
+   },
+   "populacao": {
+    "coef": 0.199,
+    "ep": 0.037
+   },
+   "deputados": 143,
+   "emendas_bi": 13.86
+  },
+  "votos_2026": {
+   "so_emenda": {
+    "recebeu": {
+     "coef": 0.374,
+     "ep": 0.05,
+     "em_porcentagem": 0.454
+    },
+    "log_emenda": {
+     "coef": 0.118,
+     "ep": 0.016
+    },
+    "log_votos_2022": {
+     "coef": 0.653,
+     "ep": 0.029
+    },
+    "pares": 28251,
+    "deputados": 85
+   },
+   "controlando_parceiros_em_2022": {
+    "recebeu": {
+     "coef": 0.361,
+     "ep": 0.048,
+     "em_porcentagem": 0.435
+    },
+    "log_emenda": {
+     "coef": 0.111,
+     "ep": 0.015
+    },
+    "log_votos_2022": {
+     "coef": 0.538,
+     "ep": 0.034
+    },
+    "log_votos_dos_parceiros_2022": {
+     "coef": 0.13,
+     "ep": 0.019
+    },
+    "pares": 28251,
+    "deputados": 85
+   },
+   "controlando_parceiros_em_2022_e_2026": {
+    "recebeu": {
+     "coef": 0.355,
+     "ep": 0.046,
+     "em_porcentagem": 0.426
+    },
+    "log_emenda": {
+     "coef": 0.1,
+     "ep": 0.014
+    },
+    "log_votos_2022": {
+     "coef": 0.503,
+     "ep": 0.033
+    },
+    "log_votos_dos_parceiros_2022": {
+     "coef": -0.032,
+     "ep": 0.025
+    },
+    "log_votos_dos_parceiros_2026": {
+     "coef": 0.226,
+     "ep": 0.028
+    },
+    "pares": 28251,
+    "deputados": 85
+   }
+  },
+  "votos_dos_parceiros_2026": {
+   "recebeu": {
+    "coef": 0.12,
+    "ep": 0.029,
+    "em_porcentagem": 0.127
+   },
+   "log_emenda": {
+    "coef": 0.041,
+    "ep": 0.011
+   },
+   "log_votos_dos_parceiros_2022": {
+    "coef": 0.806,
+    "ep": 0.019
+   },
+   "pares": 25044,
+   "deputados": 85
+  },
+  "votos_dos_parceiros_2026_dados_os_do_deputado": {
+   "recebeu": {
+    "coef": 0.073,
+    "ep": 0.028,
+    "em_porcentagem": 0.076
+   },
+   "log_emenda": {
+    "coef": 0.029,
+    "ep": 0.011
+   },
+   "log_votos_dos_parceiros_2022": {
+    "coef": 0.733,
+    "ep": 0.026
+   },
+   "log_votos_do_deputado_2022": {
+    "coef": 0.1,
+    "ep": 0.022
+   },
+   "zero_voto_do_deputado": {
+    "coef": 0.221,
+    "ep": 0.114
+   },
+   "pares": 25044,
+   "deputados": 85
+  }
+ }
+}

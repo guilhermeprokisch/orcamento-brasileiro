@@ -138,7 +138,7 @@ export function areasHtml(ctx: Contexto): string {
   return `<section class="areas">
     <div class="areas-topo">
       <h2>Para onde vai o dinheiro</h2>
-      <p>Gasto por morador em cada área.${grupo ? ` <span class="so-largo">O traço mostra a mediana ${grupo}.</span>` : ""}</p>
+      <p>Gasto por morador em cada área.${grupo ? ` O traço mostra a mediana ${grupo}.` : ""}</p>
     </div>
     <div class="tabela" role="table" aria-label="Gasto por área em ${ctx.ano}">
       <div class="linha cab" role="row">
@@ -150,7 +150,7 @@ export function areasHtml(ctx: Contexto): string {
       </div>
       ${funcoes.map((l, i) => `<div class="linha" role="row">
         <span role="cell" class="nome">${esc(l.nome)}${DICA_AREA[l.cod]?.(ctx.esfera === "mun") ? `<small>${esc(DICA_AREA[l.cod](ctx.esfera === "mun"))}</small>` : ""}</span>
-        <span role="cell" class="trilho so-largo">
+        <span role="cell" class="trilho">
           <span class="barra" style="width:${(l.perCapita / maxBarra) * 100}%;background:${corDaRampa(Math.min(1, i / 8))}"></span>
           ${l.mediana !== null && l.mediana > 0 ? `<span class="mediana" style="left:${(l.mediana / maxBarra) * 100}%" title="Mediana: ${porPessoa(l.mediana)}"></span>` : ""}
         </span>

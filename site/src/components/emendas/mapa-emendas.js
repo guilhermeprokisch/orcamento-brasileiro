@@ -1,0 +1,850 @@
+(async () => {
+  const raiz = document.querySelector(".mapa-emendas");
+  const BASE = raiz.dataset.base;   // a pasta versionada dos dados (bucket; localmente, a cópia em /data/)
+  const svg = d3.select("#mapa"), g = svg.append("g");
+  // A cara do autor escolhido vira o preenchimento das bolhas. Em objectBoundingBox o mesmo
+  // padrão serve a todos os círculos: cada um recorta a foto no seu próprio tamanho.
+  const defs = svg.append("defs");
+  const padrao = defs.append("pattern").attr("id", "cara-autor")
+    .attr("patternContentUnits", "objectBoundingBox").attr("width", 1).attr("height", 1);
+  const padraoImg = padrao.append("image").attr("width", 1).attr("height", 1)
+    .attr("preserveAspectRatio", "xMidYMid slice");
+
+  const gUf = g.append("g");
+  // A malha dos municípios: desenhada só quando o zoom chega perto (ZOOM_MALHA), e só na primeira vez
+  // que chega — são 5.570 polígonos, e de longe seriam um borrão.
+  const gMalha = g.append("g").attr("class", "malha-mun");
+  const ZOOM_MALHA = 3.5, ZOOM_NOMES = 6, NOMES_MAX = 40;
+  // O território só responde ao mouse de perto (ZOOM_TOQUE): no nível do estado, passar por cima de
+  // cada municipiozinho acendendo tudo atrapalha; ali quem fala pelo município é a bolha.
+  const ZOOM_TOQUE = 12;
+  let malhaPronta = false;
+  function garantirMalha() {
+    if (malhaPronta) return;
+    // De perto, o território também é porta de entrada: passar o mouse acende o município e mostra o
+    // rótulo dele; o clique entra na cidade, como o clique na bolha. Assim ninguém precisa adivinhar
+    // que é no retrato que se clica (o CSS liga os eventos só com #mapa.toca-mun).
+    const lugarDe = (f) => lugarPor.get(String(f.properties.id));
+    gMalha.selectAll("path").data(mun.features).join("path").attr("d", caminho)
+      .attr("data-ibge", (f) => f.properties.id)
+      .classed("tem", (f) => !!lugarDe(f))
+      // Sem raise() aqui: mover o nó no DOM entre o toque e o solta engole o clique no celular.
+      .on("pointerenter", (ev, f) => { const d = lugarDe(f); if (d) mostrar(d, ev); })
+      .on("pointermove", (ev, f) => { const d = lugarDe(f); if (d) mostrar(d, ev); })
+      .on("pointerleave", (ev) => esconder(false, ev))
+      .on("click", (ev, f) => { const d = lugarDe(f); if (!d) return; ev.stopPropagation(); abrirMunicipio(d); });
+    malhaPronta = true;
+  }
+  // Bolhas e grupos ficam fora do <g> do zoom, em coordenadas de tela: o tamanho do marcador é em
+  // pixels, e a cada passo do zoom eles só mudam de lugar; ao fim do gesto, os grupos são refeitos.
+  const gBolhas = svg.append("g").attr("class", "camada-bolhas"), gGrupos = svg.append("g").attr("class", "camada-grupos");
+  const gNomes = svg.append("g").attr("class", "camada-nomes");   // nomes dos maiores municípios à vista, de perto
+  const gDentro = svg.append("g").attr("class", "camada-dentro"); // dentro do município: os parlamentares dele, espalhados no território
+  const projecao = d3.geoMercator(), caminho = d3.geoPath(projecao);
+  const cartao = document.getElementById("cartao");
+
+  const brl = (mil) => {                      // valores chegam em R$ mil
+    const v = mil * 1e3;
+    if (v >= 1e9) return "R$ " + (v / 1e9).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " bi";
+    if (v >= 1e6) return "R$ " + (v / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mi";
+    return "R$ " + Math.round(v).toLocaleString("pt-BR");
+  };
+
+  const [uf, mun, dados, caras] = await Promise.all([
+    d3.json("/data/mapa/estados.geojson"),
+    d3.json("/data/mapa/municipios.geojson"),
+    d3.json(`${BASE}/municipios.json`),
+    d3.json(`${BASE}/autores.json`),   // foto, partido e casa de cada parlamentar
+  ]);
+
+  for (const a of Object.values(caras)) if (a.foto) a.foto = `${BASE}/${a.foto}`;
+
+  /** O número do selo, curto: "3,2 bi", "642 mi", "98 mil". */
+  const curto = (mil) => {
+    const v = mil * 1e3;
+    if (v >= 1e9) return (v / 1e9).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " bi";
+    if (v >= 1e6) return Math.round(v / 1e6).toLocaleString("pt-BR") + " mi";
+    return Math.round(v / 1e3).toLocaleString("pt-BR") + " mil";
+  };
+  const escapar = (s) => String(s).replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  /** A cara do autor: foto quando é gente, monograma quando é bancada, comissão ou o relator. */
+  function cara(nome, tam = "") {
+    const p = caras[nome];
+    if (p && p.foto) return `<img class="cara ${tam}" src="${escapar(p.foto)}" alt="" loading="lazy"
+      onerror="this.replaceWith(Object.assign(document.createElement('span'),
+        {className:'cara ${tam} vazia', textContent:${JSON.stringify(sigla(nome))}}))">`;
+    return `<span class="cara ${tam} vazia">${escapar(sigla(nome))}</span>`;
+  }
+  function sigla(nome) {
+    const limpo = nome.replace(/^(Bancada d[oae]s?|Comissão d[oae]s?)\s*/i, "").trim();
+    return limpo.split(/\s+/).filter((p) => p.length > 2).slice(0, 2).map((p) => p[0]).join("").toUpperCase() || "?";
+  }
+  /** Linha de apoio do autor. Comissão, bancada e relator são colegiados: não têm cara, e dizer
+   *  "sem foto" soaria defeito — o que falta mesmo é só a dos parlamentares que não casaram. */
+  const colegiado = (nome) => /^(bancada|comissão|comissao|relator)/i.test(nome);
+  const legenda2 = (nome) => {
+    const p = caras[nome];
+    if (p) return `${p.casa}${p.partido ? ` · ${p.partido}` : ""}${p.uf ? `-${p.uf}` : ""}`;
+    return colegiado(nome) ? "colegiado do Congresso" : "não achei no cadastro";
+  };
+
+  // O IBGE entrega os polígonos no sentido anti-horário (padrão GeoJSON); o d3 espera o contrário e
+  // leria cada um como "o globo inteiro menos o polígono" — o que estoura o contorno e joga os
+  // centróides no antípoda. Inverte polígono a polígono, como faz src/mapa/pagina.html.
+  for (const geo of [uf, mun]) {
+    for (const f of geo.features) {
+      const gm = f.geometry;
+      for (const p of (gm.type === "Polygon" ? [gm.coordinates] : gm.coordinates)) {
+        if (d3.geoArea({ type: "Polygon", coordinates: p }) > 2 * Math.PI) for (const anel of p) anel.reverse();
+      }
+    }
+  }
+
+  // Centróide de cada município a partir da própria malha: nada de novo no pipeline.
+  const centro = new Map();
+  for (const f of mun.features) {
+    const id = String(f.properties?.id ?? f.properties?.codarea ?? f.id ?? "");
+    if (id) centro.set(id, d3.geoCentroid(f));
+  }
+
+  const ANOS = dados.anos;
+  const lugares = Object.entries(dados.mun)
+    .map(([ibge, d]) => ({ ibge, ...d, c: centro.get(ibge) }))
+    .filter((d) => d.c && Number.isFinite(d.c[0]));
+  const lugarPor = new Map(lugares.map((d) => [d.ibge, d]));
+  const semCentro = Object.keys(dados.mun).length - lugares.length;
+  if (semCentro) console.warn(`${semCentro} municípios sem centróide na malha`);
+
+  // Começa no último ano (2026, em andamento); "tudo" (iAno === ANOS.length) soma 2014–2026.
+  let iAno = ANOS.length - 1, semDF = true;
+  let autorSel = null, serieAutor = null;   // serieAutor: Map ibge → série anual só desse autor
+  let filtroTipo = "";                      // "" = todos os tipos de emenda
+  // Com um autor escolhido vale a série dele; sem autor, a do tipo pedido (d.st) ou a soma (d.s).
+  // Os dados por autor não têm o tipo repartido, por isso um exclui o outro.
+  const valorDe = (d) => {
+    const s = serieAutor ? serieAutor.get(d.ibge) : (filtroTipo ? d.st?.[filtroTipo] : d.s);
+    if (!s) return 0;
+    return iAno === ANOS.length ? s.reduce((a, b) => a + b, 0) : s[iAno];
+  };
+  // Brasília concentra ~40% de tudo: é a sede das entidades que recebem, não o lugar do gasto.
+  // Com ela dentro, a bolha dela engole a escala e o resto do país vira poeira.
+  const DF = "5300108";
+
+  // Com um autor escolhido, as bolhas dele levam o rosto dele (um só, grande o bastante).
+  let modoCara = true;
+  const comCara = () => !!(modoCara && autorSel && caras[autorSel]?.foto);
+  let emDesenho = [];           // os municípios do desenho atual, do maior para o menor
+  // Os retratos são de parlamentares. Filtrando por bancada, relator ou comissão, o dinheiro na
+  // tela não é deles: os grupos ficam sem rosto, para não sugerir uma ligação que não existe.
+  const caraCabe = () => !filtroTipo || filtroTipo === "Individual" || filtroTipo === "Pix";
+  const main = document.getElementById("main"), palco = document.getElementById("palco");
+
+  // Uma escala só para tudo que está na tela: a área do círculo é o valor, seja de um município
+  // sozinho, seja de um grupo. O domínio vai até o maior grupo da escala atual.
+  let raio = d3.scaleSqrt().range([0, 46]);
+  const R_MIN_BOLHA = 3.5, R_MIN_GRUPO = 15;   // px
+
+  const ligarEventos = (sel) => sel
+    .on("pointerenter", (ev, d) => mostrar(d, ev))
+    .on("pointermove", (ev, d) => mostrar(d, ev))
+    .on("pointerleave", (ev) => esconder(false, ev))
+    .on("click", (ev, d) => { ev.stopPropagation(); abrirMunicipio(d); });
+
+  /** Um <pattern> por parlamentar, criado na hora em que o primeiro grupo precisa dele. */
+  const padroes = new Map();
+  function padraoDe(nome) {
+    if (padroes.has(nome)) return padroes.get(nome);
+    const foto = caras[nome]?.foto;
+    if (!foto) { padroes.set(nome, null); return null; }
+    const id = `cara-${padroes.size}`;
+    defs.append("pattern").attr("id", id).attr("patternContentUnits", "objectBoundingBox").attr("width", 1).attr("height", 1)
+      .append("image").attr("width", 1).attr("height", 1).attr("preserveAspectRatio", "xMidYMin slice").attr("href", foto);
+    padroes.set(nome, id);
+    return id;
+  }
+
+  // ---- Agrupamento: municípios vizinhos na escala atual viram um grupo ----------------------
+  // A célula é fixa em pixels: ao aproximar, cabem menos municípios em cada uma e os grupos se
+  // abrem, até sobrar um município por célula. Com uma cidade aberta não se agrupa nada.
+  // Dois níveis, e são administrativos, não geométricos: de longe, um círculo por ESTADO — o
+  // retrato é de quem mais mandou para o estado, o tamanho é o total dele; quando a malha aparece
+  // (ZOOM_MALHA), cada MUNICÍPIO é o seu próprio círculo. Mover o mapa nunca refaz nada.
+  const NOME_UF = { 11: "Rondônia", 12: "Acre", 13: "Amazonas", 14: "Roraima", 15: "Pará", 16: "Amapá", 17: "Tocantins",
+    21: "Maranhão", 22: "Piauí", 23: "Ceará", 24: "Rio Grande do Norte", 25: "Paraíba", 26: "Pernambuco", 27: "Alagoas",
+    28: "Sergipe", 29: "Bahia", 31: "Minas Gerais", 32: "Espírito Santo", 33: "Rio de Janeiro", 35: "São Paulo",
+    41: "Paraná", 42: "Santa Catarina", 43: "Rio Grande do Sul", 50: "Mato Grosso do Sul", 51: "Mato Grosso",
+    52: "Goiás", 53: "Distrito Federal" };
+  // Centróide geográfico de cada estado (lon/lat); é projetado na hora de agrupar, porque a projeção só
+  // é ajustada ao palco em dimensionar() — projetar aqui, no carregamento, empilhava tudo num canto.
+  const centroUfGeo = new Map(uf.features.map((f) => [String(f.properties.id), d3.geoCentroid(f)]));
+  let grupos = [], soltos = [], nivelAgrupado = null;
+  const nivelDe = (k) => (k >= ZOOM_MALHA ? "mun" : "uf");
+  function agrupar() {
+    const t = d3.zoomTransform(svg.node());
+    nivelAgrupado = nivelDe(t.k);
+    grupos = []; soltos = [];
+    if (nivelAgrupado === "mun") {
+      soltos = emDesenho;
+    } else {
+      const porUf = new Map();
+      for (const d of emDesenho) {
+        const cod = d.ibge.slice(0, 2), v = valorDe(d);
+        let g = porUf.get(cod);
+        if (!g) porUf.set(cod, (g = { id: cod, nome: NOME_UF[cod] ?? d.u, sigla: d.u, itens: [], v: 0, por: new Map(), maior: d }));
+        g.itens.push(d); g.v += v;
+        if (valorDe(g.maior) < v) g.maior = d;
+        if (!autorSel) for (const [nome, val] of d.ap ?? []) g.por.set(nome, (g.por.get(nome) ?? 0) + val);
+      }
+      for (const g of porUf.values()) {
+        if (!(g.v > 0)) continue;
+        [g.px, g.py] = centroUfGeo.has(g.id) ? projecao(centroUfGeo.get(g.id)) : projecao(g.maior.c);
+        g.quem = autorSel ? [[autorSel, g.v]] : [...g.por.entries()].sort((a, b) => b[1] - a[1]);
+        g.dono = g.quem.find(([n]) => caras[n]?.foto)?.[0] ?? null;
+        grupos.push(g);
+      }
+    }
+    const maior = Math.max(d3.max(grupos, (g) => g.v) ?? 0, d3.max(soltos, valorDe) ?? 0, 1);
+    raio.domain([0, maior]);
+    desenharMarcas();
+  }
+
+  const raioGrupo = (g) => Math.max(R_MIN_GRUPO, raio(g.v));
+  const comRosto = () => modoCara && caraCabe();
+  // De perto (ZOOM_MALHA em diante), o município sozinho vira rosto também, com o piso dos grupos:
+  // senão dois municípios minúsculos juntos ganhavam um retrato e Ribeirão Preto sozinha era um ponto.
+  // De perto, só os ROSTOS_MAX maiores municípios à vista ganham retrato (com um piso de tamanho);
+  // os outros são pontos proporcionais ao valor — senão o Sudeste a 6× é uma parede de 2.000 rostos.
+  // O zoom é o botão de "mais detalhe": em qualquer escala a tela mostra só as principais cidades à
+  // vista, com retrato, e o número cresce com o zoom — a 3,5×, 12; a 7×, ~40; a 14×, ~130; nunca
+  // há um degrau em que tudo aparece. Pontos "só porque o município existe" não dizem nada.
+  const ROSTOS_MIN = 12, ROSTOS_MAX = 400;
+  const rostosEm = (k) => Math.round(Math.min(ROSTOS_MAX, ROSTOS_MIN * Math.pow(Math.max(k, ZOOM_MALHA) / ZOOM_MALHA, 1.7)));
+  let comRostoAgora = new Set();
+  const raioSolto = (d) => Math.max(R_MIN_GRUPO, raio(valorDe(d)));   // tudo que aparece tem tamanho de rosto
+  /** O retrato de um município sozinho: o autor escolhido, ou o maior parlamentar dele com foto. */
+  const rostoDe = (d) => autorSel ? (caras[autorSel]?.foto ? "cara-autor" : null)
+    : (padraoDe((d.ap ?? []).find(([n]) => caras[n]?.foto)?.[0] ?? "") || null);
+
+  /** Está dentro do palco (com folga)? Retratos e nomes só para esses: fora da tela seria foto baixada à toa. */
+  function naVista(x, y, folga = 60) {
+    const m = palco.getBoundingClientRect();
+    return x > -folga && y > -folga && x < m.width + folga && y < m.height + folga;
+  }
+
+  function desenharMarcas() {
+    const t = d3.zoomTransform(svg.node());
+    // municípios sozinhos: a bolha de sempre, agora em px de tela
+    // quem ganha rosto: com autor escolhido, todos os dele à vista; senão, os maiores à vista
+    const aVista = soltos.filter((d) => naVista(...t.apply(projecao(d.c)), 0));
+    const principais = new Set((autorSel ? aVista : [...aVista].sort((a, b) => valorDe(b) - valorDe(a)).slice(0, rostosEm(t.k))).map((d) => d.ibge));
+    comRostoAgora = comRosto() ? principais : new Set();
+    const todosAparecem = !!autorSel;   // com um parlamentar escolhido, todo lugar dele à vista
+    const bolhas = gBolhas.selectAll("circle").data(soltos, (d) => d.ibge);
+    bolhas.exit().remove();
+    bolhas.enter().append("circle").attr("class", "bolha").call(ligarEventos).merge(bolhas)
+      .attr("data-ibge", (d) => d.ibge)
+      .classed("escolhida", (d) => munSel?.ibge === d.ibge)
+      .each(function (d) {
+        const [x, y] = t.apply(projecao(d.c));
+        const padrao = comRostoAgora.has(d.ibge) ? (comCara() ? "cara-autor" : rostoDe(d)) : null;
+        d3.select(this).attr("cx", x).attr("cy", y).attr("r", raioSolto(d))
+          .attr("display", todosAparecem || principais.has(d.ibge) || munSel?.ibge === d.ibge ? null : "none")
+          .classed("foto", !!padrao).style("fill", padrao ? `url(#${padrao})` : null);
+      });
+    // os que já estavam na tela e saíram (ou entraram) do grupo dos maiores mudam de tamanho junto
+    gBolhas.selectAll("circle").attr("r", raioSolto);
+    desenharDentro(t);
+    gBolhas.selectAll("circle").filter((d) => !!munSel && d.ibge === munSel.ibge && dentroAgora.has(d.ibge)).attr("display", "none");
+
+    // de perto, o nome dos maiores municípios sozinhos à vista; e o município aberto pintado na malha
+    const k = t.k;
+    const comNome = k >= ZOOM_NOMES ? soltos.filter((d) => comRostoAgora.has(d.ibge)).slice(0, NOMES_MAX) : [];
+    gNomes.selectAll("text").data(comNome, (d) => d.ibge).join("text")
+      .text((d) => d.n)
+      .each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
+    if (malhaPronta) gMalha.selectAll("path").classed("escolhido", (f) => !!munSel && f.properties.id === munSel.ibge);
+
+    // grupos: círculo com o retrato de quem mais mandou e o número de municípios
+    const gs = gGrupos.selectAll("g.marca-grupo").data(grupos, (g) => g.id);
+    gs.exit().remove();
+    const novos = gs.enter().append("g").attr("class", "marca-grupo")
+      .on("pointerenter", (ev, g) => mostrarGrupo(g, ev))
+      .on("pointermove", (ev, g) => mostrarGrupo(g, ev))
+      .on("pointerleave", () => esconder())
+      .on("click", (ev, g) => { ev.stopPropagation(); esconder(true); aproximarGrupo(g); });
+    novos.append("circle").attr("class", "fundo");
+    novos.append("circle").attr("class", "aro");
+    novos.append("rect").attr("class", "selo").attr("rx", 9).attr("height", 18);
+    novos.append("text").attr("class", "selo-txt").attr("text-anchor", "middle").attr("dy", "0.35em");
+    novos.merge(gs).each(function (g) {
+      const r = raioGrupo(g), [x, y] = t.apply([g.px, g.py]);
+      const padrao = comRosto() && g.dono && naVista(x, y) ? padraoDe(g.dono) : null;
+      // Sem número no grupo, em geral: ao lado de um retrato, qualquer número parecia ser do parlamentar.
+      // Com um parlamentar escolhido o dinheiro é dele mesmo, e aí o selo mostra quanto.
+      const sel = d3.select(this).attr("transform", `translate(${x},${y})`).classed("foto", !!padrao);
+      sel.select(".fundo").attr("r", r).style("fill", padrao ? `url(#${padrao})` : null);
+      sel.select(".aro").attr("r", r + 1);
+      const comSelo = !!autorSel;
+      const txt = sel.select(".selo-txt").attr("display", comSelo ? null : "none").attr("x", r * 0.62).attr("y", -r * 0.62).text(comSelo ? curto(g.v) : "");
+      const larg = comSelo ? Math.ceil(txt.node().getComputedTextLength()) + 12 : 0;
+      sel.select(".selo").attr("display", comSelo ? null : "none").attr("x", r * 0.62 - larg / 2).attr("y", -r * 0.62 - 9).attr("width", Math.max(1, larg));
+    });
+  }
+
+  // ---- Terceiro nível: dentro do município ------------------------------------------------
+  // O terceiro nível é a cidade ABERTA, como o segundo é o estado em que se entrou: clicar na cidade
+  // enquadra o território na parte livre da tela e o retrato único dá lugar aos parlamentares que
+  // mandaram para ela, espalhados dentro do território, cada um com o tamanho do que mandou — a partir
+  // da lista completa de emendas do município (mun/<ibge>.json). Nenhuma regra de tamanho em pixels:
+  // município pequeno abre igual ao grande.
+  const PESSOAS_DENTRO = 14;
+  const feicaoMun = new Map(mun.features.map((f) => [f.properties.id, f]));
+  const dentroCache = new Map();   // ibge → [{nome, v, n}] ou "carregando"
+  function pessoasDentro(d) {
+    const c = dentroCache.get(d.ibge);
+    if (c) return c === "carregando" ? null : c;
+    dentroCache.set(d.ibge, "carregando");
+    d3.json(`${BASE}/mun/${d.ibge}.json`).catch(() => []).then((linhas) => {
+      const soma = new Map();
+      for (const l of linhas) {
+        const [, autor, tipo, a0, a1, mil] = l;
+        // Gente com foto, e os colegiados (bancada, comissão, relator) como monograma: o dinheiro deles
+        // está no tamanho da bolha da cidade e precisa ter uma cara no pacote também.
+        if (!caras[autor]?.foto && !colegiado(autor)) continue;
+        if (iAno !== ANOS.length && !(a0 <= ANOS[iAno] && ANOS[iAno] <= a1)) continue;
+        if (filtroTipo && tipo !== filtroTipo) continue;
+        const r = soma.get(autor) ?? { nome: autor, v: 0, n: 0 };
+        r.v += mil; r.n += 1; soma.set(autor, r);
+      }
+      dentroCache.set(d.ibge, [...soma.values()].sort((a, b) => b.v - a.v).slice(0, PESSOAS_DENTRO));
+      desenharMarcas();
+    });
+    return null;
+  }
+  // o filtro de ano/tipo muda a conta: a cache vai embora com ele
+  let chaveDentro = "";
+  // O pacote de rostos aparece na cidade aberta e, de passagem, na cidade sob o ponteiro: passar o
+  // mouse na bolha já mostra quem mais mandou, sem clicar — a bolha é a cidade, não o deputado.
+  let munHover = null;
+  function largurasNaTela(t) {
+    const alvos = [];
+    for (const d of [munSel, munHover]) {
+      if (!d || alvos.some((a) => a.d.ibge === d.ibge)) continue;
+      const f = feicaoMun.get(d.ibge);
+      if (!f) continue;
+      const b = caminho.bounds(f), larg = (b[1][0] - b[0][0]) * t.k, alt = (b[1][1] - b[0][1]) * t.k;
+      alvos.push({ d, lado: Math.max(120, Math.min(larg, alt)) });
+    }
+    return alvos;
+  }
+  let dentroAgora = new Set();
+  function desenharDentro(t) {
+    const chave = `${iAno}|${filtroTipo}|${autorSel ?? ""}`;
+    if (chave !== chaveDentro) { dentroCache.clear(); chaveDentro = chave; }
+    const alvos = autorSel ? [] : largurasNaTela(t);
+    dentroAgora = new Set(alvos.map((a) => a.d.ibge));
+    const gs = gDentro.selectAll("g.dentro").data(alvos, (a) => a.d.ibge);
+    gs.exit().remove();
+    const novos = gs.enter().append("g").attr("class", "dentro");
+    novos.append("text").attr("class", "titulo").attr("text-anchor", "middle");
+    novos.merge(gs).each(function ({ d, lado }) {
+      const pessoas = pessoasDentro(d) ?? [];
+      const [cx, cy] = t.apply(projecao(d.c));
+      // círculos empacotados em volta do centro, cabendo no território
+      const maior = d3.max(pessoas, (p) => p.v) || 1;
+      const esc = d3.scaleSqrt().domain([0, maior]).range([0, 1]);
+      const nos = pessoas.map((p) => ({ ...p, r: 8 + 28 * esc(p.v) }));
+      d3.packSiblings(nos);
+      const env = nos.length ? d3.packEnclose(nos) : { x: 0, y: 0, r: 1 };
+      const fator = Math.min(1, (lado * 0.42) / env.r);
+      const sel = d3.select(this);
+      sel.select(".titulo").attr("x", cx).attr("y", cy - env.r * fator - 14).text(pessoas.length ? `${d.n}: quem mandou` : `${d.n}: carregando…`);
+      const ps = sel.selectAll("g.pessoa").data(nos, (p) => p.nome);
+      ps.exit().remove();
+      const pn = ps.enter().append("g").attr("class", "pessoa")
+        .on("pointerenter", (ev, p) => mostrarPessoa(d, p, ev))
+        .on("pointermove", (ev, p) => mostrarPessoa(d, p, ev))
+        .on("pointerleave", (ev) => esconder(false, ev))
+        .on("click", async (ev, p) => {
+          ev.stopPropagation();
+          // De passagem (hover), a bolha ainda é a cidade: o clique entra nela. Só na cidade aberta
+          // o clique no rosto leva ao parlamentar.
+          if (munSel?.ibge !== d.ibge) { abrirMunicipio(d); return; }
+          await carregarAutores(); if (porAutor.autores[p.nome]) escolher(p.nome);
+        });
+      pn.append("circle").attr("class", "fundo"); pn.append("circle").attr("class", "aro");
+      pn.append("text").attr("class", "mono").attr("text-anchor", "middle").attr("dy", "0.35em");
+      pn.append("rect").attr("class", "selo").attr("rx", 8).attr("height", 16);
+      pn.append("text").attr("class", "selo-txt").attr("text-anchor", "middle").attr("dy", "0.35em");
+      pn.merge(ps).each(function (p) {
+        const px = cx + (p.x - env.x) * fator, py = cy + (p.y - env.y) * fator, r = Math.max(7, p.r * fator), pad = padraoDe(p.nome);
+        const s = d3.select(this);
+        const mono = !pad && colegiado(p.nome);
+        s.classed("foto", !!pad).classed("colegiado", mono).classed("mini", r < 16);   // rosto pequeno: selo só ao passar o mouse
+        s.select(".fundo").attr("cx", px).attr("cy", py).attr("r", r).style("fill", pad ? `url(#${pad})` : null);
+        s.select(".aro").attr("cx", px).attr("cy", py).attr("r", r + 1);
+        s.select(".mono").attr("x", px).attr("y", py).style("font-size", `${Math.max(8, Math.round(r * 0.8))}px`).text(mono ? sigla(p.nome) : "");
+        // O valor que cada um mandou, num selo no canto do retrato — é o que a pessoa veio ver.
+        const txt = s.select(".selo-txt").attr("x", px + r * 0.7).attr("y", py - r * 0.7).text(curto(p.v));
+        const larg = Math.ceil(txt.node().getComputedTextLength()) + 10;
+        s.select(".selo").attr("x", px + r * 0.7 - larg / 2).attr("y", py - r * 0.7 - 8).attr("width", Math.max(1, larg));
+      });
+    });
+  }
+  function mostrarPessoa(d, p, ev) {
+    if (fixado) return;
+    cartao.innerHTML = `
+      <h2>${escapar(p.nome)} <span>${escapar(legenda2(p.nome))}</span></h2>
+      <p class="sub">${brl(p.v)} para ${escapar(d.n)} em ${rotuloAno()} · ${p.n} emenda${p.n > 1 ? "s" : ""}</p>
+      <p class="dica">${munSel?.ibge === d.ibge ? "Clique para ver tudo que este parlamentar mandou, no mapa." : "Clique para entrar na cidade."}</p>`;
+    cartao.classList.remove("fixo");
+    cartao.hidden = false;
+    posicionarCartao(ev);
+  }
+
+  /** Durante o gesto do zoom, só muda de lugar; os grupos são refeitos ao soltar. */
+  function reposicionar() {
+    const t = d3.zoomTransform(svg.node());
+    gBolhas.selectAll("circle").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("cx", x).attr("cy", y); });
+    gGrupos.selectAll("g.marca-grupo").attr("transform", (g) => { const [x, y] = t.apply([g.px, g.py]); return `translate(${x},${y})`; });
+    gNomes.selectAll("text").each(function (d) { const [x, y] = t.apply(projecao(d.c)); d3.select(this).attr("x", x).attr("y", y + raioSolto(d) + 12); });
+    if (dentroAgora.size) desenharDentro(t);
+  }
+
+  /** Clique num estado: enquadra o estado, já no nível dos municípios. */
+  function aproximarGrupo(g) {
+    const m = palco.getBoundingClientRect();
+    const ps = g.itens.map((d) => projecao(d.c));
+    const [x0, x1] = d3.extent(ps, (p) => p[0]), [y0, y1] = d3.extent(ps, (p) => p[1]);
+    const cabe = 0.85 / Math.max((x1 - x0) / m.width, (y1 - y0) / m.height, 1e-9);
+    const k = Math.min(400, Math.max(ZOOM_MALHA, cabe));
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity.translate(m.width / 2 - k * cx, m.height / 2 - k * cy).scale(k));
+  }
+
+  function mostrarGrupo(g, ev) {
+    if (fixado) return;
+    gGrupos.selectAll("g.marca-grupo").classed("acesa", (x) => x.id === g.id);
+    const quem = g.quem.slice(0, 3);
+    cartao.innerHTML = `
+      <h2>${escapar(g.nome)} <span>${g.itens.length} municípios</span></h2>
+      <p class="val">${brl(g.v)} <small>em ${rotuloAno()}</small></p>
+      ${quem.length ? `<p class="quem-mini">${quem.map(([nome]) => cara(nome, "p")).join("")}<span>quem mais mandou</span></p>` : ""}
+      <p class="dica">Clique para entrar no estado.</p>`;
+    cartao.classList.remove("fixo");
+    cartao.hidden = false;
+    posicionarCartao(ev);
+  }
+
+  function recalcular() {
+    const visiveis = lugares
+      .filter((d) => valorDe(d) > 0 && !(semDF && d.ibge === DF))
+      .sort((a, b) => valorDe(b) - valorDe(a));
+    const vals = visiveis.map(valorDe);
+    const rMax = Math.min(46, Math.max(26, (window.innerWidth || 900) / 26));
+    raio = d3.scaleSqrt().range([0, rMax]);
+    emDesenho = visiveis;
+
+    const total = d3.sum(vals);
+    totalGeral = { total, n: visiveis.length };
+    pintarTotal();
+    const fv = document.getElementById("faixa-v");
+    if (fv) fv.textContent = `${brl(total)} em ${visiveis.length} municípios`;
+
+    agrupar();
+  }
+
+  function rotuloAno() { return iAno === ANOS.length ? "2014–2026" : String(ANOS[iAno]); }
+
+  /** O cartão segue o ponteiro, dentro do palco; com uma cidade aberta no computador, só na parte livre. */
+  function posicionarCartao(ev) {
+    const r = cartao.getBoundingClientRect(), m = palco.getBoundingClientRect();
+    const livre = main.classList.contains("com-mun") && innerWidth > 1100
+      ? m.width - document.getElementById("mun").getBoundingClientRect().width : m.width;
+    cartao.style.left = Math.min(livre - r.width - 10, Math.max(10, ev.clientX - m.left + 16)) + "px";
+    cartao.style.top = Math.min(m.height - r.height - 10, Math.max(10, ev.clientY - m.top + 14)) + "px";
+  }
+  let fixado = null;   // ibge do município com o cartão preso pelo clique
+  function mostrar(d, ev, prender = false) {
+    if (munSel) return;   // com uma cidade aberta, só ela fica no mapa: as outras não acendem nem ao passar o mouse
+    if (fixado && !prender && fixado !== d.ibge) return;   // com cartão preso, o hover não manda
+    if (prender) fixado = d.ibge;
+    // No toque não há hover: redesenhar as marcas entre o toque e o solta trocaria o nó sob o dedo
+    // e engoliria o clique que abre a cidade.
+    if (ev?.pointerType !== "touch" && munHover?.ibge !== d.ibge) { munHover = d; desenharMarcas(); }
+    gBolhas.selectAll("circle").classed("acesa", (x) => x.ibge === d.ibge);
+    if (malhaPronta) gMalha.selectAll("path").classed("aceso", (f) => String(f.properties.id) === d.ibge);
+    // Sem rótulo: o hover da cidade é o território aceso e os rostos de quem mandou, cada um com o
+    // valor no próprio selo. O nome e o total ficam para o painel, a um clique.
+    gGrupos.selectAll("g.marca-grupo").classed("acesa", false);
+    cartao.hidden = true;
+  }
+  /** O ponteiro continua "na cidade" se foi para a bolha, o território ou o pacote de rostos dela. */
+  function aindaNaCidade(ev, ibge) {
+    const el = ev?.relatedTarget;
+    if (!el || !el.closest) return false;
+    const pacote = el.closest("g.dentro");
+    if (pacote) return pacote.__data__?.d?.ibge === ibge;
+    if (el.matches("circle.bolha")) return el.__data__?.ibge === ibge;
+    if (el.matches(".malha-mun path")) return el.dataset.ibge === ibge;
+    return false;
+  }
+  function esconder(forcar = false, ev = null) {
+    if (fixado && !forcar) return;
+    if (munHover && !forcar && aindaNaCidade(ev, munHover.ibge)) return;
+    fixado = null;
+    if (munHover) { munHover = null; desenharMarcas(); }
+    cartao.hidden = true;
+    cartao.classList.remove("fixo");
+    gBolhas.selectAll("circle").classed("acesa", false);
+    gGrupos.selectAll("g.marca-grupo").classed("acesa", false);
+    if (malhaPronta) gMalha.selectAll("path").classed("aceso", false);
+  }
+
+  // No cartão preso: ✕ fecha, e um clique no autor leva o mapa para ele.
+  cartao.onclick = async (ev) => {
+    if (ev.target.closest(".fechar")) { esconder(true); return; }
+    const alvo = ev.target.closest("[data-autor]");
+    if (!alvo) return;
+    const nome = alvo.dataset.autor;
+    await carregarAutores();
+    if (!porAutor.autores[nome]) return;    // "Sem Informação" e afins não viram seleção
+    esconder(true);
+    escolher(nome);
+  };
+  // Clicar no vazio do mapa solta o cartão.
+  svg.on("click", () => esconder(true));
+
+  // ---- Modo município: a bolha é a porta de entrada --------------------------------------
+  // Clicou numa bolha: o mapa centra nela, o resto esmaece, e o painel lista as emendas do
+  // município uma a uma (um arquivo por município, baixado na hora).
+  let munSel = null, munDados = null, munFiltro = "", munBusca = "", munLimite = 60;
+  const elMun = {
+    nome: document.getElementById("mun-nome"), resumo: document.getElementById("mun-resumo"),
+    busca: document.getElementById("mun-busca"), chips: document.getElementById("mun-chips"),
+    conta: document.getElementById("mun-conta"), lista: document.getElementById("mun-lista"),
+    mais: document.getElementById("mun-mais"),
+  };
+
+  async function abrirMunicipio(d) {
+    const trocou = munSel?.ibge !== d.ibge;
+    munSel = d; munFiltro = ""; munBusca = ""; munLimite = 60; elMun.busca.value = "";
+    esconder(true);
+    // Entrar na cidade: o painel abre por cima, à direita, e o mapa enquadra o território na parte
+    // livre — como clicar no estado entra no estado. Ao fechar, a vista volta a ser a de antes.
+    if (!main.classList.contains("com-mun")) antesDaCidade = d3.zoomTransform(svg.node());
+    main.classList.add("com-mun");
+    // A lista da cidade não cruza com autor nem tipo do alto (tem os próprios filtros): em "todos", os
+    // dois campos saem do cabeçalho; com um autor ou tipo escolhido, ficam, que pintam o mapa.
+    raiz.classList.toggle("cidade-limpa", !autorSel && !filtroTipo);
+    desenharMarcas();
+    enquadrarCidade(d);
+    if (trocou) { munDados = null; pintarMunicipio(); }
+    const [dados] = await Promise.all([d3.json(`${BASE}/mun/${d.ibge}.json`).catch(() => []), carregarPop()]);
+    if (munSel !== d) return;
+    munDados = dados;
+    pintarMunicipio();
+  }
+  let antesDaCidade = null;
+  function enquadrarCidade(d) {
+    // No computador o painel toma a direita; no celular é uma folha fixa embaixo, e o mapa sobe para
+    // o alto da tela, de modo que a faixa livre acima da folha é onde a cidade cabe.
+    const celular = innerWidth <= 1100;
+    if (celular) main.scrollIntoView({ block: "start" });
+    const m = palco.getBoundingClientRect(), munEl = document.getElementById("mun");
+    const painel = munEl.getBoundingClientRect();
+    // A folha ainda está quase vazia quando o clique chega (a lista de emendas vem depois): a altura
+    // que vale é a máxima que o CSS lhe dá, não a de agora.
+    const folha = Math.max(painel.height, parseFloat(getComputedStyle(munEl).maxHeight) || 0);
+    const livreW = celular ? m.width : m.width - painel.width;
+    const livreH = celular ? Math.max(160, Math.min(m.height, innerHeight - folha - m.top)) : m.height;
+    const f = feicaoMun.get(d.ibge);
+    const b = f ? caminho.bounds(f) : [projecao(d.c), projecao(d.c)];
+    const bw = Math.max(b[1][0] - b[0][0], 1e-6), bh = Math.max(b[1][1] - b[0][1], 1e-6);
+    const k = Math.min(400, 0.62 * Math.min(livreW / bw, livreH / bh));
+    const cx = (b[0][0] + b[1][0]) / 2, cy = (b[0][1] + b[1][1]) / 2;
+    svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(livreW / 2 - k * cx, livreH / 2 - k * cy).scale(k));
+  }
+  /** Leva o mapa até caber um conjunto de municípios (o território de um parlamentar); sem conjunto, volta ao Brasil. */
+  function enquadrar(conjunto) {
+    const m = palco.getBoundingClientRect();
+    if (!conjunto || !conjunto.length) { svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity); return; }
+    const ps = conjunto.map((d) => projecao(d.c));
+    const [x0, x1] = d3.extent(ps, (p) => p[0]), [y0, y1] = d3.extent(ps, (p) => p[1]);
+    const k = Math.max(1, Math.min(12, 0.8 / Math.max((x1 - x0) / m.width, (y1 - y0) / m.height, 1e-9)));
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(m.width / 2 - k * cx, m.height / 2 - k * cy).scale(k));
+  }
+  function fecharMunicipio() {
+    munSel = null; munDados = null;
+    main.classList.remove("com-mun"); raiz.classList.remove("cidade-limpa");
+    desenharMarcas();
+    pintarTotal();
+    if (antesDaCidade) { svg.transition().duration(600).call(zoom.transform, antesDaCidade); antesDaCidade = null; }
+  }
+  // Uma emenda paga em mais de um ano entra no ano escolhido se o pagamento passou por ele; o valor
+  // mostrado é o total dela (o arquivo não reparte por ano), e o texto do resumo avisa.
+  const noAno = (l) => iAno === ANOS.length || (l[3] <= ANOS[iAno] && ANOS[iAno] <= l[4]);
+  const munDoAno = () => (munDados ?? []).filter(noAno);
+  const munFiltradas = () => munDoAno().filter((l) => {
+    if (munFiltro && l[2] !== munFiltro) return false;
+    if (!munBusca) return true;
+    const t = munBusca.toLowerCase();
+    return [l[0], l[1], l[6], l[7], l[8]].some((c) => c && String(c).toLowerCase().includes(t));
+  });
+  /** O número no alto é do que está em foco: o Brasil (ou o autor), ou o município aberto. */
+  let totalGeral = { total: 0, n: 0 };
+  // O total saiu do cabeçalho (era um número parado tomando espaço): a cidade aberta tem o dela no
+  // painel e o autor escolhido tem o dele na faixa. A função fica para o caso de o elemento voltar.
+  function pintarTotal() {
+    const el = document.getElementById("total"), sub = document.getElementById("total-sub");
+    if (!el || !sub) return;
+    el.parentElement.classList.toggle("mun", !!munSel);
+    if (munSel) {
+      const d = munSel;
+      el.textContent = brl(valorDe(d));
+      sub.textContent = `${d.n}, ${d.u} · ${munDados ? `${munDados.length} emendas · ` : ""}${rotuloAno()}`;
+      return;
+    }
+    el.textContent = brl(totalGeral.total);
+    sub.textContent = `${totalGeral.n.toLocaleString("pt-BR")} municípios · ${rotuloAno()}`
+      + `${filtroTipo && !autorSel ? ` · só ${filtroTipo.toLowerCase()}` : ""}`
+      + `${semDF ? " · sem Brasília" : ""}`;
+  }
+
+  // População do /mapa/ (anos/2024.json: [pop, despesa, …] por município), para o "por habitante".
+  let popDe = null;
+  async function carregarPop() {
+    if (popDe) return popDe;
+    const doc = await d3.json("/data/mapa/anos/2024.json").catch(() => null);
+    popDe = new Map(Object.entries(doc?.mun ?? {}).map(([k, v]) => [k, v?.[0]]));
+    return popDe;
+  }
+  const slugDe = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  // A página do político (/politicos/<uf>/<nome>), quando existe: o mapa autor → endereço vem pronto do build.
+  const paginaAutor = (() => { try { return JSON.parse(document.getElementById("politicos-autores")?.textContent || "{}"); } catch { return {}; } })();
+  const paginaDe = (nome) => paginaAutor[slugDe(nome)] ?? null;
+
+  function pintarMunicipio() {
+    const d = munSel; if (!d) return;
+    pintarTotal();
+    const todas = munDoAno();
+    const total = valorDe(d);
+    const saude = todas.filter((l) => l[7] === "Saúde").reduce((a, l) => a + l[5], 0);
+    const somaLista = todas.reduce((a, l) => a + l[5], 0);
+    const pop = popDe?.get(d.ibge);
+    const hab = pop ? `${brl(total / pop)} por habitante (${(pop / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} mil hab.)` : "";
+    elMun.nome.innerHTML = `${escapar(d.n)}<small>${escapar(d.u)}</small>`;
+    document.getElementById("mun-ficha").href = `/cidades/${d.u.toLowerCase()}/${slugDe(d.n)}/`;
+    document.getElementById("mun-buscador").href = `/emendas/buscar?ente=${d.ibge}`;
+    // O valor em destaque, e embaixo, miúdo, o que ajuda a ler: a fatia da saúde e o por habitante.
+    const sub = [somaLista ? `${Math.round((100 * saude) / somaLista)}% para a saúde` : "", hab].filter(Boolean).join(" · ");
+    elMun.resumo.innerHTML = munDados
+      ? `<b class="grande">${brl(total)}</b> em ${todas.length.toLocaleString("pt-BR")} emendas · ${rotuloAno()}`
+        + (sub ? `<span class="sub">${sub}</span>` : "")
+      : `Carregando as emendas…`;
+    // chips por tipo, com as contagens
+    const porTipo = d3.rollup(todas, (v) => v.length, (l) => l[2]);
+    const ordem = ["Individual", "Comissão", "Bancada", "Relator", "Pix"].filter((t) => porTipo.has(t));
+    // com um tipo só, "Todas" e ele seriam a mesma lista: não há o que escolher
+    elMun.chips.hidden = ordem.length < 2;
+    elMun.chips.innerHTML = [["", `Todas · ${todas.length}`], ...ordem.map((t) => [t, `${t} · ${porTipo.get(t)}`])]
+      .map(([t, r]) => `<button type="button" data-t="${t}" aria-pressed="${t === munFiltro}">${r}</button>`).join("");
+    const f = munFiltradas();
+    elMun.conta.textContent = munDados ? `${Math.min(munLimite, f.length)} de ${f.length}` : "";
+    elMun.lista.innerHTML = f.length ? f.slice(0, munLimite).map(([num, autor, tipo, a0, a1, mil, fav, area, obj]) => `
+      <li>
+        ${cara(autor)}
+        <div style="min-width:0">
+          <div class="quem">${paginaDe(autor)
+            ? `<a href="${paginaDe(autor)}" title="A página de ${escapar(autor)}: o que custa, a cota, as emendas">${escapar(autor)}</a>`
+            : escapar(autor)}</div>
+          <div class="meta">${tipo} · ${a0 === a1 ? a0 : `${a0}–${a1}`}${num && num !== "Sem informação"
+            ? ` · <a href="/emendas/buscar?emenda=${encodeURIComponent(num)}" title="A ficha desta emenda: todos os pagamentos, para quem e onde">nº ${escapar(num)} →</a> <a class="externo" href="https://portaldatransparencia.gov.br/emendas/detalhe?codigoEmenda=${encodeURIComponent(num)}&amp;ano=${escapar(String(num).slice(0, 4))}" target="_blank" rel="noopener" title="No Portal da Transparência">Portal ↗</a>`
+            : " · sem número"}</div>
+          <div class="objeto${obj ? "" : " vazio"}">${obj ? escapar(obj) : "Sem objeto informado"}</div>
+          <div class="para">para <b>${escapar(fav ?? "—")}</b> · ${escapar(area ?? "—")}</div>
+        </div>
+        <div class="valor">${brl(mil)}</div>
+      </li>`).join("")
+      : `<li class="nada">${munDados ? "Nenhuma emenda com esse filtro." : ""}</li>`;
+    elMun.mais.hidden = f.length <= munLimite;
+    elMun.mais.textContent = `Mostrar mais ${Math.min(60, f.length - munLimite)} de ${f.length - munLimite} restantes`;
+  }
+  document.getElementById("mun-voltar").onclick = fecharMunicipio;
+  elMun.busca.oninput = () => { munBusca = elMun.busca.value.trim(); munLimite = 60; pintarMunicipio(); };
+  elMun.chips.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; munFiltro = b.dataset.t; munLimite = 60; pintarMunicipio(); };
+  elMun.mais.onclick = () => { munLimite += 60; pintarMunicipio(); };
+  document.getElementById("mun-csv").onclick = () => {
+    if (!munSel || !munDados) return;
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const txt = ["emenda;autor;tipo;ano_inicio;ano_fim;valor_reais;favorecido;area;objeto",
+      ...munFiltradas().map((l) => [l[0], l[1], l[2], l[3], l[4], l[5] * 1000, l[6], l[7], l[8]].map(esc).join(";"))].join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["\ufeff" + txt], { type: "text/csv;charset=utf-8" }));
+    a.download = `emendas-${munSel.ibge}-${munSel.n.normalize("NFD").replace(/[^\w]+/g, "-").toLowerCase()}.csv`;
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+
+  // Até 400×: um município pequeno do interior só enche a tela lá por 100–200× do Brasil inteiro.
+  const zoom = d3.zoom().scaleExtent([1, 400])
+    .on("start", () => svg.classed("arrastando", true))
+    .on("end", () => {
+      svg.classed("arrastando", false);
+      const k = d3.zoomTransform(svg.node()).k;
+      if (nivelAgrupado !== nivelDe(k)) agrupar();   // passou de estados para municípios, ou o contrário
+      else desenharMarcas();                         // só moveu ou mudou o zoom no mesmo nível: retratos e nomes do que está à vista
+    })
+    .on("zoom", (ev) => {
+      const k = ev.transform.k;
+      g.attr("transform", ev.transform);
+      if (k >= ZOOM_MALHA) garantirMalha();
+      svg.classed("perto", k >= ZOOM_MALHA).classed("toca-mun", k >= ZOOM_TOQUE);
+      gMalha.attr("stroke-width", 0.45 / k);
+      reposicionar();
+      gUf.attr("stroke-width", 0.6 / k);
+    });
+  svg.call(zoom);
+
+  const refluir = () => recalcular();
+  function dimensionar() {
+    const m = palco.getBoundingClientRect();
+    svg.attr("viewBox", `0 0 ${m.width} ${m.height}`);
+    projecao.fitExtent([[18, 18], [m.width - 18, m.height - 18]], uf);
+    gUf.selectAll("path").data(uf.features).join("path").attr("class", "uf").attr("d", caminho);
+    if (malhaPronta) gMalha.selectAll("path").attr("d", caminho);
+    recalcular();
+    svg.call(zoom.transform, d3.zoomIdentity);
+  }
+  addEventListener("resize", dimensionar);
+
+  // O "?" abre a caixinha de como ler (com a fonte e a saída para ver Brasília); fecha no ✕, fora ou com Esc.
+  const ajuda = document.getElementById("ajuda"), ajudaCaixa = document.getElementById("ajuda-caixa");
+  const mostrarAjuda = (sim) => { ajudaCaixa.hidden = !sim; ajuda.ariaExpanded = String(sim); };
+  ajuda.onclick = (ev) => { ev.stopPropagation(); mostrarAjuda(ajudaCaixa.hidden); };
+  ajudaCaixa.onclick = (ev) => ev.stopPropagation();
+  document.addEventListener("click", () => { if (!ajudaCaixa.hidden) mostrarAjuda(false); });
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !ajudaCaixa.hidden) mostrarAjuda(false); });
+  // Os anos são uma linha do tempo, não um menu: um botão por ano, e "tudo" no fim.
+  document.getElementById("ano").innerHTML = [
+    ...ANOS.map((a, i) => `<button type="button" data-i="${i}" aria-pressed="${i === iAno}"${a === 2026 ? ' title="2026, até agora"' : ""}>${a}</button>`),
+    `<button type="button" data-i="${ANOS.length}" aria-pressed="${iAno === ANOS.length}" title="2014–2026 somados">tudo</button>`].join("");
+  // No celular a linha rola: começa mostrando o fim, onde está o ano escolhido.
+  { const el = document.getElementById("ano"); el.scrollLeft = el.scrollWidth; }
+  const grupo = (sel, aplicar) => {
+    for (const b of document.querySelectorAll(`${sel} button`)) b.onclick = () => {
+      aplicar(b);
+      for (const o of document.querySelectorAll(`${sel} button`)) o.ariaPressed = String(o === b);
+      refluir(); esconder();
+    };
+  };
+  grupo("#tipo", (b) => { filtroTipo = b.dataset.t; if (porAutor) pintarLista(); });
+  grupo("#ano", (b) => { iAno = +b.dataset.i; if (munSel) pintarMunicipio(); });
+  // Brasília não é um controle: é uma decisão de edição, explicada na nota de fonte embaixo do mapa
+  // (fora deste bloco, na página), com uma saída para quem quiser ver.
+  const verDf = document.getElementById("ver-df");
+  if (verDf) verDf.onclick = (ev) => {
+    ev.preventDefault();
+    semDF = !semDF;
+    verDf.textContent = semDF ? "ver com Brasília" : "esconder Brasília de novo";
+    recalcular(); esconder();
+  };
+
+  // ---- Seletor de autor -------------------------------------------------------------------
+  // O arquivo por autor (3,8 MB) só é baixado quando alguém abre o seletor.
+  let porAutor = null;
+  const abre = document.getElementById("abre-autor"), painel = document.getElementById("painel-autor");
+  const fundo = document.getElementById("fundo-autor"), lista = document.getElementById("lista-autor");
+  const busca = document.getElementById("busca-autor"), faixa = document.getElementById("faixa");
+  async function carregarAutores() {
+    if (porAutor) return porAutor;
+    lista.innerHTML = `<li style="color:var(--texto-2)">Carregando os autores…</li>`;
+    porAutor = await d3.json(`${BASE}/por-autor.json`);
+    return porAutor;
+  }
+
+  function pintarLista() {
+    if (!porAutor) return;
+    const termo = busca.value.trim().toLowerCase();
+    const itens = Object.entries(porAutor.autores)
+      .filter(([nome, a]) => nome !== "Sem Informação"
+        && (!filtroTipo || a.tipo === filtroTipo)
+        && (!termo || nome.toLowerCase().includes(termo)))
+      .sort((a, b) => b[1].t - a[1].t).slice(0, 60);
+    // Primeira linha sempre: sem ela, quem escolhe um autor fica preso nele — o ✕ da faixa
+    // é o único caminho de volta e passa despercebido.
+    const voltar = `<li data-autor="" aria-current="${!autorSel}">
+      <span class="cara vazia">BR</span>
+      <span><b>Todos os autores</b><small>o país inteiro, somando todo mundo</small></span></li>`;
+    lista.innerHTML = voltar + (itens.length ? itens.map(([nome, a]) => `
+      <li data-autor="${escapar(nome)}" aria-current="${nome === autorSel}">
+        ${cara(nome)}
+        <span><b>${escapar(nome)}</b><small>${escapar(legenda2(nome))} · ${a.tipo}</small></span>
+        <i>${brl(a.t)}</i>
+      </li>`).join("") : `<li style="color:var(--texto-2)">Nada com esse nome.</li>`);
+  }
+
+  function abrirPainel(abrir) {
+    abre.setAttribute("aria-expanded", String(abrir));
+    painel.hidden = fundo.hidden = !abrir;
+    if (!abrir) return;
+    const r = abre.getBoundingClientRect();
+    painel.style.left = Math.min(innerWidth - 362, r.left) + "px";
+    painel.style.top = r.bottom + 4 + "px";
+    busca.value = "";              // reabrir sempre começa do zero, senão o texto antigo se acumula
+    carregarAutores().then(pintarLista);
+    busca.focus();
+  }
+
+  function escolher(nome) {
+    if (nome && munSel) fecharMunicipio();
+    autorSel = nome;
+    if (!nome) {
+      serieAutor = null; faixa.hidden = true;
+      document.getElementById("autor-rotulo").textContent = "todos os autores";
+    } else {
+      const a = porAutor.autores[nome];
+      serieAutor = new Map();
+      for (const [iMun, iA, v] of a.p) {
+        const ibge = porAutor.ibges[iMun];
+        let s = serieAutor.get(ibge);
+        if (!s) serieAutor.set(ibge, (s = new Array(ANOS.length).fill(0)));
+        s[iA] += v;
+      }
+      document.getElementById("autor-rotulo").textContent = nome;
+      const foto = caras[nome]?.foto;
+      padraoImg.attr("href", foto || null);
+      faixa.innerHTML = `${cara(nome, "g")}
+        <span><h2>${escapar(nome)}</h2><small>${escapar(legenda2(nome))}${paginaDe(nome) ? ` · <a class="pagina" href="${paginaDe(nome)}">ver a página →</a>` : ""}</small>
+          <span class="v" id="faixa-v"></span></span>
+        ${foto ? `<button type="button" class="troca" id="troca-marca"></button>` : ""}
+        <button type="button" id="limpa-autor" title="Ver todos os autores">✕</button>`;
+      faixa.hidden = false;
+      document.getElementById("limpa-autor").onclick = () => { escolher(null); pintarLista(); };
+      const tm = document.getElementById("troca-marca");
+      if (tm) {
+        const rotular = () => { tm.textContent = modoCara ? "ver como bolha" : "ver a cara"; };
+        rotular();
+        tm.onclick = () => { modoCara = !modoCara; rotular(); recalcular(); };
+      }
+    }
+    document.getElementById("tipo").closest(".cel").classList.toggle("inerte", !!nome);
+    abrirPainel(false);
+    refluir(); esconder();
+    enquadrar(nome ? emDesenho : null);
+  }
+
+  abre.onclick = () => abrirPainel(abre.getAttribute("aria-expanded") !== "true");
+  fundo.onclick = () => abrirPainel(false);
+  busca.oninput = pintarLista;
+  lista.onclick = (ev) => { const li = ev.target.closest("li[data-autor]"); if (li) escolher(li.dataset.autor); };
+  addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    if (!painel.hidden) abrirPainel(false);
+    else if (munSel) fecharMunicipio();
+    else esconder(true);
+  });
+
+  dimensionar();
+})();

@@ -1,0 +1,390 @@
+---
+/**
+ * Análise: emenda parlamentar, para todas as cidades ou só para as que deram voto?
+ * Os números vêm de lib/analises.ts (analises/emendas-votos/resultados.json, gravado pelo comando da análise).
+ * O método, os limites e como refazer ficam no GitHub: analises/emendas-votos/README.md.
+ */
+import Base from "../../layouts/Base.astro";
+import { ANALISES, EMENDAS_VOTOS as d, dataPorExtenso, decimal, porcento, vezes } from "../../lib/analises";
+
+const analise = ANALISES.find((a) => a.slug === "emendas-votos")!;
+const maiorVez = Math.max(...d.dono.map((f) => f.vezes));
+const maiorPrefeito = Math.max(...d.prefeitos.map((p) => p.depois));
+const largura = (v: number, max: number, teto = 90) => `${Math.max((v / max) * teto, 0.4).toFixed(1)}%`;
+// O gráfico dos anos empilha os R$ 100 da cidade de referência e o que a outra recebe a mais.
+const maiorAno = Math.max(...d.porAno.map((a) => a.reais));
+const altura = (reais: number) => `${((reais / maiorAno) * 84).toFixed(1)}%`;
+const primeiroAno = d.porAno[0];
+const ultimoAno = d.porAno[d.porAno.length - 1];
+const votosPrimeiro = d.votos.porAno[0];
+const votosUltimo = d.votos.porAno[d.votos.porAno.length - 1];
+const pctTexto = (f: number) => `${Math.round(f * 100)}%`;
+const dePara = (de: number, para: number) =>
+  Math.round(de * 100) === Math.round(para * 100) ? `continua em ${pctTexto(para)}` : `de ${pctTexto(de)} para ${pctTexto(para)}`;
+---
+
+<Base title={`${analise.titulo} · Orçamento Brasileiro`} description={`${analise.resposta} ${analise.resumo}`}>
+  <div class="wrap analise">
+    <p class="caminho">
+      <a href="/analises">← Análises</a>
+      <span>{dataPorExtenso(analise.data)}</span>
+      <span>{analise.temas.join(" · ")}</span>
+    </p>
+
+    <div class="colunas">
+      <article>
+        <h1>{analise.titulo}</h1>
+
+        <div class="resposta">
+          <p class="rotulo">Resposta curta</p>
+          <p>
+            Para as que deram mais voto. A cidade onde o deputado não teve voto quase nunca vê emenda dele. A que deu
+            mais da metade dos votos recebe quase sempre, e muito mais. O tamanho da cidade quase não conta. E onde a
+            emenda chega, ele vai melhor na eleição seguinte. Só não dá para provar que foi a emenda que trouxe o voto.
+          </p>
+        </div>
+
+        <p class="texto abre">
+          Todo deputado federal tem uma cota de emendas: dinheiro do orçamento que ele decide para onde vai. Pegamos
+          R$ {d.bilhoes} bilhões pagos de 2023 a 2026 e cruzamos com os votos de {d.deputados} deputados em cada
+          cidade do estado deles.
+        </p>
+
+        <section class="cartoes" aria-label="Os números principais">
+          <div class="cartao">
+            <h2>O que pesa mais na emenda: voto ou tamanho da cidade?</h2>
+            <p>Se uma cidade recebe <strong>R$ 100</strong> de emenda do deputado:</p>
+            <dl>
+              <dt class="num">R$ {d.dobroDeVotos}</dt>
+              <dd>recebe a cidade do mesmo tamanho que deu a ele <strong>o dobro de votos</strong></dd>
+              <dt class="num fraco">R$ {d.dobroDeMoradores}</dt>
+              <dd>recebe a cidade com <strong>o dobro de moradores</strong> e os mesmos votos</dd>
+            </dl>
+          </div>
+          <div class="cartao">
+            <h2>Qual a chance de a cidade receber alguma emenda do deputado?</h2>
+            <dl>
+              <dt class="num fraco">{porcento(d.chanceSemVoto)}</dt>
+              <dd>onde ele <strong>não teve nenhum voto</strong></dd>
+              <dt class="num">{porcento(d.chanceMaisDaMetade)}</dt>
+              <dd>onde ele teve <strong>mais da metade dos votos</strong></dd>
+            </dl>
+          </div>
+          <div class="cartao">
+            <h2>Quanto a mais recebe a cidade onde o deputado é "dono" dos votos?</h2>
+            <dl>
+              <dt class="num">{d.vezesDono}×</dt>
+              <dd><strong>{d.vezesDono} vezes mais emenda</strong> do que uma cidade do mesmo tamanho onde ele teve de 1% a 3% dos votos</dd>
+            </dl>
+          </div>
+          <div class="cartao">
+            <h2>Quem deu mais voto recebe mais durante o mandato inteiro?</h2>
+            <p>Recebe, mas a vantagem encolhe. Se uma cidade recebe <strong>R$ 100</strong>, a que deu o dobro de votos recebe:</p>
+            <dl>
+              <dt class="num">R$ {primeiroAno.reais}</dt>
+              <dd><strong>em {primeiroAno.ano}</strong>, primeiro ano do mandato</dd>
+              <dt class="num">R$ {ultimoAno.reais}</dt>
+              <dd><strong>em {ultimoAno.ano}</strong>, último ano, o da eleição</dd>
+            </dl>
+          </div>
+        </section>
+
+        <section class="parte">
+          <h2>Onde o deputado é "dono" dos votos, a cidade recebe {d.vezesDono} vezes mais</h2>
+          <p class="texto">
+            Pegue duas cidades do mesmo tamanho. Numa, o deputado teve de 1% a 3% dos votos. Na outra, mais da metade. A
+            segunda recebe {d.vezesDono} vezes mais emenda dele, e quase nunca fica sem.
+          </p>
+          <figure>
+            <figcaption>
+              Quantas vezes mais emenda a cidade recebe, conforme a parte dos votos dela que foi para o deputado (de 1% a
+              3% dos votos = 1)
+            </figcaption>
+            <div class="barras dono">
+              <span class="cab">votos dele na cidade</span><span></span><span class="cab direita">recebe alguma</span>
+              {d.dono.map((f) => (
+                <>
+                  <span class="nome">{f.faixa}</span>
+                  <span class="barra"><i class:list={{ laranja: f.semVoto }} style={`width: ${largura(f.vezes, maiorVez)}`}></i><strong class="num">{vezes(f.vezes)}</strong></span>
+                  <span class="num direita muted">{porcento(f.chance)}</span>
+                </>
+              ))}
+            </div>
+            <p class="nota">
+              Emendas individuais e Pix pagas de 2023 a 2026 e votos para deputado federal em 2022. A comparação é sempre
+              entre cidades do mesmo deputado e do mesmo tamanho.
+            </p>
+          </figure>
+        </section>
+
+        <section class="parte">
+          <h2>Primeiro ele paga quem o elegeu. Perto da eleição, sai distribuindo</h2>
+          <p class="texto">
+            Entre os deputados que já estavam na Câmara, o voto de 2022 pesa cada vez menos na escolha de para onde vai
+            a emenda. A maior queda é de 2024 para 2025, quando tomaram posse os prefeitos eleitos em 2024. A parte
+            seguinte mostra para onde o dinheiro foi.
+          </p>
+          <figure>
+            <figcaption>
+              Se uma cidade recebe R$ 100 de emenda, quanto recebe a que deu o dobro de votos ao deputado em 2022, pelo
+              ano em que a emenda foi paga
+            </figcaption>
+            <p class="legenda">
+              <span><i class="claro"></i>os R$ 100 da outra cidade</span>
+              <span><i></i>o que ela recebe a mais</span>
+            </p>
+            <div class="colunas-ano" role="img" aria-label={d.porAno.map((a) => `${a.ano}: R$ ${a.reais}`).join("; ")}>
+              {d.porAno.map((a) => (
+                <div class="coluna">
+                  <strong class="num">R$ {a.reais}</strong>
+                  <i style={`height: ${altura(a.reais - 100)}`}></i>
+                  <i class="claro" style={`height: ${altura(100)}`}></i>
+                </div>
+              ))}
+            </div>
+            <div class="eixo-ano" aria-hidden="true">{d.porAno.map((a) => <span>{a.ano}</span>)}</div>
+          </figure>
+        </section>
+
+        <section class="parte">
+          <h2>Prefeito do partido do deputado? A cidade recebe mais que o dobro</h2>
+          <p class="texto">
+            Cruzamos as emendas com os prefeitos eleitos em 2024. A cidade que elegeu um prefeito do partido do deputado
+            já recebia mais emenda dele antes da eleição. Depois da posse, passou a receber mais que o dobro:
+            R$ {d.prefeitos[0].depois} para cada R$ 100 que vão a uma cidade onde o partido dele ficou de fora da
+            eleição. Onde o partido do deputado disputou a prefeitura e ganhou, a emenda subiu {pctTexto(d.ganharAPrefeitura)}.
+            Onde perdeu, ficou igual.
+          </p>
+          <figure>
+            <figcaption>
+              Se uma cidade onde o partido do deputado ficou de fora da eleição para prefeito recebe R$ 100 de emenda
+              dele, quanto recebem as outras
+            </figcaption>
+            <p class="legenda">
+              <span><i class="claro"></i>paga em 2023–24, antes da posse</span>
+              <span><i></i>paga em 2025–26, depois da posse</span>
+            </p>
+            <div class="barras prefeitos">
+              <span class="nome muted">O partido do deputado ficou de fora: não disputou nem apoiou quem ganhou</span>
+              <span class="par"><span class="barra"><i class="areia" style={`width: ${largura(100, maiorPrefeito, 85)}`}></i><strong class="num muted">R$ 100</strong></span></span>
+              {d.prefeitos.map((p) => (
+                <>
+                  <span class="nome">{p.nome}</span>
+                  <span class="par">
+                    <span class="barra"><i class="claro" style={`width: ${largura(p.antes, maiorPrefeito, 85)}`}></i><strong class="num">R$ {p.antes}</strong></span>
+                    <span class="barra"><i style={`width: ${largura(p.depois, maiorPrefeito, 85)}`}></i><strong class="num">R$ {p.depois}</strong></span>
+                  </span>
+                </>
+              ))}
+            </div>
+            <p class="nota">
+              Cidades com os mesmos votos do deputado e o mesmo número de moradores. O partido do deputado é o de 2022;
+              partidos que se juntaram depois contam como um só.
+            </p>
+          </figure>
+        </section>
+
+        <section class="caixa">
+          <h2>Emenda compra voto? Parece. Provar, os dados não deixam</h2>
+          <p>
+            Pegue duas cidades onde o deputado teve os mesmos votos em 2022. Na que recebeu emenda dele, ele
+            teve {pctTexto(d.votos.comEmenda)} mais votos em 2026. E quanto mais perto da eleição a emenda foi paga, maior a
+            diferença: a de {votosPrimeiro.ano} não muda quase nada, a de {votosUltimo.ano} vem
+            com {pctTexto(votosUltimo.diferenca)} mais votos.
+          </p>
+          <p>
+            Somando todas as cidades, porém, ele não cresceu mais onde mandou emenda: {decimal(d.votos.cresceuComEmenda * 100)}%,
+            contra {decimal(d.votos.cresceuSemEmenda * 100)}% nas outras. A emenda vai para onde ele já era forte, e ali é
+            mais difícil crescer.
+          </p>
+          <p>
+            <strong>Parece compra de voto. Mas pode ser outra coisa:</strong> o deputado manda dinheiro para onde tem um
+            aliado, e é o aliado que traz o voto. Uma pista de que isso acontece: a emenda paga depois da eleição de 2022
+            acompanha os votos daquela eleição mais do que a emenda paga antes. Ela não pode ter trazido um voto que já
+            tinha sido dado.
+          </p>
+          <div class="tentativas">
+            <p class="titulo-tabela">Tentamos tirar o aliado da conta de três jeitos. A diferença não some</p>
+            <dl>
+              <dt class="cab">descontando</dt><dd class="cab">a diferença</dd>
+              {d.aliado.map((a) => (
+                <>
+                  <dt>{a.nome}</dt>
+                  <dd class="num">{dePara(a.de, a.para)}</dd>
+                </>
+              ))}
+            </dl>
+            <p class="nota">
+              * Só para os {d.dobradinhas.deputadosNaConta} deputados que têm um parceiro estadual fixo e concorreram de
+              novo. Por isso o ponto de partida é outro.
+            </p>
+          </div>
+          <p>
+            Onde o deputado federal mandou emenda, ele teve {pctTexto(d.dobradinhas.ganhoDoDeputado)} mais votos. O
+            estadual que faz campanha com ele, {pctTexto(d.dobradinhas.ganhoDoParceiro)}. O ganho é do deputado, não do
+            grupo.
+          </p>
+          <p>
+            Falta medir o apoio do prefeito ao deputado, de pessoa para pessoa. Isso não está em nenhuma base pública.
+            Enquanto não der para medir, a pergunta fica aberta.
+          </p>
+        </section>
+
+        <section class="parte">
+          <h2>O que esta análise não mostra</h2>
+          <ul class="limites">
+            <li><strong>Não prova compra de voto.</strong> Emenda e voto andam juntos. Os dados não dizem qual puxa qual.</li>
+            <li>
+              <strong>Cidade grande recebe mais, sim.</strong> Ela recebe mais porque dá mais votos. O que os dados dizem
+              é que, entre duas cidades que deram os mesmos votos, a maior não leva vantagem.
+            </li>
+            <li>
+              <strong>Parte do dinheiro aparece na capital sem ser dela.</strong> R$ {decimal(d.estadualBi)} bilhões
+              foram pagos a governos estaduais, que podem gastar em qualquer cidade.
+            </li>
+            <li><strong>O ano é o do pagamento.</strong> A emenda pode ter sido decidida num ano e paga em outro.</li>
+            <li>
+              <strong>Partido é um jeito pobre de medir aliança.</strong> Prefeito apoia deputado de outro partido. E
+              só {d.dobradinhas.deputadosComParceiro} dos {d.deputados} deputados têm um parceiro estadual fixo.
+            </li>
+          </ul>
+        </section>
+      </article>
+
+      <aside aria-label="Refazer esta análise">
+        <div class="lado principal">
+          <p class="rotulo">Refaça esta análise</p>
+          <p>Não precisa acreditar na gente. As contas, os dados e o passo a passo estão abertos. Quem quiser pode refazer tudo.</p>
+          <a class="botao-linha" href={analise.github}>Ver como foi feita, no GitHub →</a>
+        </div>
+        <div class="lado">
+          <p class="rotulo">Fontes</p>
+          <ul>
+            <li>Portal da Transparência (CGU)</li>
+            <li>Fundo Nacional de Saúde</li>
+            <li>TSE, eleições de 2018, 2022, 2024 e 2026</li>
+            <li>IBGE, Censo 2022</li>
+            <li>Câmara dos Deputados</li>
+          </ul>
+        </div>
+        <div class="lado">
+          <p class="rotulo">Achou um erro?</p>
+          <p>
+            <a href="https://github.com/orcamento-brasileiro/orcamento-brasileiro/issues">Avise a gente.</a> A conta é
+            aberta justamente para alguém conferir.
+          </p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</Base>
+
+<style>
+  .analise { padding-top: 36px; padding-bottom: 88px; }
+  .caminho { margin: 0 0 18px; display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; color: var(--texto-3); }
+  .caminho a { font-weight: 600; }
+  .colunas { display: grid; grid-template-columns: minmax(0, 1fr) 272px; gap: 0 56px; align-items: start; }
+  article { min-width: 0; max-width: 820px; }
+  h1 { font-size: 50px; line-height: 1.08; }
+  .texto { margin: 0; font-size: 17px; line-height: 1.6; color: var(--texto-2); }
+  .texto.abre { margin-top: 24px; }
+  .rotulo { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .muted { color: var(--texto-3); }
+  .direita { text-align: right; }
+
+  .resposta { margin-top: 28px; padding: 22px 24px; background: var(--tinta); color: var(--papel); display: flex; flex-direction: column; gap: 10px; }
+  .resposta .rotulo { color: #8fc1a3; }
+  .resposta p:last-child { margin: 0; font-family: var(--serifa); font-size: 23px; line-height: 1.4; }
+
+  /* os quatro números: uma pergunta em cima, cada número com o rótulo ao lado */
+  .cartoes { margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 28px 32px; }
+  .cartao { border-top: 2px solid var(--tinta); padding-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .cartao h2 { font-family: var(--sans); font-size: 15px; font-weight: 600; line-height: 1.35; letter-spacing: 0; }
+  .cartao p { margin: 0; font-size: 15px; line-height: 1.4; color: var(--texto-2); }
+  .cartao strong { color: var(--tinta); }
+  .cartao dl { margin: 0; display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 10px 14px; align-items: center; }
+  .cartao dt { font-family: var(--serifa); font-weight: 700; font-size: 38px; line-height: 1; color: var(--verde); }
+  .cartao dt.fraco { color: #a8461f; }
+  .cartao dd { margin: 0; font-size: 15px; line-height: 1.4; color: var(--texto-2); }
+
+  .parte { margin-top: 56px; display: flex; flex-direction: column; gap: 14px; }
+  .parte h2, .caixa h2 { font-size: 30px; line-height: 1.2; }
+  figure { margin: 8px 0 0; display: flex; flex-direction: column; gap: 10px; }
+  figcaption { font-size: 14px; font-weight: 600; color: var(--texto-2); }
+  .nota { margin: 0; font-size: 13px; color: var(--texto-3); }
+  .legenda { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; color: var(--texto-2); }
+  .legenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .legenda i { width: 14px; height: 14px; background: var(--verde); }
+  i.claro { background: #9cc5ae !important; }
+  i.areia { background: var(--regra) !important; }
+  i.laranja { background: #a8461f !important; }
+
+  /* barras deitadas */
+  .barras { display: grid; align-items: center; font-size: 14px; }
+  .barras .cab { font-size: 12px; font-weight: 600; color: var(--texto-3); }
+  .barras .nome { color: var(--texto-2); }
+  .barras .nome.muted { color: var(--texto-3); }
+  .barra { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .barra i { display: block; height: 20px; min-width: 3px; background: var(--verde); flex: none; }
+  .dono { grid-template-columns: 120px minmax(0, 1fr) 64px; gap: 6px 12px; }
+  .prefeitos { grid-template-columns: minmax(120px, 200px) minmax(0, 1fr); gap: 14px 16px; }
+  .prefeitos .par { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .prefeitos .barra i { height: 18px; }
+
+  /* colunas por ano: os R$ 100 da outra cidade embaixo, o que vem a mais em cima */
+  .colunas-ano { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; align-items: end; height: 220px; border-bottom: 1px solid var(--regra); }
+  .coluna { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .coluna strong { margin-bottom: 6px; }
+  .coluna i { display: block; width: 64%; background: var(--verde); }
+  .eixo-ano { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; text-align: center; font-size: 14px; color: var(--texto-2); }
+
+  .caixa { margin-top: 56px; padding: 24px; background: #efeadf; display: flex; flex-direction: column; gap: 14px; }
+  .caixa h2 { font-size: 26px; }
+  .caixa p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .caixa p strong { color: var(--tinta); }
+  .tentativas { display: flex; flex-direction: column; margin-top: 4px; }
+  .tentativas .titulo-tabela { margin-bottom: 8px; font-size: 14px; font-weight: 600; color: var(--tinta); }
+  .tentativas dl { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 16px; font-size: 15px; line-height: 1.45; }
+  .tentativas dt, .tentativas dd { margin: 0; padding: 10px 0; border-top: 1px solid var(--regra); }
+  .tentativas dt { color: var(--texto-2); }
+  .tentativas dd { text-align: right; font-weight: 700; }
+  .tentativas .cab { padding: 8px 0; font-size: 12px; font-weight: 600; color: var(--texto-3); }
+  .tentativas .nota { margin-top: 8px; font-size: 13px; color: var(--texto-3); }
+
+  .limites { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; font-size: 16px; line-height: 1.55; color: var(--texto-2); }
+  .limites strong { color: var(--tinta); }
+
+  aside { display: flex; flex-direction: column; gap: 24px; margin-top: 4px; position: sticky; top: 24px; }
+  .lado { border-top: 1px solid var(--regra); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--texto-3); }
+  .lado.principal { border-top: 2px solid var(--verde); gap: 12px; }
+  .lado.principal .rotulo { color: var(--verde); }
+  .lado.principal p:not(.rotulo) { font-size: 14px; color: var(--texto-2); }
+  .lado p { margin: 0; }
+  .lado ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .botao-linha {
+    display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px;
+    border: 1px solid var(--tinta); color: var(--tinta); text-decoration: none; font-weight: 600; font-size: 14px;
+  }
+  .botao-linha:hover { background: var(--tinta); color: var(--papel); }
+
+  @media (max-width: 980px) {
+    .colunas { grid-template-columns: minmax(0, 1fr); gap: 48px 0; }
+    aside { position: static; max-width: 520px; }
+  }
+  @media (max-width: 640px) {
+    .analise { padding-top: 24px; padding-bottom: 56px; }
+    h1 { font-size: 36px; }
+    .resposta { padding: 18px; }
+    .resposta p:last-child { font-size: 20px; }
+    .parte h2 { font-size: 25px; }
+    .caixa { padding: 18px; }
+    .caixa h2 { font-size: 23px; }
+    .cartao dl { grid-template-columns: 118px minmax(0, 1fr); }
+    .cartao dt { font-size: 34px; }
+    .dono { grid-template-columns: 92px minmax(0, 1fr) 52px; gap: 6px 8px; }
+    .prefeitos { grid-template-columns: minmax(0, 1fr); gap: 6px 0; }
+    .prefeitos .par { margin-bottom: 10px; }
+    .colunas-ano, .eixo-ano { gap: 8px; }
+    .coluna i { width: 78%; }
+  }
+</style>
