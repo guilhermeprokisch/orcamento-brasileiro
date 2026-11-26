@@ -1,14 +1,19 @@
 name: Preço dos remédios
 
-# Uma vez por mês, baixa as compras dos remédios da farmácia básica (`uv run precos`: a pesquisa de preço do Compras.gov.br,
-# uma consulta por remédio e ano, e o LicitaCon do TCE-RS, dois zips de ~280 MB lidos e guardados só durante a execução)
-# e abre um pull request em rascunho com as cópias de referência (pipeline/referencia/precos.json e precos-remedios.json),
-# para conferir os números antes de irem ao ar. A publicação diária só copia essas cópias (dados.sh, --sem-baixar).
+# Toda semana, baixa as compras dos remédios da farmácia básica e abre um pull request em rascunho com as cópias de
+# referência (pipeline/referencia/precos.json e precos-remedios.json), para conferir os números antes de irem ao ar. A
+# publicação diária só copia essas cópias (dados.sh, --sem-baixar).
 #
-# Quando roda: dia 5 de cada mês (as compras do mês anterior já foram homologadas e publicadas).
+# 1. `uv run precos-pncp`: os pregões eletrônicos de remédio publicados no PNCP, dia a dia, com os itens e o preço final.
+#    A lista do dia é lenta (~6 min por dia em uma linha); os brutos ficam no cache do Actions (data/raw/precos/pncp) e
+#    cada execução continua de onde a anterior parou, até 5 horas. A primeira carga de 2025 e 2026 leva umas 3 execuções.
+# 2. `uv run precos`: a pesquisa de preço do Compras.gov.br (uma consulta por remédio e ano), o LicitaCon do TCE-RS (dois
+#    zips de ~280 MB) e o que o passo 1 guardou; compara e grava as cópias de referência.
+#
+# Quando roda: segunda-feira de madrugada.
 on:
   schedule:
-    - cron: "0 9 5 * *"
+    - cron: "0 6 * * 1"
   workflow_dispatch:
 
 concurrency:
@@ -27,7 +32,7 @@ env:
 jobs:
   baixar:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 400
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -41,6 +46,24 @@ jobs:
         run: |
           mkdir -p site/public/data/cidades
           curl -fsSL -o site/public/data/cidades/municipios.json https://orcamentobrasileiro.com.br/data/cidades/municipios.json
+
+      # Os pregões do PNCP já baixados (um cache novo a cada execução; restaura o mais recente).
+      - name: Restaurar os pregões do PNCP
+        uses: actions/cache/restore@v4
+        with:
+          path: data/raw/precos/pncp
+          key: precos-pncp-${{ github.run_id }}
+          restore-keys: precos-pncp-
+
+      - name: Baixar os pregões do PNCP
+        run: uv run --project pipeline precos-pncp --minutos 300 2>&1 | tee "$RUNNER_TEMP/pncp.log"
+
+      - name: Guardar os pregões do PNCP
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/raw/precos/pncp
+          key: precos-pncp-${{ github.run_id }}
 
       - name: Baixar e comparar
         run: uv run --project pipeline precos 2>&1 | tee "$RUNNER_TEMP/saida.log"
@@ -71,10 +94,11 @@ jobs:
             pipeline/referencia/precos.json
             pipeline/referencia/precos-remedios.json
             ${{ runner.temp }}/saida.log
+            ${{ runner.temp }}/pncp.log
           if-no-files-found: ignore
           retention-days: 7
 
-      # Um branch fixo, refeito a partir da main a cada mês: se o pull request do mês anterior não entrou, o deste mês o
+      # Um branch fixo, refeito a partir da main a cada semana: se o pull request da semana anterior não entrou, o desta o
       # substitui. Precisa de "Allow GitHub Actions to create and approve pull requests" (Settings → Actions → General).
       - name: Pull request com as cópias de referência
         if: steps.mudou.outputs.mudou == 'sim' && env.NA_MAIN == 'true'
@@ -87,11 +111,12 @@ jobs:
           git commit -q -m "Preço dos remédios: compras até $HOJE"
           git push -f origin "$RAMO"
           {
-            echo "Atualização mensal automática (workflow \`precos.yml\`) da página /precos e da seção \"O preço dos remédios\" das cidades e estados, com as compras até **$HOJE**."
+            echo "Atualização semanal automática (workflow \`precos.yml\`) da página /precos e da seção \"O preço dos remédios\" das cidades e estados, com as compras até **$HOJE**."
             echo
             echo "Confira os números antes de marcar como pronto e fazer o merge. Resumo da execução:"
             echo
             echo '```'
+            tail -1 "$RUNNER_TEMP/pncp.log" || true
             grep -vE "^\s*$" "$RUNNER_TEMP/saida.log" | tail -15 || true
             echo '```'
             echo

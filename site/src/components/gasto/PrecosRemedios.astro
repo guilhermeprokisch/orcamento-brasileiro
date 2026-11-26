@@ -6,7 +6,7 @@
  */
 import Termo from "../Termo.astro";
 import { moedaCurta } from "../../lib/formato";
-import { artigo, docPrecos, formaRemedio, mesAno, nomeRemedio, plural, precoUnit, precosDe, quantidade, vezes } from "../../lib/precos";
+import { artigo, docPrecos, formaRemedio, mesAno, nomeRemedio, plural, precoUnit, precosDe, quantidadeDe, vezes } from "../../lib/precos";
 
 interface Props {
   ibge: number;
@@ -47,9 +47,9 @@ const MOSTRA = 6;
           {mun
             ? (noRS
               ? `${Quem} não teve, em ${periodo}, compra homologada dos remédios comparados aqui.`
-              : `${Quem} não compra remédio pelo sistema federal de compras (Compras.gov.br), e por isso ainda não dá para comparar o preço que pagou.`)
-            : `Os órgãos do governo do estado não compraram os remédios comparados aqui pelo sistema federal de compras (Compras.gov.br) em ${periodo}.`}
-          {" "}A comparação ainda cobre só uma parte das cidades; as outras compram por plataformas privadas, e elas entram aos poucos.
+              : `Não achamos, em ${periodo}, compra dos remédios comparados aqui feita por ${quem} com o preço final publicado, nem no sistema federal de compras nem em pregão publicado no Portal Nacional de Contratações Públicas.`)
+            : `Não achamos, em ${periodo}, compra dos remédios comparados aqui feita pelos órgãos do governo do estado com o preço final publicado.`}
+          {" "}Compras sem licitação, pregões presenciais e pregões ainda sem resultado não entram.
         </p>
       )}
       {p && p.n > 0 && p.n_dobro === 0 && (
@@ -91,7 +91,7 @@ const MOSTRA = 6;
                   </div>
                   <p>
                     Pagou <strong>{precoUnit(preco)}</strong> {artigo(forma)}; compras parecidas saíram por {precoUnit(ref)}.
-                    {" "}{quantidade(qtd)} {plural(forma)}: <strong>{moedaCurta(aMais)} a mais</strong>, se comprar tudo.
+                    {" "}{quantidadeDe(qtd, forma)[0].toUpperCase() + quantidadeDe(qtd, forma).slice(1)}: <strong>{moedaCurta(aMais)} a mais</strong>, se comprar tudo.
                   </p>
                   {preco / ref >= 10 && <p class="erro">Uma diferença desse tamanho pode ser erro de digitação ou de unidade (o preço da caixa no lugar {forma === "comprimido" ? "do comprimido" : `da ${forma}`}). Confira na compra.</p>}
                   <small>
@@ -139,7 +139,7 @@ const MOSTRA = 6;
       )}
     </div>
     <p class="fonte">
-      <a href="/precos"><strong>Ver o preço de cada remédio no país →</strong></a> · Fonte: Compras.gov.br (pesquisa de preço){noRS ? " e LicitaCon, do Tribunal de Contas do RS" : ""}.
+      <a href="/precos"><strong>Ver o preço de cada remédio no país →</strong></a> · Fonte: Compras.gov.br (pesquisa de preço), pregões publicados no PNCP{noRS ? " e LicitaCon, do Tribunal de Contas do RS" : ""}.
       "Compras parecidas" são as do mesmo remédio e ano, de quantidade parecida, em todo o país; a referência é a <Termo id="mediana">mediana</Termo> delas.
     </p>
   </section>

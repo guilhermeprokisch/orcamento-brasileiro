@@ -67,6 +67,7 @@ supersalarios-estados = "orcamento_pipeline.supersalarios_estados:main"
 supersalarios-legislativo = "orcamento_pipeline.supersalarios_legislativo:main"
 supersalarios-municipios = "orcamento_pipeline.supersalarios_municipios:main"
 precos = "orcamento_pipeline.precos:main"
+precos-pncp = "orcamento_pipeline.precos_pncp:main"
 politicos = "orcamento_pipeline.politicos:main"
 analise-emendas-votos = "orcamento_pipeline.analise_emendas_votos:main"
 

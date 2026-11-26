@@ -49,7 +49,7 @@ export const artigo = (forma: string) => (forma === "comprimido" ? `o ${forma}` 
 const nf = (min: number, max: number) => new Intl.NumberFormat("pt-BR", { minimumFractionDigits: min, maximumFractionDigits: max });
 const nf0 = nf(0, 0), nf1 = nf(1, 1), nf2 = nf(2, 2), nf3 = nf(3, 3);
 /** Preço de um comprimido: R$ 0,043; R$ 0,31; R$ 3,72. */
-export const precoUnit = (v: number) => `R$ ${v < 0.1 ? nf3.format(v) : nf2.format(v)}`;
+export const precoUnit = (v: number) => `R$\u00a0${v < 0.1 ? nf3.format(v) : nf2.format(v)}`;
 /** 7,8 vezes; 1,5 vez */
 export const vezes = (r: number) => `${nf1.format(r)} ${r < 2 ? "vez" : "vezes"}`;
 /** 840 mil; 1,2 milhão; 5.000 */
@@ -58,6 +58,8 @@ export function quantidade(n: number): string {
   if (n >= 10000) return `${nf0.format(Math.round(n / 1000))} mil`;
   return nf0.format(n);
 }
+/** 840 mil comprimidos; 1,4 milhão de comprimidos */
+export const quantidadeDe = (n: number, forma: string) => `${quantidade(n)}${n >= 1e6 ? " de" : ""} ${plural(forma)}`;
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 /** "2026-04-10" → "abril de 2026" */
 export const mesAno = (d: string) => `${MESES[Number(d.slice(5, 7)) - 1]} de ${d.slice(0, 4)}`;

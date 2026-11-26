@@ -55,7 +55,7 @@ const rotuloGrupo = (i: number, g: [number | null, number][]) =>
             <div class="grupos">
               <div>
                 <h3>Por tamanho da compra</h3>
-                <ul>{a.grupos.map(([, m], i) => <li><span>{rotuloGrupo(i, a.grupos)} {plural(r.forma)}</span><strong class="num">{precoUnit(m)}</strong></li>)}</ul>
+                <ul>{a.grupos.map(([, m], i) => <li><span>{rotuloGrupo(i, a.grupos)}{(i === 0 ? a.grupos[0][0] : a.grupos[1][0] ?? 0)! >= 1e6 ? " de" : ""} {plural(r.forma)}</span><strong class="num">{precoUnit(m)}</strong></li>)}</ul>
               </div>
               <div>
                 <h3>Por região</h3>
@@ -162,6 +162,7 @@ const rotuloGrupo = (i: number, g: [number | null, number][]) =>
   td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--regra); vertical-align: top; }
   td small { display: block; font-size: 13px; color: var(--texto-3); }
   .num { text-align: right; white-space: nowrap; }
+  td.num small { white-space: normal; max-width: 120px; margin-left: auto; }
   tr.cara .vezes { background: var(--marca-texto); padding: 0 5px; font-weight: 600; }
   .nao-diz { margin: 24px 0 8px; padding: 16px 18px; border-left: 3px solid var(--tinta); background: var(--papel-escuro); max-width: 880px; }
   .nao-diz h2 { margin: 0 0 6px; font-size: 24px; }
@@ -175,6 +176,9 @@ const rotuloGrupo = (i: number, g: [number | null, number][]) =>
     .grupos { grid-template-columns: 1fr; }
     table { font-size: 14px; }
     th:nth-child(2), td:nth-child(2), th:nth-child(4), td:nth-child(4) { display: none; }
-    td:first-child { min-width: 0; overflow-wrap: break-word; }
+    td:first-child { min-width: 0; overflow-wrap: anywhere; }
+    th, .num { white-space: normal; }
+    td:first-child { width: 50%; }
+    tr.cara .vezes { display: inline-block; }
   }
 </style>

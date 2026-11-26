@@ -103,17 +103,22 @@ const descricao = "O mesmo remédio, comprado por prefeituras, governos estaduai
           <div class="texto">
             <h2>De onde vêm os dados, e o que falta</h2>
             <p>
-              Os preços vêm da pesquisa de preço do Compras.gov.br, o sistema de compras do governo federal, que traz o código do remédio, a
-              unidade e a cidade de cada comprador. Só tem quem compra por esse sistema: o governo federal, parte dos estados e algumas centenas de
-              prefeituras. As outras prefeituras compram por plataformas privadas e publicam no <Termo id="pncp">PNCP</Termo> com a descrição
-              escrita à mão ("LOSARTANA POT. 50 MG"); elas entram numa próxima etapa.
+              Os preços vêm de duas fontes. A pesquisa de preço do Compras.gov.br, o sistema de compras do governo federal, traz o código do
+              remédio, a unidade e a cidade de cada comprador, mas só tem quem compra por esse sistema. As outras prefeituras compram por
+              plataformas privadas e publicam os pregões no <Termo id="pncp">PNCP</Termo>, com a descrição escrita à mão ("LOSARTANA POT. 50 MG"):
+              o site lê essa descrição e só aceita o item quando o remédio, a dose e a unidade batem com a lista.
+            </p>
+            <p>
+              Do PNCP entram só os <Termo id="pregao">pregões</Termo> eletrônicos com o preço final já publicado. Ficam de fora as compras sem
+              licitação (<Termo id="dispensa">dispensas</Termo>), os pregões presenciais e os que ainda não terminaram. Quando o preço final passa de
+              três vezes o preço estimado pela própria prefeitura, quase sempre é o preço da caixa no lugar do comprimido, e a compra fica de fora.
             </p>
             <p>
               No Rio Grande do Sul, os preços das prefeituras vêm do LicitaCon, do Tribunal de Contas do estado, que tem todas as compras e
               todas as propostas de cada item. Por isso só no RS dá para contar as licitações com uma empresa só, e só nas prefeituras que
               informam ao Tribunal as propostas das empresas que perderam.
             </p>
-            <p class="menor">Dados atualizados em {docNacional.gerado.split("-").reverse().join("/")}. Os arquivos: <a href="/data/precos/remedios.json">remedios.json</a> e <a href="/data/indicadores/precos.json">precos.json</a>.</p>
+            <p class="menor">Os pregões do PNCP de 2025 ainda estão sendo baixados e entram aos poucos, a cada semana. Dados atualizados em {docNacional.gerado.split("-").reverse().join("/")}. Os arquivos: <a href="/data/precos/remedios.json">remedios.json</a> e <a href="/data/indicadores/precos.json">precos.json</a>.</p>
           </div>
         </section>
       </>
@@ -160,6 +165,7 @@ const descricao = "O mesmo remédio, comprado por prefeituras, governos estaduai
     .texto h2 { font-size: 26px; }
     table { font-size: 14px; }
     th:nth-child(3), td:nth-child(3), th:nth-child(5), td:nth-child(5) { display: none; }
-    td:first-child { overflow-wrap: break-word; }
+    td:first-child { overflow-wrap: anywhere; }
+    th, .num { white-space: normal; }
   }
 </style>
