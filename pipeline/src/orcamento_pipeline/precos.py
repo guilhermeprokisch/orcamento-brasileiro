@@ -255,20 +255,35 @@ LINK_PNCP = "https://pncp.gov.br/app/editais/{}/{}/{}"
 ACIMA_DO_ESTIMADO = 3
 
 
+GENERICO_ORGAO = {"MUNICIPIO", "PREFEITURA", "MUNICIPAL", "FUNDO", "SAUDE", "SECRETARIA", "ESTADO", "GOVERNO", "CAMARA",
+                  "CONSORCIO", "INTERMUNICIPAL", "PUBLICA", "PUBLICO"}
+
+
+def nome_pncp(unidade: str, orgao: str, cidade: str = "") -> str:
+    """O nome do comprador no PNCP: a unidade ("Secretaria de Saúde", "Unidade Única") muitas vezes não diz a cidade;
+    nesse caso o órgão vai entre parênteses, ou a cidade, quando nem o órgão a diz ("Fundo Municipal de Saúde")."""
+    palavras = lambda t: {w for w in re.findall(r"[A-Z]{3,}", sem_acento(t).upper()) if w not in GENERICO_ORGAO}
+    nome = bonito(unidade.strip() or orgao)
+    for extra in (orgao, cidade):
+        chaves = palavras(extra)
+        if chaves:
+            return nome if chaves & palavras(nome) else f"{nome} ({bonito(extra) if extra == orgao else extra})"
+    return nome
+
+
 def compras_pncp(sem_rs: bool) -> tuple[list[dict], int]:
     """As compras do PNCP no formato comum, menos as que já vêm de outra fonte: as feitas no Compras.gov.br (estão na
     pesquisa de preço) e, com o LicitaCon, as das prefeituras do RS. Devolve também quantas foram tiradas por passar do
     estimado."""
     from .precos_pncp import compras_guardadas   # aqui, e não no topo: precos_pncp importa deste módulo
 
+    cidades = {str(m["ibge"]): m["nome"] for m in json.loads(MUNICIPIOS.read_text(encoding="utf-8"))["cidades"]} if MUNICIPIOS.exists() else {}
     saida, acima = [], 0
     for x in compras_guardadas():
         if x.get("plataforma") == "Compras.gov.br" or (not sem_rs and x.get("esfera") == "M" and x.get("uf") == "RS"):
             continue
         esfera = "E" if x.get("esfera") == "D" else x.get("esfera")
-        comprador = bonito(x.get("unidade") or x.get("orgao") or "")
-        if re.fullmatch(r"(?i)(prefeitura municipal|fundo municipal de sa[uú]de|secretaria municipal de sa[uú]de)", comprador.strip()):
-            comprador = f"{comprador} ({bonito(x.get('orgao') or '')})"
+        comprador = nome_pncp(x.get("unidade") or "", x.get("orgao") or "", cidades.get(str(x.get("ibge") or ""), ""))
         for i in x["itens"]:
             if casar(i["descricao"], i.get("unidade") or "") != i["codigo"]:   # a regra do casamento pode ter mudado
                 continue

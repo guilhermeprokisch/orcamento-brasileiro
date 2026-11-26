@@ -295,13 +295,16 @@ publicados no PNCP; o `precos` junta os de remédio às outras fontes.
 - O resto bate: na amostra, a razão típica do preço do PNCP sobre a mediana do Compras.gov.br foi 1,15 (as cidades que
   compram por plataformas privadas pagam um pouco mais), sem nenhum preço abaixo de 0,3 vez a mediana.
 
-**Primeira carga (25/11/2026), com os pregões publicados de 24/06 a 22/11/2026.** O resto de 2026 está sendo baixado e
-2025 fica para o workflow semanal:
+**Carga de 2026 (26/11/2026), com os pregões publicados de 01/01 a 24/11/2026.** 2025 fica para o workflow semanal:
 
-- 8.521 compras do PNCP aceitas, de 464 cidades; 17 tiradas por passar de 3 vezes o estimado.
-- A comparação passa de 471 para 920 cidades com compra, e de 517 para 1.234 compras de prefeitura acima do dobro.
-- O casamento bate com o Compras.gov.br: a razão típica do preço do PNCP sobre a mediana do Compras.gov.br é 1,0, e
-  nenhum remédio fica com razão típica fora de 0,6 a 1,8.
+- 7.987 pregões de remédio guardados; 25.173 compras do PNCP aceitas, de 1.058 cidades; 60 tiradas por passar de 3
+  vezes o estimado.
+- A comparação passa de 471 para 1.505 cidades com compra, de 26,6 mil para 51,8 mil compras comparadas e de 517 para
+  2.434 compras de prefeitura acima do dobro.
+- O casamento bate com o Compras.gov.br: a razão típica do preço do PNCP sobre a mediana é 1,0, e nenhum remédio fica
+  com razão típica fora de 0,97 a 1,08.
+- O nome da unidade no PNCP muitas vezes não diz a cidade ("Unidade Única", "Prefeitura", "Fundo Municipal de Saúde");
+  nesse caso o órgão, ou a cidade, vai entre parênteses (`nome_pncp`).
 - Para ganhar tempo, só as prefeituras de fora do Compras.gov.br e do RS têm itens e preços baixados (`interessa`); a
   lista de cada dia fica inteira, para buscar os órgãos estaduais depois. Mesmo assim, são uns 5 minutos por dia de
   publicação, com 3 downloads ao mesmo tempo.

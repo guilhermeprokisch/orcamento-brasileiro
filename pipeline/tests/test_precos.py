@@ -82,3 +82,14 @@ def test_pncp_tira_o_que_vem_de_outra_fonte_e_o_preco_da_caixa(monkeypatch):
     assert [(x["preco"], x["ibge"], x["fonte"]) for x in linhas] == [(0.04, 2516409, "p")]
     assert linhas[0]["comprador"] == "Prefeitura Municipal (Municipio de Tacima)"
     assert linhas[0]["link"] == "https://pncp.gov.br/app/editais/08787392000192/2026/53"
+
+
+def test_nome_do_comprador_no_pncp_diz_a_cidade():
+    from orcamento_pipeline.precos import nome_pncp
+
+    assert nome_pncp("Unidade Única", "MUNICIPIO DE CORONEL EZEQUIEL") == "Unidade Única (Municipio de Coronel Ezequiel)"
+    assert nome_pncp("Prefeitura", "MUNICIPIO DE CORONEL EZEQUIEL") == "Prefeitura (Municipio de Coronel Ezequiel)"
+    assert nome_pncp("Americana", "MUNICIPIO DE AMERICANA") == "Americana"
+    assert nome_pncp("FUNDO MUNICIPAL DE SAUDE DE TUCURUI", "MUNICIPIO DE TUCURUI") == "Fundo Municipal de Saude de Tucurui"
+    assert nome_pncp("", "MUNICIPIO DE ARATACA") == "Municipio de Arataca"
+    assert nome_pncp("Fundo Municipal de Saude", "FUNDO MUNICIPAL DE SAUDE", "Tucuruí") == "Fundo Municipal de Saude (Tucuruí)"
