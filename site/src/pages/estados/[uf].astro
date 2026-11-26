@@ -10,6 +10,7 @@ import IrMoradores from "../../components/gasto/IrMoradores.astro";
 import SaiuVoltou from "../../components/gasto/SaiuVoltou.astro";
 import EmendasResultado from "../../components/gasto/EmendasResultado.astro";
 import ContratosResultado from "../../components/gasto/ContratosResultado.astro";
+import PrecosRemedios from "../../components/gasto/PrecosRemedios.astro";
 import NestaPagina, { type GrupoDaPagina } from "../../components/NestaPagina.astro";
 import CapagNota from "../../components/gasto/CapagNota.astro";
 import SaudeResultado from "../../components/gasto/SaudeResultado.astro";
@@ -70,7 +71,7 @@ const LIMITE = 15;
 const cidades = ehDF ? [] : (docCidades?.cidades ?? []).filter((c) => c.uf === e.uf).sort((a, b) => b.pop - a.pop);
 // A lista "Nesta página": os grupos na ordem em que aparecem; um item sem conteúdo some no navegador.
 const SUMARIO: GrupoDaPagina[] = [
-  { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["contratos", "Os contratos"], ["evolucao", "Ao longo dos anos"]] },
+  { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["contratos", "Os contratos"], ["precos", "O preço dos remédios"], ["evolucao", "Ao longo dos anos"]] },
   { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida frente ao limite"], ["pessoal", "O gasto com pessoal"], ["previdencia", "A aposentadoria dos servidores"], ["teto", "Juízes e promotores acima do teto"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
   { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["saiu-voltou", "Saiu daqui, voltou"], ["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["obras-paradas", "Obras federais paradas"]] },
   { id: "como-esta", n: 4, titulo: ehDF ? "Como está o Distrito Federal" : "Como está o estado", itens: [["educacao", "Educação: gasto por aluno"], ["saude", "Saúde: mortalidade infantil"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
@@ -127,6 +128,7 @@ const descricao = temDados
     {ctx && <div class="ficha" id="areas" data-parte="areas" set:html={areasHtml(ctx)} />}
     {ctx && <div class="ficha" id="com-o-que" data-parte="natureza" set:html={contasHtml(ctx, "natureza")} />}
     {temDados && <div id="contratos" data-so-padrao="os contratos"><ContratosResultado cidade={e} esfera="uf" quem={quem} /></div>}
+    {temDados && <div id="precos" data-so-padrao="o preço dos remédios"><PrecosRemedios ibge={e.ibge} esfera="uf" quem={quem} /></div>}
     <div id="evolucao">
     {serie.length > 2 && (
       <section class="evolucao">

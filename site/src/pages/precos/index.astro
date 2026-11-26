@@ -1,0 +1,171 @@
+---
+/**
+ * O preço dos remédios: a mediana nacional de cada remédio da farmácia básica e quantas compras passaram do dobro
+ * das parecidas. Dados de pipeline/…/precos.py; regras em docs/levantamento-preco-pago.md.
+ */
+import Base from "../../layouts/Base.astro";
+import Termo from "../../components/Termo.astro";
+import { artigo, docNacional, docPrecos, precoUnit } from "../../lib/precos";
+
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const anos = docNacional?.anos ?? [];
+const ultimo = String(anos.at(-1) ?? "");
+const remedios = (docNacional?.remedios ?? []).map((r) => {
+  const a = r.anos[ultimo] ?? Object.values(r.anos).at(-1)!;
+  const ano = r.anos[ultimo] ? ultimo : Object.keys(r.anos).at(-1)!;
+  const caras = a.compras.filter((x) => x[7] >= (docPrecos?.regras.mais_cara ?? 2)).length;
+  return { ...r, a, ano, caras };
+});
+const totalCompras = remedios.reduce((s, r) => s + Object.values(r.anos).reduce((t, a) => t + a.n, 0), 0);
+const cidades = docPrecos ? Object.values(docPrecos.mun).filter((e) => e.n > 0).length : 0;
+const carasMun = docPrecos ? Object.values(docPrecos.mun).reduce((s, e) => s + e.n_caras, 0) : 0;
+const descricao = "O mesmo remédio, comprado por prefeituras, governos estaduais e órgãos federais: quem pagou quanto, e onde o preço passou do dobro do que os outros pagaram.";
+---
+
+<Base title="O preço dos remédios · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap pagina-precos">
+    {!docNacional || remedios.length === 0 ? (
+      <section class="cabeca"><div><h1>O preço dos remédios</h1><p>Os dados ainda não foram carregados.</p></div></section>
+    ) : (
+      <>
+        <section class="cabeca">
+          <div>
+            <span class="sobretitulo">Farmácia básica · {anos.join(" e ")}</span>
+            <h1>O preço dos remédios</h1>
+            <p>
+              O mesmo remédio, na mesma dose, comprado por prefeituras, governos estaduais e órgãos federais. Quem pagou quanto por
+              comprimido, cápsula ou ampola, e onde o preço passou do dobro do que os outros pagaram em compras de quantidade parecida.
+            </p>
+          </div>
+        </section>
+
+        <section class="numeros" aria-label="Os números principais">
+          <div><span>Remédios comparados</span><strong>{remedios.length}</strong><small>pelo código do catálogo federal</small></div>
+          <div><span>Compras comparadas</span><strong>{nf0.format(totalCompras)}</strong><small>em {anos.join(" e ")}</small></div>
+          <div><span>Cidades com compra</span><strong>{nf0.format(cidades)}</strong><small>de 5.570</small></div>
+          <div><span>Compras de prefeitura</span><strong>{nf0.format(carasMun)}</strong><small>pagaram mais que o dobro das parecidas</small></div>
+        </section>
+
+        <section class="bloco">
+          <div class="texto">
+            <h2>Remédio por remédio</h2>
+            <p>
+              A <Termo id="mediana">mediana</Termo> é o preço do meio: metade das compras pagou isso ou menos. A faixa vai do preço que
+              um quarto das compras pagou ou menos ao que três quartos pagaram ou menos. Clique no remédio para ver todas as compras.
+            </p>
+          </div>
+          <div class="tabela-rolagem">
+            <table>
+              <thead><tr><th>Remédio</th><th class="num">Mediana em {ultimo}</th><th class="num">Faixa</th><th class="num">Compras</th><th class="num">Mais que o dobro</th></tr></thead>
+              <tbody>
+                {remedios.map((r) => (
+                  <tr>
+                    <td><a href={`/precos/${r.codigo}`}>{r.nome}</a><small>{r.forma}</small></td>
+                    <td class="num"><strong>{precoUnit(r.a.mediana)}</strong>{r.ano !== ultimo && <small>em {r.ano}</small>}</td>
+                    <td class="num">{precoUnit(r.a.faixa[0])} a {precoUnit(r.a.faixa[1])}</td>
+                    <td class="num">{nf0.format(r.a.n)}<small>{nf0.format(r.a.compradores)} compradores</small></td>
+                    <td class="num">{r.caras}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="bloco duas">
+          <div class="texto">
+            <h2>Como a conta é feita</h2>
+            <ul>
+              <li><strong>Mesmo remédio:</strong> o mesmo código do <Termo id="catmat">catálogo federal</Termo> (a losartana de 50 mg e a de 100 mg são dois).</li>
+              <li><strong>Mesma unidade:</strong> o preço de um comprimido, uma cápsula ou uma ampola.</li>
+              <li><strong>Mesmo ano:</strong> a compra só é comparada com as do mesmo ano.</li>
+              <li><strong>Quantidade parecida:</strong> cada compra é comparada com a mediana das compras de tamanho parecido (pequenas, médias ou grandes), porque quem compra mais paga um pouco menos.</li>
+              <li><strong>Erros de digitação ficam de fora:</strong> preço mais de 30 vezes acima ou abaixo da mediana é quase sempre o preço da caixa no lugar do comprimido.</li>
+              <li><strong>Mínimo:</strong> um remédio só aparece com 20 compras de 10 compradores diferentes no ano. Uma compra só é destacada se passar do dobro e der pelo menos R$ 1.000 a mais.</li>
+            </ul>
+          </div>
+          <div class="texto nao-diz">
+            <h2>O que esta conta não diz</h2>
+            <p>Um preço maior não prova desperdício nem desvio. Mudam o preço, sem culpa de ninguém:</p>
+            <ul>
+              <li><strong>frete e distância:</strong> cidade longe das distribuidoras paga mais pela entrega;</li>
+              <li><strong>quantidade:</strong> quem compra pouco paga mais por unidade;</li>
+              <li><strong>prazo:</strong> entrega em prazo curto, parcelada ou com estoque garantido custa mais;</li>
+              <li><strong>compra de emergência:</strong> falta de remédio, licitação em que ninguém apareceu e compra às pressas, por <Termo id="dispensa">dispensa</Termo>;</li>
+              <li><strong>marca e embalagem:</strong> embalagem hospitalar ou comprimido revestido;</li>
+              <li><strong>registro de preço:</strong> num <Termo id="registro-de-preco">registro de preço</Termo>, o preço é o máximo e a quantidade é a que pode ser comprada; o comprador pode comprar menos, ou nada.</li>
+            </ul>
+            <p>A conta mostra onde vale olhar de perto: a compra, a pesquisa de preço feita antes dela e se outras empresas tentaram vender.</p>
+          </div>
+        </section>
+
+        <section class="bloco">
+          <div class="texto">
+            <h2>De onde vêm os dados, e o que falta</h2>
+            <p>
+              Os preços vêm de duas fontes. A pesquisa de preço do Compras.gov.br, o sistema de compras do governo federal, traz o código do
+              remédio, a unidade e a cidade de cada comprador, mas só tem quem compra por esse sistema. As outras prefeituras compram por
+              plataformas privadas e publicam os pregões no <Termo id="pncp">PNCP</Termo>, com a descrição escrita à mão ("LOSARTANA POT. 50 MG"):
+              o site lê essa descrição e só aceita o item quando o remédio, a dose e a unidade batem com a lista.
+            </p>
+            <p>
+              Do PNCP entram só os <Termo id="pregao">pregões</Termo> eletrônicos com o preço final já publicado. Ficam de fora as compras sem
+              licitação (<Termo id="dispensa">dispensas</Termo>), os pregões presenciais e os que ainda não terminaram. Quando o preço final passa de
+              três vezes o preço estimado pela própria prefeitura, quase sempre é o preço da caixa no lugar do comprimido, e a compra fica de fora.
+            </p>
+            <p>
+              No Rio Grande do Sul, os preços das prefeituras vêm do LicitaCon, do Tribunal de Contas do estado, que tem todas as compras e
+              todas as propostas de cada item. Por isso só no RS dá para contar as licitações com uma empresa só, e só nas prefeituras que
+              informam ao Tribunal as propostas das empresas que perderam.
+            </p>
+            <p class="menor">Os pregões do PNCP de 2025 ainda estão sendo baixados e entram aos poucos, a cada semana. Dados atualizados em {docNacional.gerado.split("-").reverse().join("/")}. Os arquivos: <a href="/data/precos/remedios.json">remedios.json</a> e <a href="/data/indicadores/precos.json">precos.json</a>.</p>
+          </div>
+        </section>
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .cabeca { padding: 40px 0 32px; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 880px; }
+  .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .numeros { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 32px; font-weight: 700; white-space: nowrap; }
+  .numeros small { font-size: 14px; color: var(--texto-3); }
+  .bloco { padding: 36px 0 8px; display: flex; flex-direction: column; gap: 16px; }
+  .bloco.duas { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+  .texto { display: flex; flex-direction: column; gap: 10px; max-width: 880px; }
+  .texto h2 { margin: 0; font-size: 32px; line-height: 1.1; }
+  .texto p, .texto li { margin: 0; font-size: 17px; line-height: 1.55; color: var(--texto-2); }
+  .texto strong { color: var(--tinta); }
+  .texto ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .nao-diz { padding: 16px 18px; border-left: 3px solid var(--tinta); background: var(--papel-escuro); }
+  .nao-diz h2 { font-size: 26px; }
+  .tabela-rolagem { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th { text-align: left; font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--texto-3); padding: 8px 10px 8px 0; border-bottom: 2px solid var(--tinta); }
+  td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--regra); vertical-align: top; }
+  td small { display: block; font-size: 13px; color: var(--texto-3); }
+  .num { text-align: right; white-space: nowrap; }
+
+  @media (max-width: 900px) {
+    .cabeca h1 { font-size: 44px; }
+    .cabeca p { font-size: 18px; }
+    .numeros { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+    .numeros div { padding: 14px 12px 14px 0; border-right: 0; border-bottom: 1px solid var(--regra); }
+    .numeros strong { font-size: 26px; }
+    .bloco.duas { display: flex; flex-direction: column; }
+    .texto h2 { font-size: 26px; }
+    table { font-size: 14px; }
+    th:nth-child(3), td:nth-child(3), th:nth-child(5), td:nth-child(5) { display: none; }
+    td:first-child { overflow-wrap: anywhere; }
+    th, .num { white-space: normal; }
+  }
+</style>
