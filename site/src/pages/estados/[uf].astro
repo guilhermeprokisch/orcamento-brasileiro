@@ -25,6 +25,7 @@ import { estadoDe, faixaDe } from "../../lib/quem-publica";
 import { areasHtml, contasHtml, fraseHtml, numerosHtml, type Contexto } from "../../lib/ficha-html";
 import type { BaseDaPagina } from "../../lib/troca-de-ano";
 import "../../styles/ficha.css";
+import Seguir from "../../components/Seguir.astro";
 
 export function getStaticPaths() {
   return (docEstados?.cidades ?? []).map((e) => ({ params: { uf: e.uf.toLowerCase() }, props: { e } }));
@@ -101,6 +102,7 @@ const descricao = temDados
                 </label>
               )}
               <a class="comparar-com" href={`/comparar?a=${e.ibge}`}><span aria-hidden="true">⇄</span> Comparar com outro estado</a>
+              <Seguir nome={ehDF ? "o Distrito Federal" : nome} alvos={[{ alvo: `uf-${e.uf}`, nome, papel: ehDF ? "o governo do DF" : "o governo do estado", marcado: true }]} />
             </div>
             <div class="ficha" data-parte="frase" set:html={fraseHtml(ctx)} />
           </>

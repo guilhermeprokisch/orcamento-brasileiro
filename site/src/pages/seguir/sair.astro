@@ -1,0 +1,62 @@
+---
+/**
+ * Parar de seguir (functions/api/sair.ts). ?t=<token>[&a=<alvo>] pede confirmação e manda o POST;
+ * ?feito=1[&a=<alvo>] diz que deu certo. Pede um clique antes de apagar porque leitores de e-mail
+ * abrem links sozinhos para checar se são seguros.
+ */
+import Base from "../../layouts/Base.astro";
+---
+
+<Base title="Parar de seguir · Orçamento Brasileiro" description="Parar de receber os e-mails de uma cidade ou de um estado.">
+  <div class="wrap seguir-pagina">
+    <form id="pedir" method="post" action="/api/sair" hidden>
+      <h1 id="pergunta">Parar de receber os e-mails?</h1>
+      <p id="explica">Você deixa de seguir tudo e apagamos seu endereço.</p>
+      <input type="hidden" name="t" />
+      <input type="hidden" name="a" />
+      <p><button class="botao" type="submit">Parar de seguir</button></p>
+    </form>
+    <div id="feito" hidden>
+      <span class="sobretitulo verde">Feito</span>
+      <h1 id="feito-titulo">Você não vai mais receber nossos e-mails</h1>
+      <p>Se mudar de ideia, é só seguir de novo pela página da cidade ou do estado.</p>
+    </div>
+    <div id="erro" hidden>
+      <h1>Esse link não está completo</h1>
+      <p>Use o link "Parar de seguir" do fim do e-mail. Se não der certo, escreva para <a href="mailto:contato@orcamentobrasileiro.com.br">contato@orcamentobrasileiro.com.br</a> e tiramos você da lista.</p>
+    </div>
+  </div>
+</Base>
+
+<script>
+  (async () => {
+  const q = new URLSearchParams(location.search);
+  const alvo = /^(mun-\d{7}|uf-[A-Z]{2})$/.test(q.get("a") ?? "") ? q.get("a")! : "";
+  const nome = alvo
+    ? await fetch(`/seguir/resumo/${alvo}.json`).then((r) => (r.ok ? r.json() : null)).then((j) => j?.titulo as string | undefined).catch(() => undefined)
+    : undefined;
+  const mostrar = (id: string) => (document.getElementById(id)!.hidden = false);
+  if (q.get("feito")) {
+    if (alvo) document.getElementById("feito-titulo")!.textContent = `Você não segue mais ${nome ?? "esse lugar"}`;
+    mostrar("feito");
+  } else if (q.get("t") && !q.get("erro")) {
+    const form = document.getElementById("pedir") as HTMLFormElement;
+    (form.elements.namedItem("t") as HTMLInputElement).value = q.get("t")!;
+    (form.elements.namedItem("a") as HTMLInputElement).value = alvo;
+    if (alvo) {
+      document.getElementById("pergunta")!.textContent = `Parar de seguir ${nome ?? "esse lugar"}?`;
+      document.getElementById("explica")!.textContent = "Os outros lugares que você segue continuam chegando.";
+    }
+    mostrar("pedir");
+  } else {
+    mostrar("erro");
+  }
+  })();
+</script>
+
+<style>
+  .seguir-pagina { padding-top: 64px; padding-bottom: 96px; max-width: 760px; display: flex; flex-direction: column; }
+  .seguir-pagina h1 { font-size: 40px; line-height: 1.15; margin: 8px 0 16px; }
+  .seguir-pagina p { font-size: 18px; color: var(--texto-2); max-width: 620px; }
+  @media (max-width: 640px) { .seguir-pagina { padding-top: 32px; } .seguir-pagina h1 { font-size: 30px; } }
+</style>

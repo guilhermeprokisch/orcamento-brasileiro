@@ -1,0 +1,55 @@
+---
+/** Para onde o link de confirmação leva (functions/api/confirmar.ts): ?a=mun-4205407,uf-SC ou ?erro=1. */
+import Base from "../../layouts/Base.astro";
+---
+
+<Base title="Pronto · Orçamento Brasileiro" description="Confirmação de quem segue uma cidade ou um estado por e-mail.">
+  <div class="wrap seguir-pagina">
+    <div id="ok" hidden>
+      <span class="sobretitulo verde">Confirmado</span>
+      <h1>Pronto, você segue <span id="lugares">esses lugares</span></h1>
+      <p>Quando sair dado novo, mandamos um e-mail, no máximo um por mês. Para parar, é só clicar em "Parar de seguir" no fim de qualquer e-mail.</p>
+      <ul id="links"></ul>
+    </div>
+    <div id="erro" hidden>
+      <h1>Esse link não vale mais</h1>
+      <p>Pode ser que o pedido tenha passado de 7 dias sem confirmação. Volte à página da cidade ou do estado e peça de novo.</p>
+      <p><a class="botao" href="/cidades">Escolher uma cidade</a></p>
+    </div>
+  </div>
+</Base>
+
+<script>
+  (async () => {
+  const q = new URLSearchParams(location.search);
+  const alvos = (q.get("a") ?? "").split(",").filter((a) => /^(mun-\d{7}|uf-[A-Z]{2})$/.test(a));
+  if (q.get("erro") || !alvos.length) {
+    document.getElementById("erro")!.hidden = false;
+  } else {
+    document.getElementById("ok")!.hidden = false;
+    const resumos = await Promise.all(alvos.map((a) => fetch(`/seguir/resumo/${a}.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
+    const achados = resumos.filter(Boolean) as { titulo: string; url: string }[];
+    if (achados.length) {
+      const nomes = achados.map((r) => r.titulo);
+      document.getElementById("lugares")!.textContent = nomes.length > 1 ? `${nomes.slice(0, -1).join(", ")} e ${nomes.at(-1)}` : nomes[0];
+      const ul = document.getElementById("links")!;
+      for (const r of achados) {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = new URL(r.url).pathname;
+        a.textContent = `Ver a página de ${r.titulo}`;
+        li.append(a);
+        ul.append(li);
+      }
+    }
+  }
+  })();
+</script>
+
+<style>
+  .seguir-pagina { padding-top: 64px; padding-bottom: 96px; max-width: 760px; display: flex; flex-direction: column; }
+  .seguir-pagina h1 { font-size: 40px; line-height: 1.15; margin: 8px 0 16px; }
+  .seguir-pagina p { font-size: 18px; color: var(--texto-2); max-width: 620px; }
+  .seguir-pagina ul { padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 17px; font-weight: 600; }
+  @media (max-width: 640px) { .seguir-pagina { padding-top: 32px; } .seguir-pagina h1 { font-size: 30px; } }
+</style>

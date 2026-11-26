@@ -1,0 +1,13 @@
+# Configuração do projeto no Cloudflare Pages (o deploy em .github/workflows/publicar.yml lê daqui).
+# Com este arquivo, ligações e variáveis valem pelo que está aqui, não pelo painel.
+# As senhas (SMTP_SENHA) ficam fora: `npx wrangler pages secret put SMTP_SENHA --project-name orcamento-brasileiro`.
+name = "orcamento-brasileiro"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-11-19"
+
+# Quem segue cidades e estados por e-mail (functions/api/*, servidor/seguir.ts; docs/seguir.md).
+# Vale para produção e para as prévias dos PRs.
+[[d1_databases]]
+binding = "DB"
+database_name = "orcamento-seguir"
+database_id = "98372b86-8b6a-4e5f-aae6-2d223913ba20"
