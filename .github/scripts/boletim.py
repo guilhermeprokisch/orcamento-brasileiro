@@ -40,6 +40,9 @@ MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "a
 NUMERAIS = {1: "Uma coisa entrou", 2: "Duas coisas entraram", 3: "Três coisas entraram",
             4: "Quatro coisas entraram", 5: "Cinco coisas entraram"}
 DIAS_SEM_CONFIRMAR = 7
+# O logo vai dentro do e-mail (cid:), não como link: aparece mesmo com imagens externas bloqueadas.
+MARCA = pathlib.Path(__file__).resolve().parents[2] / "site" / "public" / "email" / "marca.png"
+MARCA_CID = "marca@orcamentobrasileiro.com.br"
 PAUSA_S = 1.5
 
 
@@ -192,7 +195,7 @@ def montar(pessoa: dict, blocos: list[tuple[dict, list[dict], bool]]) -> EmailMe
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#f7f4ec;font-family:Inter,Arial,sans-serif;">
 <tr><td style="background:#191919;padding:20px 28px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-<td style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:#f7f4ec;"><img src="{SITE}/email/marca.png" width="35" height="24" alt="" style="vertical-align:-4px;margin-right:10px;border:0;">Orçamento Brasileiro</td>
+<td style="font-family:Georgia,serif;font-size:20px;font-weight:700;color:#f7f4ec;"><img src="cid:{MARCA_CID}" width="35" height="24" alt="" style="vertical-align:-4px;margin-right:10px;border:0;">Orçamento Brasileiro</td>
 <td align="right" style="font-size:13px;color:#ddd6c6;">{mes}</td></tr></table></td></tr>
 <tr><td style="padding:32px 28px 0;">{corpo}</td></tr>
 </table>
@@ -214,6 +217,8 @@ def montar(pessoa: dict, blocos: list[tuple[dict, list[dict], bool]]) -> EmailMe
     m["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"
     m.set_content(texto)
     m.add_alternative(doc, subtype="html")
+    m.get_body(("html",)).add_related(MARCA.read_bytes(), "image", "png", cid=f"<{MARCA_CID}>",
+                                      filename="marca.png", disposition="inline")
     return m
 
 
