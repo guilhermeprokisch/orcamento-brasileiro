@@ -92,8 +92,10 @@ os dados chegam todos assim, então a situação não muda sozinha. As mensagens
 `lai diario` roda a caixa e confere os prazos (os que vencem em até 3 dias e os vencidos sem resposta, quando cabe
 recurso) e, se houver algo, manda um resumo por e-mail (padrão: guilherme@inout.email). No Mac do Guilherme, o launchd
 roda às 8h30: `~/Library/LaunchAgents/com.guilherme.orcamento-lai-diario.plist`, com log em
-`~/Library/Logs/orcamento-lai-diario.log`. O plist aponta para a pasta `pipeline/` de onde o comando roda; se a pasta
-mudar (por exemplo, depois de o ramo ser mesclado), troque o caminho no plist. Para desligar:
+`~/Library/Logs/orcamento-lai-diario.log`. Ele roda numa pasta só dele, `~/Projects/orcamento-br-lai` (um worktree
+do repositório, no ramo `lai-diario`), que antes de cada execução se atualiza com a `main` (`git merge --ff-only`). As
+respostas que o `lai caixa` anota mudam o `registro.csv` dessa pasta: de tempos em tempos, levar essas mudanças para um
+commit (senão a atualização com a `main` para de andar). Para desligar:
 `launchctl bootout gui/$(id -u)/com.guilherme.orcamento-lai-diario`.
 
 ## Sem perguntar
