@@ -1,0 +1,18 @@
+Assunto: Pedido de acesso à informação (Lei 12.527/2011): folha de pagamento dos municípios (prefeitos, vereadores e Câmaras)
+
+Prezados,
+
+Com base na Lei nº 12.527/2011 (Lei de Acesso à Informação), solicito ao Tribunal de Contas do Estado de Sergipe os dados da folha de pagamento que este Tribunal recebe dos municípios do Estado de Sergipe, de janeiro de 2021 até o mês mais recente disponível, em formato aberto e legível por máquina (CSV, ou acesso por API), como prevê o art. 8º, § 3º, da Lei 12.527/2011:
+
+1. Para cada prefeitura e cada Câmara Municipal, a folha mensal com: município, órgão ou unidade (identificando a Câmara), nome, cargo, tipo de vínculo (efetivo, comissionado, eletivo etc.), lotação, mês de referência e os valores pagos, separados por rubrica (subsídio, verba de representação, gratificações, indenizações, 13º, férias) quando o Tribunal os receber assim, e o valor bruto e líquido.
+2. Se o pedido completo for grande demais, peço ao menos os agentes políticos (prefeito, vice-prefeito e vereadores) e todos os servidores das Câmaras Municipais, com os mesmos campos.
+3. Os pagamentos das Câmaras Municipais a título de verba indenizatória, verba de gabinete ou cota de atividade parlamentar dos vereadores (empenhos e pagamentos com o nome do vereador beneficiário, o fornecedor e o CNPJ, quando houver), no mesmo período.
+4. O dicionário de dados (o que significa cada coluna e cada código).
+
+Não peço o CPF: ele pode ser omitido ou mascarado. O nome, o cargo e a remuneração de agentes públicos são de divulgação obrigatória (art. 8º da Lei 12.527/2011 e STF, ARE 652.777, Tema 483).
+
+Se já houver um endereço público para baixar esses dados, sem login nem captcha, peço que o informem. Caso alguma informação não exista na forma pedida, peço que seja enviada na forma mais próxima disponível, com a explicação de cada coluna. Caso alguma parte seja negada, peço a indicação do fundamento legal e da autoridade a quem cabe recurso.
+
+Atenciosamente,
+{nome}
+{email}

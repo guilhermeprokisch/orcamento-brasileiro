@@ -1,0 +1,19 @@
+Assunto: Pedido de acesso à informação (Lei 12.527/2011): verba indenizatória, gabinetes e pagamentos dos deputados estaduais
+
+Prezados,
+
+Com base na Lei nº 12.527/2011 (Lei de Acesso à Informação), solicito à Assembleia Legislativa do Estado de Minas Gerais as seguintes informações, de fevereiro de 2023 (início da legislatura) até o mês mais recente disponível, em formato aberto e legível por máquina (CSV, XLSX, ODS ou acesso por API), como prevê o art. 8º, § 3º, da Lei 12.527/2011:
+
+1. Pessoal dos gabinetes: a relação dos servidores lotados no gabinete de cada deputado, com nome, cargo, lotação (o gabinete) e a remuneração bruta mensal.
+2. Pagamentos aos deputados: por deputado e mês, o subsídio e cada outro valor pago (auxílio-moradia, auxílio-saúde ou plano de saúde, auxílio-alimentação, verba de representação, ajuda de custo, 13º, diárias e passagens), com a norma que fixa cada um.
+3. O dicionário de dados (o que significa cada coluna e cada código).
+
+Não peço CPF de deputados nem de servidores: ele pode ser omitido ou mascarado. O nome, o cargo e a remuneração de agentes públicos são de divulgação obrigatória (art. 8º da Lei 12.527/2011 e STF, ARE 652.777, Tema 483).
+
+A folha de pagamento está publicada em PDF escaneado, sem a lotação.
+
+Se já houver um endereço público para baixar esses dados, sem login nem captcha, peço que o informem. Caso alguma informação não exista na forma pedida, peço que seja enviada na forma mais próxima disponível, com a explicação de cada coluna. Caso alguma parte seja negada, peço a indicação do fundamento legal e da autoridade a quem cabe recurso.
+
+Atenciosamente,
+{nome}
+{email}

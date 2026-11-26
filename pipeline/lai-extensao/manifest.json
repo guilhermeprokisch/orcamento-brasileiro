@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Pedidos LAI (Orçamento Brasileiro)",
+  "version": "0.1.1",
+  "description": "Preenche formulários de pedido de acesso à informação com os dados que o comando `lai` manda do próprio computador. Não envia: o clique em Enviar fica com a pessoa.",
+  "host_permissions": [
+    "http://127.0.0.1:8765/*"
+  ],
+  "background": {
+    "service_worker": "sw.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.almg.gov.br/apps/fale-com/*",
+        "https://www.al.pb.leg.br/sic/*"
+      ],
+      "js": [
+        "preencher.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
