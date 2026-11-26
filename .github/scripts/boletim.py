@@ -31,7 +31,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from email.message import EmailMessage
-from email.utils import formataddr, make_msgid
+from email.utils import formataddr, formatdate, make_msgid
 
 SITE = os.environ.get("SITE", "https://orcamentobrasileiro.com.br").rstrip("/")
 DE = os.environ.get("BOLETIM_DE", "boletim@orcamentobrasileiro.com.br")
@@ -206,7 +206,9 @@ def montar(pessoa: dict, blocos: list[tuple[dict, list[dict], bool]]) -> EmailMe
     m["From"] = formataddr(("Orçamento Brasileiro", DE))
     m["To"] = pessoa["email"]
     m["Subject"] = assunto
+    m["Date"] = formatdate(localtime=False, usegmt=True)  # sem Date, o Gmail manda para o spam
     m["Message-ID"] = make_msgid(domain=DE.split("@")[1])
+    m["Reply-To"] = "contato@orcamentobrasileiro.com.br"
     # Cancelar com um clique (RFC 8058): o POST vai para functions/api/sair.ts.
     m["List-Unsubscribe"] = f"<{SITE}/api/sair?t={urllib.parse.quote(pessoa['token'])}>"
     m["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click"

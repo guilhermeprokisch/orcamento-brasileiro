@@ -122,6 +122,7 @@ export async function enviar(env: Ambiente, m: Mensagem): Promise<void> {
     await mailer.send({
       from: { name: "Orçamento Brasileiro", email: de },
       to: { email: m.para },
+      reply: { email: "contato@orcamentobrasileiro.com.br" },
       subject: m.assunto,
       text: m.texto,
       html: m.html,
