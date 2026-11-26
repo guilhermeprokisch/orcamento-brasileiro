@@ -108,6 +108,10 @@ const descricao = doc && g
           <span class="n">3</span>
           <div><h2>Siga o seu imposto</h2><p>Para onde vai cada imposto que você paga. Escolha onde você paga, ou clique num imposto.</p></div>
         </div>
+        <p class="aviso-reforma">
+          <span><strong>Isso muda a partir de 2027.</strong> PIS e Cofins viram CBS, e o ICMS e o ISS dão lugar ao IBS até 2033.</span>
+          <a class="link-forte" href="/impostos/reforma">Veja o que muda</a>
+        </p>
         <SigaImposto doc={doc} />
         {volta && (
           <aside class="na-sua-cidade">
@@ -178,6 +182,8 @@ const descricao = doc && g
   .atalhos button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
   .liga-deixa { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; padding-left: 56px; cursor: pointer; }
   .liga-deixa input { accent-color: var(--verde-escuro); width: 16px; height: 16px; }
+  .aviso-reforma { margin: 0 0 16px; padding: 12px 18px; background: var(--marca-texto-fundo); border: 1px solid var(--tinta); max-width: 880px; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; }
+  .aviso-reforma a { white-space: nowrap; }
   .cobertura { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: var(--texto-3); max-width: 880px; }
   .cobertura strong { color: var(--tinta); }
   .explorar-grade { display: grid; grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); gap: 32px; align-items: start; }

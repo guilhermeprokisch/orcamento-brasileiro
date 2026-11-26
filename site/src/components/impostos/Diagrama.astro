@@ -12,8 +12,14 @@ import {
 } from "../../lib/caminho-impostos";
 import { barrasDeixa, explicacoes, fantasmas } from "../../lib/caminho-explica";
 
-interface Props { doc: DocCaminho; forma: "largo" | "estreito"; historia?: boolean; deixa?: { uniao: number; estados: number } | null; classe?: string }
-const { doc: original, forma, historia = false, deixa = null, classe = "" } = Astro.props;
+interface Props {
+  doc: DocCaminho; forma: "largo" | "estreito"; historia?: boolean; deixa?: { uniao: number; estados: number } | null; classe?: string;
+  /** Ordem dos nós, quando o desenho traz impostos que não existem hoje (a página da reforma tributária). */
+  ordem?: string[];
+  /** Balões que entram no lugar dos calculados, por data-id (idem). */
+  dicasExtra?: Record<string, { t: string; v: string; x: string }>;
+}
+const { doc: original, forma, historia = false, deixa = null, classe = "", ordem, dicasExtra = {} } = Astro.props;
 const largo = forma === "largo";
 const doc = largo ? original : agrupar(original, GRUPOS_ESTREITO);
 
@@ -37,7 +43,7 @@ const noDaBarra = (imposto: string) => `t-${imposto}`;
 // E o caminho que esse dinheiro faria: o tracejado continua embaixo de quem cobra e de quem fica.
 const fx = deixa ? fantasmas(original, !largo) : null;
 const extra = fx?.extra ?? {};
-const dd = desenhar(doc, { ...o, ordem: largo ? undefined : ORDEM_ESTREITO, extra });
+const dd = desenhar(doc, { ...o, ordem: ordem ?? (largo ? undefined : ORDEM_ESTREITO), extra });
 // As caixas de "quem cobra" são largas, com o nome dentro; as barras dos impostos, finas. As faixas são refeitas
 // abaixo com essas larguras.
 const larguraDe = (col: number) => (col === 0 ? o.barra : col === 2 && largo ? 14 : larguraCaixa);
@@ -117,7 +123,8 @@ const totalDeixa = barras.reduce((t, b) => t + b.valor, 0);
 const todas = explicacoes(original);
 const presentes = new Set([...dd.fluxos.map((f) => f.id), ...dd.nos.map((n) => n.id), ...barras.map((b) => b.id),
   ...caixasX.map((c) => c.id), ...fluxosX.map((f) => f.id)]);
-const dicas = Object.fromEntries([...presentes].filter((id) => todas[id]).map((id) => [id, { t: todas[id].titulo, v: todas[id].valor, x: todas[id].texto }]));
+const dicas = Object.fromEntries([...presentes].filter((id) => dicasExtra[id] || todas[id])
+  .map((id) => [id, dicasExtra[id] ?? { t: todas[id].titulo, v: todas[id].valor, x: todas[id].texto }]));
 ---
 
 <svg class={`diagrama ${forma} ${classe}`} viewBox={`${-margemEsq} 0 ${L + margemEsq} ${H + alturaDeixa}`} role="img"

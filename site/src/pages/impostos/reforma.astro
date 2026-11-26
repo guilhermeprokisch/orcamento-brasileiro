@@ -1,0 +1,255 @@
+---
+/**
+ * O que muda nos impostos com a reforma tributária, só com o que está no texto da lei (EC 132/2023, LC 214/2025,
+ * LC 227/2026). O centro da página é o mesmo desenho da /impostos/, passado ano a ano: em cada passo só fica aceso o
+ * que muda. A conta e os artigos estão em lib/reforma-tributaria.ts e em docs/reforma-tributaria-lei.md.
+ */
+import Base from "../../layouts/Base.astro";
+import Diagrama from "../../components/impostos/Diagrama.astro";
+import { docCaminho as doc } from "../../lib/caminho-impostos";
+import { caminhoEm, dicasReforma, ORDEM_REFORMA, parteTrocada, passosReforma } from "../../lib/reforma-tributaria";
+
+const passos = (doc ? passosReforma(doc) : []).map((p) => {
+  const noAno = caminhoEm(doc!, p.ano);
+  return { ...p, doc: noAno, dicas: dicasReforma(noAno, p.ano) };
+});
+const CONTINUAM = ["Imposto de renda", "INSS", "CSLL", "IOF", "IPVA", "IPTU", "ITBI", "Imposto sobre heranças e doações"];
+const DIVISAO = [
+  { reais: 80, cor: "var(--verde)", texto: "pelo número de moradores" },
+  { reais: 10, cor: "var(--marca-texto)", texto: "por melhora no aprendizado dos alunos" },
+  { reais: 5, cor: "var(--areia)", texto: "por preservação do meio ambiente" },
+  { reais: 5, cor: "var(--tinta)", texto: "em partes iguais para todas as cidades do estado" },
+];
+const descricao = doc
+  ? `PIS, Cofins, ICMS e ISS deixam de existir até 2033. De cada R$ 100 de imposto pagos em ${doc.ano}, R$ ${parteTrocada(doc)} vieram dos impostos que serão trocados. Veja o calendário, ano a ano, no texto da lei.`
+  : "O que muda nos impostos com a reforma tributária, ano a ano, só com o que está no texto da lei.";
+---
+
+<Base title="O que muda nos impostos até 2033 · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap pagina-reforma">
+    <header class="abre">
+      <span class="sobretitulo">Reforma tributária · só o que está na lei</span>
+      <h1>O que muda nos impostos até 2033?</h1>
+      <p>
+        Muda o imposto que vem no preço do que você compra. PIS, Cofins, ICMS e ISS deixam de existir, e o IPI vai a zero para quase tudo.
+        No lugar entram três: a CBS, o IBS e o Imposto Seletivo. A troca <strong class="marca">começa de verdade em 2027 e termina em 2033</strong>.
+      </p>
+    </header>
+
+    <div class="trocas">
+      <div>
+        <span class="rot">Sai em 2027</span><strong>PIS e Cofins</strong>
+        <span class="rot entra">Entra</span><strong>CBS</strong>
+        <p>Continua sendo da União.</p>
+      </div>
+      <div>
+        <span class="rot">Sai aos poucos, de 2029 a 2033</span><strong>ICMS e ISS</strong>
+        <span class="rot entra">Entra</span><strong>IBS</strong>
+        <p>Um imposto só, dividido entre o estado e a prefeitura.</p>
+      </div>
+      <div>
+        <span class="rot">Vai a zero em 2027</span><strong>IPI</strong>
+        <span class="rot entra">Entra</span><strong>Imposto Seletivo</strong>
+        <p>Só sobre o que faz mal à saúde ou ao meio ambiente. O IPI continua para produtos da Zona Franca de Manaus.</p>
+      </div>
+    </div>
+
+    {doc && (
+      <section class="passo-a-passo" id="passo-a-passo">
+        <div class="titulo-parte">
+          <span class="n">1</span>
+          <div>
+            <h2>Como é hoje e como vai ficar</h2>
+            <p>O mesmo desenho do <a href="/impostos">caminho dos impostos</a>, com o dinheiro de {doc.ano}. Só fica aceso o que muda em cada ano. Passe com as setas, na tela ou no teclado.</p>
+          </div>
+        </div>
+        <div class="anos" role="group" aria-label="Ano">
+          {passos.map((p, i) => <button type="button" class="ano" data-ano={p.ano} aria-pressed={i === 0 ? "true" : "false"}>{p.rotulo}</button>)}
+        </div>
+        {passos.map((p, i) => (
+          <div class="passo" data-foco={p.foco.join(" ")} hidden={i !== 0}>
+            <div class="faixa-passo">
+              <button type="button" class="seta volta" aria-label="Passo anterior" disabled={i === 0}>
+                <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </button>
+              <div class="legenda" aria-live="polite">
+                <span class="conta">{i + 1} de {passos.length}</span>
+                <h3>{p.titulo}</h3>
+                <p>{p.texto}</p>
+                <small>{p.artigo}</small>
+              </div>
+              <button type="button" class="seta vai" aria-label="Próximo passo" disabled={i === passos.length - 1}>
+                <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+              </button>
+            </div>
+            <Diagrama doc={p.doc} forma="largo" classe="so-largo" ordem={ORDEM_REFORMA.largo} dicasExtra={p.dicas} />
+            <Diagrama doc={p.doc} forma="estreito" classe="so-estreito" ordem={ORDEM_REFORMA.estreito} dicasExtra={p.dicas} />
+          </div>
+        ))}
+        <label class="liga-todos"><input type="checkbox" class="todos" /> <span>Acender o desenho inteiro</span></label>
+        <p class="nota">
+          <strong>O tamanho de cada faixa usa o dinheiro de {doc.ano}.</strong> É uma aproximação: a lei manda o Senado fixar as alíquotas para
+          que os impostos novos arrecadem o mesmo que os antigos deixam de arrecadar (ADCT, art. 130), e manda a União compensar o FPE e o FPM
+          pela troca do IPI pelo Imposto Seletivo (Emenda 132, art. 7º). A CBS e o Imposto Seletivo aparecem juntos porque a lei fixa a soma
+          dos dois. Em 2026 a CBS e o IBS já são calculados, a 0,9% e 0,1%, mas o valor é descontado do PIS e da Cofins: ninguém paga a mais
+          (ADCT, art. 125).
+        </p>
+      </section>
+    )}
+
+    <div class="titulo-parte">
+      <span class="n">2</span>
+      <div><h2>E o dinheiro da sua prefeitura?</h2><p>A reforma também muda quem recolhe o imposto e o jeito de dividir o dinheiro entre as cidades.</p></div>
+    </div>
+    <div class="tres">
+      <div>
+        <h3>Um comitê recolhe e reparte o IBS</h3>
+        <p>
+          Hoje o ICMS é pago ao estado e o ISS, à prefeitura. O IBS é pago em um lugar só: o Comitê Gestor do IBS, formado pelos estados e
+          pelas prefeituras, sem a União. Ele arrecada o imposto e entrega a cada estado e a cada prefeitura a sua parte.
+        </p>
+        <small>Constituição, art. 156-B</small>
+      </div>
+      <div>
+        <h3>Quem tem mais moradores recebe mais</h3>
+        <p>Além da sua parte, a prefeitura recebe um quarto do IBS que cabe ao estado. De cada R$ 100 desse quarto:</p>
+        <div class="barra-divisao" aria-hidden="true">{DIVISAO.map((d) => <i style={`flex: ${d.reais}; background: ${d.cor}`}></i>)}</div>
+        <ul class="divisao">
+          {DIVISAO.map((d) => <li><i style={`background: ${d.cor}`}></i><strong>R$ {d.reais}</strong><span>{d.texto}</span></li>)}
+        </ul>
+        <small>Constituição, art. 158, IV, "b", e § 2º</small>
+      </div>
+      <div>
+        <h3>O FPM e o FPE mudam de base</h3>
+        <p>
+          Os dois fundos que a União reparte com prefeituras e estados saem hoje do imposto de renda e do IPI. Como o IPI vai a zero para
+          quase tudo, o Imposto Seletivo entra na conta. Se o repasse cair por causa dessa troca, a União tem de compensar.
+        </p>
+        <small>Constituição, art. 159, I · Emenda 132, art. 7º</small>
+      </div>
+    </div>
+
+    <div class="titulo-parte">
+      <span class="n">3</span>
+      <div><h2>O que continua</h2><p>Nenhum destes é trocado. Alguns ganham regras novas: o IPVA, por exemplo, passa a alcançar barcos e aviões.</p></div>
+    </div>
+    <ul class="continuam">{CONTINUAM.map((c) => <li>{c}</li>)}</ul>
+  </div>
+</Base>
+
+<script>
+  const raiz = document.querySelector<HTMLElement>(".passo-a-passo");
+  if (raiz) {
+    const anos = [...raiz.querySelectorAll<HTMLButtonElement>(".anos .ano")];
+    const passos = [...raiz.querySelectorAll<HTMLElement>(".passo")];
+    // Apaga tudo o que não muda no passo: ficam acesos os impostos em foco, a faixa que sai deles e o governo que cobra.
+    for (const s of passos) {
+      const impostos = new Set((s.dataset.foco ?? "").split(" "));
+      const foco = new Set(impostos);
+      s.querySelectorAll<SVGElement>(".diagrama .fluxo").forEach((f) => { if (impostos.has(f.dataset.de ?? "")) foco.add(f.dataset.para ?? ""); });
+      s.querySelectorAll<SVGElement>(".diagrama .no, .diagrama .fluxo, .diagrama .rotulo-fluxo").forEach((el) => {
+        const aceso = el.classList.contains("no") ? foco.has(el.dataset.id ?? "") : el.classList.contains("fluxo") && impostos.has(el.dataset.de ?? "");
+        el.classList.add(aceso ? "aceso" : "apagado");
+      });
+    }
+    let atual = 0;
+    const mostrar = (i: number, seta?: "volta" | "vai") => {
+      atual = Math.max(0, Math.min(passos.length - 1, i));
+      anos.forEach((b, j) => b.setAttribute("aria-pressed", String(j === atual)));
+      passos.forEach((s, j) => { s.hidden = j !== atual; });
+      // Quem clicou na seta continua com o foco numa seta do passo novo.
+      if (seta) {
+        const s = passos[atual];
+        (s.querySelector<HTMLButtonElement>(`.seta.${seta}:not(:disabled)`) ?? s.querySelector<HTMLButtonElement>(".seta:not(:disabled)"))?.focus({ preventScroll: true });
+      }
+    };
+    anos.forEach((b, i) => b.addEventListener("click", () => mostrar(i)));
+    raiz.querySelectorAll<HTMLButtonElement>(".seta").forEach((b) => b.addEventListener("click", () => {
+      const vai = b.classList.contains("vai");
+      mostrar(atual + (vai ? 1 : -1), vai ? "vai" : "volta");
+    }));
+    raiz.querySelector(".todos")?.addEventListener("change", (e) => raiz.classList.toggle("tudo-aceso", (e.target as HTMLInputElement).checked));
+    // Setas do teclado: só enquanto o passo a passo está na tela, e fora de campos de texto.
+    let naTela = false;
+    new IntersectionObserver((es) => { naTela = es[0].isIntersecting; }).observe(raiz);
+    document.addEventListener("keydown", (e) => {
+      if (!naTela || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.target instanceof Element && e.target.closest("input, textarea, select, [contenteditable]")) return;
+      if (e.key === "ArrowRight") { e.preventDefault(); mostrar(atual + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); mostrar(atual - 1); }
+    });
+  }
+</script>
+
+<style>
+  .abre { padding: 40px 0 24px; max-width: 880px; display: flex; flex-direction: column; gap: 14px; }
+  .abre h1 { font-size: 64px; line-height: 0.98; letter-spacing: -0.025em; }
+  .abre p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+
+  .trocas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); }
+  .trocas > div { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px 18px 0; }
+  .trocas > div + div { padding-left: 20px; border-left: 1px solid var(--regra); }
+  .trocas strong { font-family: var(--serifa); font-weight: 600; font-size: 22px; line-height: 1.2; }
+  .trocas p { margin: 4px 0 0; font-size: 15px; color: var(--texto-2); }
+  .rot { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--texto-3); }
+  .rot.entra { color: var(--verde); font-weight: 600; margin-top: 8px; }
+
+  .titulo-parte { display: flex; gap: 16px; align-items: flex-start; padding: 40px 0 16px; scroll-margin-top: 12px; }
+  .titulo-parte .n { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--tinta); color: var(--papel); display: grid; place-items: center; font-family: var(--serifa); font-weight: 700; font-size: 22px; }
+  .titulo-parte h2 { font-size: 36px; line-height: 1.1; }
+  .titulo-parte p { margin: 6px 0 0; font-size: 17px; line-height: 1.5; color: var(--texto-2); max-width: 760px; }
+
+  .anos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .anos button { min-height: 44px; padding: 0 18px; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); }
+  .anos button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); }
+  .faixa-passo { display: grid; grid-template-columns: 52px minmax(0, 1fr) 52px; gap: 12px; align-items: stretch; max-width: 980px; margin-bottom: 12px; }
+  .seta { display: grid; place-items: center; border: 1px solid var(--tinta); background: var(--tinta); color: var(--papel); cursor: pointer; padding: 0; }
+  .seta:hover { background: var(--verde-escuro); border-color: var(--verde-escuro); }
+  .seta:disabled { background: transparent; color: var(--regra); border-color: var(--regra); cursor: default; }
+  .legenda { background: #fff; border: 1px solid var(--regra); padding: 14px 18px; min-height: 150px; }
+  .legenda h3 { font-size: 22px; }
+  .legenda p { margin: 4px 0; color: var(--texto-2); }
+  .legenda small, .tres small { color: var(--texto-3); font-size: 13px; }
+  .conta { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--texto-3); }
+  .liga-todos { display: inline-flex; gap: 8px; align-items: center; min-height: 44px; font-size: 15px; cursor: pointer; }
+  .nota { margin: 4px 0 0; font-size: 14px; line-height: 1.55; color: var(--texto-3); max-width: 880px; }
+  .nota strong { color: var(--tinta); }
+
+  .tres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+  .tres > div { display: flex; flex-direction: column; gap: 10px; border-top: 2px solid var(--tinta); padding-top: 14px; }
+  .tres h3 { font-size: 22px; line-height: 1.2; }
+  .tres p { margin: 0; color: var(--texto-2); }
+  .barra-divisao { display: flex; height: 24px; }
+  .divisao { list-style: none; margin: 0; padding: 0; }
+  .divisao li { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--regra-leve); font-size: 15px; }
+  .divisao i { flex: none; width: 12px; height: 12px; outline: 1px solid var(--texto-4); outline-offset: -1px; }
+  .divisao strong { flex: none; width: 52px; font-variant-numeric: tabular-nums; }
+  .divisao span { color: var(--texto-2); }
+
+  .continuam { list-style: none; margin: 0 0 56px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .continuam li { padding: 8px 14px; border: 1px solid var(--regra); background: #fff; font-size: 15px; }
+
+  @media (max-width: 900px) {
+    .tres { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  }
+  @media (max-width: 640px) {
+    .abre { padding: 28px 0 16px; }
+    .abre h1 { font-size: 40px; }
+    .abre p { font-size: 17px; }
+    .trocas { grid-template-columns: minmax(0, 1fr); }
+    .trocas > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--regra); }
+    .titulo-parte { gap: 12px; padding-top: 28px; }
+    .titulo-parte .n { width: 32px; height: 32px; font-size: 18px; }
+    .titulo-parte h2 { font-size: 26px; }
+    .faixa-passo { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }
+    .legenda { padding: 12px; min-height: 250px; }
+  }
+</style>
+<style is:global>
+  .passo-a-passo .diagrama { width: 100%; height: auto; display: block; }
+  .passo-a-passo:not(.tudo-aceso) .diagrama .apagado { opacity: 0.16; }
+  .passo-a-passo:not(.tudo-aceso) .diagrama .no.aceso rect { stroke: var(--tinta); stroke-width: 1.5; }
+  .passo-a-passo:not(.tudo-aceso) .diagrama .no.aceso .nome { font-weight: 700; }
+  .passo-a-passo .so-estreito { display: none; }
+  @media (max-width: 640px) { .passo-a-passo .so-estreito { display: block; } }
+</style>
