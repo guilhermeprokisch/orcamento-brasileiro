@@ -40,6 +40,12 @@
   <div class="palco" id="palco">
     <svg id="mapa" role="img" aria-label="Emendas parlamentares por município: grupos de municípios vizinhos, que o zoom abre"></svg>
     <div class="faixa" id="faixa" hidden></div>
+    <div class="busca-cidade">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <input type="search" id="busca-cidade" placeholder="Buscar cidade…" autocomplete="off"
+        role="combobox" aria-expanded="false" aria-controls="lista-cidade" aria-autocomplete="list" aria-label="Buscar cidade no mapa">
+      <ul id="lista-cidade" role="listbox" hidden></ul>
+    </div>
     <div class="cartao" id="cartao" hidden></div>
   </div>
   <aside class="painel-mun" id="mun" aria-label="Emendas do município escolhido">
@@ -48,6 +54,7 @@
       <button type="button" class="voltar" id="mun-voltar" aria-label="Fechar" title="Fechar">✕</button>
     </div>
     <p class="resumo" id="mun-resumo"></p>
+    <p class="filtro-mun" id="mun-filtro" hidden></p>
     <p class="acoes">
       <a id="mun-ficha" href="#">Ficha da cidade →</a>
       <a id="mun-buscador" href="#">No buscador de emendas →</a>

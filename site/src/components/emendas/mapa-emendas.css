@@ -43,7 +43,26 @@
   .mapa-emendas .ajuda-caixa p + p { margin-top: 8px; }
   .mapa-emendas .ajuda-caixa b { color: var(--tinta); }
   .mapa-emendas .ajuda-caixa a { color: var(--verde); }
-  .mapa-emendas.cidade-limpa .cel.oque, .mapa-emendas.cidade-limpa .tipo-cel { display: none; }
+  /* A busca de cidade flutua no canto do mapa (o cabeçalho já está cheio), com a lista pendurada embaixo.
+     Com a cidade aberta no computador, anda para a parte livre, à esquerda do painel. */
+  .mapa-emendas .busca-cidade { position: absolute; z-index: 9; top: 14px; right: 14px; width: 270px; display: flex; align-items: center; gap: 8px;
+                    height: 36px; padding: 0 10px; color: var(--texto-2); background: var(--papel); border: 1px solid var(--tinta);
+                    box-shadow: 0 4px 14px var(--sombra); }
+  .mapa-emendas .palco-todo.com-mun .busca-cidade { right: calc(min(560px, 48%) + 14px); }
+  .mapa-emendas #busca-cidade { flex: 1; min-width: 0; height: 100%; padding: 0; font: inherit; font-family: var(--serifa); font-size: 15px;
+                    color: var(--tinta); background: transparent; border: 0; border-radius: 0; outline: none; }
+  .mapa-emendas #busca-cidade::placeholder { color: var(--texto-3); }
+  .mapa-emendas .busca-cidade:focus-within { box-shadow: 0 0 0 2px var(--verde), 0 4px 14px var(--sombra); }
+  .mapa-emendas #lista-cidade { position: absolute; z-index: 21; top: calc(100% + 4px); left: -1px; right: -1px; max-height: 60vh;
+                    overflow: auto; margin: 0; padding: 0; list-style: none; background: var(--papel); border: 1px solid var(--tinta);
+                    box-shadow: 0 8px 22px var(--sombra); }
+  .mapa-emendas #lista-cidade li { display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; cursor: pointer; }
+  .mapa-emendas #lista-cidade li[aria-selected="true"], .mapa-emendas #lista-cidade li:hover { background: var(--papel-2); }
+  .mapa-emendas #lista-cidade b { font-family: var(--serifa); font-size: 15px; font-weight: 600; }
+  .mapa-emendas #lista-cidade small { font-size: 12px; color: var(--texto-2); }
+  .mapa-emendas #lista-cidade i { margin-left: auto; font-style: normal; font-size: 12px; color: var(--texto-2); white-space: nowrap; }
+  .mapa-emendas #lista-cidade li.nada { cursor: default; color: var(--texto-2); }
+  .mapa-emendas.cidade-limpa .cel.oque,.mapa-emendas.cidade-limpa .tipo-cel { display: none; }
   .mapa-emendas .cel.inerte { opacity: .4; }
   .mapa-emendas .cel.inerte .grupo { pointer-events: none; }
   .mapa-emendas .cel.inerte > span::after { content: " (não se aplica a um autor)"; }
@@ -87,6 +106,16 @@
   .mapa-emendas #mun-lista li { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; column-gap: 12px; padding: 10px 0;
                   border-top: 1px solid var(--regra); align-items: start; }
   .mapa-emendas #mun-lista .quem { font-family: var(--serifa); font-size: 15px; font-weight: 600; line-height: 1.2; }
+  .mapa-emendas #mun-lista .quem small { font-family: var(--sans); font-size: 11.5px; font-weight: 400; color: var(--texto-2); margin-left: 5px; white-space: nowrap; }
+  .mapa-emendas #mun-lista .quem .so-dele { font: 11px var(--sans); margin-left: 8px; padding: 1px 7px; border: 1px solid var(--regra);
+                        background: transparent; color: var(--verde); cursor: pointer; white-space: nowrap; vertical-align: 1px; }
+  .mapa-emendas #mun-lista .quem .so-dele:hover { border-color: var(--verde); }
+  /* O filtro do alto (autor ou tipo) também vale para a lista da cidade; esta linha diz isso e desfaz. */
+  .mapa-emendas .painel-mun .filtro-mun { margin: 10px 0 0; padding: 7px 10px; font-size: 12.5px; line-height: 1.4; color: var(--tinta);
+                        background: var(--papel-2); border-left: 3px solid var(--verde); }
+  .mapa-emendas .painel-mun .filtro-mun small { color: var(--texto-2); }
+  .mapa-emendas .painel-mun .filtro-mun button { font: inherit; padding: 0; margin-left: 6px; border: 0; background: none;
+                        color: var(--verde); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
   .mapa-emendas #mun-lista .quem a { color: inherit; text-decoration: none; }
   .mapa-emendas #mun-lista .quem a:hover { color: var(--verde); text-decoration: underline; text-underline-offset: 3px; }
   .mapa-emendas .faixa .pagina { color: var(--verde); }
@@ -189,6 +218,10 @@
     .mapa-emendas .grupo { height: 30px; }
     .mapa-emendas .grupo button { font-size: 12px; padding: 0 9px; }
     .mapa-emendas .cel.oque { flex: 1 1 100%; }
+    /* No celular a busca toma a largura no alto do mapa, e o cartão do autor desce para baixo dela. */
+    .mapa-emendas .busca-cidade, .mapa-emendas .palco-todo.com-mun .busca-cidade { left: 10px; right: 10px; top: 10px; width: auto; }
+    .mapa-emendas #busca-cidade { font-size: 16px; }   /* 16px: o iOS não dá zoom ao focar */
+    .mapa-emendas #lista-cidade { max-height: 50vh; }
     .mapa-emendas #tipo, .mapa-emendas #ano { overflow-x: auto; scrollbar-width: none; }
     .mapa-emendas #tipo::-webkit-scrollbar, .mapa-emendas #ano::-webkit-scrollbar { display: none; }
     .mapa-emendas #tipo button, .mapa-emendas #ano button { flex: none; }
@@ -200,7 +233,10 @@
     .mapa-emendas #painel-autor { left: 0 !important; right: 0; top: auto !important; bottom: 0; width: auto;
                     max-height: 76vh; border-width: 2px 0 0; }
     .mapa-emendas #fundo-autor { background: rgba(0, 0, 0, .3); }
-    .mapa-emendas .faixa { left: 10px; right: 10px; top: 10px; max-width: none; }
+    .mapa-emendas .faixa { left: 10px; right: 10px; top: 56px; max-width: none; }
+    /* Com a cidade aberta, a folha de baixo deixa pouco mapa: a busca sai (volta ao fechar) e o cartão sobe. */
+    .mapa-emendas .palco-todo.com-mun .busca-cidade { display: none; }
+    .mapa-emendas .palco-todo.com-mun .faixa { top: 10px; }
     .mapa-emendas header { gap: 10px 16px; padding-bottom: 10px; }
     .mapa-emendas .cartao { width: calc(100% - 20px); left: 10px !important; right: 10px; top: auto !important; bottom: 10px; }
   }
