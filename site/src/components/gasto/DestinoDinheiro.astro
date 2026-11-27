@@ -1,0 +1,146 @@
+---
+/**
+ * Para quem vai o dinheiro da saúde (ou da educação) da prefeitura: de cada R$ 100, quanto vai para
+ * entidades sem fins lucrativos (Santas Casas, creches conveniadas), organizações sociais, empresas,
+ * pessoal terceirizado, os próprios servidores, outros governos e o resto (remédios, material, obras).
+ * Na saúde, lista os hospitais sem fins lucrativos e particulares da cidade (unidades_saude.py), que
+ * costumam ser quem recebe. Fonte: pipeline/…/saude_entidades.py (MSC do SICONFI).
+ */
+import { moedaCurta, moedaExtenso } from "../../lib/formato";
+import { docCidades, type Cidade } from "../../lib/cidades";
+import { destinoDe, G } from "../../lib/destino";
+import { unidadesSaudeDe } from "../../lib/indicadores";
+
+interface Props {
+  cidade: Cidade;
+  /** "a prefeitura de Fortaleza" */
+  quem: string;
+  funcao: "10" | "12";
+}
+const { cidade, quem, funcao } = Astro.props;
+const d = destinoDe(cidade, funcao);
+const saude = funcao === "10";
+const area = saude ? "saúde" : "educação";
+const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const de100 = (parte: number) => (parte > 0 && parte < 0.005 ? "menos de R$ 1" : `R$ ${nf0.format(Math.round(parte * 100))}`);
+
+// Rótulo e explicação de cada grupo, na ordem em que aparecem.
+const ROTULOS: [number, string, string][] = saude
+  ? [
+      [G.entidades, "Santas Casas e outras entidades sem fins lucrativos", "hospitais filantrópicos contratados ou conveniados, APAEs, associações"],
+      [G.os, "Organizações sociais (OS)", "entidades que administram hospitais, UPAs ou postos por contrato de gestão"],
+      [G.empresas, "Empresas", "repasse direto a hospitais e clínicas particulares"],
+      [G.terceirizados, "Pessoal terceirizado", "médicos e outros profissionais por empresa ou cooperativa, limpeza, vigilância"],
+      [G.folha, "Servidores da prefeitura", "salários e encargos de quem trabalha na saúde"],
+      [G.governos, "Outros governos e consórcios", "consórcios de saúde com cidades vizinhas, repasses ao estado"],
+      [G.prefeitura, "Remédios, material, serviços e obras", "o que a própria prefeitura compra e contrata: exames, aluguel, sistemas, reformas"],
+    ]
+  : [
+      [G.entidades, "Creches conveniadas e outras entidades sem fins lucrativos", "creches e escolas comunitárias, APAEs, associações"],
+      [G.os, "Organizações sociais (OS)", "entidades que administram escolas ou creches por contrato de gestão"],
+      [G.empresas, "Empresas", "repasse direto a escolas e creches particulares"],
+      [G.terceirizados, "Pessoal terceirizado", "professores, merendeiras, limpeza e vigilância contratados por empresa"],
+      [G.folha, "Servidores da prefeitura", "salários e encargos de professores e funcionários"],
+      [G.governos, "Outros governos e consórcios", "transporte escolar e outros acordos com o estado ou cidades vizinhas"],
+      [G.prefeitura, "Merenda, material, transporte e obras", "o que a própria prefeitura compra e contrata"],
+    ];
+const PRIVADOS = new Set<number>([G.entidades, G.os, G.empresas]);
+const linhas = d ? ROTULOS.map(([i, rotulo, explica]) => ({ i, rotulo, explica, valor: d.valores[i], parte: d.valores[i] / d.total }))
+  .filter((l) => l.valor > 0) : [];
+const privadas = linhas.filter((l) => PRIVADOS.has(l.i));
+const faixa = cidade.faixa !== undefined ? docCidades?.faixas[cidade.faixa] : undefined;
+// "até 5 mil habitantes" → "com até 5 mil habitantes"; "de 5 a 10 mil habitantes" fica como está.
+const faixaFrase = faixa && /^(até|mais)/.test(faixa) ? `com ${faixa}` : faixa;
+
+// Na saúde, quem costuma receber: os hospitais que não são do governo e atendem pelo SUS aqui.
+const hospitais = saude
+  ? (unidadesSaudeDe(cidade)?.hospitais ?? []).filter((h) => /^(sem fins lucrativos|particular)/.test(h.quem))
+  : [];
+const pelaPrefeitura = hospitais.filter((h) => h.quem.includes("pela prefeitura"));
+const SIGLAS = /^(UBS|UPA|APAE|SUS|UTI|HU|HC|II|III|IV|AACD|GACC)$/;
+const pequenas = new Set(["de", "da", "do", "das", "dos", "e"]);
+const titulo = (s: string) => s.toLowerCase().split(/\s+/).map((p, i) => {
+  if (SIGLAS.test(p.toUpperCase().replace(/[.,]/g, ""))) return p.toUpperCase();
+  return i > 0 && pequenas.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1);
+}).join(" ");
+const nomes = (pelaPrefeitura.length ? pelaPrefeitura : hospitais).slice(0, 4).map((h) => titulo(h.nome));
+const emLista = (p: string[]) => (p.length > 1 ? `${p.slice(0, -1).join(", ")} e ${p.at(-1)}` : p[0] ?? "");
+---
+
+{d && (
+  <section class="destino">
+    <div class="texto">
+      <span class="sobretitulo">Para quem vai</span>
+      <h2>De cada R$ 100 da {area}</h2>
+      <p>
+        Em {d.ano}, {quem} gastou <strong>{moedaExtenso(d.total)}</strong> com {area}.
+        {privadas.length > 0 ? (
+          <> De cada R$ 100, <strong>{de100(d.privado)} foram para entidades e empresas privadas</strong>, que atendem no lugar da prefeitura
+          {saude ? " (hospitais, UPAs, postos)" : " (creches e escolas)"}.</>
+        ) : (
+          <> Nada foi repassado a entidades ou empresas privadas: o atendimento é feito pela própria prefeitura ou por outros governos.</>
+        )}
+        {d.privadoParecidas !== null && faixa && (
+          d.privadoParecidas < 0.005
+            ? <> Na maioria das cidades {faixaFrase}, nada vai para entidades ou empresas privadas.</>
+            : <> Nas cidades {faixaFrase}, a metade fica abaixo de {de100(d.privadoParecidas)}.</>
+        )}
+      </p>
+      {saude && privadas.length > 0 && nomes.length > 0 && (
+        <p>
+          {hospitais.length === 1 ? "O hospital" : "Os hospitais"} da cidade que não {hospitais.length === 1 ? "é" : "são"} do governo e
+          {" "}{hospitais.length === 1 ? "atende" : "atendem"} pelo SUS: <strong>{emLista(nomes)}</strong>{hospitais.length > nomes.length && ", entre outros"}.
+          {" "}{hospitais.length === 1 ? "Ele deve estar" : "Eles devem estar"} entre quem recebe, mas este dado não diz quanto vai para cada entidade.
+        </p>
+      )}
+      <p class="menor">
+        {saude
+          ? "A lei do SUS permite que a prefeitura contrate hospitais e clínicas privados quando a rede pública não dá conta, com preferência para os sem fins lucrativos, como as Santas Casas. Em muitas cidades o único hospital é filantrópico. Uma parte grande não é, por si, sinal de problema: diz quem presta o serviço, e é aí que vale olhar os contratos e a prestação de contas."
+          : "A prefeitura pode fazer convênio com creches e escolas comunitárias, confessionais ou filantrópicas, que recebem por aluno do Fundeb. Uma parte grande não é, por si, sinal de problema: diz quem presta o serviço, e é aí que vale olhar os convênios e a prestação de contas."}
+      </p>
+    </div>
+    <div class="lado">
+      <div class="barra" role="img" aria-label={`Para quem foi o dinheiro da ${area} em ${d.ano}`}>
+        {linhas.map((l) => <i class:list={["seg", { privado: PRIVADOS.has(l.i) }]} style={`flex:${l.valor}`} title={`${l.rotulo}: ${de100(l.parte)}`}></i>)}
+      </div>
+      <ul class="grupos">
+        {linhas.map((l) => (
+          <li class:list={{ privado: PRIVADOS.has(l.i) }}>
+            <span>{l.rotulo}<small>{l.explica}</small></span>
+            <strong class="num">{de100(l.parte)}<small>{moedaCurta(l.valor)}</small></strong>
+          </li>
+        ))}
+      </ul>
+      <p class="fonte">
+        Fonte: {d.fonte}, {d.ano}. Conta a despesa liquidada (o serviço foi entregue) da prefeitura e dos fundos dela, pela
+        forma como cada gasto foi lançado. O dinheiro que o governo do estado paga direto aos hospitais não entra aqui.
+      </p>
+    </div>
+  </section>
+)}
+
+<style>
+  .destino { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 32px; }
+  .texto { grid-column: span 6; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 30px; line-height: 1.1; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .lado { grid-column: span 6; display: flex; flex-direction: column; gap: 14px; }
+  .barra { display: flex; height: 22px; gap: 2px; }
+  .barra .seg { background: var(--regra); min-width: 2px; }
+  .barra .seg.privado { background: var(--verde); }
+  .grupos { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .grupos li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 8px 0 8px 14px; border-bottom: 1px solid var(--regra); font-size: 15px; position: relative; }
+  .grupos li::before { content: ""; position: absolute; left: 0; top: 14px; width: 8px; height: 8px; background: var(--regra); }
+  .grupos li.privado::before { background: var(--verde); }
+  .grupos li.privado > span { color: var(--tinta); font-weight: 600; }
+  .grupos span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .grupos small { font-size: 13px; font-weight: 400; color: var(--texto-3); }
+  .grupos strong { display: flex; flex-direction: column; align-items: flex-end; white-space: nowrap; }
+  .fonte { margin: 0; font-size: 13px; color: var(--texto-3); }
+  @media (max-width: 900px) {
+    .destino { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2 { font-size: 26px; }
+  }
+</style>

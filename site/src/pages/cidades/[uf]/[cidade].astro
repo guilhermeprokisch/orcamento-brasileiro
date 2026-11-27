@@ -24,6 +24,7 @@ import PrecosRemedios from "../../../components/gasto/PrecosRemedios.astro";
 import PagamentosCidade from "../../../components/gasto/PagamentosCidade.astro";
 import EscolasCidade from "../../../components/gasto/EscolasCidade.astro";
 import SaudeUnidades from "../../../components/gasto/SaudeUnidades.astro";
+import DestinoDinheiro from "../../../components/gasto/DestinoDinheiro.astro";
 import ObrasParadasCidade from "../../../components/obras/ObrasParadasCidade.astro";
 import NestaPagina, { type GrupoDaPagina } from "../../../components/NestaPagina.astro";
 import { moedaExtenso } from "../../../lib/formato";
@@ -71,7 +72,7 @@ const SUMARIO: GrupoDaPagina[] = [
   { id: "em-que-gasta", n: 1, titulo: "Em que gasta", itens: [["areas", "Para onde vai o dinheiro"], ["com-o-que", "Com o quê gasta"], ["contratos", "Os contratos"], ["precos", "O preço dos remédios"], ["pagamentos", "Para quem pagou"]] },
   { id: "contas", n: 2, titulo: "As contas fecham", itens: [["receitas", "De onde vem o dinheiro, o que sobrou e o que deve"], ["divida", "A dívida da prefeitura"], ["pessoal", "O gasto com pessoal"], ["previdencia", "A aposentadoria dos servidores"], ["capag", "A nota do Tesouro"], ["ano-atual", "O ano em andamento"]] },
   { id: "chega-e-sai", n: 3, titulo: "O que chega e o que sai daqui", itens: [["saiu-voltou", "Saiu daqui, voltou"], ["beneficios", "Aposentadorias e benefícios"], ["ir", "Imposto de renda dos moradores"], ["emendas", "Emendas parlamentares"], ["emendas-estaduais", "Emendas dos deputados estaduais"], ["estado-aqui", "O que o governo do estado gastou aqui"], ["federal-aqui", "O que o governo federal gastou aqui"], ["obras-paradas", "Obras federais paradas"], ["divida-ativa", "O que se deve ao governo federal"], ["bndes", "Empréstimos do BNDES"], ["teto-fpm", "Salários acima do teto e o FPM"]] },
-  { id: "como-esta", n: 4, titulo: "Como está a cidade", itens: [["educacao", "Educação: gasto por aluno e nota das escolas"], ["escolas", "As escolas da prefeitura"], ["saude", "Saúde: mortalidade infantil"], ["postos", "Os postos e hospitais"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
+  { id: "como-esta", n: 4, titulo: "Como está a cidade", itens: [["educacao", "Educação: gasto por aluno e nota das escolas"], ["destino-educacao", "Para quem vai o dinheiro da educação"], ["escolas", "As escolas da prefeitura"], ["saude", "Saúde: mortalidade infantil"], ["destino-saude", "Para quem vai o dinheiro da saúde"], ["postos", "Os postos e hospitais"], ["seguranca", "Segurança: homicídios"], ["saneamento", "Saneamento: água e esgoto"]] },
 ];
 const descricao = temDados
   ? `Quanto ${quem} gastou em ${c.ano}: ${moedaExtenso(emp)}, ${porPessoa(perCapita)} por morador, por área (saúde, educação…).`
@@ -149,8 +150,10 @@ const descricao = temDados
 
     {temDados && !ehDF && <p class="grupo-pagina" id="como-esta" data-grupo="como-esta">4 · Como está a cidade</p>}
     {temDados && !ehDF && <div id="educacao" data-so-padrao="a nota das escolas (Ideb)"><EducacaoResultado cidade={c} faixa={faixa} /></div>}
+    {temDados && !ehDF && <div id="destino-educacao" data-so-padrao="para quem vai o dinheiro da educação"><DestinoDinheiro cidade={c} quem={quem} funcao="12" /></div>}
     {temDados && !ehDF && <div id="escolas" data-so-padrao="as escolas da prefeitura"><EscolasCidade cidade={c} quem={quem} /></div>}
     {temDados && !ehDF && <div id="saude" data-so-padrao="a mortalidade infantil"><SaudeResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? "das cidades parecidas" : null} onde={onde} /></div>}
+    {temDados && !ehDF && <div id="destino-saude" data-so-padrao="para quem vai o dinheiro da saúde"><DestinoDinheiro cidade={c} quem={quem} funcao="10" /></div>}
     {temDados && !ehDF && <div id="postos" data-so-padrao="os postos e hospitais"><SaudeUnidades cidade={c} quem={quem} /></div>}
     {temDados && !ehDF && <div id="seguranca" data-so-padrao="os homicídios"><SegurancaEstado estado={c} esfera="mun" quem={quem} onde={onde} grupo={faixa ? "das cidades parecidas" : "das cidades"} /></div>}
     {temDados && !ehDF && <div id="saneamento" data-so-padrao="a água e o esgoto"><SaneamentoResultado ente={c} esfera="mun" quem={quem} grupo={faixa ? "das cidades parecidas" : null} onde={onde} /></div>}

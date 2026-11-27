@@ -173,6 +173,9 @@ fila_cidades() {
   pipe pode-falhar "Previdência dos servidores (ISP)" previdencia
   # Postos e hospitais: CNES, SIH e SIA baixados à mão; aqui só a cópia de referência.
   pipe pode-falhar "Postos e hospitais" unidades-saude --sem-baixar
+  # Para quem vai o dinheiro da saúde e da educação (MSC do SICONFI, ~3 h a 1 consulta por segundo): carga à mão
+  # (uv run saude-entidades); aqui só a cópia de referência.
+  pipe pode-falhar "Saúde e educação: para quem vai" saude-entidades --sem-baixar
   # Contratos (PNCP) e pagamentos (TCE-PB; TCE-AC e TCE-SC pelos painéis e TCE-PE pela API, que só respondem
   # do Brasil, e este robô roda fora do país): cargas feitas à mão (uv run pagamentos [--uf AC|SC|PE]); aqui
   # só as cópias (pipeline/referencia/pagamentos*.json, todas de uma vez).
