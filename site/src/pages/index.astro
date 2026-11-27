@@ -200,6 +200,8 @@ const fmtPct = (p: number) => Math.round(p);
       </a>
     </section>
 
+    <a class="do-zero so-celular" href="/aprenda"><span class="sobretitulo verde">Aprenda</span><strong class="serifa">Entenda o orçamento do zero, em lições curtas →</strong></a>
+
     <section class="palavra so-celular">
       <span class="sobretitulo verde">Palavra do dia</span>
       <strong class="serifa">{palavra.termo}</strong>
@@ -210,6 +212,7 @@ const fmtPct = (p: number) => Math.round(p);
       <div>
         <h2>Como o dinheiro anda</h2>
         <p>Todo gasto passa por quatro fases. No Explorer, cada valor mostra em que ponto desse caminho está.</p>
+        <a class="link-forte" href="/aprenda">Entenda o orçamento do zero, em lições curtas →</a>
       </div>
       <ol>
         <li><span class="serifa">1</span><span><strong>Dotação.</strong> O valor autorizado na Lei Orçamentária.</span></li>
@@ -321,6 +324,8 @@ const fmtPct = (p: number) => Math.round(p);
   }
   .areas strong { font-size: 22px; }
   .areas a.todas { border-bottom: 0; color: var(--verde); }
+  .do-zero { border-top: 1px solid var(--regra); padding: 18px 0; display: flex; flex-direction: column; gap: 6px; color: var(--tinta); text-decoration: none; }
+  .do-zero strong { font-size: 20px; line-height: 1.25; }
   .palavra { border-top: 1px solid var(--regra); padding: 22px 0; display: flex; flex-direction: column; gap: 8px; }
   .palavra strong { font-size: 26px; }
   .palavra p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--texto-2); }
