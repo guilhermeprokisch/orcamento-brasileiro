@@ -298,3 +298,15 @@ parte do FNDE é procurado em `siconv_convenio`; o convênio só vale se o estad
 - Cada obra ligada mostra o número do convênio, o ano da assinatura, o fim do prazo, quanto a União depositou
   e o saldo em conta. A publicação roda `obras-paradas --atualizar`, que baixa o `siconv_convenio` do dia
   (~18 MB) e troca só esses valores; o `siconv_proposta` (~200 MB) só é lido na carga à mão.
+
+**Todas as obras** (27/11/2026): a página `/obras/todas` lista a data-base inteira, obra a obra, nas quatro
+situações (32.292 em abr/2026: 18.199 em execução, 4.215 paralisadas, 6.141 concluídas, 3.737 canceladas), com
+busca pelo nome e filtros por lugar, tipo de obra (o "setor" do TCU), quem paga, valor e situação. O mesmo
+`uv run obras-paradas` grava a cópia de referência `pipeline/referencia/obras-todas.json` (um arquivo só) e, no
+site, um arquivo por estado mais o índice (`site/public/data/obras/CE.json`, `indice.json`); `--sem-baixar` e
+`--atualizar` repartem a cópia de referência do mesmo jeito. Nomes no site: "andando", "parada", "pronta" e
+"cancelada". Uma obra vem sem estado (`sem-estado.json`).
+
+**Próximo passo**: obras de estados e prefeituras. O Obrasgov.br tem API aberta (ver "Obrasgov.br" acima), mas
+repete obras, traz as do FNDE com valor de R$ 0,01 e os registros do SUPRA não são obras; precisa de limpeza
+antes de entrar na mesma lista.
