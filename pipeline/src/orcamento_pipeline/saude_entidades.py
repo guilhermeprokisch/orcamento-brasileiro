@@ -16,7 +16,8 @@ relatório anual (DCA, RREO) cruza a função com a modalidade; a MSC cruza.
 Conta "liquidada" = 6.2.2.1.3.03 (liquidado a pagar) + 6.2.2.1.3.04 (liquidado e pago). Em São Carlos
 (SP), 2025, a soma dá R$ 460,0 mi na saúde, e a DCA (Anexo I-E, "Despesas Liquidadas") R$ 459,9 mi;
 a diferença é a despesa intraorçamentária (modalidade 91), que aqui fica de fora. O módulo compara
-com a DCA de cada cidade quando ela está no cache (data/raw/siconfi/dca-ie/) e avisa as que não batem.
+com a DCA de cada cidade quando ela está no cache (data/raw/siconfi/dca-ie/) e tira da saída as que
+não batem (em 2025, 116 de 4.756; em algumas a MSC traz um décimo da saúde, em outras o triplo).
 
 Grupos de destino (o que cada um costuma ser):
 - entidades: modalidade 50, "transferências a instituições privadas sem fins lucrativos", menos o
@@ -132,11 +133,12 @@ def resumir(linhas: list[list]) -> dict[str, list[float]]:
     return out
 
 
-def conferir_dca(ano: int, resumos: dict[int, dict]) -> None:
+def conferir_dca(ano: int, resumos: dict[int, dict]) -> set[int]:
     """Confere o total da saúde com a DCA (Anexo I-E) das cidades que estão no cache: o liquidado tem que
     ficar entre o pago e o empenhado (o cache da DCA guarda só essas duas colunas), com 2% de folga."""
     dca = c.CacheAno(ano)
     longe = comparadas = 0
+    fora: set[int] = set()
     for ibge, r in resumos.items():
         itens = dca.obter(ibge)
         if not itens or "10" not in r:
@@ -148,10 +150,12 @@ def conferir_dca(ano: int, resumos: dict[int, dict]) -> None:
         comparadas += 1
         if not (0.98 * pago <= r["10"][0] <= 1.02 * emp):
             longe += 1
+            fora.add(ibge)
             if longe <= 10:
                 print(f"  {ibge}: saúde liquidada na MSC {r['10'][0] / 1e6:.1f} mi; "
                       f"na DCA, paga {pago / 1e6:.1f} mi e empenhada {emp / 1e6:.1f} mi", flush=True)
-    print(f"conferência com a DCA: {comparadas - longe} de {comparadas} cidades batem", flush=True)
+    print(f"conferência com a DCA: {comparadas - longe} de {comparadas} cidades batem; as outras ficam de fora", flush=True)
+    return fora
 
 
 def gravar(doc: dict) -> int:
@@ -214,7 +218,9 @@ def main() -> None:
     sem = sum(1 for b in brutos if b == [])
     falhas = sum(1 for b in brutos if b is None)
     print(f"{len(resumos)} cidades com dados; {sem} sem a MSC de dezembro; {falhas} consultas falharam", flush=True)
-    conferir_dca(args.ano, resumos)
+    # Onde a MSC não bate com a DCA, uma das duas está errada e não dá para saber qual: a cidade sai.
+    for ibge in conferir_dca(args.ano, resumos):
+        del resumos[ibge]
 
     brasil = {f: [sum(r[f][i] for r in resumos.values() if f in r) for i in range(len(GRUPOS) + 1)] for f in FUNCOES}
     for f, nome in (("10", "saúde"), ("12", "educação")):

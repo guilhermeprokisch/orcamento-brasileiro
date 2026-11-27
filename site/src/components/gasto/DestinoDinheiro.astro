@@ -49,6 +49,8 @@ const linhas = d ? ROTULOS.map(([i, rotulo, explica]) => ({ i, rotulo, explica, 
   .filter((l) => l.valor > 0) : [];
 const privadas = linhas.filter((l) => PRIVADOS.has(l.i));
 const faixa = cidade.faixa !== undefined ? docCidades?.faixas[cidade.faixa] : undefined;
+// "até 5 mil habitantes" → "com até 5 mil habitantes"; "de 5 a 10 mil habitantes" fica como está.
+const faixaFrase = faixa && /^(até|mais)/.test(faixa) ? `com ${faixa}` : faixa;
 
 // Na saúde, quem costuma receber: os hospitais que não são do governo e atendem pelo SUS aqui.
 const hospitais = saude
@@ -79,14 +81,16 @@ const emLista = (p: string[]) => (p.length > 1 ? `${p.slice(0, -1).join(", ")} e
           <> Nada foi repassado a entidades ou empresas privadas: o atendimento é feito pela própria prefeitura ou por outros governos.</>
         )}
         {d.privadoParecidas !== null && faixa && (
-          <> Nas cidades {faixa === "mais de 500 mil habitantes" ? "com" : "de"} {faixa}, a metade fica abaixo de {de100(d.privadoParecidas)}.</>
+          d.privadoParecidas < 0.005
+            ? <> Na maioria das cidades {faixaFrase}, nada vai para entidades ou empresas privadas.</>
+            : <> Nas cidades {faixaFrase}, a metade fica abaixo de {de100(d.privadoParecidas)}.</>
         )}
       </p>
       {saude && privadas.length > 0 && nomes.length > 0 && (
         <p>
           {hospitais.length === 1 ? "O hospital" : "Os hospitais"} da cidade que não {hospitais.length === 1 ? "é" : "são"} do governo e
           {" "}{hospitais.length === 1 ? "atende" : "atendem"} pelo SUS: <strong>{emLista(nomes)}</strong>{hospitais.length > nomes.length && ", entre outros"}.
-          {" "}Eles devem estar entre quem recebe, mas este dado não diz quanto vai para cada entidade.
+          {" "}{hospitais.length === 1 ? "Ele deve estar" : "Eles devem estar"} entre quem recebe, mas este dado não diz quanto vai para cada entidade.
         </p>
       )}
       <p class="menor">
