@@ -7,6 +7,7 @@ ligação com os convênios do Transferegov.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -101,6 +102,49 @@ class TestObrasParadas(unittest.TestCase):
         self.assertEqual(em["uf"], {"CE": [2, 500.0, 250.0, 2, 500.0], "PB": [1, 100.0, 50.0, 0, 0], "RS": [1, 100.0, 50.0, 1, 100.0]})
         self.assertEqual([o[4] for o in em["maiores"]], [300.0, 200.0, 100.0, 100.0])
         self.assertEqual(em["maiores"][0][8], 1)
+
+    def test_todas_as_obras(self) -> None:
+        gravar(self.pasta, "2026-04", [
+            obra("A", "Paralisada", "Carnaubal/CE", valor=300),
+            obra("B", "Cancelada", "Carnaubal/CE", valor=900),
+            obra("C", "Concluída", "João Pessoa/PB"),
+            obra("E", "Em execução", "Lugar Nenhum/PB", valor=50),
+            obra("F", "Em execução", "RS", base="DNIT"),
+            obra("G", "Em execução", None),
+        ])
+        doc, todas = op.montar_tudo(self.pasta, transferegov=False)
+        self.assertEqual(doc["brasil"]["total"][0], 1)  # o documento das paradas não muda
+        self.assertEqual(list(todas["uf"]), ["CE", "PB", "RS", op.SEM_UF])
+        self.assertEqual(todas["situacoes"], ["Em execução", "Paralisada", "Concluída", "Cancelada"])
+        # No estado, da mais cara para a mais barata; a cancelada entra.
+        # [nome, cidade, ibge, tipo, quem paga, situação, % feito, previsto, liberado, PAC]
+        self.assertEqual(todas["uf"]["CE"], [
+            ["PAC 2 - Quadra - Carnaubal - CE", "Carnaubal", 2303402, 0, 0, 3, 83, 900.0, 450.0, 0],
+            ["PAC 2 - Quadra - Carnaubal - CE", "Carnaubal", 2303402, 0, 0, 1, 83, 300.0, 150.0, 0],
+        ])
+        self.assertEqual(todas["setores"], ["Educação"])
+        self.assertEqual(todas["quem_paga"], ["FNDE (Educação)"])
+        # Cidade que não casa fica com o nome e sem código; obra só com a UF fica sem cidade.
+        self.assertEqual(todas["uf"]["PB"][1][1:3], ["Lugar Nenhum", None])
+        self.assertEqual(todas["uf"]["RS"][0][1:3], [None, None])
+
+        saida = self.pasta / "site"
+        indice = op.gravar_todas(todas, saida)
+        self.assertEqual(sorted(a.name for a in saida.glob("*.json")),
+                         ["CE.json", "PB.json", "RS.json", "indice.json", f"{op.SEM_UF}.json"])
+        self.assertEqual(indice["total"], [6, 1550.0, 775.0])
+        self.assertEqual(indice["por_situacao"], [3, 1, 1, 1])
+        self.assertEqual(indice["uf"]["CE"], [2, 1200.0, 600.0])
+        self.assertEqual(json.loads((saida / "CE.json").read_text(encoding="utf-8"))["obras"], todas["uf"]["CE"])
+        # Gravar de novo apaga o estado que saiu da lista.
+        del todas["uf"]["RS"]
+        op.gravar_todas(todas, saida)
+        self.assertFalse((saida / "RS.json").exists())
+
+    def test_situacao_nova(self) -> None:
+        gravar(self.pasta, "2026-04", [obra("A", "Paralisada", "Carnaubal/CE"), obra("B", "Suspensa", "Carnaubal/CE")])
+        with self.assertRaises(SystemExit):
+            op.montar_tudo(self.pasta, transferegov=False)
 
     def test_ultima_so_com_paralisadas(self) -> None:
         gravar(self.pasta, "2026-04", [obra("A", "Paralisada", "Carnaubal/CE")])

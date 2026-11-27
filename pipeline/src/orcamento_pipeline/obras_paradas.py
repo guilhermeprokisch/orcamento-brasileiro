@@ -31,6 +31,11 @@ ano da assinatura, o fim do prazo, a situação do convênio e quanto a União j
 o convênio só vale se o estado de quem o assinou for o da obra. Obra sem cidade no TCU ganha a cidade da
 prefeitura que assinou.
 
+Todas as obras (/obras/todas): a última data-base inteira, obra a obra, com as quatro situações (em execução,
+paralisada, concluída, cancelada). Fica fora do obras-paradas.json: a cópia de referência é um arquivo só
+(pipeline/referencia/obras-todas.json) e o site recebe um arquivo por estado mais um índice
+(site/public/data/obras/CE.json, …, indice.json), para o explorador baixar só o estado escolhido.
+
 Saída: site/public/data/obras-paradas/obras-paradas.json, com cópia em pipeline/referencia/. A carga do TCU é à
 mão (uma vez por ano, quando o TCU publica uma data-base nova); a publicação usa --atualizar, que baixa só o
 siconv_convenio (~18 MB) e atualiza os valores dos convênios já ligados.
@@ -60,6 +65,8 @@ from .fontes import CONTEXTO_TLS, USER_AGENT
 PASTA = RAIZ / "data" / "raw" / "tcu-obras"
 SAIDA = RAIZ / "site" / "public" / "data" / "obras-paradas" / "obras-paradas.json"
 REFERENCIA = RAIZ / "pipeline" / "referencia" / "obras-paradas.json"
+SAIDA_TODAS = RAIZ / "site" / "public" / "data" / "obras"
+REFERENCIA_TODAS = RAIZ / "pipeline" / "referencia" / "obras-todas.json"
 FONTE = "TCU, Painel de Obras Paralisadas (paineis.tcu.gov.br/obrasparalisadas), tabela de dados"
 URL = "https://paineis.tcu.gov.br/obrasparalisadas"
 
@@ -76,6 +83,10 @@ MAIORES_BRASIL = 25
 MAIORES_SALDO = 20
 MAIORES_ANDAMENTO = 15
 EM_EXECUCAO = "Em execução"
+# As situações do TCU, na ordem em que o explorador as mostra; na linha de cada obra vai a posição.
+SITUACOES = [EM_EXECUCAO, PARALISADA, "Concluída", "Cancelada"]
+PACS = [None, "PAC (legado)", "Novo PAC"]
+SEM_UF = "sem-estado"
 SEM_SETOR = "Não identificado"
 CIDADES_UF = 10
 # Código IBGE do estado (os dois primeiros dígitos do código da cidade).
@@ -95,6 +106,7 @@ QUEM_PAGA = {
     "Ministério da Integração e Desenvolvimento Regional": "Ministério da Integração",
     "Departamento Nacional de Infraestrutura de Transportes": "DNIT",
     "Ministério do Desenvolvimento e Assitência Social e Combate à Fome": "Ministério do Desenvolvimento Social",
+    "Ministério do Desenvolvimento e Assistência Social, Família e Combate à Fome": "Ministério do Desenvolvimento Social",
     "Ministério da Agricultura e Pecuária": "Ministério da Agricultura",
     "Ministério da Justiça e Segurança Pública": "Ministério da Justiça",
 }
@@ -122,6 +134,11 @@ APELIDOS = {
     ("BA", "SANTA TEREZINHA"): "SANTA TERESINHA",
     ("MG", "BARAO DO MONTE ALTO"): "BARAO DE MONTE ALTO",
     ("SE", "AMPARO DO SAO FRANCISCO"): "AMPARO DE SAO FRANCISCO",
+    # Estas só aparecem fora das paradas (na lista de todas as obras).
+    ("MT", "SANTO ANTONIO DE LEVERGER"): "SANTO ANTONIO DO LEVERGER",
+    ("SE", "GRACCHO CARDOSO"): "GRACHO CARDOSO",
+    ("SP", "SAO LUIZ DO PARAITINGA"): "SAO LUIS DO PARAITINGA",
+    ("BA", "MUQUEM DO SAO FRANCISCO"): "MUQUEM DE SAO FRANCISCO",
 }
 
 
@@ -355,7 +372,71 @@ def atualizar_tg(doc: dict, conv: dict[str, dict], data: str | None) -> int:
 
 # --- TCU -----------------------------------------------------------------------------------------------------
 
+def todas_as_obras(atual: list[dict], cidades: dict[tuple[str, str], int], data_base: str) -> dict:
+    """A data-base inteira, obra a obra, para o explorador (/obras/todas). Os textos que se repetem (tipo de obra,
+    quem paga, situação, PAC) viram listas, e cada obra guarda só a posição."""
+    setores = [k for k, _ in Counter(r.get("Setor") or SEM_SETOR for r in atual).most_common()]
+    paga = lambda r: QUEM_PAGA.get(r["Repassador"], r["Repassador"] or "Não informado")  # noqa: E731
+    pagadores = [k for k, _ in Counter(paga(r) for r in atual).most_common()]
+    i_setor = {k: i for i, k in enumerate(setores)}
+    i_paga = {k: i for i, k in enumerate(pagadores)}
+    por_uf: dict[str, list[list]] = defaultdict(list)
+    for r in atual:
+        if r["Situação"] not in SITUACOES:
+            raise SystemExit(f"situação nova no painel: {r['Situação']!r} (obra {r['ID']})")
+        uf, ibge = _local(r["Local"], cidades)
+        local = (r["Local"] or "").strip()
+        cidade = local.rsplit("/", 1)[0].strip() if "/" in local else None
+        pac = r.get("Obra PAC")
+        # [nome, cidade (como o TCU escreve) ou null, ibge ou null, tipo de obra, quem paga, situação, % feito,
+        #  previsto, liberado, PAC]: os quatro do meio e o último são posições nas listas do índice
+        por_uf[uf or SEM_UF].append([
+            _nome(r["Empreendimento"]), cidade, ibge, i_setor[r.get("Setor") or SEM_SETOR], i_paga[paga(r)],
+            SITUACOES.index(r["Situação"]), _pct(r.get("Exec. física")), round(_num(r["Valor Investimento"]), 2),
+            round(_num(r["Valor Desbloqueado"]), 2), PACS.index(pac) if pac in PACS else 0,
+        ])
+    for lista in por_uf.values():
+        lista.sort(key=lambda t: (-t[7], t[0]))
+    return {"data_base": data_base, "fonte": FONTE, "url": URL, "situacoes": SITUACOES, "setores": setores,
+            "quem_paga": pagadores, "pac": PACS, "uf": dict(sorted(por_uf.items()))}
+
+
+def gravar_todas(doc: dict, pasta: Path = SAIDA_TODAS) -> dict:
+    """Um arquivo por estado e o índice (as listas, os totais e quantas obras há em cada arquivo). Devolve o índice."""
+    pasta.mkdir(parents=True, exist_ok=True)
+    for velho in pasta.glob("*.json"):
+        velho.unlink()
+    situacao = [0] * len(doc["situacoes"])
+    esferas = doc.get("esferas") or ["União"]
+    por_esfera = [0] * len(esferas)
+    total = [0, 0.0, 0.0]
+    ufs = {}
+    for uf, obras in doc["uf"].items():
+        _gravar({"uf": uf, "data_base": doc["data_base"], "obras": obras}, pasta / f"{uf}.json")
+        # as obras de estados e prefeituras (obras_tcesp.py) não têm "liberado" (null)
+        ufs[uf] = [len(obras), round(sum(t[7] for t in obras), 2), round(sum(t[8] or 0 for t in obras), 2)]
+        for t in obras:
+            situacao[t[5]] += 1
+            por_esfera[t[10] if len(t) > 10 else 0] += 1
+        for i in range(3):
+            total[i] += ufs[uf][i]
+    indice = {k: doc[k] for k in ("data_base", "fonte", "url", "situacoes", "setores", "quem_paga", "pac")}
+    # total e cada estado: [n.º de obras, previsto, liberado]; por_situacao segue a ordem de "situacoes" e por_esfera
+    # a de "esferas" (União, governo do estado, prefeitura); "tcesp", quando há, descreve a lista de SP
+    indice |= {"total": [total[0], round(total[1], 2), round(total[2], 2)], "por_situacao": situacao,
+               "esferas": esferas, "por_esfera": por_esfera, "uf": ufs}
+    if doc.get("tcesp"):
+        indice["tcesp"] = doc["tcesp"]
+    _gravar(indice, pasta / "indice.json")
+    return indice
+
+
 def montar(pasta: Path, transferegov: bool = True, forcar_tg: bool = False) -> dict:
+    return montar_tudo(pasta, transferegov, forcar_tg)[0]
+
+
+def montar_tudo(pasta: Path, transferegov: bool = True, forcar_tg: bool = False) -> tuple[dict, dict]:
+    """O documento das obras paradas e o de todas as obras (ver todas_as_obras), lendo as tabelas uma vez só."""
     arquivos = sorted(pasta.glob("obras-*.xlsx"))
     if not arquivos:
         raise SystemExit(f"nenhuma tabela em {pasta} (ver o começo deste arquivo)")
@@ -553,7 +634,14 @@ def montar(pasta: Path, transferegov: bool = True, forcar_tg: bool = False) -> d
         "mun": mun,
     }
     _somar_tg(doc)
-    return doc
+    return doc, todas_as_obras(atual, cidades, ultima)
+
+
+def _com_estados(todas: dict) -> dict:
+    """A lista do TCU mais as obras do estado e das prefeituras de SP (obras_tcesp.py), se houver cópia de
+    referência delas."""
+    from . import obras_tcesp
+    return obras_tcesp.juntar(todas, obras_tcesp.ler_referencia())
 
 
 def _gravar(doc: dict, arq: Path) -> None:
@@ -581,6 +669,9 @@ def main() -> None:
         SAIDA.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REFERENCIA, SAIDA)
         print(f"copiado {REFERENCIA.relative_to(RAIZ)} → {SAIDA.relative_to(RAIZ)}")
+        if REFERENCIA_TODAS.exists():
+            i = gravar_todas(_com_estados(json.loads(REFERENCIA_TODAS.read_text(encoding="utf-8"))))
+            print(f"todas as obras: {i['total'][0]} em {len(i['uf'])} arquivos em {SAIDA_TODAS.relative_to(RAIZ)}")
         if args.sem_baixar:
             return
         doc = json.loads(REFERENCIA.read_text(encoding="utf-8"))
@@ -601,7 +692,7 @@ def main() -> None:
               f"R$ {t[2] / 1e9:.2f} bi, saldo em conta R$ {t[3] / 1e6:.1f} mi")
         return
 
-    doc = montar(args.pasta, transferegov=not args.sem_transferegov, forcar_tg=args.forcar)
+    doc, todas = montar_tudo(args.pasta, transferegov=not args.sem_transferegov, forcar_tg=args.forcar)
     b = doc["brasil"]
     print(f"{b['total'][0]} obras paralisadas em {doc['data_base']}: R$ {b['total'][1] / 1e9:.1f} bi previstos, "
           f"R$ {b['total'][2] / 1e9:.1f} bi liberados; {b['cidades_com_obra']} cidades; "
@@ -613,6 +704,11 @@ def main() -> None:
     _gravar(doc, SAIDA)
     _gravar(doc, REFERENCIA)
     print(f"gravado {SAIDA.relative_to(RAIZ)} ({SAIDA.stat().st_size / 1e6:.1f} MB) e a cópia de referência")
+    _gravar(todas, REFERENCIA_TODAS)
+    i = gravar_todas(_com_estados(todas))
+    print(f"todas as obras: {i['total'][0]} ({', '.join(f'{n} {s.lower()}' for s, n in zip(i['situacoes'], i['por_situacao']))}) "
+          f"em {len(i['uf'])} arquivos em {SAIDA_TODAS.relative_to(RAIZ)}; cópia de referência com "
+          f"{REFERENCIA_TODAS.stat().st_size / 1e6:.1f} MB")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,580 @@
+---
+/**
+ * Todas as obras: o explorador das obras com dinheiro federal da lista do TCU e, em São Paulo, das obras do governo
+ * do estado e das prefeituras que o TCE-SP acompanha, uma a uma, nas quatro situações (andando, parada, pronta,
+ * cancelada). O texto do alto e as opções dos filtros saem prontos do build (indice.json); a lista é montada no
+ * navegador com os arquivos por estado (/data/obras/CE.json…), gravados por pipeline/…/obras_paradas.py e
+ * obras_tcesp.py. Com um estado ou uma cidade escolhidos baixa-se só o arquivo daquele estado.
+ */
+import Base from "../../layouts/Base.astro";
+import Termo from "../../components/Termo.astro";
+import { moedaExtenso } from "../../lib/formato";
+import { mesAno, SEM_SETOR } from "../../lib/obras-paradas";
+import "../../styles/onde.css";
+
+interface Indice {
+  data_base: string; fonte: string; url: string;
+  situacoes: string[]; setores: string[]; quem_paga: string[]; pac: (string | null)[];
+  /** [n.º de obras, previsto, liberado] */
+  total: [number, number, number];
+  por_situacao: number[];
+  /** União, governo do estado, prefeitura; e quantas obras há de cada */
+  esferas?: string[]; por_esfera?: number[];
+  /** A lista do TCE-SP (obras_tcesp.py), quando há */
+  tcesp?: { data_base: string; fonte: string; url: string; uf: string; obras: number; so_federal: [number, number] };
+  uf: Record<string, [number, number, number]>;
+}
+const arquivos = import.meta.glob<Indice>("../../../public/data/obras/indice.json", { eager: true, import: "default" });
+const d: Indice | null = Object.values(arquivos)[0] ?? null;
+const nf = new Intl.NumberFormat("pt-BR");
+const tipos = d ? [...d.setores.filter((s) => s !== SEM_SETOR)].sort((a, b) => a.localeCompare(b, "pt-BR")) : [];
+const esferas = d?.esferas ?? ["União"];
+// No campo de ministério só os da União: "Governo do estado" e "Prefeitura" são os botões de esfera.
+const pagadores = d ? [...d.quem_paga].filter((p) => !esferas.slice(1).includes(p)).sort((a, b) => a.localeCompare(b, "pt-BR")) : [];
+const tcesp = d?.tcesp ?? null;
+const federais = d ? d.total[0] - (tcesp?.obras ?? 0) : 0;
+const dataTcesp = tcesp ? tcesp.data_base.split("-").reverse().join("/") : "";
+const descricao = d
+  ? tcesp
+    ? `As ${nf.format(d.total[0])} obras com dinheiro público que dá para acompanhar, uma a uma: as ${nf.format(federais)} com dinheiro federal que o TCU segue e, em São Paulo, mais ${nf.format(tcesp.obras)} do governo do estado e das prefeituras. Procure pelo nome, pela cidade, pelo tipo de obra, por de quem é o dinheiro e por como a obra está.`
+    : `As ${nf.format(d.total[0])} obras com dinheiro federal que o TCU acompanha, uma a uma (${mesAno(d.data_base)}). Procure pelo nome, pela cidade, pelo tipo de obra, por quem paga e por como a obra está.`
+  : "As obras com dinheiro federal que o TCU acompanha, uma a uma.";
+---
+
+<Base title="Todas as obras · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap obras-todas" data-obras data-ufs={d ? Object.keys(d.uf).join(",") : undefined}
+    data-setores={d ? JSON.stringify(d.setores) : undefined} data-pagadores={d ? JSON.stringify(d.quem_paga) : undefined}
+    data-pac={d ? JSON.stringify(d.pac) : undefined} data-esferas={JSON.stringify(esferas)}
+    data-tcesp-uf={tcesp?.uf}>
+    <nav class="caminho" aria-label="Caminho"><a href="/obras">Obras</a><span aria-hidden="true">›</span><span>Todas as obras</span></nav>
+    <section class="topo">
+      {d && (tcesp
+        ? <span class="sobretitulo">União, estados e prefeituras · TCU de {mesAno(d.data_base)} e TCE-SP de {mesAno(tcesp.data_base.slice(0, 7))}</span>
+        : <span class="sobretitulo">Dinheiro federal · lista do TCU de {mesAno(d.data_base)}</span>)}
+      <h1>Todas as obras</h1>
+      {d ? (tcesp ? (
+        <p>
+          As <strong>{nf.format(d.total[0])} obras</strong> com dinheiro público que dá para acompanhar, uma a uma: as {nf.format(federais)} com
+          dinheiro federal que o <Termo id="tcu">TCU</Termo> segue e, em São Paulo, mais {nf.format(tcesp.obras)} obras do governo do estado e
+          das prefeituras. Procure pelo nome da obra ou escolha o lugar, o tipo de obra, de quem é o dinheiro e como ela está.
+        </p>
+      ) : (
+        <p>
+          As <strong>{nf.format(d.total[0])} obras</strong> com dinheiro federal que o <Termo id="tcu">TCU</Termo> acompanha, uma a uma:
+          escolas, creches, postos de saúde, ruas, estradas. Juntas, custam {moedaExtenso(d.total[1])}. Procure pelo nome da obra
+          ou escolha o lugar, o tipo de obra, quem paga e como ela está.
+        </p>
+      )) : <p>Os dados ainda não foram carregados.</p>}
+    </section>
+
+    {d && (
+      <>
+        <form class="busca" data-form>
+          <label class="campo-grande">
+            <span>O que você procura</span>
+            <input type="search" name="q" placeholder="Ex.: creche, quadra, posto de saúde, BR-116, nome do bairro" autocomplete="off" />
+          </label>
+          <div class="filtros">
+            <div class="onde" data-onde>
+              <span id="onde-rotulo">Onde</span>
+              <div class="onde-campo">
+                <span class="chip" data-chip hidden><span data-chip-texto></span><button type="button" aria-label="Tirar o lugar e voltar a todo o Brasil" data-chip-tirar>✕</button></span>
+                <input type="search" data-onde-input role="combobox" aria-labelledby="onde-rotulo" aria-expanded="false" aria-controls="onde-lista" aria-autocomplete="list" placeholder="Todo o Brasil · digite uma cidade ou um estado" autocomplete="off" />
+              </div>
+              <div class="onde-lista" id="onde-lista" role="listbox" data-onde-lista hidden></div>
+            </div>
+            <label><span>Tipo de obra</span>
+              <select name="tipo">
+                <option value="">Todos</option>
+                {tipos.map((t) => <option value={t}>{t}</option>)}
+                {d.setores.includes(SEM_SETOR) && <option value={SEM_SETOR}>Sem tipo identificado</option>}
+              </select>
+            </label>
+            {!tcesp && (
+              <label><span>Quem paga</span>
+                <select name="paga"><option value="">Todos</option>{pagadores.map((p) => <option value={p}>{p}</option>)}</select>
+              </label>
+            )}
+            <label><span>Custa a partir de</span>
+              <select name="min">
+                <option value="">Qualquer valor</option><option value="1000000">R$ 1 milhão</option><option value="10000000">R$ 10 milhões</option><option value="100000000">R$ 100 milhões</option>
+              </select>
+            </label>
+          </div>
+          {tcesp && (
+            <div class="como">
+              <span id="esfera-rotulo">De quem é o dinheiro</span>
+              <div class="botoes" role="group" aria-labelledby="esfera-rotulo">
+                <span class="botoes" data-esferas-botoes></span>
+                <label class="ministerio"><span>Ministério ou órgão federal</span>
+                  <select name="paga"><option value="">Todos</option>{pagadores.map((p) => <option value={p}>{p}</option>)}</select>
+                </label>
+              </div>
+            </div>
+          )}
+          <div class="como">
+            <span id="como-rotulo">Como está a obra</span>
+            <div class="botoes" role="group" aria-labelledby="como-rotulo" data-situacoes></div>
+          </div>
+        </form>
+
+        <section class="resultado" data-resultado aria-live="polite">
+          <div class="carregando" role="status"><div class="barra-carga" aria-hidden="true"><i></i></div><p><strong>Carregando as obras…</strong></p></div>
+        </section>
+        <noscript><p class="erro">A lista é montada no navegador e precisa de JavaScript.</p></noscript>
+
+        {tcesp ? (
+          <p class="nota">
+            Entram as obras com dinheiro federal que estão nos sistemas que o TCU junta e, só em São Paulo, as obras do governo do
+            estado e das prefeituras (e de órgãos delas, como autarquias e companhias) que o Tribunal de Contas do Estado acompanha.
+            Nos outros estados, obra paga só pelo estado ou pela prefeitura ainda não aparece: os tribunais de contas de lá não
+            publicam uma lista que dê para ler obra a obra. A lista de SP só tem obras em andamento (no prazo, atrasadas ou
+            paradas): quando a obra acaba, sai dela. Quem informa como a obra está é o órgão ou a prefeitura, e nem sempre
+            atualiza. Nas obras com dinheiro federal, “custa” é o valor previsto, e “já liberado”, o dinheiro federal que já saiu
+            para ela; nas do estado e das prefeituras, o valor é o do contrato. {nf.format(tcesp.so_federal[0])} obras da lista
+            de SP pagas só com dinheiro federal ficam de fora, para não aparecerem duas vezes. Fontes: <a href={d.url} rel="noopener">{d.fonte}</a>,
+            de {mesAno(d.data_base)}; <a href={tcesp.url} rel="noopener">{tcesp.fonte}</a>, de {dataTcesp}.
+            Veja também <a href="/obras">o resumo das obras federais em andamento</a> e <a href="/obras-paradas">as obras federais paradas, cidade por cidade</a>.
+          </p>
+        ) : (
+        <p class="nota">
+          Só entram obras com dinheiro federal que estão nos sistemas que o TCU junta; obra paga só pelo estado ou pela prefeitura
+          não aparece. Quem informa como a obra está é o órgão ou a prefeitura, e nem sempre atualiza: uma obra que aparece andando
+          pode estar parada, e uma parada pode ter voltado. “Custa” é o valor previsto, que pode mudar até o fim da obra; “já
+          liberado” é o dinheiro federal que já saiu para ela. Em {nf.format(d.total[0] - Object.entries(d.uf).filter(([k]) => k.length === 2).reduce((s, [, v]) => s + v[0], 0))} obra
+          o TCU não informa o estado. Fonte: <a href={d.url} rel="noopener">{d.fonte}</a>, de {mesAno(d.data_base)}.
+          Veja também <a href="/obras">o resumo das obras em andamento</a> e <a href="/obras-paradas">as obras paradas, cidade por cidade</a>.
+        </p>
+        )}
+      </>
+    )}
+  </div>
+</Base>
+
+<script is:inline type="module">
+  // O explorador: baixa o arquivo do estado escolhido (ou os de todos), filtra na memória e desenha a lista.
+  // Cada obra: [nome, cidade, ibge, tipo, quem paga, situação, % feito, previsto, liberado, PAC] (ver obras_paradas.py).
+  // As do estado e das prefeituras (obras_tcesp.py) têm mais quatro: [esfera, atrasada, ano do contrato, órgão], e
+  // nelas "% feito" e "liberado" vêm vazios. As do TCU não têm esfera: são da União (0).
+  const raiz = document.querySelector("[data-obras]");
+  const form = document.querySelector("[data-form]");
+  const saida = document.querySelector("[data-resultado]");
+  if (raiz?.dataset.ufs && form && saida) {
+    const UFS = raiz.dataset.ufs.split(","), SETORES = JSON.parse(raiz.dataset.setores), PAGADORES = JSON.parse(raiz.dataset.pagadores), PAC = JSON.parse(raiz.dataset.pac);
+    const ESFERAS = JSON.parse(raiz.dataset.esferas || '["União"]'), UF_ESTADOS = raiz.dataset.tcespUf || null;
+    const COM_ESFERAS = ESFERAS.length > 1;
+    // Os botões de esfera e o endereço (?dinheiro=uniao…)
+    const ESF = [
+      { chave: "uniao", nome: ESFERAS[0] },
+      { chave: "estado", nome: ESFERAS[1] },
+      { chave: "prefeitura", nome: ESFERAS[2] },
+    ].slice(0, ESFERAS.length);
+    // Na ordem das situações do TCU: em execução, paralisada, concluída, cancelada.
+    const SIT = [
+      { chave: "andando", um: "Andando", varios: "Andando", frase: (n) => (n === 1 ? "está andando" : "estão andando") },
+      { chave: "parada", um: "Parada", varios: "Paradas", frase: (n) => (n === 1 ? "está parada" : "estão paradas") },
+      { chave: "pronta", um: "Pronta", varios: "Prontas", frase: (n) => (n === 1 ? "ficou pronta" : "ficaram prontas") },
+      { chave: "cancelada", um: "Cancelada", varios: "Canceladas", frase: (n) => (n === 1 ? "foi cancelada" : "foram canceladas") },
+    ];
+    const SEM_TIPO = "Não identificado";
+    const nomeTipo = (t) => (t === SEM_TIPO ? "Sem tipo identificado" : t);
+    const nf0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+    const nf1 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const curto = (v) => (v >= 1e9 ? `R$ ${nf1.format(v / 1e9)} bi` : v >= 1e6 ? `R$ ${nf1.format(v / 1e6)} mi` : v >= 1e3 ? `R$ ${nf0.format(v / 1e3)} mil` : `R$ ${nf0.format(v)}`);
+    const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const sem = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const obras_ = (n) => (n === 1 ? "1 obra" : `${nf0.format(n)} obras`);
+    const fatia = (v, total) => { const p = total > 0 ? (v / total) * 100 : 0; return p >= 99.5 ? "100%" : p >= 1 ? `${nf0.format(p)}%` : "<1%"; };
+    const esfera = (o) => o[10] ?? 0;
+    // O nome que o TCE-SP dá é a descrição do contrato, às vezes longa: corta na lista, inteiro no balão.
+    const LIMITE = 200;
+    const cortar = (s) => (s.length > LIMITE ? `${s.slice(0, s.lastIndexOf(" ", LIMITE - 1) > 120 ? s.lastIndexOf(" ", LIMITE - 1) : LIMITE - 1)}…` : s);
+    /** Reparte 100 entre as partes, sem a soma passar de 100 nem faltar (o maior resto leva o que sobra). */
+    function emCem(partes) {
+      const total = partes.reduce((s, n) => s + n, 0) || 1;
+      const exato = partes.map((n) => (n / total) * 100), base = exato.map(Math.floor);
+      let falta = 100 - base.reduce((s, n) => s + n, 0);
+      for (const i of exato.map((x, i) => [x - Math.floor(x), i]).sort((a, b) => b[0] - a[0]).map((x) => x[1])) { if (falta-- <= 0) break; base[i] += 1; }
+      return base;
+    }
+
+    const { ligarOnde, carregarLugares } = await import("/explorador/onde.js");
+    const params = new URLSearchParams(location.search);
+    for (const k of ["q", "tipo", "paga", "min"]) { const c = form.elements.namedItem(k); if (c && params.get(k)) c.value = params.get(k); }
+    let situacao = SIT.findIndex((s) => s.chave === params.get("como"));   // -1: todas
+    let esf = ESF.findIndex((e) => e.chave === params.get("dinheiro"));    // -1: todas
+    let por = ["cidade", "tipo", "paga"].includes(params.get("por")) ? params.get("por") : "obra";
+    let mostrar = 50;
+    let lugar = null;        // { tipo: "uf" | "mun", codigo, nome, sigla, rotulo }
+    let obras = [];          // as do lugar escolhido (ou do país), cada uma com a UF em o.uf
+    let carregadas = null;   // de que lugar são as obras na memória: uma sigla ou "BR"
+    const cache = new Map();
+    const baixar = (uf) => { if (!cache.has(uf)) cache.set(uf, fetch(`/data/obras/${uf}.json`).then((r) => { if (!r.ok) throw new Error(`${uf}: ${r.status}`); return r.json(); }).then((d) => d.obras.map((o) => Object.assign(o, { uf: uf.length === 2 ? uf : "" })))); return cache.get(uf); };
+
+    const onde = ligarOnde(document.querySelector("[data-onde]"), (l) => { lugar = l; mostrar = 50; atualizar(); });
+    const inicial = params.get("cidade") || (params.get("uf") ? (await carregarLugares()).porSigla.get(params.get("uf").toUpperCase())?.codigo : null);
+    if (inicial) lugar = (await onde.definir(inicial)) ?? null;
+
+    /** O endereço guarda os filtros, para o link poder ser mandado a alguém. */
+    function endereco() {
+      const q = new URLSearchParams();
+      for (const k of ["q", "tipo", "paga", "min"]) { const v = form.elements.namedItem(k)?.value.trim(); if (v) q.set(k, v); }
+      if (lugar) q.set(lugar.tipo === "mun" ? "cidade" : "uf", lugar.tipo === "mun" ? lugar.codigo : lugar.sigla);
+      if (esf >= 0) q.set("dinheiro", ESF[esf].chave);
+      if (situacao >= 0) q.set("como", SIT[situacao].chave);
+      if (por !== "obra") q.set("por", por);
+      history.replaceState(null, "", `${location.pathname}${q.size ? `?${q}` : ""}`);
+    }
+
+    /** As obras que passam nos filtros, menos os de esfera e de situação (os botões mostram quantas há em cada). */
+    function filtrar() {
+      const f = form.elements;
+      const tipo = SETORES.indexOf(f.namedItem("tipo").value), paga = PAGADORES.indexOf(f.namedItem("paga")?.value ?? ""), min = Number(f.namedItem("min").value) || 0;
+      const cidade = lugar?.tipo === "mun" ? Number(lugar.codigo) : null;
+      // Alternativas separadas por "ou" ou vírgula; dentro de cada uma, todas as palavras têm de aparecer.
+      const termos = sem(f.namedItem("q").value).split(/\s+ou\s+|,/).map((t) => t.trim().split(/\s+/).filter(Boolean)).filter((t) => t.length);
+      return obras.filter((o) => {
+        if (cidade && o[2] !== cidade) return false;
+        if (tipo >= 0 && o[3] !== tipo) return false;
+        if (paga >= 0 && o[4] !== paga) return false;
+        if (min && o[7] < min) return false;
+        if (termos.length) {
+          const texto = (o.texto ??= sem(`${o[0]} ${o[1] ?? ""} ${o[13] ?? ""}`));
+          if (!termos.some((t) => t.every((p) => texto.includes(p)))) return false;
+        }
+        return true;
+      });
+    }
+
+    const lugarDe = (o) => (o[1] ? `${o[1]}${lugar?.tipo === "mun" ? "" : o.uf ? ` (${o.uf})` : ""}` : o.uf ? `${o.uf}, sem cidade informada` : "Sem lugar informado");
+    function linhaObra(o) {
+      const feito = o[6], s = SIT[o[5]], estado = esfera(o) > 0;
+      const cidade = o[2] && lugar?.tipo !== "mun" ? `<a href="/obras/todas?cidade=${o[2]}">${esc(lugarDe(o))}</a>` : esc(lugarDe(o));
+      const nome = o[0] || "Sem nome", curtoNome = cortar(nome);
+      const paga = `Paga: ${esc(PAGADORES[o[4]])}${estado && o[13] ? ` · ${esc(o[13])}` : ""}${PAC[o[9]] ? ` · ${esc(PAC[o[9]])}` : ""}`;
+      return `<div class="linha" role="row">
+        <span role="cell" class="obra"><strong${curtoNome !== nome ? ` title="${esc(nome)}"` : ""}>${esc(curtoNome)}</strong><small>${cidade} · ${paga}</small></span>
+        <span role="cell" class="selos"><span class="selo ${s.chave}">${s.um}</span>${o[11] ? `<span class="selo atrasada">atrasada</span>` : ""}</span>
+        <span role="cell" class="feito${estado ? " so-pc" : ""}">${estado ? `<small>o TCE-SP não informa</small>` : feito === null ? `<small>sem informação</small>` : `<span class="trilho" aria-hidden="true"><i style="width:${Math.min(100, feito)}%"></i></span><span>${feito}%<span class="so-celular"> feita</span></span>`}</span>
+        <span role="cell" class="d custa"><strong>${curto(o[7])}</strong>${estado ? `<small>contrato${o[12] ? ` de ${o[12]}` : ""}</small>` : ""}</span>
+        <span role="cell" class="d liberado${estado ? " so-pc" : ""}">${estado ? `<span aria-label="não se aplica">—</span>` : `${curto(o[8])}<span class="so-celular"> já liberados</span>`}</span>
+      </div>`;
+    }
+
+    /** Escolheram estado ou prefeitura num lugar que não tem essa lista: o aviso no lugar da lista. */
+    function avisoSemEstados(titulo, nUniao) {
+      const quem = esf === 1 ? "do governo do estado" : "das prefeituras";
+      return `<h2>${esc(titulo)}</h2><div class="aviso">
+        <p class="aviso-titulo">${lugar ? `${esc(lugar.tipo === "mun" ? lugar.nome : lugar.rotulo)}: ainda` : "Ainda"} não temos as obras ${quem}.</p>
+        <p>Por enquanto, as obras pagas só pelo governo do estado ou pela prefeitura estão aqui apenas para <a href="/obras/todas?uf=${UF_ESTADOS}&amp;dinheiro=${ESF[esf].chave}">São Paulo</a>, cujo Tribunal de Contas publica a lista aberta. Os tribunais de contas dos outros estados não publicam uma lista que dê para ler obra a obra. Quando publicarem, elas entram aqui.</p>
+        ${nUniao ? `<p>${lugar ? `Aqui` : "No resto do país"}, a lista tem ${nUniao === 1 ? "<strong>1 obra com dinheiro federal</strong>" : `as <strong>${nf0.format(nUniao)} obras com dinheiro federal</strong>`}, muitas feitas pelas prefeituras com dinheiro da União.</p>` : ""}
+        <div class="aviso-acoes">${nUniao ? `<button type="button" class="cheio" data-esf="0">Ver ${nUniao === 1 ? "a obra" : `as ${nf0.format(nUniao)} obras`} com dinheiro federal</button>` : ""}<a href="/obras/todas?uf=${UF_ESTADOS}&amp;dinheiro=${ESF[esf].chave}">Ver as obras ${quem} de São Paulo</a></div>
+      </div>`;
+    }
+
+    function desenhar() {
+      const base = filtrar();
+      const daEsfera = esf >= 0 ? base.filter((o) => esfera(o) === esf) : base;
+      const daSituacao = situacao >= 0 ? base.filter((o) => o[5] === situacao) : base;
+      const cont = SIT.map((_, i) => daEsfera.reduce((n, o) => n + (o[5] === i ? 1 : 0), 0));
+      const contEsf = ESF.map((_, i) => daSituacao.reduce((n, o) => n + (esfera(o) === i ? 1 : 0), 0));
+      // Só obras de estado e prefeitura: elas só ficam na lista enquanto estão em andamento, então não há prontas
+      // nem canceladas; esses botões somem.
+      const soEstados = esf > 0;
+      document.querySelector("[data-situacoes]").innerHTML = [["Todas", daEsfera.length, -1], ...SIT.map((s, i) => [s.varios, cont[i], i])]
+        .filter(([, n, i]) => !(soEstados && i >= 2 && !n && situacao !== i))
+        .map(([t, n, i]) => `<button type="button" data-sit="${i}" aria-pressed="${situacao === i}">${t} · ${nf0.format(n)}</button>`).join("")
+        + (soEstados ? `<small class="dica">Prontas e canceladas não aparecem: a lista ${esf === 1 ? "do estado" : "das prefeituras"} só tem obras em andamento.</small>` : "");
+      const botoesEsf = document.querySelector("[data-esferas-botoes]");
+      if (botoesEsf) {
+        // Fora de SP, estado e prefeitura não têm lista: o botão diz "sem dados" (e ainda leva ao aviso).
+        const semLista = (i) => i > 0 && lugar && lugar.sigla !== UF_ESTADOS;
+        botoesEsf.innerHTML = [["Todos", daSituacao.length, -1], ...ESF.map((e, i) => [e.nome, contEsf[i], i])]
+          .map(([t, n, i]) => `<button type="button" data-esf="${i}" aria-pressed="${esf === i}"${semLista(i) ? ' class="sem-dados"' : ""}>${t} · ${semLista(i) ? "sem dados" : nf0.format(n)}</button>`).join("");
+        const ministerio = form.elements.namedItem("paga");
+        ministerio.disabled = esf > 0;
+        if (esf > 0) ministerio.value = "";
+      }
+      const lista = situacao >= 0 ? daEsfera.filter((o) => o[5] === situacao) : daEsfera;
+      const temEstados = lista.some((o) => esfera(o) > 0), temUniao = lista.some((o) => esfera(o) === 0);
+      const previsto = lista.reduce((s, o) => s + o[7], 0), liberado = lista.reduce((s, o) => s + (o[8] ?? 0), 0);
+      const cidades = new Set(lista.filter((o) => o[2]).map((o) => o[2])).size;
+      const f = form.elements, tipo = f.namedItem("tipo").value;
+      const titulo = `${lugar ? lugar.rotulo : "Todo o Brasil"}${tipo ? ` · ${nomeTipo(tipo)}` : ""}${esf > 0 ? ` · obras ${esf === 1 ? "do governo do estado" : "das prefeituras"}` : esf === 0 ? " · dinheiro federal" : ""}`;
+      document.title = `${lugar || tipo ? `${titulo} · ` : ""}Todas as obras · Orçamento Brasileiro`;
+
+      const comoGrupo = document.querySelector("[data-situacoes]").closest(".como");
+      comoGrupo.hidden = esf > 0 && !!lugar && lugar.sigla !== UF_ESTADOS;
+      if (comoGrupo.hidden) {
+        saida.innerHTML = avisoSemEstados(titulo, base.filter((o) => esfera(o) === 0 && (situacao < 0 || o[5] === situacao)).length);
+        return;
+      }
+      if (!lista.length) {
+        saida.innerHTML = `<h2>${esc(titulo)}</h2><div class="vazio"><p><strong>Nenhuma obra com esses filtros.</strong></p><p class="menor">Tente outras palavras: cada órgão descreve a obra do seu jeito (“unidade básica de saúde” ou “UBS” em vez de “posto de saúde”, por exemplo). Ou tire um filtro, ou procure em todo o Brasil.</p></div>`;
+        return;
+      }
+      // "De cada 100": só com todas as situações juntas. Com poucas obras, a conta é direta.
+      let frase = "";
+      if (situacao < 0) {
+        const cem = daEsfera.length >= 100 ? emCem(cont) : cont;
+        const partes = SIT.map((s, i) => [cem[i], s.frase(cem[i]), i]).filter((p) => p[0] > 0)
+          .map(([n, t, i]) => (i === 1 ? `<strong class="marca">${nf0.format(n)} ${t}</strong>` : i === 0 ? `<strong>${nf0.format(n)} ${t}</strong>` : `${nf0.format(n)} ${t}`));
+        const juntas = partes.length > 1 ? `${partes.slice(0, -1).join(", ")} e ${partes.at(-1)}` : partes[0];
+        const atrasadas = lista.filter((o) => o[11]).length;
+        frase = `<div class="cem"><p>${daEsfera.length >= 100 ? "De cada 100 destas obras, " : daEsfera.length === 1 ? "A obra: " : `Das ${nf0.format(daEsfera.length)} obras, `}${juntas}.${atrasadas ? ` Das que estão andando, ${obras_(atrasadas)} ${atrasadas === 1 ? "está atrasada" : "estão atrasadas"}, segundo ${atrasadas === 1 ? "o órgão que a contratou" : "os órgãos que as contrataram"}.` : ""}</p>
+          <div class="pilha" role="img" aria-label="${SIT.map((s, i) => `${nf0.format(cont[i])} ${s.varios.toLowerCase()}`).join(", ")}">${SIT.map((s, i) => (cont[i] ? `<i class="${s.chave}" style="flex-grow:${cont[i]}" title="${s.varios}: ${nf0.format(cont[i])}"></i>` : "")).join("")}</div>
+          <p class="legenda" aria-hidden="true">${SIT.map((s, i) => (cont[i] ? `<span><i class="${s.chave}"></i>${s.varios}</span>` : "")).join("")}</p>
+          ${temEstados && temUniao ? `<p class="menor">As obras do estado e das prefeituras só ficam na lista do TCE-SP enquanto estão em andamento: quando acabam, saem dela. Por isso quase todas as prontas e canceladas daqui são obras com dinheiro federal.</p>` : ""}</div>`;
+      }
+      // Sem lugar escolhido e com estado ou prefeitura: lembrar que é só SP.
+      const soSP = esf > 0 && !lugar ? `<p class="menor">Por enquanto, as obras ${esf === 1 ? "dos governos estaduais" : "das prefeituras"} são só as de São Paulo, que o Tribunal de Contas do Estado publica. Nos outros estados ainda não há uma lista aberta.</p>` : "";
+      let corpo;
+      const nomeValor = temEstados ? "Vale" : "Custa";
+      if (por === "obra") {
+        corpo = `<div class="tabela" role="table" aria-label="Obras"><div class="linha cab" role="row"><span role="columnheader">Obra</span><span role="columnheader">Como está</span><span role="columnheader">Quanto foi feito</span><span role="columnheader" class="d">${nomeValor}</span><span role="columnheader" class="d">Já liberado</span></div>${lista.slice(0, mostrar).map(linhaObra).join("")}</div>
+          <div class="pe"><span>Mostrando ${nf0.format(Math.min(lista.length, mostrar))} de ${nf0.format(lista.length)}, da mais cara para a mais barata.</span>${mostrar < lista.length ? `<button type="button" data-mais>Mostrar mais</button>` : ""}</div>`;
+      } else {
+        const g = new Map();
+        for (const o of lista) {
+          const k = por === "cidade" ? (o[2] ?? `${o.uf}|${o[1] ?? ""}`) : por === "tipo" ? o[3] : o[4];
+          let x = g.get(k);
+          if (!x) g.set(k, x = { k, n: 0, v: 0, paradas: 0, nome: por === "cidade" ? lugarDe(o) : por === "tipo" ? nomeTipo(SETORES[o[3]]) : PAGADORES[o[4]], ibge: por === "cidade" ? o[2] : null, semCidade: !o[1], valor: por === "tipo" ? SETORES[o[3]] : PAGADORES[o[4]], esfera: esfera(o) });
+          x.n += 1; x.v += o[7]; if (o[5] === 1) x.paradas += 1;
+        }
+        // Por cidade, as obras sem cidade (estradas do DNIT, Codevasf, só com o estado) vão para o fim: não são de uma cidade.
+        const semCidade = (x) => (por === "cidade" && x.semCidade ? 1 : 0);
+        const l = [...g.values()].sort((a, b) => semCidade(a) - semCidade(b) || b.v - a.v || b.n - a.n), maior = Math.max(1, ...l.map((x) => x.v));
+        const sc = l.filter(semCidade), comCidade = l.length - sc.length;
+        const notaSemCidade = sc.length && comCidade ? `<p class="menor">No fim da lista ficam as obras sem cidade informada, que só dizem o estado (estradas, barragens, obras que passam por várias cidades): ${obras_(sc.reduce((s, x) => s + x.n, 0))}, que custam ${curto(sc.reduce((s, x) => s + x.v, 0))}.</p>` : "";
+        // Na lista de cidades, as sem cidade aparecem depois das 200 primeiras com cidade, se houver tantas.
+        const mostradas = por === "cidade" ? [...l.filter((x) => !semCidade(x)).slice(0, 200), ...sc] : l.slice(0, 200);
+        // Agrupado por quem paga, "Governo do estado" e "Prefeitura" levam aos botões de esfera, não ao campo de ministério.
+        const botao = (x) => (por === "paga" && x.esfera > 0
+          ? `<button type="button" class="link" data-esf="${x.esfera}">${esc(x.nome)}</button>`
+          : `<button type="button" class="link" data-filtro="${por}" data-valor="${esc(x.valor)}">${esc(x.nome)}</button>`);
+        corpo = `${notaSemCidade}<ol class="lista">${mostradas.map((x) => `<li${semCidade(x) ? ' class="sem-cidade"' : ""}><span>${por === "cidade"
+          ? (x.ibge ? `<a href="/obras/todas?cidade=${x.ibge}">${esc(x.nome)}</a>` : esc(x.nome))
+          : botao(x)}</span><span>${obras_(x.n)}${situacao < 0 && x.paradas ? `, ${x.paradas === 1 ? "1 parada" : `${nf0.format(x.paradas)} paradas`}` : ""} · ${curto(x.v)}</span><span class="fatia" title="Parte no valor de todas as obras encontradas"><i style="width:${Math.max(1, (x.v / maior) * 70)}px"></i><b>${fatia(x.v, previsto)}</b></span></li>`).join("")}</ol>
+          ${l.length - sc.length > 200 ? `<p class="menor">Mostrando as 200 primeiras de ${nf0.format(l.length - sc.length)}${sc.length ? ", e no fim as obras sem cidade" : ""}.</p>` : ""}`;
+      }
+      const numLiberado = temEstados
+        ? (temUniao ? `<div><span>Já liberado pela União</span><strong>${curto(liberado)}</strong><small>só nas obras com dinheiro federal</small></div>` : "")
+        : `<div><span>Já liberado</span><strong>${curto(liberado)}</strong></div>`;
+      const numValor = temEstados
+        ? (temUniao ? `<div><span>Valem</span><strong>${curto(previsto)}</strong><small>custo previsto ou valor do contrato</small></div>` : `<div><span>Contratos somam</span><strong>${curto(previsto)}</strong></div>`)
+        : `<div><span>Custam</span><strong>${curto(previsto)}</strong></div>`;
+      saida.innerHTML = `
+        <h2>${esc(titulo)}</h2>
+        ${soSP}
+        <div class="numeros"><div><span>Obras</span><strong>${nf0.format(lista.length)}</strong></div>${numValor}${numLiberado}${lugar?.tipo === "mun" ? "" : `<div><span>Em</span><strong>${cidades === 1 ? "1 cidade" : `${nf0.format(cidades)} cidades`}</strong></div>`}</div>
+        ${frase}
+        <div class="agrupar"><span>Agrupar por:</span>${[["obra", "Obra"], ...(lugar?.tipo === "mun" ? [] : [["cidade", "Cidade"]]), ["tipo", "Tipo de obra"], ["paga", "Quem paga"]].map(([k, t]) => `<button type="button" data-por="${k}" aria-pressed="${por === k}">${t}</button>`).join("")}<span class="espaco"></span><button type="button" class="link" data-csv>Baixar estas obras (planilha)</button></div>
+        ${corpo}`;
+      saida.querySelector("[data-csv]")?.addEventListener("click", () => baixarCsv(lista));
+    }
+
+    function baixarCsv(lista) {
+      const cab = ["obra", "cidade", "uf", "codigo_ibge", "tipo_de_obra", "de_quem_e_o_dinheiro", "quem_paga", "orgao", "situacao", "atrasada", "feito_pct", "valor", "o_que_e_o_valor", "ano_do_contrato", "liberado", "pac", "fonte"];
+      const cel = (x) => { const s = String(x ?? ""); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+      const num = (v) => (v === null || v === undefined ? "" : String(v).replace(".", ","));
+      const linhas = lista.map((o) => {
+        const e = esfera(o);
+        return [o[0], o[1], o.uf, o[2], SETORES[o[3]], ESFERAS[e], PAGADORES[o[4]], o[13], SIT[o[5]].um, o[11] ? "sim" : "", o[6], num(o[7]), e ? "contrato" : "custo previsto", o[12], num(o[8]), PAC[o[9]], e ? "TCE-SP" : "TCU"].map(cel).join(";");
+      });
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob(["﻿" + [cab.join(";"), ...linhas].join("\n")], { type: "text/csv;charset=utf-8" })), download: "obras.csv" });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+
+    /** Baixa o que faltar para o lugar escolhido e redesenha. */
+    async function atualizar() {
+      endereco();
+      const quer = lugar ? lugar.sigla : "BR";
+      if (quer !== carregadas) {
+        saida.innerHTML = `<div class="carregando" role="status"><div class="barra-carga" aria-hidden="true"><i></i></div><p><strong>Carregando as obras${lugar ? ` de ${esc(lugar.rotulo)}` : " de todo o Brasil"}…</strong></p></div>`;
+        try {
+          const partes = await Promise.all((lugar ? [lugar.sigla].filter((u) => UFS.includes(u)) : UFS).map(baixar));
+          if ((lugar ? lugar.sigla : "BR") !== quer) return;   // a pessoa trocou de lugar enquanto baixava
+          obras = partes.flat();
+          if (!lugar) obras.sort((a, b) => b[7] - a[7]);
+          carregadas = quer;
+        } catch (erro) {
+          saida.innerHTML = `<p class="erro">Não foi possível carregar as obras agora (${esc(erro.message || erro)}). Tente de novo em instantes.</p>`;
+          return;
+        }
+      }
+      if (lugar?.tipo === "mun" && por === "cidade") por = "obra";
+      desenhar();
+    }
+
+    /** Troca a esfera (botões, o aviso e o agrupamento por quem paga). Estado e prefeitura não têm prontas nem canceladas. */
+    function trocarEsfera(i) {
+      esf = i; mostrar = 50;
+      if (esf > 0 && situacao >= 2) situacao = -1;
+      if (esf > 0 && por === "paga") por = "obra";
+      const ministerio = form.elements.namedItem("paga");
+      if (esf > 0 && ministerio) ministerio.value = "";
+      endereco(); desenhar();
+    }
+
+    let espera;
+    form.addEventListener("submit", (ev) => ev.preventDefault());
+    form.elements.namedItem("q").addEventListener("input", () => { clearTimeout(espera); espera = setTimeout(() => { mostrar = 50; endereco(); desenhar(); }, 200); });
+    form.addEventListener("change", (ev) => {
+      if (!ev.target.matches("select")) return;
+      // Escolher um ministério é escolher o dinheiro da União.
+      if (ev.target.name === "paga" && ev.target.value && COM_ESFERAS && esf !== 0) esf = 0;
+      mostrar = 50; endereco(); desenhar();
+    });
+    form.addEventListener("click", (ev) => {
+      const e = ev.target.closest("[data-esf]");
+      if (e) { trocarEsfera(Number(e.dataset.esf)); form.querySelector(`[data-esf="${esf}"]`)?.focus(); return; }
+      const b = ev.target.closest("[data-sit]"); if (!b) return;
+      situacao = Number(b.dataset.sit); mostrar = 50; endereco(); desenhar();
+      form.querySelector(`[data-sit="${situacao}"]`)?.focus();
+    });
+    saida.addEventListener("click", (ev) => {
+      const b = ev.target.closest("button"); if (!b) return;
+      if (b.dataset.esf !== undefined) { trocarEsfera(Number(b.dataset.esf)); }
+      else if (b.dataset.por) { por = b.dataset.por; mostrar = 50; endereco(); desenhar(); saida.querySelector(`[data-por="${por}"]`)?.focus(); }
+      else if ("mais" in b.dataset) { mostrar += 50; desenhar(); }
+      else if (b.dataset.filtro) {
+        form.elements.namedItem(b.dataset.filtro).value = b.dataset.valor;
+        if (b.dataset.filtro === "paga" && COM_ESFERAS) esf = 0;
+        por = "obra"; mostrar = 50; endereco(); desenhar();
+      }
+    });
+    atualizar();
+  }
+</script>
+
+<style is:global>
+  /* Global, mas só dentro do explorador: a lista é montada no navegador, fora do escopo do Astro. */
+  @keyframes corre-obras { from { left: -35%; } to { left: 100%; } }
+  .obras-todas {
+  .caminho { display: flex; gap: 8px; padding-top: 24px; font-size: 13px; color: var(--texto-3); }
+  .topo { padding: 28px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
+  .topo h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
+  .topo p { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); }
+  .topo strong { color: var(--tinta); }
+  .sobretitulo { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--texto-3); }
+  .busca { border-top: 2px solid var(--tinta); padding: 24px 0; display: flex; flex-direction: column; gap: 16px; }
+  .busca label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--texto-3); }
+  .campo-grande span { font-size: 13px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+  .campo-grande input { font: inherit; font-size: 20px; padding: 12px 14px; border: 2px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 0; }
+  .filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+  .filtros select { font: inherit; font-size: 14px; height: 42px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 170px; max-width: 260px; }
+  .como { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--texto-3); }
+  .botoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .botoes button { font: inherit; font-size: 14px; min-height: 44px; padding: 8px 14px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; font-variant-numeric: tabular-nums; }
+  .botoes button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); font-weight: 600; }
+  h2 { font-size: 28px; }
+  .menor, .nota { margin: 0; font-size: 14px; line-height: 1.6; color: var(--texto-3); }
+  .nota { border-top: 1px solid var(--regra); padding: 16px 0 40px; max-width: 860px; }
+  small { display: block; font-size: 13px; color: var(--texto-3); }
+  [hidden] { display: none !important; }
+  .resultado { display: flex; flex-direction: column; gap: 16px; padding-bottom: 32px; min-height: 320px; }
+  .carregando { display: flex; flex-direction: column; gap: 8px; padding: 28px 24px; background: #fff; border: 1px solid var(--regra); }
+  .carregando p { margin: 0; font-size: 17px; }
+  .barra-carga { position: relative; height: 4px; overflow: hidden; background: var(--regra); }
+  .barra-carga i { position: absolute; top: 0; bottom: 0; width: 35%; background: var(--verde); animation: corre-obras 1.2s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .barra-carga i { animation: none; left: 0; width: 100%; opacity: .5; } }
+  .erro { margin: 0; padding: 20px 0; font-size: 16px; color: #8f3d1d; }
+  .vazio p { margin: 0 0 6px; }
+  .numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; border-top: 2px solid var(--tinta); padding-top: 16px; }
+  .numeros div { display: flex; flex-direction: column; gap: 4px; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 34px; line-height: 1.2; }
+  .cem { display: flex; flex-direction: column; gap: 8px; }
+  .cem p { margin: 0; font-size: 17px; line-height: 1.5; color: var(--texto-2); }
+  .cem strong { color: var(--tinta); }
+  .cem .marca { background: var(--marca-texto-fundo); box-shadow: -3px 0 0 var(--marca-texto-fundo); }
+  .pilha { display: flex; gap: 2px; height: 14px; }
+  .pilha i { display: block; min-width: 2px; flex-basis: 0; }
+  .andando { --cor: var(--verde); } .parada { --cor: var(--tinta); } .pronta { --cor: #8fb9a0; } .cancelada { --cor: var(--areia-clara); }
+  .pilha i, .legenda i { background: var(--cor); }
+  .cem .legenda { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--texto-3); }
+  .legenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .legenda i { display: block; width: 10px; height: 10px; }
+  .agrupar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--texto-3); }
+  .agrupar button { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
+  .agrupar button[aria-pressed="true"] { background: var(--tinta); color: var(--papel); font-weight: 600; }
+  .agrupar .espaco { flex-grow: 1; }
+  button.link { font: inherit; border: 0; padding: 0; background: none; color: var(--verde); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; text-align: left; }
+  .agrupar button.link { padding: 6px 0; }
+  .tabela { display: flex; flex-direction: column; border-top: 1px solid var(--tinta); }
+  .tabela .linha { display: grid; grid-template-columns: minmax(0, 1fr) 150px 130px 110px 100px; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--regra-leve); font-size: 14px; line-height: 1.45; align-items: start; }
+  .tabela .cab { padding: 10px 0; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--texto-3); border-bottom-color: var(--tinta); }
+  .obra { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .obra strong { font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+  .d { text-align: right; white-space: nowrap; }
+  .custa strong { font-family: var(--serifa); font-size: 17px; }
+  .liberado { color: var(--texto-2); }
+  .selo { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border: 1px solid var(--verde); color: var(--verde); white-space: nowrap; }
+  .selo.parada { border-color: var(--tinta); background: var(--tinta); color: var(--papel); }
+  .selo.pronta { background: var(--verde); color: #fff; }
+  .selo.cancelada { border-color: var(--regra); background: var(--papel-escuro); color: var(--texto-3); }
+  .feito { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--texto-2); }
+  .feito > span:last-child { min-width: 36px; text-align: right; white-space: nowrap; }
+  .trilho { flex: 1; display: block; height: 8px; background: var(--areia-clara); }
+  .trilho i { display: block; height: 8px; background: var(--tinta); }
+  .selos { display: flex; flex-wrap: wrap; gap: 4px; }
+  .selo.atrasada { border-color: var(--marca-texto-fundo); background: var(--marca-texto-fundo); color: var(--tinta); }
+  .custa small { margin-top: 2px; font-size: 12px; }
+  .numeros small { font-size: 12px; }
+  .ministerio { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 8px !important; margin-left: 8px; font-size: 13px !important; }
+  .ministerio select { font: inherit; font-size: 14px; height: 44px; padding: 9px 10px; border: 1px solid var(--tinta); background: #fff; color: var(--tinta); min-width: 190px; max-width: 280px; }
+  .ministerio select:disabled { border-color: var(--regra); color: var(--texto-3); }
+  .botoes button.sem-dados { border-style: dashed; border-color: var(--regra); color: var(--texto-3); }
+  .botoes button.sem-dados[aria-pressed="true"] { border-style: solid; border-color: var(--tinta); color: var(--papel); }
+  .dica { flex-basis: 100%; font-size: 12px; line-height: 1.5; }
+  .aviso { display: flex; flex-direction: column; gap: 10px; padding: 24px; background: #fff; border: 1px solid var(--regra); border-top: 4px solid var(--tinta); max-width: 760px; }
+  .aviso p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .aviso strong { color: var(--tinta); }
+  .aviso .aviso-titulo { font-family: var(--serifa); font-size: 22px; font-weight: 600; line-height: 1.3; color: var(--tinta); }
+  .aviso-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-top: 4px; font-size: 14px; }
+  .aviso-acoes .cheio { font: inherit; font-size: 14px; font-weight: 600; min-height: 44px; padding: 8px 14px; border: 1px solid var(--tinta); background: var(--tinta); color: var(--papel); cursor: pointer; }
+  .so-celular { display: none; }
+  .pe { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; color: var(--texto-3); }
+  .pe button { font: inherit; font-size: 14px; font-weight: 600; min-height: 44px; padding: 8px 14px; border: 1px solid var(--tinta); background: transparent; color: var(--tinta); cursor: pointer; }
+  .lista { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--tinta); }
+  .lista li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--regra-leve); font-size: 15px; }
+  .lista li > span:first-child { flex: 1; min-width: 0; }
+  .lista li > span:nth-child(2) { white-space: nowrap; color: var(--texto-2); font-size: 14px; }
+  .lista .fatia { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; width: 120px; flex-shrink: 0; }
+  .lista .fatia i { display: block; height: 8px; background: var(--verde); min-width: 1px; max-width: 70px; }
+  .lista .fatia b { font-weight: 600; min-width: 36px; text-align: right; }
+  .lista li.sem-cidade { color: var(--texto-3); }
+  .lista li:not(.sem-cidade) + li.sem-cidade { border-top: 1px solid var(--tinta); margin-top: 16px; }
+
+  @media (max-width: 900px) {
+    .caminho { padding-top: 18px; }
+    .topo { padding: 20px 0 18px; }
+    .topo h1 { font-size: 40px; }
+    .topo p { font-size: 16px; }
+    .campo-grande input { font-size: 17px; }
+    .filtros label { flex: 1 1 140px; }
+    .filtros select { min-width: 0; max-width: none; width: 100%; height: 44px; }
+    .botoes button { padding: 8px 12px; }
+    h2 { font-size: 24px; }
+    .numeros { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+    .numeros strong { font-size: 24px; }
+    .agrupar button:not(.link) { min-height: 44px; }
+    .agrupar .espaco { display: none; }
+    .tabela .cab { display: none; }
+    .tabela .linha { grid-template-columns: auto minmax(0, 1fr); gap: 8px 10px; padding: 14px 0; align-items: center; }
+    .tabela .obra { grid-column: 1 / -1; }
+    .so-celular { display: inline; }
+    .ministerio { flex-basis: 100%; margin-left: 0; flex-direction: column !important; align-items: stretch; gap: 4px !important; font-size: 12px !important; }
+    .ministerio select { width: 100%; min-width: 0; max-width: none; }
+    .so-pc { display: none !important; }
+    .aviso { padding: 18px; }
+    .d { text-align: left; }
+    .liberado { text-align: right; font-size: 13px; }
+    .custa strong { font-size: 20px; }
+    .lista li { flex-wrap: wrap; gap: 2px 12px; }
+    .lista li > span:first-child { flex-basis: 100%; }
+    .lista li > span:nth-child(2) { flex: 1; white-space: normal; }
+  }
+  }
+</style>
