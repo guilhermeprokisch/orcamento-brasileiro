@@ -5,6 +5,7 @@ import { moedaCurta, moedaExtenso } from "../lib/formato";
 import { anoBase, docBase, resumo } from "../lib/perfis";
 import { corDaRampa, DESTAQUE, OUTRAS } from "../lib/cores";
 import { palavraDoDia } from "../lib/glossario";
+import { todasAsLicoes, urlLicao } from "../lib/licoes";
 
 const ultimo = resumo?.anos.find((a) => a.ano === anoBase) ?? null;
 const dataExtenso = resumo
@@ -88,6 +89,19 @@ const areas = [
 ];
 const palavra = palavraDoDia();
 const fmtPct = (p: number) => Math.round(p);
+
+// "Comece aqui": as três primeiras lições da trilha do orçamento, para quem chega sem saber nada.
+const FRASE_PASSO: Record<number, string> = {
+  1: "Uma lei que diz quanto o governo pode gastar, e em quê.",
+  2: "Três leis, um calendário, e onde entram as emendas.",
+  3: "Dotação, empenho, liquidação e pagamento.",
+};
+const TITULO_PASSO: Record<number, string> = { 2: "Quem decide: PPA, LDO e LOA" };
+const licoes = await todasAsLicoes();
+const nLicoes = licoes.filter((l) => l.data.trilha === "orcamento").length;
+const passos = licoes
+  .filter((l) => l.data.trilha === "orcamento" && l.data.ordem <= 3)
+  .map((l) => ({ n: l.data.ordem, titulo: TITULO_PASSO[l.data.ordem] ?? l.data.titulo, frase: FRASE_PASSO[l.data.ordem] ?? "", minutos: l.data.minutos, href: urlLicao(l) }));
 ---
 
 <Base
@@ -117,6 +131,31 @@ const fmtPct = (p: number) => Math.round(p);
           <div><span>Empenhado</span><strong class="num">{moedaCurta(ultimo.empenhado)}</strong></div>
           <div><span>Pago</span><strong class="num pago">{moedaCurta(ultimo.realizado)}</strong></div>
         </aside>
+      </section>
+    )}
+
+    {passos.length > 0 && (
+      <section class="comece" aria-labelledby="comece-titulo">
+        <div class="comece-texto">
+          <span class="sobretitulo verde">Comece aqui</span>
+          <h2 id="comece-titulo">Nunca entendeu o orçamento público? <span class="marca">Comece do zero.</span></h2>
+          <p>O que é, quem decide e o caminho que cada real faz até sair do Tesouro.<span class="so-largo"> Três lições curtas, sem jargão, com os números de verdade.</span><span class="so-celular"> Três lições curtas, sem jargão.</span></p>
+        </div>
+        <ol class="comece-passos">
+          {passos.map((p) => (
+            <li>
+              <a href={p.href}>
+                <span class="serifa n">{p.n}</span>
+                <span class="corpo"><strong class="serifa">{p.titulo}</strong><span class="so-largo">{p.frase}</span></span>
+                <span class="min">{p.minutos} min</span>
+              </a>
+            </li>
+          ))}
+        </ol>
+        <div class="comece-acoes">
+          <a class="botao" href={passos[0].href}>Começar pela lição 1 →</a>
+          <a class="link-forte" href="/aprenda">Ver as {nLicoes} lições</a>
+        </div>
       </section>
     )}
 
@@ -249,6 +288,42 @@ const fmtPct = (p: number) => Math.round(p);
   .cem-itens a:hover span { text-decoration: underline; }
   .cem-itens strong { font-size: 32px; align-self: flex-start; }
   .cem-itens span { color: var(--texto-2); }
+
+  .comece {
+    padding: 36px 0 40px; border-top: 2px solid var(--tinta);
+    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 32px; row-gap: 22px;
+    grid-template-areas: "texto texto texto texto texto . passos passos passos passos passos passos"
+                         "acoes acoes acoes acoes acoes . passos passos passos passos passos passos";
+    align-items: start;
+  }
+  .comece-texto { grid-area: texto; display: flex; flex-direction: column; gap: 14px; }
+  .comece h2 { font-size: 40px; line-height: 1.08; letter-spacing: -0.015em; }
+  .comece-texto p { margin: 0; font-size: 17px; line-height: 1.6; color: var(--texto-2); }
+  .comece-acoes { grid-area: acoes; display: flex; gap: 20px; align-items: center; }
+  .comece-passos { grid-area: passos; margin: 0; padding: 0; list-style: none; }
+  .comece-passos li { border-top: 1px solid var(--regra); }
+  .comece-passos li:last-child { border-bottom: 1px solid var(--regra); }
+  .comece-passos a { display: flex; gap: 20px; align-items: baseline; padding: 18px 0; color: var(--tinta); text-decoration: none; }
+  .comece-passos .n { font-size: 34px; font-weight: 700; color: var(--verde); width: 36px; flex: none; }
+  .comece-passos .corpo { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+  .comece-passos strong { font-size: 24px; line-height: 1.2; }
+  .comece-passos a:hover strong { text-decoration: underline; text-decoration-thickness: 2px; }
+  .comece-passos .corpo > span { font-size: 15px; color: var(--texto-2); }
+  .comece-passos .min { font-size: 13px; color: var(--texto-3); flex: none; }
+  @media (max-width: 900px) {
+    .comece { display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 24px 0 28px; }
+    .comece h2 { font-size: 30px; line-height: 1.1; }
+    .comece-texto { gap: 12px; }
+    .comece-texto p { font-size: 16px; line-height: 1.55; }
+    .comece-passos { margin-top: 6px; }
+    .comece-passos a { gap: 14px; padding: 14px 0; }
+    .comece-passos .n { font-size: 26px; width: 22px; }
+    .comece-passos strong { font-size: 20px; }
+    .comece-passos .min { font-size: 12px; }
+    .comece-acoes { flex-direction: column; gap: 4px; margin-top: 8px; }
+    .comece-acoes .botao { width: 100%; justify-content: center; }
+    .comece-acoes .link-forte { padding: 10px 0; }
+  }
 
   .local {
     padding: 28px 0; border-top: 2px solid var(--tinta);
