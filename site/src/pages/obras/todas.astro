@@ -230,14 +230,20 @@ const descricao = d
         for (const o of lista) {
           const k = por === "cidade" ? (o[2] ?? `${o[10]}|${o[1] ?? ""}`) : por === "tipo" ? o[3] : o[4];
           let x = g.get(k);
-          if (!x) g.set(k, x = { k, n: 0, v: 0, paradas: 0, nome: por === "cidade" ? lugarDe(o) : por === "tipo" ? nomeTipo(SETORES[o[3]]) : PAGADORES[o[4]], ibge: por === "cidade" ? o[2] : null, valor: por === "tipo" ? SETORES[o[3]] : PAGADORES[o[4]] });
+          if (!x) g.set(k, x = { k, n: 0, v: 0, paradas: 0, nome: por === "cidade" ? lugarDe(o) : por === "tipo" ? nomeTipo(SETORES[o[3]]) : PAGADORES[o[4]], ibge: por === "cidade" ? o[2] : null, semCidade: !o[1], valor: por === "tipo" ? SETORES[o[3]] : PAGADORES[o[4]] });
           x.n += 1; x.v += o[7]; if (o[5] === 1) x.paradas += 1;
         }
-        const l = [...g.values()].sort((a, b) => b.v - a.v || b.n - a.n), maior = l[0]?.v || 1;
-        corpo = `<ol class="lista">${l.slice(0, 200).map((x) => `<li><span>${por === "cidade"
+        // Por cidade, as obras sem cidade (estradas do DNIT, Codevasf, só com o estado) vão para o fim: não são de uma cidade.
+        const semCidade = (x) => (por === "cidade" && x.semCidade ? 1 : 0);
+        const l = [...g.values()].sort((a, b) => semCidade(a) - semCidade(b) || b.v - a.v || b.n - a.n), maior = Math.max(1, ...l.map((x) => x.v));
+        const sc = l.filter(semCidade), comCidade = l.length - sc.length;
+        const notaSemCidade = sc.length && comCidade ? `<p class="menor">No fim da lista ficam as obras sem cidade informada, que só dizem o estado (estradas, barragens, obras que passam por várias cidades): ${obras_(sc.reduce((s, x) => s + x.n, 0))}, que custam ${curto(sc.reduce((s, x) => s + x.v, 0))}.</p>` : "";
+        // Na lista de cidades, as sem cidade aparecem depois das 200 primeiras com cidade, se houver tantas.
+        const mostradas = por === "cidade" ? [...l.filter((x) => !semCidade(x)).slice(0, 200), ...sc] : l.slice(0, 200);
+        corpo = `${notaSemCidade}<ol class="lista">${mostradas.map((x) => `<li${semCidade(x) ? ' class="sem-cidade"' : ""}><span>${por === "cidade"
           ? (x.ibge ? `<a href="/obras/todas?cidade=${x.ibge}">${esc(x.nome)}</a>` : esc(x.nome))
           : `<button type="button" class="link" data-filtro="${por}" data-valor="${esc(x.valor)}">${esc(x.nome)}</button>`}</span><span>${obras_(x.n)}${situacao < 0 && x.paradas ? `, ${x.paradas === 1 ? "1 parada" : `${nf0.format(x.paradas)} paradas`}` : ""} · ${curto(x.v)}</span><span class="fatia" title="Parte no custo de todas as obras encontradas"><i style="width:${Math.max(1, (x.v / maior) * 70)}px"></i><b>${fatia(x.v, previsto)}</b></span></li>`).join("")}</ol>
-          ${l.length > 200 ? `<p class="menor">Mostrando as 200 primeiras de ${nf0.format(l.length)}.</p>` : ""}`;
+          ${l.length - sc.length > 200 ? `<p class="menor">Mostrando as 200 primeiras de ${nf0.format(l.length - sc.length)}${sc.length ? ", e no fim as obras sem cidade" : ""}.</p>` : ""}`;
       }
       saida.innerHTML = `
         <h2>${esc(titulo)}</h2>
@@ -378,6 +384,8 @@ const descricao = d
   .lista .fatia { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; width: 120px; flex-shrink: 0; }
   .lista .fatia i { display: block; height: 8px; background: var(--verde); min-width: 1px; max-width: 70px; }
   .lista .fatia b { font-weight: 600; min-width: 36px; text-align: right; }
+  .lista li.sem-cidade { color: var(--texto-3); }
+  .lista li:not(.sem-cidade) + li.sem-cidade { border-top: 1px solid var(--tinta); margin-top: 16px; }
 
   @media (max-width: 900px) {
     .caminho { padding-top: 18px; }
