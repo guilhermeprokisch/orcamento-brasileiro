@@ -218,9 +218,10 @@ Aprovado pelo Guilherme em 27/11/2026, com o mock no Claude Design
 - **Carga**: `uv run obras-tcesp` (`pipeline/src/orcamento_pipeline/obras_tcesp.py`) baixa o painel do TCE-SP
   (a tabela inteira e a mesma tabela filtrada por cada fonte de dinheiro), grava o que veio em
   `data/raw/tcesp-obras/painel.json` e a cópia de referência em `pipeline/referencia/obras-tcesp.json`, e refaz os
-  arquivos do explorador juntando as obras ao `SP.json`. `--sem-baixar` só refaz os arquivos. A publicação roda
-  `obras-tcesp` logo depois do `obras-paradas --atualizar` (`.github/scripts/dados.sh`); se o painel não responder,
-  fica a cópia de referência, que o próprio `obras-paradas` já junta.
+  arquivos do explorador juntando as obras ao `SP.json`. `--sem-baixar` só refaz os arquivos. A carga é
+  **à mão, no Mac**: na primeira publicação (27/11/2026) o painel respondeu vazio aos servidores do GitHub, nas
+  quatro tentativas. A publicação só usa a cópia de referência, que o `obras-paradas --atualizar` já junta ao
+  `SP.json`. Quando o painel mostrar uma data-base nova, rodar `uv run obras-tcesp` e mandar a cópia pelo git.
 - **Resultado em 27/11/2026** (data-base 17/10/2026): 7.580 obras, 894 do estado e 6.686 das prefeituras; 268 paradas
   e 601 atrasadas; R$ 26,7 bilhões em contratos. Ficaram de fora 47 linhas repetidas e 402 obras pagas só com dinheiro
   federal.
