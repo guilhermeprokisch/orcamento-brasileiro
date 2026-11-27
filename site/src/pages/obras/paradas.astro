@@ -4,13 +4,14 @@
  * quem paga, as maiores, há quanto tempo estão paradas, o que aconteceu com as da lista anterior e onde o
  * TCU e o órgão discordam. Dados: lib/obras-paradas.ts (pipeline/…/obras_paradas.py).
  */
-import Base from "../layouts/Base.astro";
-import Termo from "../components/Termo.astro";
-import ListaObras from "../components/obras/ListaObras.astro";
-import { moedaCompleta, moedaCurta, moedaExtenso } from "../lib/formato";
-import { corDaRampa } from "../lib/cores";
-import { caminhoEstado } from "../lib/cidades";
-import { dataBr, mesAno, mesAnoCurto, obrasNoBrasil } from "../lib/obras-paradas";
+import Base from "../../layouts/Base.astro";
+import AbasSecao from "../../components/AbasSecao.astro";
+import Termo from "../../components/Termo.astro";
+import ListaObras from "../../components/obras/ListaObras.astro";
+import { moedaCompleta, moedaCurta, moedaExtenso } from "../../lib/formato";
+import { corDaRampa } from "../../lib/cores";
+import { caminhoEstado } from "../../lib/cidades";
+import { dataBr, mesAno, mesAnoCurto, obrasNoBrasil } from "../../lib/obras-paradas";
 
 const d = await obrasNoBrasil();
 const nf = new Intl.NumberFormat("pt-BR");
@@ -59,6 +60,7 @@ const descricao = d
 
 <Base title="Obras paradas · Orçamento Brasileiro" description={descricao}>
   <div class="wrap pagina-obras">
+    <AbasSecao secao="obras" ativa="paradas" />
     {!d ? (
       <section class="cabeca"><div><h1>Obras paradas</h1><p>Os dados ainda não foram carregados.</p></div></section>
     ) : (

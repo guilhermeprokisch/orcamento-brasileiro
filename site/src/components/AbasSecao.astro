@@ -1,0 +1,64 @@
+---
+/**
+ * As abas no alto das páginas de uma seção com mais de uma página (contratos, obras), no mesmo desenho das abas
+ * das emendas (components/emendas/EmendasAbas.astro). As seções e as suas páginas são as mesmas do menu
+ * (layouts/Base.astro): ao mudar uma, mudar a outra.
+ */
+interface Props {
+  secao: keyof typeof SECOES;
+  ativa: string;
+}
+
+const SECOES = {
+  contratos: {
+    nome: "Contratos",
+    abas: [
+      { id: "contratos", href: "/contratos", nome: "Todos os contratos", curto: "Contratos", dica: "por órgão, empresa ou cidade" },
+      { id: "precos", href: "/precos", nome: "Preço dos remédios", curto: "Remédios", dica: "o mesmo remédio, quem pagou quanto" },
+    ],
+  },
+  obras: {
+    nome: "Obras",
+    abas: [
+      { id: "resumo", href: "/obras", nome: "Resumo", curto: "Resumo", dica: "as obras federais, por tipo e estado" },
+      { id: "todas", href: "/obras/todas", nome: "Todas, uma a uma", curto: "Todas", dica: "União, estados e prefeituras" },
+      { id: "paradas", href: "/obras/paradas", nome: "Paradas", curto: "Paradas", dica: "onde, quanto e desde quando" },
+    ],
+  },
+} as const;
+
+const { secao, ativa } = Astro.props;
+const s = SECOES[secao];
+---
+
+<nav class="abas-secao" aria-label={s.nome}>
+  <span class="rotulo">{s.nome}</span>
+  <ul>
+    {s.abas.map((a) => (
+      <li><a href={a.href} aria-current={a.id === ativa ? "page" : undefined}><strong class="longo">{a.nome}</strong><strong class="curto">{a.curto}</strong><span>{a.dica}</span></a></li>
+    ))}
+  </ul>
+</nav>
+
+<style>
+  .abas-secao { display: flex; align-items: flex-end; gap: 8px 24px; flex-wrap: wrap; border-bottom: 1px solid var(--tinta); padding-top: 20px; }
+  .rotulo { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--texto-3); padding-bottom: 12px; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 4px; }
+  a { display: flex; flex-direction: column; gap: 1px; padding: 8px 14px 9px; text-decoration: none; color: var(--texto-3); border: 1px solid transparent; border-bottom: 0; margin-bottom: -1px; }
+  a strong { font-family: var(--serifa); font-size: 18px; font-weight: 700; color: inherit; }
+  a span { font-size: 12.5px; }
+  a:hover { color: var(--tinta); }
+  .curto { display: none; }
+  a[aria-current="page"] { color: var(--tinta); border-color: var(--tinta); background: var(--papel); }
+  @media (max-width: 900px) {
+    .abas-secao { padding-top: 14px; }
+    .rotulo { display: none; }
+    ul { width: 100%; }
+    li { flex: 1 1 0; min-width: 0; }
+    a { padding: 8px 8px 9px; height: 100%; }
+    a strong { font-size: 15px; line-height: 1.2; }
+    a span { display: none; }
+    .longo { display: none; }
+    .curto { display: block; }
+  }
+</style>

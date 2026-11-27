@@ -7,6 +7,7 @@
  * obras_tcesp.py. Com um estado ou uma cidade escolhidos baixa-se só o arquivo daquele estado.
  */
 import Base from "../../layouts/Base.astro";
+import AbasSecao from "../../components/AbasSecao.astro";
 import Termo from "../../components/Termo.astro";
 import { moedaExtenso } from "../../lib/formato";
 import { mesAno, SEM_SETOR } from "../../lib/obras-paradas";
@@ -46,7 +47,7 @@ const descricao = d
     data-setores={d ? JSON.stringify(d.setores) : undefined} data-pagadores={d ? JSON.stringify(d.quem_paga) : undefined}
     data-pac={d ? JSON.stringify(d.pac) : undefined} data-esferas={JSON.stringify(esferas)}
     data-tcesp-uf={tcesp?.uf}>
-    <nav class="caminho" aria-label="Caminho"><a href="/obras">Obras</a><span aria-hidden="true">›</span><span>Todas as obras</span></nav>
+    <AbasSecao secao="obras" ativa="todas" />
     <section class="topo">
       {d && (tcesp
         ? <span class="sobretitulo">União, estados e prefeituras · TCU de {mesAno(d.data_base)} e TCE-SP de {mesAno(tcesp.data_base.slice(0, 7))}</span>
@@ -134,7 +135,7 @@ const descricao = d
             para ela; nas do estado e das prefeituras, o valor é o do contrato. {nf.format(tcesp.so_federal[0])} obras da lista
             de SP pagas só com dinheiro federal ficam de fora, para não aparecerem duas vezes. Fontes: <a href={d.url} rel="noopener">{d.fonte}</a>,
             de {mesAno(d.data_base)}; <a href={tcesp.url} rel="noopener">{tcesp.fonte}</a>, de {dataTcesp}.
-            Veja também <a href="/obras">o resumo das obras federais em andamento</a> e <a href="/obras-paradas">as obras federais paradas, cidade por cidade</a>.
+            Veja também <a href="/obras">o resumo das obras federais em andamento</a> e <a href="/obras/paradas">as obras federais paradas, cidade por cidade</a>.
           </p>
         ) : (
         <p class="nota">
@@ -143,7 +144,7 @@ const descricao = d
           pode estar parada, e uma parada pode ter voltado. “Custa” é o valor previsto, que pode mudar até o fim da obra; “já
           liberado” é o dinheiro federal que já saiu para ela. Em {nf.format(d.total[0] - Object.entries(d.uf).filter(([k]) => k.length === 2).reduce((s, [, v]) => s + v[0], 0))} obra
           o TCU não informa o estado. Fonte: <a href={d.url} rel="noopener">{d.fonte}</a>, de {mesAno(d.data_base)}.
-          Veja também <a href="/obras">o resumo das obras em andamento</a> e <a href="/obras-paradas">as obras paradas, cidade por cidade</a>.
+          Veja também <a href="/obras">o resumo das obras em andamento</a> e <a href="/obras/paradas">as obras paradas, cidade por cidade</a>.
         </p>
         )}
       </>
@@ -452,7 +453,6 @@ const descricao = d
   /* Global, mas só dentro do explorador: a lista é montada no navegador, fora do escopo do Astro. */
   @keyframes corre-obras { from { left: -35%; } to { left: 100%; } }
   .obras-todas {
-  .caminho { display: flex; gap: 8px; padding-top: 24px; font-size: 13px; color: var(--texto-3); }
   .topo { padding: 28px 0 20px; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
   .topo h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
   .topo p { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); }
@@ -548,7 +548,6 @@ const descricao = d
   .lista li:not(.sem-cidade) + li.sem-cidade { border-top: 1px solid var(--tinta); margin-top: 16px; }
 
   @media (max-width: 900px) {
-    .caminho { padding-top: 18px; }
     .topo { padding: 20px 0 18px; }
     .topo h1 { font-size: 40px; }
     .topo p { font-size: 16px; }

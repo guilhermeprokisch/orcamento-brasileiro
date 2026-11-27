@@ -117,7 +117,7 @@ fila_independente() {
   # feita à mão (uv run divida-ativa; ~1,5 GB da PGFN e ~6,7 GB da Receita, lidos e apagados), uma vez por
   # trimestre. Aqui só a cópia de referência.
   pipe pode-falhar "Dívida ativa da União" divida-ativa --sem-baixar
-  # Obras paradas (/obras-paradas e as páginas das cidades e dos estados): a lista do Painel de Obras Paralisadas do
+  # Obras paradas (/obras/paradas e as páginas das cidades e dos estados): a lista do Painel de Obras Paralisadas do
   # TCU, um Power BI sem arquivo para baixar. Cada data-base é exportada à mão do painel e lida por uv run obras-paradas
   # (ver o começo de obras_paradas.py), uma vez por ano. Aqui, a cópia de referência com os valores dos convênios
   # atualizados pelo arquivo de hoje do Transferegov (~18 MB); se o Transferegov não responder, fica a cópia como está.
