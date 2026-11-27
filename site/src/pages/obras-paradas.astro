@@ -78,7 +78,7 @@ const descricao = d
         </section>
 
         <section class="numeros" aria-label="Os números principais">
-          <div><span>Obras paradas</span><strong class="num">{nf.format(d.n)}</strong><small>{pct0(d.n / d.ativas)} das {nf.format(d.ativas)} obras federais começadas e não terminadas na lista</small></div>
+          <div><span>Obras paradas</span><strong class="num">{nf.format(d.n)}</strong><small>{pct0(d.n / d.ativas)} das <a href="/obras">{nf.format(d.ativas)} obras federais em andamento</a> na lista</small></div>
           <div><span>Custariam</span><strong class="num">{moedaCurta(d.previsto)}</strong><small>o valor previsto, somado</small></div>
           <div><span>Já liberado</span><strong class="num">{moedaCurta(d.liberado)}</strong><small>dinheiro federal que já saiu para elas</small></div>
           {antigas && <div><span>Paradas desde {mesAnoCurto(primeira)}</span><strong class="num">{nf.format(antigas.n)}</strong><small>já estavam na lista mais antiga do TCU</small></div>}

@@ -16,6 +16,10 @@ type ObraBruta = [string, string, string, string | null, number | null, number, 
   string, string, number, ConvenioBruto | null, string?, (number | null)?];
 /** [obras com convênio, valor global, desembolsado, saldo em conta] */
 type SomaTg = [number, number, number, number];
+/** [obras em andamento (em execução + paradas), previsto, liberado, quantas paradas, previsto das paradas] */
+type SomaAndamento = [number, number, number, number, number];
+/** [nome, quem paga, setor, % feito, previsto, liberado, local, ibge, parada (0/1), PAC ou null] */
+type AndamentoBruta = [string, string, string, number | null, number, number, string | null, number | null, number, string | null];
 
 interface DocObras {
   data_base: string;
@@ -26,6 +30,14 @@ interface DocObras {
   brasil: {
     total: Soma;
     ativas: number;
+    /** A lista inteira (em execução + paradas); cópias de referência antigas não têm. */
+    andamento?: {
+      total: SomaAndamento;
+      setor: [string, ...SomaAndamento][];
+      quem_paga: [string, ...SomaAndamento][];
+      uf: Record<string, SomaAndamento>;
+      maiores: AndamentoBruta[];
+    };
     cidades_com_obra: number;
     sem_cidade: Soma;
     quem_paga: [string, ...Soma][];
@@ -261,5 +273,55 @@ export async function obrasNoBrasil(): Promise<ObrasBrasil | null> {
     historico: b.historico,
     destino: b.destino,
     maioresSaldo: (b.transferegov?.maiores_saldo ?? []).map((o) => obra(o, d.bases)),
+  };
+}
+
+/** Uma linha da lista inteira (em execução + paradas): um tipo de obra, um órgão ou um estado. */
+export interface LinhaAndamento { nome: string; n: number; previsto: number; liberado: number; paradas: number; previstoParadas: number }
+const linhaAndamento = ([nome, n, previsto, liberado, paradas, previstoParadas]: [string, ...SomaAndamento]): LinhaAndamento =>
+  ({ nome, n, previsto, liberado, paradas, previstoParadas });
+
+export interface ObraEmAndamento {
+  nome: string;
+  quemPaga: string;
+  setor: string;
+  feito: number | null;
+  previsto: number;
+  liberado: number;
+  local: string | null;
+  ibge: number | null;
+  parada: boolean;
+  /** "Novo PAC" ou "PAC (legado)", quando a obra é do PAC. */
+  pac: string | null;
+}
+
+export interface ObrasAndamento extends Comum, Omit<LinhaAndamento, "nome"> {
+  setor: LinhaAndamento[];
+  quemPaga: LinhaAndamento[];
+  estados: (LinhaAndamento & { uf: string })[];
+  maiores: ObraEmAndamento[];
+}
+
+/** O setor que o TCU usa quando não classificou a obra. */
+export const SEM_SETOR = "Não identificado";
+
+/** Todas as obras federais em andamento na lista do TCU (em execução + paradas). null sem o arquivo ou sem o bloco. */
+export async function obrasEmAndamento(): Promise<ObrasAndamento | null> {
+  const d = await docObrasParadas();
+  const a = d?.brasil.andamento;
+  if (!d || !a) return null;
+  const { nome: _, ...total } = linhaAndamento(["", ...a.total]);
+  return {
+    ...comum(d),
+    ...total,
+    setor: a.setor.map(linhaAndamento),
+    quemPaga: a.quem_paga.map(linhaAndamento),
+    estados: Object.entries(a.uf)
+      .map(([uf, s]) => ({ uf, ...linhaAndamento([NOMES_UF[uf] ?? uf, ...s]) }))
+      .sort((x, y) => y.previsto - x.previsto),
+    maiores: a.maiores.map((o) => ({
+      nome: o[0], quemPaga: o[1], setor: o[2], feito: o[3], previsto: o[4], liberado: o[5], local: o[6], ibge: o[7],
+      parada: o[8] === 1, pac: o[9],
+    })),
   };
 }
