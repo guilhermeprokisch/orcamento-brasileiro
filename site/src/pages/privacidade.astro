@@ -1,0 +1,100 @@
+---
+/**
+ * Política de privacidade: o que o site guarda de quem visita (quase nada), o e-mail de quem segue uma cidade
+ * (functions/api/*, site/servidor/seguir.ts) e o uso dos serviços de API do YouTube para publicar os vídeos do canal,
+ * que o Google pede numa página pública antes de liberar o app de publicação.
+ * Ao mudar o que o site coleta, atualize esta página e a data abaixo.
+ */
+import Base from "../layouts/Base.astro";
+
+const ATUALIZADA = "27 de novembro de 2026";
+const CONTATO = "contato@orcamentobrasileiro.com.br";
+---
+
+<Base title="Privacidade · Orçamento Brasileiro" description="O que o Orçamento Brasileiro guarda sobre quem visita o site, segue uma cidade por e-mail ou vê os nossos vídeos.">
+  <div class="wrap">
+    <section class="topo">
+      <span class="sobretitulo">Atualizada em {ATUALIZADA}</span>
+      <h1>Privacidade</h1>
+      <p>
+        O site mostra dinheiro público, não dados de quem visita. Não pedimos cadastro, não colocamos cookies, não usamos
+        ferramentas de rastreamento nem de anúncios. A única informação pessoal que guardamos é o e-mail de quem pede
+        para seguir uma cidade ou um estado.
+      </p>
+    </section>
+
+    <section class="bloco">
+      <h2>Quando você visita o site</h2>
+      <p>
+        Não guardamos nada sobre a sua visita. O site é servido pela Cloudflare, que recebe dados técnicos de cada acesso
+        (endereço IP, navegador, página pedida) para entregar as páginas e proteger o site contra ataques,
+        conforme a <a href="https://www.cloudflare.com/pt-br/privacypolicy/">política de privacidade da Cloudflare</a>.
+      </p>
+      <p>
+        As fontes do texto vêm do Google Fonts, então o seu navegador também pede arquivos ao Google, que recebe o
+        endereço IP conforme a <a href="https://policies.google.com/privacy?hl=pt-BR">política de privacidade do Google</a>.
+      </p>
+      <p>
+        Algumas páginas lembram coisas só no seu navegador, como as lições do Aprenda que você já leu e se você já viu
+        o guia do mapa. Isso fica no armazenamento local do seu navegador, nunca chega até nós, e some se você limpar os
+        dados do site.
+      </p>
+    </section>
+
+    <section class="bloco">
+      <h2>Quando você segue uma cidade ou um estado</h2>
+      <p>
+        Para receber por e-mail o que saiu de novo num lugar, você informa o seu endereço de e-mail. Guardamos o e-mail,
+        os lugares que você segue, as datas do pedido e da confirmação e um código secreto que vai nos links dos e-mails.
+        Esses dados ficam num banco de dados da Cloudflare, e os e-mails saem do nosso próprio servidor de e-mail.
+      </p>
+      <ul>
+        <li>Usamos o endereço só para mandar a confirmação e, no máximo uma vez por mês, o resumo do que mudou.</li>
+        <li>Não vendemos, não emprestamos e não passamos o seu e-mail para ninguém.</li>
+        <li>Se você não confirmar o pedido, ele é apagado depois de 7 dias.</li>
+        <li>Todo e-mail tem um link para sair. Ao sair, o seu endereço e os lugares que você seguia são apagados.</li>
+      </ul>
+    </section>
+
+    <section class="bloco">
+      <h2>Vídeos no YouTube e no Instagram</h2>
+      <p>
+        Publicamos vídeos no canal <a href="https://www.youtube.com/@orcamentobrasileiro">@orcamentobrasileiro</a> do YouTube
+        e no <a href="https://www.instagram.com/orcamentobrasileiro/">@orcamentobrasileiro</a> do Instagram. Quem assiste,
+        curte ou comenta lá está nas plataformas, e vale a política delas.
+      </p>
+      <p>
+        Para publicar os vídeos, usamos os serviços de API do YouTube (YouTube API Services) com a nossa própria conta. Esse
+        uso serve só para enviar vídeos ao nosso canal e ler os dados do próprio canal. Não pedimos acesso à sua conta do
+        Google ou do YouTube, e não coletamos, guardamos nem compartilhamos dados de quem assiste. Ao usar o YouTube, você
+        segue os <a href="https://www.youtube.com/t/terms">Termos de Serviço do YouTube</a> e a
+        {" "}<a href="https://policies.google.com/privacy?hl=pt-BR">Política de Privacidade do Google</a>. Se algum dia você der
+        acesso à sua conta a um app nosso, pode tirar esse acesso a qualquer momento
+        na <a href="https://myaccount.google.com/permissions">página de permissões da sua Conta do Google</a>.
+      </p>
+    </section>
+
+    <section class="bloco">
+      <h2>Seus direitos</h2>
+      <p>
+        Pela Lei Geral de Proteção de Dados (Lei 13.709/2018), você pode pedir para saber quais dados seus temos, corrigir
+        ou apagar. Escreva para <a href={`mailto:${CONTATO}`}>{CONTATO}</a>. O Orçamento Brasileiro é um projeto
+        independente, sem vínculo com o Governo Federal.
+      </p>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .topo { padding: 44px 0 28px; display: flex; flex-direction: column; gap: 12px; max-width: 820px; }
+  .topo h1 { font-size: 60px; line-height: 1; letter-spacing: -0.025em; }
+  .topo p { margin: 0; font-size: 18px; line-height: 1.6; color: var(--texto-2); }
+  .bloco { border-top: 2px solid var(--tinta); padding: 24px 0 28px; display: flex; flex-direction: column; gap: 12px; max-width: 820px; }
+  .bloco h2 { font-size: 32px; line-height: 1.15; }
+  .bloco p, .bloco li { margin: 0; font-size: 17px; line-height: 1.65; color: var(--texto-2); }
+  .bloco ul { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; }
+  @media (max-width: 720px) {
+    .topo h1 { font-size: 44px; }
+    .bloco h2 { font-size: 26px; }
+  }
+</style>
