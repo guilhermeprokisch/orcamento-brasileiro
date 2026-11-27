@@ -20,8 +20,10 @@ sem o começo burocrático ("Contratação de empresa para…").
 
 Saída: pipeline/referencia/obras-tcesp.json (a cópia de referência) e, juntando à lista do TCU
 (pipeline/referencia/obras-todas.json), os arquivos do explorador em site/public/data/obras/ (ver obras_paradas.py).
-A publicação roda este comando depois do obras-paradas; se o painel não responder, fica o que obras-paradas gravou
-com a cópia de referência.
+A carga é à mão, no Mac: o painel do TCE-SP responde vazio aos servidores do GitHub (testado em 27/11/2026). A
+publicação não roda este comando; o obras-paradas junta a cópia de referência ao refazer os arquivos do explorador.
+Quando o TCE-SP publicar uma data-base nova (o painel diz a data no alto), rodar uv run obras-tcesp e mandar a cópia
+de referência pelo git.
 """
 
 from __future__ import annotations
