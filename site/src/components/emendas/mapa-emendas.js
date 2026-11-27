@@ -88,6 +88,11 @@
     if (p) return `${p.casa}${p.partido ? ` · ${p.partido}` : ""}${p.uf ? `-${p.uf}` : ""}`;
     return colegiado(nome) ? "colegiado do Congresso" : "não achei no cadastro";
   };
+  /** Partido e estado, curto ("PL-SP"), para ir ao lado do nome; vazio quando não há. */
+  const partidoDe = (nome) => {
+    const p = caras[nome];
+    return p?.partido ? `${p.partido}${p.uf ? `-${p.uf}` : ""}` : "";
+  };
 
   // O IBGE entrega os polígonos no sentido anti-horário (padrão GeoJSON); o d3 espera o contrário e
   // leria cada um como "o globo inteiro menos o polígono" — o que estoura o contorno e joga os
@@ -397,7 +402,7 @@
     cartao.innerHTML = `
       <h2>${escapar(p.nome)} <span>${escapar(legenda2(p.nome))}</span></h2>
       <p class="sub">${brl(p.v)} para ${escapar(d.n)} em ${rotuloAno()} · ${p.n} emenda${p.n > 1 ? "s" : ""}</p>
-      <p class="dica">${munSel?.ibge === d.ibge ? "Clique para ver tudo que este parlamentar mandou, no mapa." : "Clique para entrar na cidade."}</p>`;
+      <p class="dica">${munSel?.ibge === d.ibge ? "Clique para ver só as emendas dele, aqui e no mapa." : "Clique para entrar na cidade."}</p>`;
     cartao.classList.remove("fixo");
     cartao.hidden = false;
     posicionarCartao(ev);
@@ -519,9 +524,11 @@
   // ---- Modo município: a bolha é a porta de entrada --------------------------------------
   // Clicou numa bolha: o mapa centra nela, o resto esmaece, e o painel lista as emendas do
   // município uma a uma (um arquivo por município, baixado na hora).
-  let munSel = null, munDados = null, munFiltro = "", munBusca = "", munLimite = 60;
+  // munTodos: a lista da cidade ignora, só ali, o autor/tipo escolhido no alto ("ver de todos").
+  let munSel = null, munDados = null, munFiltro = "", munBusca = "", munLimite = 60, munTodos = false;
   const elMun = {
     nome: document.getElementById("mun-nome"), resumo: document.getElementById("mun-resumo"),
+    filtro: document.getElementById("mun-filtro"),
     busca: document.getElementById("mun-busca"), chips: document.getElementById("mun-chips"),
     conta: document.getElementById("mun-conta"), lista: document.getElementById("mun-lista"),
     mais: document.getElementById("mun-mais"),
@@ -529,14 +536,14 @@
 
   async function abrirMunicipio(d) {
     const trocou = munSel?.ibge !== d.ibge;
-    munSel = d; munFiltro = ""; munBusca = ""; munLimite = 60; elMun.busca.value = "";
+    munSel = d; munFiltro = ""; munBusca = ""; munLimite = 60; munTodos = false; elMun.busca.value = "";
     esconder(true);
     // Entrar na cidade: o painel abre por cima, à direita, e o mapa enquadra o território na parte
     // livre — como clicar no estado entra no estado. Ao fechar, a vista volta a ser a de antes.
     if (!main.classList.contains("com-mun")) antesDaCidade = d3.zoomTransform(svg.node());
     main.classList.add("com-mun");
-    // A lista da cidade não cruza com autor nem tipo do alto (tem os próprios filtros): em "todos", os
-    // dois campos saem do cabeçalho; com um autor ou tipo escolhido, ficam, que pintam o mapa.
+    // O autor ou tipo escolhido no alto vale também para a lista da cidade. Em "todos", os dois campos
+    // saem do cabeçalho (a lista tem os próprios filtros); com um escolhido, ficam, que pintam o mapa.
     raiz.classList.toggle("cidade-limpa", !autorSel && !filtroTipo);
     desenharMarcas();
     enquadrarCidade(d);
@@ -581,12 +588,20 @@
     main.classList.remove("com-mun"); raiz.classList.remove("cidade-limpa");
     desenharMarcas();
     pintarTotal();
+    // Escolheu um parlamentar com a cidade aberta: ao fechar, o mapa vai ao território dele.
     if (antesDaCidade) { svg.transition().duration(600).call(zoom.transform, antesDaCidade); antesDaCidade = null; }
+    else if (autorSel) enquadrar(emDesenho);
   }
   // Uma emenda paga em mais de um ano entra no ano escolhido se o pagamento passou por ele; o valor
   // mostrado é o total dela (o arquivo não reparte por ano), e o texto do resumo avisa.
   const noAno = (l) => iAno === ANOS.length || (l[3] <= ANOS[iAno] && ANOS[iAno] <= l[4]);
-  const munDoAno = () => (munDados ?? []).filter(noAno);
+  // O filtro do alto, aplicado à cidade: com autor, só as dele (o tipo não se aplica a um autor);
+  // sem autor, só as do tipo escolhido. "Ver de todos" (munTodos) desliga isso só na lista.
+  const filtroAlto = () => !munTodos && (autorSel || filtroTipo);
+  const doFiltroAlto = (l) => !filtroAlto() || (autorSel ? l[1] === autorSel : l[2] === filtroTipo);
+  const munDoAno = () => (munDados ?? []).filter((l) => noAno(l) && doFiltroAlto(l));
+  /** O total da cidade sem o filtro do alto (para "ver de todos"): a série geral do município. */
+  const valorSemFiltro = (d) => d.s ? (iAno === ANOS.length ? d.s.reduce((a, b) => a + b, 0) : d.s[iAno]) : 0;
   const munFiltradas = () => munDoAno().filter((l) => {
     if (munFiltro && l[2] !== munFiltro) return false;
     if (!munBusca) return true;
@@ -630,7 +645,17 @@
     const d = munSel; if (!d) return;
     pintarTotal();
     const todas = munDoAno();
-    const total = valorDe(d);
+    const total = filtroAlto() || !(autorSel || filtroTipo) ? valorDe(d) : valorSemFiltro(d);
+    // A linha que diz que a lista está filtrada pelo alto, com o caminho para ver tudo (e voltar).
+    if (autorSel || filtroTipo) {
+      const quem = autorSel
+        ? `<b>${escapar(autorSel)}</b>${partidoDe(autorSel) ? ` <small>${escapar(partidoDe(autorSel))}</small>` : ""}`
+        : `tipo <b>${escapar(filtroTipo.toLowerCase())}</b>`;
+      elMun.filtro.innerHTML = munTodos
+        ? `Mostrando as emendas de todos os ${autorSel ? "autores" : "tipos"}.<button type="button" data-filtro="volta">só ${autorSel ? `as de ${escapar(autorSel)}` : `as do tipo ${escapar(filtroTipo.toLowerCase())}`}</button>`
+        : `Só as emendas ${autorSel ? "de " : "do "}${quem}.<button type="button" data-filtro="todos">ver de todos os ${autorSel ? "autores" : "tipos"}</button>`;
+      elMun.filtro.hidden = false;
+    } else elMun.filtro.hidden = true;
     const saude = todas.filter((l) => l[7] === "Saúde").reduce((a, l) => a + l[5], 0);
     const somaLista = todas.reduce((a, l) => a + l[5], 0);
     const pop = popDe?.get(d.ibge);
@@ -659,7 +684,8 @@
         <div style="min-width:0">
           <div class="quem">${paginaDe(autor)
             ? `<a href="${paginaDe(autor)}" title="A página de ${escapar(autor)}: o que custa, a cota, as emendas">${escapar(autor)}</a>`
-            : escapar(autor)}</div>
+            : escapar(autor)}${partidoDe(autor) ? `<small>${escapar(partidoDe(autor))}</small>` : ""}${autor !== autorSel && autor !== "Sem Informação"
+            ? `<button type="button" class="so-dele" data-autor="${escapar(autor)}" title="Mostrar só as emendas de ${escapar(autor)}, nesta cidade e no mapa">filtrar</button>` : ""}</div>
           <div class="meta">${tipo} · ${a0 === a1 ? a0 : `${a0}–${a1}`}${num && num !== "Sem informação"
             ? ` · <a href="/emendas/buscar?emenda=${encodeURIComponent(num)}" title="A ficha desta emenda: todos os pagamentos, para quem e onde">nº ${escapar(num)} →</a> <a class="externo" href="https://portaldatransparencia.gov.br/emendas/detalhe?codigoEmenda=${encodeURIComponent(num)}&amp;ano=${escapar(String(num).slice(0, 4))}" target="_blank" rel="noopener" title="No Portal da Transparência">Portal ↗</a>`
             : " · sem número"}</div>
@@ -668,7 +694,8 @@
         </div>
         <div class="valor">${brl(mil)}</div>
       </li>`).join("")
-      : `<li class="nada">${munDados ? "Nenhuma emenda com esse filtro." : ""}</li>`;
+      : `<li class="nada">${!munDados ? "" : filtroAlto() && autorSel && !munBusca && !munFiltro
+        ? `${escapar(autorSel)} não mandou emendas para ${escapar(d.n)} em ${rotuloAno()}.` : "Nenhuma emenda com esse filtro."}</li>`;
     elMun.mais.hidden = f.length <= munLimite;
     elMun.mais.textContent = `Mostrar mais ${Math.min(60, f.length - munLimite)} de ${f.length - munLimite} restantes`;
   }
@@ -676,6 +703,16 @@
   elMun.busca.oninput = () => { munBusca = elMun.busca.value.trim(); munLimite = 60; pintarMunicipio(); };
   elMun.chips.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; munFiltro = b.dataset.t; munLimite = 60; pintarMunicipio(); };
   elMun.mais.onclick = () => { munLimite += 60; pintarMunicipio(); };
+  elMun.filtro.onclick = (ev) => {
+    const b = ev.target.closest("button[data-filtro]"); if (!b) return;
+    munTodos = b.dataset.filtro === "todos"; munFiltro = ""; munLimite = 60; pintarMunicipio();
+  };
+  // "filtrar" ao lado do nome: o autor passa a valer para a cidade e para o mapa, sem sair da cidade.
+  elMun.lista.addEventListener("click", async (ev) => {
+    const b = ev.target.closest("button.so-dele"); if (!b) return;
+    await carregarAutores();
+    if (porAutor.autores[b.dataset.autor]) escolher(b.dataset.autor);
+  });
   document.getElementById("mun-csv").onclick = () => {
     if (!munSel || !munDados) return;
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -739,7 +776,7 @@
       refluir(); esconder();
     };
   };
-  grupo("#tipo", (b) => { filtroTipo = b.dataset.t; if (porAutor) pintarLista(); });
+  grupo("#tipo", (b) => { filtroTipo = b.dataset.t; if (porAutor) pintarLista(); if (munSel) { munTodos = false; munFiltro = ""; pintarMunicipio(); } });
   grupo("#ano", (b) => { iAno = +b.dataset.i; if (munSel) pintarMunicipio(); });
   // Brasília não é um controle: é uma decisão de edição, explicada na nota de fonte embaixo do mapa
   // (fora deste bloco, na página), com uma saída para quem quiser ver.
@@ -798,7 +835,9 @@
   }
 
   function escolher(nome) {
-    if (nome && munSel) fecharMunicipio();
+    // Com uma cidade aberta, ela continua aberta: a lista dela passa a mostrar só o autor escolhido,
+    // e o mapa atrás, o território dele. Fechar a cidade leva ao território inteiro (antesDaCidade some).
+    if (munSel) { antesDaCidade = null; munTodos = false; munFiltro = ""; munLimite = 60; }
     autorSel = nome;
     if (!nome) {
       serieAutor = null; faixa.hidden = true;
@@ -832,7 +871,10 @@
     document.getElementById("tipo").closest(".cel").classList.toggle("inerte", !!nome);
     abrirPainel(false);
     refluir(); esconder();
-    enquadrar(nome ? emDesenho : null);
+    if (munSel) {
+      raiz.classList.toggle("cidade-limpa", !autorSel && !filtroTipo);
+      pintarMunicipio();
+    } else enquadrar(nome ? emDesenho : null);
   }
 
   abre.onclick = () => abrirPainel(abre.getAttribute("aria-expanded") !== "true");
@@ -845,6 +887,74 @@
     else if (munSel) fecharMunicipio();
     else esconder(true);
   });
+
+  // ---- Busca de cidade ----------------------------------------------------------------------
+  // Digitar o nome e escolher abre a cidade como o clique na bolha (o painel com as emendas dela),
+  // já com o autor/tipo do alto aplicado. Vale para qualquer município com emenda, mesmo que não
+  // tenha nada no filtro de agora: aí o painel diz isso.
+  const semAcento = (s) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  for (const d of lugares) d.chave = semAcento(d.n);
+  const SIGLAS = new Set(lugares.map((d) => d.u.toLowerCase()));
+  const buscaCidade = document.getElementById("busca-cidade"), listaCidade = document.getElementById("lista-cidade");
+  let achadas = [], iAchada = 0;
+  function pintarCidades() {
+    const termo = semAcento(buscaCidade.value.trim());
+    if (!termo) { fecharCidades(); return; }
+    // "sao paulo sp" ou "são paulo, sp": a sigla no fim filtra o estado
+    const m = termo.match(/^(.*?)[\s,/-]+([a-z]{2})$/);
+    const [nome, uf] = m && SIGLAS.has(m[2]) ? [m[1], m[2]] : [termo, null];
+    const total = (d) => valorSemFiltro(d);
+    achadas = lugares
+      .filter((d) => d.chave.includes(nome) && (!uf || d.u.toLowerCase() === uf))
+      // quem começa com o termo vem antes; entre iguais, a cidade que mais recebeu
+      .sort((a, b) => (b.chave.startsWith(nome) - a.chave.startsWith(nome)) || (total(b) - total(a)))
+      .slice(0, 12);
+    iAchada = 0;
+    listaCidade.innerHTML = achadas.length
+      ? achadas.map((d, i) => {
+          const v = valorDe(d);
+          return `<li role="option" id="cid-${d.ibge}" data-ibge="${d.ibge}" aria-selected="${i === iAchada}">
+            <b>${escapar(d.n)}</b><small>${escapar(d.u)}</small><i>${v > 0 ? brl(v) : "—"}</i></li>`;
+        }).join("")
+      : `<li class="nada">Nenhuma cidade com esse nome.</li>`;
+    listaCidade.hidden = false;
+    buscaCidade.setAttribute("aria-expanded", "true");
+    marcarAchada();
+  }
+  function marcarAchada() {
+    for (const li of listaCidade.querySelectorAll("li[data-ibge]")) li.ariaSelected = String(li.dataset.ibge === achadas[iAchada]?.ibge);
+    const atual = achadas[iAchada];
+    if (atual) { buscaCidade.setAttribute("aria-activedescendant", `cid-${atual.ibge}`); document.getElementById(`cid-${atual.ibge}`)?.scrollIntoView({ block: "nearest" }); }
+  }
+  function fecharCidades() {
+    listaCidade.hidden = true; achadas = [];
+    buscaCidade.setAttribute("aria-expanded", "false"); buscaCidade.removeAttribute("aria-activedescendant");
+  }
+  function irParaCidade(d) {
+    if (!d) return;
+    fecharCidades(); buscaCidade.value = ""; buscaCidade.blur();
+    abrirMunicipio(d);
+  }
+  buscaCidade.oninput = pintarCidades;
+  buscaCidade.onfocus = () => { if (buscaCidade.value.trim()) pintarCidades(); };
+  buscaCidade.onkeydown = (ev) => {
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      if (!achadas.length) return;
+      ev.preventDefault();
+      iAchada = (iAchada + (ev.key === "ArrowDown" ? 1 : -1) + achadas.length) % achadas.length;
+      marcarAchada();
+    } else if (ev.key === "Enter") {
+      ev.preventDefault(); irParaCidade(achadas[iAchada]);
+    } else if (ev.key === "Escape") {
+      ev.stopPropagation(); fecharCidades(); buscaCidade.value = "";
+    }
+  };
+  // pointerdown, não click: o blur do campo viria antes e fecharia a lista
+  listaCidade.onpointerdown = (ev) => {
+    const li = ev.target.closest("li[data-ibge]"); if (!li) return;
+    ev.preventDefault(); irParaCidade(lugarPor.get(li.dataset.ibge));
+  };
+  buscaCidade.onblur = () => setTimeout(fecharCidades, 120);
 
   dimensionar();
 })();
