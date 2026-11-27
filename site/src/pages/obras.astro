@@ -1,0 +1,373 @@
+---
+/**
+ * Obras federais: todas as obras com dinheiro federal que estão em andamento na lista do TCU (em execução e
+ * paradas juntas). Quanto do orçamento vai para obras, que tipo de obra, quem paga, em que estado, quantas
+ * pararam e as maiores. É a página que dá a escala de /obras-paradas.
+ * Dados: lib/obras-paradas.ts (o bloco "andamento" de pipeline/…/obras_paradas.py) e lib/fluxo-federal.ts
+ * (o investimento que saiu do caixa no ano, o mesmo de /contas).
+ */
+import Base from "../layouts/Base.astro";
+import Termo from "../components/Termo.astro";
+import { moedaCurta, moedaExtenso } from "../lib/formato";
+import { caminhoEstado, deUf } from "../lib/cidades";
+import { mesAno, mesAnoCurto, obrasEmAndamento, SEM_SETOR, type LinhaAndamento } from "../lib/obras-paradas";
+import { contaVelha, desembolso, doAno, docFluxo } from "../lib/fluxo-federal";
+
+const d = await obrasEmAndamento();
+const nf = new Intl.NumberFormat("pt-BR");
+const nf2 = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** 0,19 → 19: "19 de cada 100" */
+const em100 = (v: number) => Math.round(v * 100);
+
+/** As n maiores linhas e uma última com a soma das outras. */
+function comOutros(lista: LinhaAndamento[], n: number, nome: string): LinhaAndamento[] {
+  if (lista.length <= n + 1) return lista;
+  const resto = lista.slice(n).reduce((s, l) => ({
+    nome, n: s.n + l.n, previsto: s.previsto + l.previsto, liberado: s.liberado + l.liberado,
+    paradas: s.paradas + l.paradas, previstoParadas: s.previstoParadas + l.previstoParadas,
+  }), { nome, n: 0, previsto: 0, liberado: 0, paradas: 0, previstoParadas: 0 });
+  return [...lista.slice(0, n), resto];
+}
+const OUTROS_TIPOS = "Outros tipos", OUTROS_ORGAOS = "Outros órgãos";
+// O tipo de obra é o "setor" do TCU. As obras sem setor ficam por último, numa linha própria.
+const tipos = d ? [...comOutros(d.setor.filter((s) => s.nome !== SEM_SETOR), 10, OUTROS_TIPOS), ...d.setor.filter((s) => s.nome === SEM_SETOR)] : [];
+const pagadores = d ? comOutros(d.quemPaga, 10, OUTROS_ORGAOS) : [];
+const nomeTipo = (nome: string) => (nome === SEM_SETOR ? "Sem tipo identificado" : nome);
+const semTipo = d?.setor.find((s) => s.nome === SEM_SETOR);
+const comTipo = tipos.filter((s) => s.nome !== SEM_SETOR && s.nome !== OUTROS_TIPOS);
+const maior = comTipo[0];
+const tipo = (nome: string) => d?.setor.find((s) => s.nome === nome);
+const educacao = tipo("Educação"), saude = tipo("Saúde");
+// Quantas pararam, por tipo: só os tipos com muitas obras, do pior para o melhor.
+const pararam = comTipo.filter((s) => s.n >= 1000).sort((a, b) => b.paradas / b.n - a.paradas / a.n);
+const maxTipo = Math.max(1, ...tipos.map((s) => s.previsto));
+const maxPaga = Math.max(1, ...pagadores.map((s) => s.previsto));
+const maxUf = Math.max(1, ...(d?.estados ?? []).map((s) => s.previsto));
+const maisObras = d ? [...d.estados].sort((a, b) => b.n - a.n)[0] : null;
+
+// Quanto do orçamento: o investimento que saiu do caixa no ano, sobre tudo o que saiu (o mesmo arquivo de /contas).
+const fluxo = docFluxo;
+const inv = fluxo ? doAno(fluxo.por_grupo, "investimento") : null;
+const saiu = fluxo ? Object.keys(Object.values(fluxo.por_grupo)[0] ?? {}).reduce((s, g) => s + desembolso(doAno(fluxo.por_grupo, g)), 0) : 0;
+const orcamento = fluxo && inv && saiu > 0
+  ? { ano: fluxo.ano, investimento: desembolso(inv), parte: desembolso(inv) / saiu, velha: contaVelha(inv), fonte: fluxo.fonte }
+  : null;
+const quadrados = orcamento ? Math.max(1, Math.round(orcamento.parte * 100)) : 0;
+
+const descricao = d
+  ? `${nf.format(d.n)} obras com dinheiro federal estão em andamento, segundo o TCU (${mesAno(d.dataBase)}): custam ${moedaExtenso(d.previsto)}. Que tipo de obra, quem paga, em que estado e quantas pararam.`
+  : "As obras com dinheiro federal em andamento, segundo o TCU.";
+---
+
+<Base title="Obras federais · Orçamento Brasileiro" description={descricao}>
+  <div class="wrap pagina-obras">
+    {!d ? (
+      <section class="cabeca"><div><h1>Obras federais</h1><p>Os dados ainda não foram carregados.</p></div></section>
+    ) : (
+      <>
+        <section class="cabeca">
+          <div>
+            <span class="sobretitulo">Dinheiro federal · lista do TCU de {mesAno(d.dataBase)}</span>
+            <h1>Obras federais</h1>
+            <p>
+              Estradas, escolas, creches, postos de saúde, ruas e esgoto que o governo federal está pagando. Pela lista do{" "}
+              <Termo id="tcu">TCU</Termo>, são <strong class="marca">{nf.format(d.n)} obras em andamento</strong> no país.
+              Juntas, custam <strong>{moedaExtenso(d.previsto)}</strong>, e <strong>{moedaExtenso(d.liberado)}</strong> já foram{" "}
+              <Termo id="valor-liberado">liberados</Termo>. De cada 100, {100 - em100(d.paradas / d.n)} estão andando e{" "}
+              {em100(d.paradas / d.n)} estão <Termo id="obra-paralisada">paradas</Termo>.
+            </p>
+          </div>
+        </section>
+
+        <section class="numeros" aria-label="Os números principais">
+          <div><span>Obras em andamento</span><strong class="num">{nf.format(d.n)}</strong><small>{nf.format(d.n - d.paradas)} andando e {nf.format(d.paradas)} paradas</small></div>
+          <div><span>Custam</span><strong class="num">{moedaCurta(d.previsto)}</strong><small>o valor previsto, somado</small></div>
+          <div><span>Já liberado</span><strong class="num">{moedaCurta(d.liberado)}</strong><small>dinheiro federal que já saiu para elas</small></div>
+          {orcamento && <div><span>Investimento pago em {orcamento.ano}</span><strong class="num">{moedaCurta(orcamento.investimento)}</strong><small>R$ {nf2.format(orcamento.parte * 100)} de cada R$ 100 que saíram do caixa federal</small></div>}
+        </section>
+
+        <nav class="indice" aria-label="Nesta página">
+          {orcamento && <a href="#orcamento">Quanto do orçamento</a>}
+          <a href="#tipo">Que tipo de obra</a>
+          <a href="#quem-paga">Quem paga</a>
+          <a href="#estados">Onde estão</a>
+          <a href="#paradas">Quantas pararam</a>
+          <a href="#maiores">As maiores</a>
+          <a href="#limites">O que esta conta não diz</a>
+        </nav>
+
+        {orcamento && (
+          <section class="bloco" id="orcamento">
+            <div class="texto">
+              <h2>Quanto do orçamento</h2>
+              <p>
+                Em {orcamento.ano}, o governo federal pagou <strong>{moedaExtenso(orcamento.investimento)}</strong> em investimento, que é como
+                o orçamento chama obras e equipamentos. De cada R$ 100 que saíram do caixa federal,{" "}
+                <strong class="marca">R$ {nf2.format(orcamento.parte * 100)}</strong> foram para isso.
+              </p>
+              <p>
+                E boa parte nem era obra nova: de cada R$ 100 pagos, R$ {em100(orcamento.velha)} quitavam compromisso de anos
+                anteriores. <a href="/contas#quando">Veja o investimento mês a mês →</a>
+              </p>
+              <p class="menor">
+                Os R$ 100 são tudo o que o governo federal pagou no ano: aposentadorias, salários, repasses a estados e prefeituras,
+                juros e o resto, sem a rolagem da dívida. O investimento inclui equipamentos, e não só obras.
+              </p>
+            </div>
+            <div class="grafico">
+              <div class="cem" role="img" aria-label={`De cada R$ 100 que saíram do caixa federal em ${orcamento.ano}, R$ ${nf2.format(orcamento.parte * 100)} foram investimento`}>
+                {Array.from({ length: 100 }, (_, i) => <span class:list={{ aceso: i < quadrados }}></span>)}
+              </div>
+              <p class="menor-grafico">Cada quadrado é R$ 1 de cada R$ 100 que saíram do caixa federal em {orcamento.ano}. Em verde, o investimento.</p>
+            </div>
+          </section>
+        )}
+
+        <section class="bloco" id="tipo">
+          <div class="texto">
+            <h2>Que tipo de obra</h2>
+            {maior && (
+              <p>
+                As obras de {maior.nome.toLowerCase()} são poucas e caras: <strong>{nf.format(maior.n)} obras</strong> somam{" "}
+                {moedaExtenso(maior.previsto)}, R$ {em100(maior.previsto / d.previsto)} de cada R$ 100 da lista.
+                {educacao && saude && <> Escolas, creches e postos de saúde são muitos e baratos: {nf.format(educacao.n + saude.n)} obras,
+                que somam {moedaExtenso(educacao.previsto + saude.previsto)}.</>}
+              </p>
+            )}
+            <p class="menor">
+              O tipo é o setor que o TCU dá a cada obra.
+              {semTipo && <> Em {nf.format(semTipo.n)} obras, que somam {moedaExtenso(semTipo.previsto)}, o setor não foi identificado.</>}
+            </p>
+          </div>
+          <div class="grafico">
+            <ol class="linhas">
+              {tipos.map((s) => (
+                <li>
+                  <span class="rotulo">{nomeTipo(s.nome)}</span>
+                  <span class="trilho"><span class:list={["barra", { neutra: s.nome === SEM_SETOR || s.nome === OUTROS_TIPOS }]} style={`width:${(s.previsto / maxTipo) * 100}%`}></span></span>
+                  <span class="valor">{moedaCurta(s.previsto)} <span>· {nf.format(s.n)} obras</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section class="bloco" id="quem-paga">
+          <div class="texto">
+            <h2>Quem paga</h2>
+            <p>
+              O <strong>DNIT</strong>, das estradas federais, paga as obras mais caras. O <strong>Ministério das Cidades</strong> vem
+              depois, com ruas, drenagem, esgoto e metrô. O <strong>FNDE</strong> e o <strong>Ministério da Saúde</strong> pagam o maior
+              número de obras: escolas, creches e postos.
+            </p>
+            <p class="menor">
+              Quem paga é o ministério ou o fundo que manda o dinheiro. Quem faz a obra, quase sempre, é a prefeitura ou o estado,
+              que contrata a empresa.
+            </p>
+          </div>
+          <div class="grafico">
+            <ol class="linhas largo">
+              {pagadores.map((s) => (
+                <li>
+                  <span class="rotulo">{s.nome}</span>
+                  <span class="trilho"><span class:list={["barra", { neutra: s.nome === OUTROS_ORGAOS }]} style={`width:${(s.previsto / maxPaga) * 100}%`}></span></span>
+                  <span class="valor">{moedaCurta(s.previsto)} <span>· {nf.format(s.n)} obras</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section class="bloco" id="estados">
+          <div class="texto">
+            <h2>Onde estão</h2>
+            <p>
+              A maior conta é a {deUf(d.estados[0].uf)}: <strong>{nf.format(d.estados[0].n)} obras</strong>, que custam{" "}
+              {moedaExtenso(d.estados[0].previsto)}.
+              {maisObras && maisObras.uf !== d.estados[0].uf && <> O maior número é o {deUf(maisObras.uf)}: {nf.format(maisObras.n)} obras.</>}
+            </p>
+            <p class="menor">
+              Ao lado de cada estado, quanto custam as obras e quantas são. Clique no estado para ver a página dele, com as obras
+              paradas de cada cidade.
+            </p>
+          </div>
+          <div class="grafico">
+            <ol class="linhas">
+              {d.estados.map((e) => (
+                <li>
+                  <a class="rotulo" href={caminhoEstado(e.uf)}>{e.nome}</a>
+                  <span class="trilho"><span class="barra" style={`width:${(e.previsto / maxUf) * 100}%`}></span></span>
+                  <span class="valor">{moedaCurta(e.previsto)} <span>· {nf.format(e.n)} obras</span></span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section class="bloco" id="paradas">
+          <div class="texto">
+            <h2>Quantas pararam</h2>
+            <p>
+              Das {nf.format(d.n)} obras, <strong class="marca">{nf.format(d.paradas)} estão paradas</strong>:{" "}
+              {em100(d.paradas / d.n)} de cada 100. Em dinheiro pesa menos: as paradas custariam {moedaExtenso(d.previstoParadas)},
+              R$ {em100(d.previstoParadas / d.previsto)} de cada R$ 100 da lista.
+            </p>
+            {pararam.length > 1 && (
+              <p>
+                Em {pararam[0].nome.toLowerCase()} é pior: de cada 100 obras, {em100(pararam[0].paradas / pararam[0].n)} estão paradas.
+                Em {pararam.at(-1)!.nome.toLowerCase()}, {em100(pararam.at(-1)!.paradas / pararam.at(-1)!.n)}.
+              </p>
+            )}
+            <p><a href="/obras-paradas">Veja as obras paradas, cidade por cidade →</a></p>
+          </div>
+          <div class="grafico">
+            <ol class="linhas partes">
+              {pararam.map((s) => (
+                <li>
+                  <span class="rotulo">{s.nome}</span>
+                  <span class="trilho cheio"><span class="barra escura" style={`width:${(s.paradas / s.n) * 100}%`}></span></span>
+                  <span class="valor">{em100(s.paradas / s.n)} de cada 100 <span>· {nf.format(s.paradas)} de {nf.format(s.n)}</span></span>
+                </li>
+              ))}
+            </ol>
+            <p class="menor-grafico">Em preto, a parte das obras de cada tipo que está parada. Só os tipos com mais de mil obras.</p>
+          </div>
+        </section>
+
+        <section class="bloco" id="maiores">
+          <div class="texto">
+            <h2>As maiores</h2>
+            <p>
+              As {d.maiores.length} obras mais caras em andamento. Ao lado de cada uma, quanto custa e quanto já foi liberado; abaixo do
+              nome, onde fica, quem paga e quanto foi feito (a <Termo id="execucao-fisica">execução física</Termo>).
+            </p>
+          </div>
+          <div class="grafico">
+            <ol class="obras">
+              {d.maiores.map((o) => (
+                <li>
+                  <div>
+                    <strong>{o.nome}</strong>
+                    <span>
+                      {o.local} · Paga: {o.quemPaga}
+                      {o.feito !== null && <> · {o.feito < 1 ? "menos de 1" : o.feito}% feita</>}
+                      {o.pac && <> · {o.pac}</>}
+                      {o.parada && <> · <b>parada</b></>}
+                    </span>
+                  </div>
+                  <div class="quanto">
+                    <strong class="num">{moedaCurta(o.previsto)}</strong>
+                    <span>{moedaCurta(o.liberado)} liberados</span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section class="fontes" id="limites">
+          <h2>O que esta conta não diz</h2>
+          <ul>
+            <li>
+              <strong>Não são todas as obras do país.</strong> Só entram obras com dinheiro federal das nove bases que o TCU junta: Caixa,
+              FNDE, Funasa, Ministério da Saúde (SISMOB), DNIT, Codevasf e as obras de universidades, institutos federais e outras do MEC.
+              Obra paga só pela prefeitura ou pelo estado não aparece.
+            </li>
+            <li>
+              <strong>O valor é o previsto, não o custo final.</strong> É o que está no convênio ou contrato quando a lista foi feita. A obra
+              pode ter outras fontes de dinheiro, como a contrapartida da prefeitura, que não entram aqui.
+            </li>
+            <li>
+              <strong>A lista e o orçamento são contas diferentes.</strong> Os {moedaExtenso(d.previsto)} são o custo inteiro das obras, que
+              duram vários anos.{orcamento && <> Os {moedaExtenso(orcamento.investimento)} são o que saiu do caixa em {orcamento.ano}, e incluem equipamentos.</>}
+            </li>
+            <li>
+              <strong>A situação pode estar velha.</strong> A lista é uma fotografia de {mesAno(d.dataBase)}. Uma obra marcada "em execução"
+              pode estar parada sem que ninguém tenha atualizado, e uma parada pode ter voltado a andar.
+            </li>
+            <li>
+              <strong>Sem cidade.</strong> Estradas do DNIT e obras da Codevasf aparecem só com o estado.
+            </li>
+          </ul>
+          <p class="menor">
+            Fonte: <a href={d.url}>{d.fonte}</a>, data-base de {mesAnoCurto(d.dataBase)}. O TCU junta os dados dos sistemas do governo e
+            avisa que não os audita.{" "}
+            {orcamento && <>Investimento pago: {orcamento.fonte}.{" "}</>}
+            <a href="/data/obras-paradas/obras-paradas.json">Baixe os dados desta página</a> (JSON, no campo "andamento").
+          </p>
+        </section>
+      </>
+    )}
+  </div>
+</Base>
+
+<style>
+  .cabeca { padding: 40px 0 32px; }
+  .cabeca > div { display: flex; flex-direction: column; gap: 14px; max-width: 880px; }
+  .cabeca h1 { font-size: 68px; line-height: 0.98; letter-spacing: -0.025em; }
+  .cabeca p { margin: 0; font-size: 20px; line-height: 1.55; color: var(--texto-2); }
+  .cabeca p strong { color: var(--tinta); }
+  .numeros { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); border-top: 2px solid var(--tinta); border-bottom: 1px solid var(--regra); }
+  .numeros div { padding: 18px 20px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--regra); }
+  .numeros div:first-child { padding-left: 0; }
+  .numeros div:last-child { border-right: 0; padding-right: 0; }
+  .numeros span { font-size: 13px; color: var(--texto-3); }
+  .numeros strong { font-family: var(--serifa); font-size: 32px; font-weight: 700; white-space: nowrap; }
+  .numeros small { font-size: 14px; color: var(--texto-3); }
+  .indice { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 16px 0; font-size: 15px; border-bottom: 1px solid var(--regra); }
+  .bloco { border-top: 2px solid var(--tinta); padding: 32px 0; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px 40px; scroll-margin-top: 12px; }
+  .indice + .bloco { border-top: 0; }
+  .texto { grid-column: span 5; display: flex; flex-direction: column; gap: 12px; }
+  .texto h2 { font-size: 34px; }
+  .texto p { margin: 0; font-size: 16px; line-height: 1.6; color: var(--texto-2); }
+  .texto p strong { color: var(--tinta); }
+  .texto .menor { font-size: 14px; color: var(--texto-3); }
+  .grafico { grid-column: span 7; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .linhas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .linhas li { display: grid; grid-template-columns: 170px minmax(0, 1fr) 170px; gap: 12px; align-items: center; font-size: 14px; }
+  .linhas.largo li { grid-template-columns: 210px minmax(0, 1fr) 170px; }
+  .linhas.partes li { grid-template-columns: 130px minmax(0, 1fr) 240px; }
+  .linhas .rotulo { color: var(--texto-2); line-height: 1.3; }
+  a.rotulo { color: var(--tinta); }
+  .trilho { position: relative; display: block; height: 14px; }
+  .trilho.cheio { background: var(--areia-clara); height: 16px; }
+  .barra { display: block; height: 100%; min-width: 2px; background: var(--verde); }
+  .barra.escura { background: var(--tinta); }
+  .barra.neutra { background: var(--areia); }
+  .valor { text-align: right; white-space: nowrap; font-weight: 600; }
+  .valor span { color: var(--texto-3); font-size: 13px; font-weight: 400; }
+  .menor-grafico { margin: 0; font-size: 14px; color: var(--texto-3); }
+  .cem { display: grid; grid-template-columns: repeat(25, minmax(0, 1fr)); gap: 4px; }
+  .cem span { display: block; aspect-ratio: 1; background: var(--areia-clara); }
+  .cem span.aceso { background: var(--verde); }
+  .obras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--regra); }
+  .obras li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 24px; padding: 12px 0; border-bottom: 1px solid var(--regra-leve); }
+  .obras li > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .obras strong { font-size: 15px; line-height: 1.35; }
+  .obras span { font-size: 13px; color: var(--texto-3); line-height: 1.4; }
+  .obras span b { color: var(--tinta); }
+  .obras .quanto { text-align: right; white-space: nowrap; }
+  .obras .quanto strong { font-family: var(--serifa); font-size: 20px; }
+  .fontes { border-top: 2px solid var(--tinta); padding: 32px 0 48px; display: flex; flex-direction: column; gap: 14px; max-width: 880px; scroll-margin-top: 12px; }
+  .fontes h2 { font-size: 34px; }
+  .fontes ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; color: var(--texto-2); line-height: 1.55; }
+  .fontes .menor { margin: 0; font-size: 14px; line-height: 1.5; color: var(--texto-3); }
+
+  @media (max-width: 900px) {
+    .cabeca { padding: 28px 0 24px; }
+    .cabeca h1 { font-size: 40px; }
+    .cabeca p { font-size: 17px; }
+    .numeros { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros div { padding: 14px 12px; border-bottom: 1px solid var(--regra); }
+    .numeros div:nth-child(2n) { border-right: 0; }
+    .numeros div:nth-child(2n + 1) { padding-left: 0; }
+    .numeros strong { font-size: 26px; }
+    .bloco { display: flex; flex-direction: column; gap: 20px; padding: 28px 0; }
+    .texto h2, .fontes h2 { font-size: 28px; }
+    .linhas li, .linhas.largo li, .linhas.partes li { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; }
+    .linhas .trilho { grid-column: 1 / -1; grid-row: 2; }
+    .cem { grid-template-columns: repeat(20, minmax(0, 1fr)); }
+    .obras li { grid-template-columns: minmax(0, 1fr); }
+    .obras .quanto { text-align: left; }
+  }
+</style>

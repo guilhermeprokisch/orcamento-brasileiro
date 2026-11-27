@@ -16,7 +16,9 @@ O que sai daqui:
 - a última data-base inteira: cada obra paralisada com cidade, quem paga, valores, quanto foi feito, a causa
   e a situação que o próprio órgão informa (que nem sempre é "paralisada": o TCU tem critério próprio);
 - desde quando a obra aparece parada nas datas-base seguidas, até a última ("na lista desde");
-- o que aconteceu, na última data-base, com as obras que estavam paradas na anterior.
+- o que aconteceu, na última data-base, com as obras que estavam paradas na anterior;
+- o tamanho da lista inteira ("andamento"): as obras em execução e as paradas juntas, por tipo de obra, por quem
+  paga e por estado, e as maiores. É o que a página /obras mostra.
 
 A cidade vem como texto ("Carnaubal/CE") e é casada pelo nome com o cadastro do SICONFI. Obras só com a UF
 (DNIT, Codevasf, parte das universidades) ficam no estado, sem cidade.
@@ -72,6 +74,9 @@ PARALISADA = "Paralisada"
 MAIORES_UF = 10
 MAIORES_BRASIL = 25
 MAIORES_SALDO = 20
+MAIORES_ANDAMENTO = 15
+EM_EXECUCAO = "Em execução"
+SEM_SETOR = "Não identificado"
 CIDADES_UF = 10
 # Código IBGE do estado (os dois primeiros dígitos do código da cidade).
 UF_CODIGO = {
@@ -378,13 +383,27 @@ def montar(pasta: Path, transferegov: bool = True, forcar_tg: bool = False) -> d
     obras = []
     ativas_mun: Counter = Counter()
     ativas_uf: Counter = Counter()
+    andamento = []
     for r in atual:
         uf, ibge = _local(r["Local"], cidades)
-        if r["Situação"] in ("Em execução", PARALISADA):
+        if r["Situação"] in (EM_EXECUCAO, PARALISADA):
             if ibge:
                 ativas_mun[ibge] += 1
             if uf:
                 ativas_uf[uf] += 1
+            andamento.append({
+                "nome": _nome(r["Empreendimento"]),
+                "paga": QUEM_PAGA.get(r["Repassador"], r["Repassador"] or "Não informado"),
+                "setor": r.get("Setor") or SEM_SETOR,
+                "uf": uf,
+                "ibge": ibge,
+                "local": r["Local"],
+                "fisica": _pct(r.get("Exec. física")),
+                "previsto": round(_num(r["Valor Investimento"]), 2),
+                "liberado": round(_num(r["Valor Desbloqueado"]), 2),
+                "parada": r["Situação"] == PARALISADA,
+                "pac": r.get("Obra PAC") if r.get("Obra PAC") not in (None, "Não") else None,
+            })
         if r["Situação"] != PARALISADA:
             continue
         if uf and not ibge and "/" in (r["Local"] or ""):
@@ -403,7 +422,7 @@ def montar(pasta: Path, transferegov: bool = True, forcar_tg: bool = False) -> d
             "fisica": _pct(r.get("Exec. física")),
             "previsto": round(_num(r["Valor Investimento"]), 2),
             "liberado": round(_num(r["Valor Desbloqueado"]), 2),
-            "setor": r.get("Setor") or "Não identificado",
+            "setor": r.get("Setor") or SEM_SETOR,
             "causa": causa,
             "origem": (r.get("Situação origem") or "").strip().capitalize() or None,
             "pac": r.get("Obra PAC") not in (None, "Não"),
@@ -473,14 +492,38 @@ def montar(pasta: Path, transferegov: bool = True, forcar_tg: bool = False) -> d
         historico.append({
             "data": d,
             "paralisadas": len(par),
-            "em_execucao": sum(1 for r in t if r["Situação"] == "Em execução"),
+            "em_execucao": sum(1 for r in t if r["Situação"] == EM_EXECUCAO),
             "previsto": round(sum(_num(r["Valor Investimento"]) for r in par), 2),
             "liberado": round(sum(_num(r["Valor Desbloqueado"]) for r in par), 2),
         })
 
+    def soma_andamento(lista: list[dict]) -> list:
+        # [obras em andamento, previsto, liberado, quantas delas paradas, previsto das paradas]
+        paradas = [o for o in lista if o["parada"]]
+        return [len(lista), round(sum(o["previsto"] for o in lista), 2), round(sum(o["liberado"] for o in lista), 2),
+                len(paradas), round(sum(o["previsto"] for o in paradas), 2)]
+
+    def contagem_andamento(campo: str) -> list:
+        g: dict[str, list[dict]] = defaultdict(list)
+        for o in andamento:
+            g[o[campo]].append(o)
+        return sorted(([k, *soma_andamento(v)] for k, v in g.items()), key=lambda x: (-x[2], str(x[0])))
+
+    andamento.sort(key=lambda o: -o["previsto"])
+    em_andamento = {
+        "total": soma_andamento(andamento),
+        "setor": contagem_andamento("setor"),
+        "quem_paga": contagem_andamento("paga"),
+        "uf": {k: v for k, *v in sorted(([u, *s] for u, *s in contagem_andamento("uf") if u), key=lambda x: x[0])},
+        # [nome, quem paga, setor, % feito, previsto, liberado, local, ibge, parada (0/1), PAC ou null]
+        "maiores": [[o["nome"], o["paga"], o["setor"], o["fisica"], o["previsto"], o["liberado"], o["local"], o["ibge"],
+                     1 if o["parada"] else 0, o["pac"]] for o in andamento[:MAIORES_ANDAMENTO]],
+    }
+
     brasil = {
         "total": soma(obras),
-        "ativas": sum(1 for r in atual if r["Situação"] in ("Em execução", PARALISADA)),
+        "ativas": len(andamento),
+        "andamento": em_andamento,
         "cidades_com_obra": len(por_mun),
         "sem_cidade": soma([o for o in obras if not o["ibge"]]),
         "quem_paga": contagem(obras, "paga"),

@@ -94,6 +94,13 @@ class TestObrasParadas(unittest.TestCase):
         self.assertIsNone(obras[200.0][7])
         self.assertEqual(obras[200.0][8], "Licitação")
         self.assertEqual(doc["uf"]["RS"]["sem_cidade"][0][7], "Abandono da empresa")
+        # Em andamento (em execução + paradas): A, B, E e F. [obras, previsto, liberado, paradas, previsto das paradas]
+        em = b["andamento"]
+        self.assertEqual(em["total"], [4, 700.0, 350.0, 3, 600.0])
+        self.assertEqual(em["setor"], [["Educação", 4, 700.0, 350.0, 3, 600.0]])
+        self.assertEqual(em["uf"], {"CE": [2, 500.0, 250.0, 2, 500.0], "PB": [1, 100.0, 50.0, 0, 0], "RS": [1, 100.0, 50.0, 1, 100.0]})
+        self.assertEqual([o[4] for o in em["maiores"]], [300.0, 200.0, 100.0, 100.0])
+        self.assertEqual(em["maiores"][0][8], 1)
 
     def test_ultima_so_com_paralisadas(self) -> None:
         gravar(self.pasta, "2026-04", [obra("A", "Paralisada", "Carnaubal/CE")])
