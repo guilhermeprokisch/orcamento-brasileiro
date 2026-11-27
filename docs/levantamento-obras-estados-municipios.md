@@ -209,3 +209,34 @@ prefeitura numa linha) no Claude Design, para o Guilherme aprovar.
 - **Uma obra "no prazo" pode estar parada de fato**, se o órgão não atualizou a situação.
 - **As 402 obras só com dinheiro federal saem por precaução**, não porque se confirmou que estão
   no TCU.
+
+## O que foi feito
+
+Aprovado pelo Guilherme em 27/11/2026, com o mock no Claude Design
+([Obras: estados e prefeituras](https://claude.ai/artifact/GMJPHBHYQk8KYXV933nKFN)).
+
+- **Carga**: `uv run obras-tcesp` (`pipeline/src/orcamento_pipeline/obras_tcesp.py`) baixa o painel do TCE-SP
+  (a tabela inteira e a mesma tabela filtrada por cada fonte de dinheiro), grava o que veio em
+  `data/raw/tcesp-obras/painel.json` e a cópia de referência em `pipeline/referencia/obras-tcesp.json`, e refaz os
+  arquivos do explorador juntando as obras ao `SP.json`. `--sem-baixar` só refaz os arquivos. A publicação roda
+  `obras-tcesp` logo depois do `obras-paradas --atualizar` (`.github/scripts/dados.sh`); se o painel não responder,
+  fica a cópia de referência, que o próprio `obras-paradas` já junta.
+- **Resultado em 27/11/2026** (data-base 17/10/2026): 7.580 obras, 894 do estado e 6.686 das prefeituras; 268 paradas
+  e 601 atrasadas; R$ 26,7 bilhões em contratos. Ficaram de fora 47 linhas repetidas e 402 obras pagas só com dinheiro
+  federal.
+- **Cidade**: casada pelo nome com o SICONFI e com a lista do painel (a do painel só tem parte das cidades). Um
+  apelido: Florínea, que o SICONFI escreve Florínia. Todas as obras ficaram com código IBGE.
+- **Nome da obra**: o objeto do contrato, que vem em maiúsculas, vira texto normal. Sai o começo burocrático
+  ("Contratação de empresa especializada em serviços de engenharia para…", "Constitui objeto do presente
+  contrato…"), as siglas (EMEF, UBS, SABESP…) ficam em maiúsculas e os nomes depois de "rua", "bairro", "escola"…
+  e o da cidade da obra ganham iniciais maiúsculas. Nome próprio solto no meio do texto continua em minúsculas.
+  580 obras vêm sem objeto e aparecem como "Obra sem descrição, contratada com" e o nome da empresa.
+- **Tipo de obra**: o painel tem uma classificação (42 tipos), mas a consulta dela não responde fora da página;
+  as obras do TCE-SP ficam como "Sem tipo identificado".
+- **Na página**: botões "De quem é o dinheiro" (União, Governo do estado, Prefeitura); o campo de ministério só
+  vale para a União. Nas obras do TCE-SP: a marca "atrasada", "o TCE-SP não informa" no lugar do quanto foi feito,
+  "contrato de 2023" debaixo do valor e um traço em "já liberado". Escolher estado ou prefeitura fora de SP mostra
+  o aviso de que só SP tem essa lista. A planilha ganhou as colunas de esfera, órgão, atrasada, ano do contrato,
+  o que é o valor e a fonte.
+- **A conferir**: valores de contrato que parecem altos demais para o objeto (uma obra de Mauá tem R$ 412 milhões
+  para remanejar uma rede de água numa rua). O painel não diz o valor de cada parte do contrato.

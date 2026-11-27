@@ -407,18 +407,26 @@ def gravar_todas(doc: dict, pasta: Path = SAIDA_TODAS) -> dict:
     for velho in pasta.glob("*.json"):
         velho.unlink()
     situacao = [0] * len(doc["situacoes"])
+    esferas = doc.get("esferas") or ["União"]
+    por_esfera = [0] * len(esferas)
     total = [0, 0.0, 0.0]
     ufs = {}
     for uf, obras in doc["uf"].items():
         _gravar({"uf": uf, "data_base": doc["data_base"], "obras": obras}, pasta / f"{uf}.json")
-        ufs[uf] = [len(obras), round(sum(t[7] for t in obras), 2), round(sum(t[8] for t in obras), 2)]
+        # as obras de estados e prefeituras (obras_tcesp.py) não têm "liberado" (null)
+        ufs[uf] = [len(obras), round(sum(t[7] for t in obras), 2), round(sum(t[8] or 0 for t in obras), 2)]
         for t in obras:
             situacao[t[5]] += 1
+            por_esfera[t[10] if len(t) > 10 else 0] += 1
         for i in range(3):
             total[i] += ufs[uf][i]
     indice = {k: doc[k] for k in ("data_base", "fonte", "url", "situacoes", "setores", "quem_paga", "pac")}
-    # total e cada estado: [n.º de obras, previsto, liberado]; por_situacao segue a ordem de "situacoes"
-    indice |= {"total": [total[0], round(total[1], 2), round(total[2], 2)], "por_situacao": situacao, "uf": ufs}
+    # total e cada estado: [n.º de obras, previsto, liberado]; por_situacao segue a ordem de "situacoes" e por_esfera
+    # a de "esferas" (União, governo do estado, prefeitura); "tcesp", quando há, descreve a lista de SP
+    indice |= {"total": [total[0], round(total[1], 2), round(total[2], 2)], "por_situacao": situacao,
+               "esferas": esferas, "por_esfera": por_esfera, "uf": ufs}
+    if doc.get("tcesp"):
+        indice["tcesp"] = doc["tcesp"]
     _gravar(indice, pasta / "indice.json")
     return indice
 
@@ -629,6 +637,13 @@ def montar_tudo(pasta: Path, transferegov: bool = True, forcar_tg: bool = False)
     return doc, todas_as_obras(atual, cidades, ultima)
 
 
+def _com_estados(todas: dict) -> dict:
+    """A lista do TCU mais as obras do estado e das prefeituras de SP (obras_tcesp.py), se houver cópia de
+    referência delas."""
+    from . import obras_tcesp
+    return obras_tcesp.juntar(todas, obras_tcesp.ler_referencia())
+
+
 def _gravar(doc: dict, arq: Path) -> None:
     arq.parent.mkdir(parents=True, exist_ok=True)
     tmp = arq.with_name(arq.name + ".tmp")
@@ -655,7 +670,7 @@ def main() -> None:
         shutil.copyfile(REFERENCIA, SAIDA)
         print(f"copiado {REFERENCIA.relative_to(RAIZ)} → {SAIDA.relative_to(RAIZ)}")
         if REFERENCIA_TODAS.exists():
-            i = gravar_todas(json.loads(REFERENCIA_TODAS.read_text(encoding="utf-8")))
+            i = gravar_todas(_com_estados(json.loads(REFERENCIA_TODAS.read_text(encoding="utf-8"))))
             print(f"todas as obras: {i['total'][0]} em {len(i['uf'])} arquivos em {SAIDA_TODAS.relative_to(RAIZ)}")
         if args.sem_baixar:
             return
@@ -690,7 +705,7 @@ def main() -> None:
     _gravar(doc, REFERENCIA)
     print(f"gravado {SAIDA.relative_to(RAIZ)} ({SAIDA.stat().st_size / 1e6:.1f} MB) e a cópia de referência")
     _gravar(todas, REFERENCIA_TODAS)
-    i = gravar_todas(todas)
+    i = gravar_todas(_com_estados(todas))
     print(f"todas as obras: {i['total'][0]} ({', '.join(f'{n} {s.lower()}' for s, n in zip(i['situacoes'], i['por_situacao']))}) "
           f"em {len(i['uf'])} arquivos em {SAIDA_TODAS.relative_to(RAIZ)}; cópia de referência com "
           f"{REFERENCIA_TODAS.stat().st_size / 1e6:.1f} MB")

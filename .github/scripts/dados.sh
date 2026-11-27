@@ -122,6 +122,10 @@ fila_independente() {
   # (ver o começo de obras_paradas.py), uma vez por ano. Aqui, a cópia de referência com os valores dos convênios
   # atualizados pelo arquivo de hoje do Transferegov (~18 MB); se o Transferegov não responder, fica a cópia como está.
   pipe pode-falhar "Obras paradas (TCU e Transferegov)" obras-paradas --atualizar
+  # Obras do governo de SP e das prefeituras paulistas (/obras/todas): o Painel de Obras do TCE-SP, que responde em
+  # JSON sem cadastro (obras_tcesp.py). Baixa o painel do dia e junta as obras ao arquivo de SP; se o painel não
+  # responder, fica a cópia de referência, que o obras-paradas acima já juntou.
+  pipe pode-falhar "Obras de SP (TCE-SP)" obras-tcesp
   # Benefícios fiscais por empresa (/impostos/empresas): a Dirbi da Receita (~1,6 GB por três anos), o cadastro de CNPJ
   # (natureza jurídica, ~1,3 GB) e a dívida ativa, numa carga à mão (uv run beneficios-fiscais), a cada atualização
   # semestral da Dirbi. Os Parquet ficam no bucket; aqui só a cópia de referência do resumo.
