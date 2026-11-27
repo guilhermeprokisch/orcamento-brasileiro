@@ -4,6 +4,7 @@
  * das parecidas. Dados de pipeline/…/precos.py; regras em docs/levantamento-preco-pago.md.
  */
 import Base from "../../layouts/Base.astro";
+import AbasSecao from "../../components/AbasSecao.astro";
 import Termo from "../../components/Termo.astro";
 import { artigo, docNacional, docPrecos, precoUnit } from "../../lib/precos";
 
@@ -24,6 +25,7 @@ const descricao = "O mesmo remédio, comprado por prefeituras, governos estaduai
 
 <Base title="O preço dos remédios · Orçamento Brasileiro" description={descricao}>
   <div class="wrap pagina-precos">
+    <AbasSecao secao="contratos" ativa="precos" />
     {!docNacional || remedios.length === 0 ? (
       <section class="cabeca"><div><h1>O preço dos remédios</h1><p>Os dados ainda não foram carregados.</p></div></section>
     ) : (

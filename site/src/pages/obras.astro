@@ -2,11 +2,12 @@
 /**
  * Obras federais: todas as obras com dinheiro federal que estão em andamento na lista do TCU (em execução e
  * paradas juntas). Quanto do orçamento vai para obras, que tipo de obra, quem paga, em que estado, quantas
- * pararam e as maiores. É a página que dá a escala de /obras-paradas.
+ * pararam e as maiores. É a página que dá a escala de /obras/paradas.
  * Dados: lib/obras-paradas.ts (o bloco "andamento" de pipeline/…/obras_paradas.py) e lib/fluxo-federal.ts
  * (o investimento que saiu do caixa no ano, o mesmo de /contas).
  */
 import Base from "../layouts/Base.astro";
+import AbasSecao from "../components/AbasSecao.astro";
 import Termo from "../components/Termo.astro";
 import { moedaCurta, moedaExtenso } from "../lib/formato";
 import { caminhoEstado, deUf } from "../lib/cidades";
@@ -61,6 +62,7 @@ const descricao = d
 
 <Base title="Obras federais · Orçamento Brasileiro" description={descricao}>
   <div class="wrap pagina-obras">
+    <AbasSecao secao="obras" ativa="resumo" />
     {!d ? (
       <section class="cabeca"><div><h1>Obras federais</h1><p>Os dados ainda não foram carregados.</p></div></section>
     ) : (
@@ -219,7 +221,7 @@ const descricao = d
                 Em {pararam.at(-1)!.nome.toLowerCase()}, {em100(pararam.at(-1)!.paradas / pararam.at(-1)!.n)}.
               </p>
             )}
-            <p><a href="/obras-paradas">Veja as obras paradas, cidade por cidade →</a></p>
+            <p><a href="/obras/paradas">Veja as obras paradas, cidade por cidade →</a></p>
           </div>
           <div class="grafico">
             <ol class="linhas partes">

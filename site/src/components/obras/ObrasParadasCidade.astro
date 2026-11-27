@@ -55,7 +55,7 @@ const conv = d ? somaConvenios(d.obras) : null;
           <p class="menor">
             A lista junta obras de algumas bases do governo federal (Caixa, FNDE, Funasa, Saúde, DNIT, universidades),
             com a situação que cada órgão informou. Pode haver obra parada fora dela e obra que já voltou a andar.{" "}
-            <a href="/obras-paradas#limites">O que esta conta não diz</a>.
+            <a href="/obras/paradas#limites">O que esta conta não diz</a>.
           </p>
         </>
       ) : (
@@ -63,7 +63,7 @@ const conv = d ? somaConvenios(d.obras) : null;
           {d.ativas > 0
             ? <>Nenhuma das {nf.format(d.ativas)} obras federais começadas e ainda não terminadas {em} aparece como <Termo id="obra-paralisada">parada</Termo> na lista do <Termo id="tcu">TCU</Termo> de {mesAno(d.dataBase)}.</>
             : <>Nenhuma obra federal {em} aparece como <Termo id="obra-paralisada">parada</Termo> na lista do <Termo id="tcu">TCU</Termo> de {mesAno(d.dataBase)}.</>}
-          {" "}A lista não tem todas as obras do país. <a href="/obras-paradas">Ver as obras paradas no Brasil</a>.
+          {" "}A lista não tem todas as obras do país. <a href="/obras/paradas">Ver as obras paradas no Brasil</a>.
         </p>
       )}
     </div>

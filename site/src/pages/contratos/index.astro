@@ -7,6 +7,7 @@
  * de que cada pergunta precisa.
  */
 import Base from "../../layouts/Base.astro";
+import AbasSecao from "../../components/AbasSecao.astro";
 import { moedaCurta, moedaExtenso } from "../../lib/formato";
 import "../../styles/onde.css";
 import "../../styles/degraus.css";
@@ -40,6 +41,7 @@ const beneficios = import.meta.env.DEV ? "/data/beneficios-fiscais/empresas.parq
 <Base title="Contratos · Orçamento Brasileiro" description="Busque os contratos que prefeituras, governos estaduais e o governo federal assinaram e publicaram no Portal Nacional de Contratações Públicas.">
   <div class="wrap explorador" data-explorador data-arquivo={r?.arquivo} data-por-cnpj={r?.porCnpj} data-ano={r?.ano}
     data-beneficios={docBeneficios ? beneficios : undefined} data-beneficios-ano={docBeneficios?.ano} data-total={r?.total.valor} data-total-texto={r ? `${moedaCurta(r.total.valor)} · ${nf0.format(r.total.n)} contratos` : undefined}>
+    <AbasSecao secao="contratos" ativa="contratos" />
     <nav class="degraus" aria-label="Caminho" data-voltar hidden></nav>
     <section class="topo" data-topo>
       <span class="sobretitulo" data-sobretitulo hidden></span>

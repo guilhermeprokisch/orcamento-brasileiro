@@ -25,7 +25,8 @@ const ativo = (p: string) => {
 
 // Menu principal: as páginas agrupadas pela pergunta de quem chega. Para incluir uma página,
 // acrescente um item ao grupo dela; o menu do computador e o do celular saem desta lista. Um item com
-// "sub" é um título com as suas páginas embaixo, recuadas (as abas das emendas: components/emendas/EmendasAbas.astro).
+// "sub" é um título com as suas páginas embaixo, recuadas: são as abas no alto dessas páginas
+// (components/emendas/EmendasAbas.astro e components/AbasSecao.astro, para contratos e obras).
 interface ItemMenu { href: string; nome: string; desc: string; sub?: { href: string; nome: string; desc: string }[] }
 const GRUPOS: { nome: string; itens: ItemMenu[] }[] = [
   { nome: "Governo federal", itens: [
@@ -42,18 +43,22 @@ const GRUPOS: { nome: string; itens: ItemMenu[] }[] = [
     { href: "/comparar", nome: "Comparar", desc: "Duas cidades ou dois estados lado a lado." },
     { href: "/quem-publica", nome: "Quem publica", desc: "Quais estados mostram quanto gastam em cada cidade." },
   ] },
-  { nome: "Contratos e emendas", itens: [
-    { href: "/contratos", nome: "Contratos", desc: "O que prefeituras, governos estaduais e o governo federal contrataram, e de quem." },
-    { href: "/precos", nome: "Preço dos remédios", desc: "O mesmo remédio, comprado por cidades e estados diferentes: quem pagou quanto." },
+  { nome: "Contratos, obras e emendas", itens: [
+    { href: "/contratos", nome: "Contratos", desc: "O que prefeituras, governos estaduais e o governo federal contrataram, de quem e por quanto.", sub: [
+      { href: "/contratos", nome: "Todos os contratos", desc: "por órgão, empresa ou cidade" },
+      { href: "/precos", nome: "Preço dos remédios", desc: "o mesmo remédio, quem pagou quanto" },
+    ] },
+    { href: "/obras", nome: "Obras", desc: "O que está sendo construído com dinheiro público, onde, por quanto e se anda.", sub: [
+      { href: "/obras", nome: "Resumo", desc: "as obras federais: que tipo, quem paga, em que estado" },
+      { href: "/obras/todas", nome: "Todas, uma a uma", desc: "da União, dos estados e das prefeituras, por cidade" },
+      { href: "/obras/paradas", nome: "Paradas", desc: "as que não andam: onde, quanto custariam e desde quando" },
+    ] },
     { href: "/emendas", nome: "Emendas parlamentares", desc: "O que são, quanto são e para onde vão.", sub: [
       { href: "/emendas", nome: "O que são", desc: "a história, com os números" },
       { href: "/emendas/explorar", nome: "Explorar", desc: "todas as listas, por quem, onde e para quê" },
       { href: "/emendas/buscar", nome: "Buscar emenda por emenda", desc: "por lugar, parlamentar ou assunto" },
       { href: "/emendas/mapa", nome: "No mapa", desc: "para onde vai e quem manda" },
     ] },
-    { href: "/obras", nome: "Obras federais", desc: "As obras que o governo federal está pagando: que tipo, quem paga, em que estado e quanto do orçamento." },
-    { href: "/obras/todas", nome: "Todas as obras", desc: "As obras com dinheiro federal, uma a uma: procure pelo nome, pela cidade, pelo tipo e por como estão." },
-    { href: "/obras-paradas", nome: "Obras paradas", desc: "As obras com dinheiro federal que não andam: onde estão, quanto custariam e há quanto tempo." },
   ] },
   { nome: "Políticos e servidores", itens: [
     { href: "/politicos", nome: "Políticos eleitos", desc: "Governadores, senadores e deputados: quanto custa cada um, em que gasta a verba e para onde manda emendas." },
@@ -379,12 +384,16 @@ const grupoAtual = (g: (typeof GRUPOS)[number]) => g.itens.some((i) => (i.sub ? 
 
   /* Entre o celular e a tela larga o menu completo não cabe ao lado da marca: fica o menu
      recolhido, como no celular (as classes so-largo e so-celular trocam em 640px). A marca, os
-     seis grupos e a busca pedem ~1.330px; com folga, uma tela de 1.400px ("Políticos e servidores"
-     num grupo só ocupa uns 30px a menos que os dois grupos separados). Páginas novas entram dentro
-     dos grupos e não mudam essa conta; um grupo novo, ou um nome de grupo mais longo, muda. */
-  @media (min-width: 641px) and (max-width: 1400px) {
+     seis grupos e a busca pedem ~1.430px (medido em 27/11/2026, com "Contratos, obras e emendas"),
+     mais do que a coluna da página (1.152px). Por isso o menu largo só aparece a partir de 1.600px
+     de tela, e aí o cabeçalho sai da coluna, 150px para cada lado (1.452px). Páginas novas entram
+     dentro dos grupos e não mudam essa conta; um grupo novo, ou um nome de grupo mais longo, muda. */
+  @media (min-width: 641px) and (max-width: 1599px) {
     .topo .nav.so-largo { display: none !important; }
     .topo .nav-celular.so-celular { display: flex !important; }
+  }
+  @media (min-width: 1600px) {
+    .topo { margin-inline: -150px; }
   }
   @media (max-width: 640px) {
     .topo { height: 60px; }
